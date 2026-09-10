@@ -1,0 +1,75 @@
+{
+  "prototype": "Recovery Probe 0.1",
+  "generatedAt": "2026-09-10T02:21:50.303Z",
+  "runtime": {
+    "node": "v24.19.0",
+    "platform": "linux"
+  },
+  "scope": "Fetch fault engine and shared application controller over local HTTP; no browser engine in this run.",
+  "apps": [
+    {
+      "name": "Broken controller",
+      "results": [
+        {
+          "scenario": "Normal connection",
+          "outcome": "pass",
+          "injected": 0
+        },
+        {
+          "scenario": "HTTP 503 once",
+          "outcome": "fail",
+          "afterFault": "error",
+          "afterRetry": "error",
+          "injected": 1
+        },
+        {
+          "scenario": "Interrupted request once",
+          "outcome": "fail",
+          "afterFault": "error",
+          "afterRetry": "error",
+          "injected": 1
+        },
+        {
+          "scenario": "Malformed JSON once",
+          "outcome": "fail",
+          "afterFault": "error",
+          "afterRetry": "error",
+          "injected": 1
+        }
+      ]
+    },
+    {
+      "name": "Corrected controller",
+      "results": [
+        {
+          "scenario": "Normal connection",
+          "outcome": "pass",
+          "injected": 0
+        },
+        {
+          "scenario": "HTTP 503 once",
+          "outcome": "pass",
+          "afterFault": "error",
+          "afterRetry": "ready",
+          "injected": 1
+        },
+        {
+          "scenario": "Interrupted request once",
+          "outcome": "pass",
+          "afterFault": "error",
+          "afterRetry": "ready",
+          "injected": 1
+        },
+        {
+          "scenario": "Malformed JSON once",
+          "outcome": "pass",
+          "afterFault": "error",
+          "afterRetry": "ready",
+          "injected": 1
+        }
+      ]
+    }
+  ],
+  "expectedDemonstrationVerified": true,
+  "browserIntegration": "Not executed: standalone browser download timed out; the managed browser lacks request interception."
+}

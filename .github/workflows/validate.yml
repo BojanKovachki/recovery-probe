@@ -1,0 +1,33 @@
+name: Validate Recovery Probe prototype
+on:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: recovery-probe-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Verify core behavior
+        run: npm test
+      - name: Run controlled core demonstration
+        run: npm run demo
+      - name: Install browser test dependency
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Install browser
+        run: npx playwright install --with-deps chromium --only-shell
+      - name: Verify browser adapter
+        run: npm run test:browser
+      - name: Run controlled browser demonstration
+        run: npm run demo:browser

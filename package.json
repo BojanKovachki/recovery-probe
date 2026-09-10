@@ -1,0 +1,20 @@
+{
+  "name": "recovery-probe-prototype",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Deterministic Playwright checks for recovery after a failed request. Working prototype.",
+  "license": "MIT",
+  "exports": { ".": { "types": "./src/index.d.ts", "import": "./src/index.mjs" } },
+  "bin": { "recovery-probe": "./bin/recovery-probe.mjs" },
+  "files": ["src", "bin", "examples", "README.md", "LICENSE"],
+  "engines": { "node": ">=22" },
+  "peerDependencies": { "playwright": "^1.62.1" },
+  "devDependencies": { "playwright": "1.62.1" },
+  "scripts": {
+    "test": "node --test test/fetch-core.test.mjs",
+    "test:browser": "node --test test/recovery.integration.test.mjs",
+    "demo": "node bin/core-demo.mjs",
+    "demo:browser": "node bin/recovery-probe.mjs --demo --out artifacts/browser-demo.json"
+  }
+}

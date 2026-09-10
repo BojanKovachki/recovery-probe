@@ -1,0 +1,5 @@
+node_modules/
+*.tgz
+playwright-report/
+test-results/
+BUSINESS.md

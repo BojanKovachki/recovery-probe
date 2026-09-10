@@ -1,0 +1,12 @@
+{
+  "command": "node --test test/fetch-core.test.mjs",
+  "runtime": "Node v24.19.0 on Linux",
+  "tests": 9,
+  "passed": 9,
+  "failed": 0,
+  "cancelled": 0,
+  "skipped": 0,
+  "scope": "Fetch engine, local HTTP and shared synthetic controller only",
+  "browserTestsExecuted": false,
+  "browserBlocker": "Chromium download repeatedly timed out; managed browser does not expose routing."
+}
