@@ -65,7 +65,7 @@
   ],
   "browserIntegration": "Not executed: standalone browser download timed out; the managed browser lacks request interception.",
   "expectedDemonstrationVerified": true,
-  "generatedAt": "2026-09-10T03:07:20.315Z",
+  "generatedAt": "2026-09-10T03:23:08.902Z",
   "prototype": "Recovery Probe 0.1",
   "runtime": {
     "node": "v24.20.0",

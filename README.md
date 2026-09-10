@@ -2,7 +2,7 @@
 
 **Working prototype, version 0.1.** Check whether a web app recovers after a request fails. This repository contains development source; the npm package has not been published. The working name has not been checked for package availability.
 
-**Verified in GitHub Actions:** nine core tests and seven real-browser integration tests passed on Linux/Node 24.20.0 with Chromium 151.0.7922.34. Both the core demonstration and browser demonstration confirmed that the broken example fails recovery while the corrected example passes. [Successful validation run](https://github.com/BojanKovachki/recovery-probe/actions/runs/34432092037)
+**Verified in GitHub Actions:** all 17 tests passed: nine core tests, seven real-browser integration tests, and an isolated package-installation test. The package check installs offline into a separate project, executes the fetch helper without Playwright, checks its TypeScript import and checks CLI help. The verified environment is Linux/Node 24.20.0, Chromium 151.0.7922.34 and TypeScript 7.0.2. Both demonstrations confirmed that the broken example fails recovery while the corrected example passes. [Successful validation run](https://github.com/BojanKovachki/recovery-probe/actions/runs/34433110065)
 
 This verifies the supplied scenarios and synthetic examples, not overall application reliability or customer demand. The tested source revision and results are recorded in `artifacts/test-summary.json`.
 
@@ -99,6 +99,7 @@ The adapter's seven integration tests passed in a real Chromium browser in GitHu
 npm install
 npx playwright install chromium --only-shell
 npm run test:browser
+npm run test:package
 npm run demo:browser
 ```
 

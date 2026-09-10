@@ -1,15 +1,16 @@
 {
-  "prototype": "Recovery Probe 0.1",
-  "verifiedAt": "2026-09-10T03:08:11Z",
-  "sourceCommit": "426f319bac4ba00f58daba459bed5a94104b937a",
-  "workflowRun": "https://github.com/BojanKovachki/recovery-probe/actions/runs/34432092037",
-  "workflowRunId": 34432092037,
-  "workflowJobId": 102729534810,
+  "prototype": "Recovery Probe 0.1.1",
+  "verifiedAt": "2026-09-10T03:23:49Z",
+  "sourceCommit": "5b18722d48d934529f6ae37cc59019d446b604e2",
+  "workflowRun": "https://github.com/BojanKovachki/recovery-probe/actions/runs/34433110065",
+  "workflowRunId": 34433110065,
+  "workflowJobId": 102732574808,
   "conclusion": "success",
   "environment": {
     "chromium": "151.0.7922.34",
     "node": "v24.20.0",
-    "platform": "linux"
+    "platform": "linux",
+    "typescript": "7.0.2"
   },
   "suites": [
     {
@@ -19,17 +20,24 @@
       "failed": 0
     },
     {
+      "command": "npm run test:package",
+      "tests": 1,
+      "passed": 1,
+      "failed": 0
+    },
+    {
       "command": "npm run test:browser",
       "tests": 7,
       "passed": 7,
       "failed": 0
     }
   ],
-  "tests": 16,
-  "passed": 16,
+  "tests": 17,
+  "passed": 17,
   "failed": 0,
   "browserTestsExecuted": true,
   "coreDemonstrationVerified": true,
   "browserDemonstrationVerified": true,
-  "scope": "Core behavior and real Chromium browser behavior against supplied synthetic local HTTP fixtures. No independent customer application was validated."
+  "packageInstallationVerified": true,
+  "scope": "Synthetic local HTTP/browser fixtures and an isolated offline consumer installation, including TypeScript checks for the fetch entry point. No independent customer application or paying demand has been validated."
 }
