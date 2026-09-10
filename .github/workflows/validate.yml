@@ -25,6 +25,8 @@ jobs:
         run: npm run demo
       - name: Install browser test dependency
         run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Verify isolated package installation and TypeScript imports
+        run: npm run test:package
       - name: Install browser
         run: npx playwright install --with-deps chromium --only-shell
       - name: Verify browser adapter

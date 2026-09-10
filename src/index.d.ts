@@ -1,6 +1,8 @@
 import type { Browser, Page } from 'playwright';
+import type { FaultKind } from './fetch-fault.mjs';
+export { createFaultFetch } from './fetch-fault.mjs';
+export type { FaultKind, FetchFaultOptions, FetchFaultStats } from './fetch-fault.mjs';
 
-export type FaultKind = 'http-error' | 'connection-failure' | 'invalid-json';
 export interface FaultOptions {
   match: string | RegExp;
   kind: FaultKind;
@@ -22,17 +24,3 @@ export interface RecoveryConfig {
 }
 export interface ProbeRow { scenario: string; outcome: 'pass' | 'fail' | 'inconclusive' | 'skipped'; code: string; applied: number }
 export function probeRecovery(browser: Browser, config: RecoveryConfig): Promise<{name: string; ok: boolean; results: ProbeRow[]}>;
-
-export interface FetchFaultOptions {
-  url: string;
-  kind: FaultKind;
-  status?: number;
-  count?: number;
-  method?: string;
-}
-export interface FetchFaultStats { kind: FaultKind; requested: number; applied: number; matchingRequests: number }
-export function createFaultFetch(baseFetch: typeof fetch, options: FetchFaultOptions): {
-  fetch: typeof fetch;
-  summary(): FetchFaultStats;
-  assertApplied(): FetchFaultStats;
-};

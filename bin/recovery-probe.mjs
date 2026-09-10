@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { chromium } from 'playwright';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { probeRecovery } from '../src/index.mjs';
@@ -26,6 +25,7 @@ async function main() {
   if (demo === Boolean(configPath)) throw new Error('Choose exactly one of --demo or --config');
 
   const config = configPath ? JSON.parse(await readFile(configPath, 'utf8')) : null;
+  const { chromium } = await import('playwright');
   const browser = await chromium.launch({ headless: true });
   let server;
   let report;

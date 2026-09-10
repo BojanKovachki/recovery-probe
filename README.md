@@ -21,6 +21,44 @@ This prototype includes a deliberately broken example app and a corrected versio
 - Explicit failure when the fault never triggers, and an inconclusive result when the normal baseline fails.
 - Local and browser demonstrations, integration tests and machine-readable reports.
 
+## Install in an existing project
+
+The beta is distributed from GitHub, not the npm registry. While this repository is private, installation requires GitHub access; public beta access begins when the repository is made public.
+
+```bash
+npm install --save-dev github:BojanKovachki/recovery-probe
+```
+
+For fetch-level tests, import the lightweight entry point. It has no runtime package dependencies and does not require Playwright:
+
+```js
+import { createFaultFetch } from 'recovery-probe-prototype/fetch';
+
+const probe = createFaultFetch(fetch, {
+  url: 'http://127.0.0.1:3000/api/profile',
+  kind: 'http-error',
+});
+
+// Use probe.fetch in your application's existing request/test adapter.
+// Exercise the failure and the recovery, and assert the expected application state.
+probe.assertApplied();
+```
+
+The application-specific exercise is required: `assertApplied()` by itself deliberately fails when no matching request was made. This helper does not patch global fetch or discover the application's recovery policy.
+
+For browser tests, install the verified Playwright version and its browser:
+
+```bash
+npm install --save-dev playwright@1.62.1
+npx playwright install chromium --only-shell
+```
+
+Use `import { withFault } from 'recovery-probe-prototype'` in an existing Playwright test, following the example below. The default import's TypeScript declarations require Playwright; the `/fetch` entry point's declarations do not. Pin the GitHub dependency to a commit when adopting it in CI.
+
+## Share usage feedback
+
+If you try this in a project, [tell us what you tested and whether you kept the check](https://github.com/BojanKovachki/recovery-probe/issues/new?template=usage-feedback.md). A public project link is optional. Repeat use, installation problems and unnecessary setup are more useful feedback than a star alone. The library sends no telemetry.
+
 ## Run the verified core demonstration
 
 Use Node.js 22 or newer; Node 24.19.0 was exercised locally and Node 24.20.0 was exercised in GitHub Actions. Node 22 compatibility has not been validated. This is source delivered as a prototype; there is no published package to install by name. The core tests/demo require no package installation or browser download.
