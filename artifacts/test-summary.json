@@ -1,12 +1,35 @@
 {
-  "command": "node --test test/fetch-core.test.mjs",
-  "runtime": "Node v24.19.0 on Linux",
-  "tests": 9,
-  "passed": 9,
+  "prototype": "Recovery Probe 0.1",
+  "verifiedAt": "2026-09-10T03:08:11Z",
+  "sourceCommit": "426f319bac4ba00f58daba459bed5a94104b937a",
+  "workflowRun": "https://github.com/BojanKovachki/recovery-probe/actions/runs/34432092037",
+  "workflowRunId": 34432092037,
+  "workflowJobId": 102729534810,
+  "conclusion": "success",
+  "environment": {
+    "chromium": "151.0.7922.34",
+    "node": "v24.20.0",
+    "platform": "linux"
+  },
+  "suites": [
+    {
+      "command": "npm test",
+      "tests": 9,
+      "passed": 9,
+      "failed": 0
+    },
+    {
+      "command": "npm run test:browser",
+      "tests": 7,
+      "passed": 7,
+      "failed": 0
+    }
+  ],
+  "tests": 16,
+  "passed": 16,
   "failed": 0,
-  "cancelled": 0,
-  "skipped": 0,
-  "scope": "Fetch engine, local HTTP and shared synthetic controller only",
-  "browserTestsExecuted": false,
-  "browserBlocker": "Chromium download repeatedly timed out; managed browser does not expose routing."
+  "browserTestsExecuted": true,
+  "coreDemonstrationVerified": true,
+  "browserDemonstrationVerified": true,
+  "scope": "Core behavior and real Chromium browser behavior against supplied synthetic local HTTP fixtures. No independent customer application was validated."
 }

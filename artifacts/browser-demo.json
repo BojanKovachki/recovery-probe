@@ -1,0 +1,73 @@
+{
+  "apps": [
+    {
+      "name": "broken synthetic fixture",
+      "ok": false,
+      "results": [
+        {
+          "applied": 0,
+          "code": "OK",
+          "outcome": "pass",
+          "scenario": "Normal connection"
+        },
+        {
+          "applied": 1,
+          "code": "RECOVERY_ASSERTION_FAILED",
+          "outcome": "fail",
+          "scenario": "HTTP 503 once"
+        },
+        {
+          "applied": 1,
+          "code": "RECOVERY_ASSERTION_FAILED",
+          "outcome": "fail",
+          "scenario": "Interrupted request once"
+        },
+        {
+          "applied": 1,
+          "code": "RECOVERY_ASSERTION_FAILED",
+          "outcome": "fail",
+          "scenario": "Malformed JSON once"
+        }
+      ]
+    },
+    {
+      "name": "fixed synthetic fixture",
+      "ok": true,
+      "results": [
+        {
+          "applied": 0,
+          "code": "OK",
+          "outcome": "pass",
+          "scenario": "Normal connection"
+        },
+        {
+          "applied": 1,
+          "code": "OK",
+          "outcome": "pass",
+          "scenario": "HTTP 503 once"
+        },
+        {
+          "applied": 1,
+          "code": "OK",
+          "outcome": "pass",
+          "scenario": "Interrupted request once"
+        },
+        {
+          "applied": 1,
+          "code": "OK",
+          "outcome": "pass",
+          "scenario": "Malformed JSON once"
+        }
+      ]
+    }
+  ],
+  "environment": {
+    "chromium": "151.0.7922.34",
+    "node": "v24.20.0",
+    "platform": "linux"
+  },
+  "expectedDemonstrationVerified": true,
+  "generatedAt": "2026-09-10T03:08:08.983Z",
+  "mode": "controlled demonstration",
+  "prototype": "Recovery Probe 0.1"
+}

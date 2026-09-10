@@ -2,7 +2,9 @@
 
 **Working prototype, version 0.1.** Check whether a web app recovers after a request fails. This repository contains development source; the npm package has not been published. The working name has not been checked for package availability.
 
-**Verified here:** the fetch-fault engine and shared application controller, with nine passing tests against a local HTTP server on Linux/Node 24.19.0. **Not verified here:** the Playwright browser adapter or rendered browser behavior. Chromium download attempts timed out, and the managed browser API does not expose request interception. The saved core result must not be presented as browser validation.
+**Verified in GitHub Actions:** nine core tests and seven real-browser integration tests passed on Linux/Node 24.20.0 with Chromium 151.0.7922.34. Both the core demonstration and browser demonstration confirmed that the broken example fails recovery while the corrected example passes. [Successful validation run](https://github.com/BojanKovachki/recovery-probe/actions/runs/34432092037)
+
+This verifies the supplied scenarios and synthetic examples, not overall application reliability or customer demand. The tested source revision and results are recorded in `artifacts/test-summary.json`.
 
 A normal test can pass while a Retry button is broken. Recovery Probe runs a normal baseline, injects one controlled failure, and checks the recovery path. It verifies that the intended fault actually happened, so a mistyped endpoint cannot silently produce a successful result.
 
@@ -17,11 +19,11 @@ This prototype includes a deliberately broken example app and a corrected versio
 - A bounded fault count, including concurrent requests.
 - Cleanup that removes its own route handler while retaining existing user mocks.
 - Explicit failure when the fault never triggers, and an inconclusive result when the normal baseline fails.
-- Local demonstration, integration tests and a machine-readable report.
+- Local and browser demonstrations, integration tests and machine-readable reports.
 
 ## Run the verified core demonstration
 
-Use Node.js 22 or newer; only Node 24.19.0 has been exercised here. This is source delivered as a prototype; there is no published package to install by name. The core tests/demo require no package installation or browser download.
+Use Node.js 22 or newer; Node 24.19.0 was exercised locally and Node 24.20.0 was exercised in GitHub Actions. Node 22 compatibility has not been validated. This is source delivered as a prototype; there is no published package to install by name. The core tests/demo require no package installation or browser download.
 
 ```bash
 npm test
@@ -51,9 +53,9 @@ probe.assertApplied();
 
 `exerciseYourApplication` is the caller's test callback, not an included function. This version matches one exact absolute URL, including its query string, and GET by default. It never replaces global fetch. Later matching requests use the supplied underlying fetch function. Call `assertApplied()` so an unexercised fault fails the test. The browser adapter uses Playwright globs instead of this exact URL match.
 
-## Browser adapter — validation pending
+## Run browser validation
 
-The adapter and its seven integration tests are included for browser validation. They have not yet passed a real-browser run. The GitHub workflow runs on pushes and can also be started manually. See the repository's Actions tab for the actual execution status; the checked-in core result does not establish a successful browser run.
+The adapter's seven integration tests passed in a real Chromium browser in GitHub Actions. The workflow runs on pushes and can also be started manually. It checks bounded faults, incorrect endpoints, failed baselines, concurrent requests, recovery assertions and preservation of existing mocks after cleanup. These checks cover the supplied fixtures; they do not automatically discover recovery flows in other applications.
 
 ```bash
 npm install
@@ -62,7 +64,7 @@ npm run test:browser
 npm run demo:browser
 ```
 
-On Linux, Playwright may also require its documented system dependencies. Browser installation downloads a browser. `demo:browser` is intended to write `artifacts/browser-demo.json`; no such successful browser result is included in this archive.
+On Linux, Playwright may also require its documented system dependencies. Browser installation downloads a browser. `demo:browser` writes `artifacts/browser-demo.json`; the checked-in report was recovered from the successful GitHub Actions log. The deliberately broken fixture is expected to fail its three recovery checks; demo exit code 0 means that the expected broken/corrected contrast was verified.
 
 ## Check a page under your control
 
@@ -143,7 +145,7 @@ Commercial demand, differentiation, cross-platform support, Firefox/WebKit suppo
 - `src/`: core helper, opinionated runner and TypeScript declarations.
 - `bin/`: prototype command-line entry point.
 - `examples/`: synthetic local apps.
-- `test/`: verified core tests and pending real-browser integration tests.
-- `artifacts/`: saved results from this development run.
+- `test/`: core and real-browser integration tests.
+- `artifacts/`: saved demonstration results and their GitHub Actions provenance.
 
 License: MIT. The npm package is deliberately marked private while it is an unpublished prototype.
