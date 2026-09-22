@@ -1,28 +1,84 @@
 {
-  "name": "recovery-probe-prototype",
-  "version": "0.1.1",
-  "private": true,
+  "name": "recovery-probe",
+  "version": "0.2.0",
   "type": "module",
-  "description": "Deterministic Playwright checks for recovery after a failed request. Working prototype.",
+  "description": "Deterministic fault injection for testing recovery after failed requests.",
   "license": "MIT",
+  "author": "Bojan Kovachki",
+  "homepage": "https://github.com/BojanKovachki/recovery-probe#readme",
+  "main": "./src/index.mjs",
+  "types": "./src/index.d.ts",
   "exports": {
-    ".": { "types": "./src/index.d.ts", "import": "./src/index.mjs" },
-    "./fetch": { "types": "./src/fetch-fault.d.mts", "import": "./src/fetch-fault.mjs" }
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.mjs",
+      "default": "./src/index.mjs"
+    },
+    "./fetch": {
+      "types": "./src/fetch-fault.d.mts",
+      "import": "./src/fetch-fault.mjs",
+      "default": "./src/fetch-fault.mjs"
+    }
   },
-  "bin": { "recovery-probe": "./bin/recovery-probe.mjs" },
-  "files": ["src", "bin", "examples", "README.md", "LICENSE"],
-  "engines": { "node": ">=22" },
-  "peerDependencies": { "playwright": "^1.62.1" },
-  "peerDependenciesMeta": { "playwright": { "optional": true } },
-  "devDependencies": { "playwright": "1.62.1", "typescript": "7.0.2" },
-  "repository": { "type": "git", "url": "git+https://github.com/BojanKovachki/recovery-probe.git" },
-  "bugs": { "url": "https://github.com/BojanKovachki/recovery-probe/issues" },
-  "keywords": ["playwright", "testing", "fault-injection", "retry", "fetch"],
+  "bin": {
+    "recovery-probe": "bin/recovery-probe.mjs"
+  },
+  "files": [
+    "src",
+    "bin",
+    "examples",
+    "docs/demo.svg",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22"
+  },
+  "peerDependencies": {
+    "playwright": "^1.62.1"
+  },
+  "peerDependenciesMeta": {
+    "playwright": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "24.13.6",
+    "playwright": "1.62.1",
+    "typescript": "7.0.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BojanKovachki/recovery-probe.git"
+  },
+  "bugs": {
+    "url": "https://github.com/BojanKovachki/recovery-probe/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "playwright",
+    "testing",
+    "resilience",
+    "recovery",
+    "fault-injection",
+    "e2e",
+    "retry",
+    "fetch"
+  ],
   "scripts": {
-    "test": "node --test test/fetch-core.test.mjs",
+    "test": "npm run test:core",
+    "test:core": "node --test test/fetch-core.test.mjs",
     "test:browser": "node --test test/recovery.integration.test.mjs",
     "test:package": "node --test test/package.integration.test.mjs",
+    "test:all": "npm run test:core && npm run test:package && npm run test:browser",
     "demo": "node bin/core-demo.mjs",
-    "demo:browser": "node bin/recovery-probe.mjs --demo --out artifacts/browser-demo.json"
+    "demo:browser": "node bin/recovery-probe.mjs --demo --out artifacts/browser-demo.json",
+    "prepublishOnly": "npm run test:core && npm run test:package"
   }
 }
