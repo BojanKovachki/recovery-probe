@@ -1,6 +1,9 @@
+import { readFile } from 'node:fs/promises';
 import { createFaultFetch, defaultFaults } from '../src/index.mjs';
 import { startDemoServer } from './demo-server.mjs';
 import { createProfileController } from './profile-controller.mjs';
+
+const { version } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
 
 export async function runCoreDemo() {
   const server = await startDemoServer();
@@ -28,10 +31,9 @@ export async function runCoreDemo() {
     && apps[0].results.slice(1).every(row => row.outcome === 'fail' && row.afterFault === 'error')
     && apps[1].results.every(row => row.outcome === 'pass');
   return {
-    prototype: 'Recovery Probe 0.1', generatedAt: new Date().toISOString(),
+    tool: 'Recovery Probe', version, generatedAt: new Date().toISOString(),
     runtime: { node: process.version, platform: process.platform },
     scope: 'Fetch fault engine and shared application controller over local HTTP; no browser engine in this run.',
     apps, expectedDemonstrationVerified,
-    browserIntegration: 'Not executed: standalone browser download timed out; the managed browser lacks request interception.',
   };
 }

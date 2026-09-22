@@ -1,0 +1,45 @@
+name: Bug report
+description: Report reproducible incorrect behavior in Recovery Probe
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Do not include credentials, production request data, or private URLs.
+        Please use private vulnerability reporting for security issues.
+  - type: input
+    id: version
+    attributes:
+      label: Recovery Probe version
+      placeholder: 0.2.0
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Node.js, Playwright, browser, and operating system versions
+      placeholder: Node 24, Playwright 1.62.1, Chromium, Ubuntu
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Include the smallest safe example that demonstrates the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true

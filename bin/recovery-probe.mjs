@@ -4,18 +4,69 @@ import { dirname } from 'node:path';
 import { probeRecovery } from '../src/index.mjs';
 import { startDemoServer } from '../examples/demo-server.mjs';
 
+const { version } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+
+function printHelp() {
+  console.log(`Recovery Probe ${version}
+
+Usage:
+  recovery-probe --demo [--out report.json] [--json]
+  recovery-probe --config scenario.json [--out report.json] [--json]
+  recovery-probe --version
+
+Options:
+  --demo           Run the included broken-versus-fixed browser demonstration.
+  --config <file>  Check one JSON-configured recovery scenario.
+  --out <file>     Save the full machine-readable report.
+  --json           Print the full JSON report instead of a terminal summary.
+  --help           Show this help.
+
+Use only development or test targets you control.`);
+}
+
+function marker(outcome) {
+  if (outcome === 'pass') return 'PASS';
+  if (outcome === 'fail') return 'CAUGHT';
+  return outcome.toUpperCase();
+}
+
+function printSummary(report) {
+  console.log(`Recovery Probe ${report.version} — ${report.mode}\n`);
+  for (const app of report.apps) {
+    console.log(app.name);
+    for (const row of app.results) {
+      const injected = row.applied ? `, injected ${row.applied}` : '';
+      console.log(`  ${marker(row.outcome).padEnd(12)} ${row.scenario} (${row.code}${injected})`);
+    }
+    console.log('');
+  }
+  if (report.mode === 'controlled demonstration') {
+    console.log(report.expectedDemonstrationVerified
+      ? 'Demo verified: the happy path passes, the broken recovery is caught, and the fixed app recovers.'
+      : 'Demo failed: the expected broken-versus-fixed distinction was not observed.');
+  } else {
+    console.log(report.apps.every(app => app.ok) ? 'Recovery check passed.' : 'Recovery check did not pass.');
+  }
+}
+
 async function main() {
   const args = process.argv.slice(2);
   if (args.includes('--help') || !args.length) {
-    console.log('Recovery Probe 0.1 prototype\n  --demo [--out file.json]\n  --config scenario.json [--out file.json]\nUse a development/test target you control. The JSON runner handles auto-loading GET pages with a Retry button.');
+    printHelp();
+    return;
+  }
+  if (args.length === 1 && args[0] === '--version') {
+    console.log(version);
     return;
   }
   let demo = false;
+  let json = false;
   let configPath;
   let output;
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === '--demo') demo = true;
+    else if (arg === '--json') json = true;
     else if (arg === '--config' || arg === '--out') {
       const value = args[++i];
       if (!value || value.startsWith('--')) throw new Error(`${arg} needs a value`);
@@ -41,7 +92,7 @@ async function main() {
       }
     } else apps.push(await probeRecovery(browser, config));
     report = {
-      prototype: 'Recovery Probe 0.1', generatedAt: new Date().toISOString(),
+      tool: 'Recovery Probe', version, generatedAt: new Date().toISOString(),
       environment: { node: process.version, platform: process.platform, chromium: browser.version() },
       mode: demo ? 'controlled demonstration' : 'configured recovery check', apps,
     };
@@ -55,7 +106,8 @@ async function main() {
     await browser.close();
     if (server) await server.close();
   }
-  console.log(JSON.stringify(report, null, 2));
+  if (json) console.log(JSON.stringify(report, null, 2));
+  else printSummary(report);
   if (output) {
     await mkdir(dirname(output), { recursive: true });
     await writeFile(output, JSON.stringify(report, null, 2) + '\n');

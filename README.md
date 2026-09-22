@@ -1,115 +1,123 @@
 # Recovery Probe
 
-**Working prototype, version 0.1.** Check whether a web app recovers after a request fails. This repository contains development source; the npm package has not been published. The working name has not been checked for package availability.
+[![CI](https://github.com/BojanKovachki/recovery-probe/actions/workflows/validate.yml/badge.svg)](https://github.com/BojanKovachki/recovery-probe/actions/workflows/validate.yml)
+[![npm](https://img.shields.io/npm/v/recovery-probe.svg)](https://www.npmjs.com/package/recovery-probe)
+[![Node.js](https://img.shields.io/badge/Node.js-22%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**Verified in GitHub Actions:** all 17 tests passed: nine core tests, seven real-browser integration tests, and an isolated package-installation test. The package check installs offline into a separate project, executes the fetch helper without Playwright, checks its TypeScript import and checks CLI help. The verified environment is Linux/Node 24.20.0, Chromium 151.0.7922.34 and TypeScript 7.0.2. Both demonstrations confirmed that the broken example fails recovery while the corrected example passes. [Successful validation run](https://github.com/BojanKovachki/recovery-probe/actions/runs/34433110065)
+**Deterministic fault injection for testing whether web applications actually recover after failed requests.**
 
-This verifies the supplied scenarios and synthetic examples, not overall application reliability or customer demand. The tested source revision and results are recorded in `artifacts/test-summary.json`.
+A happy-path test can pass while a Retry button is completely broken. Recovery Probe adds a small, explicit workflow around Playwright routing and `fetch`: inject one controlled failure, exercise the application's recovery path, and prove that the intended fault really occurred.
 
-A normal test can pass while a Retry button is broken. Recovery Probe runs a normal baseline, injects one controlled failure, and checks the recovery path. It verifies that the intended fault actually happened, so a mistyped endpoint cannot silently produce a successful result.
+![Recovery Probe catches a broken retry flow and verifies the corrected flow](docs/demo.svg)
 
-This prototype includes a deliberately broken example app and a corrected version. Both load normally. In the broken version, a failed request leaves a loading flag set and prevents Retry from doing anything. The corrected version clears that flag.
+## What it catches
 
-## Included
+Consider an application that loads normally, but forgets to clear its loading state after an error. Its ordinary end-to-end test stays green. After a transient `503`, interrupted request, or malformed response, Retry does nothing.
 
-- Three deterministic fault recipes: an HTTP error, an interrupted request, and malformed JSON.
-- A browser-independent `createFaultFetch` engine, verified with real Node fetch/Response objects and local HTTP.
-- A composable `withFault` helper for existing Playwright tests.
-- A small JSON-configured runner for automatically loaded GET data with a visible Retry button.
-- A bounded fault count, including concurrent requests.
-- Cleanup that removes its own route handler while retaining existing user mocks.
-- Explicit failure when the fault never triggers, and an inconclusive result when the normal baseline fails.
-- Local and browser demonstrations, integration tests and machine-readable reports.
+Recovery Probe makes that failure deterministic:
 
-## Install in an existing project
+1. Match one endpoint and request method.
+2. Inject a bounded fault without replacing global `fetch`.
+3. Run the real recovery interaction and assertion.
+4. Fail if the fault was never observed, so a wrong route cannot create a false positive.
+5. Remove only its own route handler and preserve existing mocks.
 
-The beta is distributed from GitHub, not the npm registry. While this repository is private, installation requires GitHub access; public beta access begins when the repository is made public.
+## Install
+
+Recovery Probe is designed to be added to an existing Playwright project:
 
 ```bash
-npm install --save-dev github:BojanKovachki/recovery-probe
+npm install --save-dev recovery-probe
 ```
 
-For fetch-level tests, import the lightweight entry point. It has no runtime package dependencies and does not require Playwright:
+Node.js 22 or newer is required. Playwright is an optional peer dependency: the fetch-only API works without it, while the browser helper and CLI require Playwright 1.62.1 or newer.
+
+## Quick start
+
+Use `withFault` inside an existing Playwright test. The callback contains the real user action and the application-specific recovery assertion.
 
 ```js
-import { createFaultFetch } from 'recovery-probe-prototype/fetch';
+import { test, expect } from '@playwright/test';
+import { withFault } from 'recovery-probe';
 
-const probe = createFaultFetch(fetch, {
-  url: 'http://127.0.0.1:3000/api/profile',
-  kind: 'http-error',
+test('profile recovers after a transient 503', async ({ page }) => {
+  const stats = await withFault(page, {
+    match: '**/api/profile',
+    kind: 'http-error',
+    status: 503,
+    count: 1,
+  }, async () => {
+    await page.goto('http://127.0.0.1:3000/profile');
+    await page.getByRole('button', { name: 'Retry' }).click();
+    await expect(page.getByTestId('profile-name')).toHaveText('Test User');
+  });
+
+  expect(stats.applied).toBe(1);
 });
-
-// Use probe.fetch in your application's existing request/test adapter.
-// Exercise the failure and the recovery, and assert the expected application state.
-probe.assertApplied();
 ```
 
-The application-specific exercise is required: `assertApplied()` by itself deliberately fails when no matching request was made. This helper does not patch global fetch or discover the application's recovery policy.
+If the endpoint does not match, Recovery Probe throws `FAULT_NOT_TRIGGERED` instead of allowing the test to pass silently. If the fault is applied but the recovery assertion fails, it throws `RECOVERY_ASSERTION_FAILED` and retains the original assertion error as `cause`.
 
-For browser tests, install the verified Playwright version and its browser:
+## Run the demonstration
 
-```bash
-npm install --save-dev playwright@1.62.1
-npx playwright install chromium --only-shell
-```
-
-Use `import { withFault } from 'recovery-probe-prototype'` in an existing Playwright test, following the example below. The default import's TypeScript declarations require Playwright; the `/fetch` entry point's declarations do not. Pin the GitHub dependency to a commit when adopting it in CI.
-
-## Share usage feedback
-
-If you try this in a project, [tell us what you tested and whether you kept the check](https://github.com/BojanKovachki/recovery-probe/issues/new?template=usage-feedback.md). A public project link is optional. Repeat use, installation problems and unnecessary setup are more useful feedback than a star alone. The library sends no telemetry.
-
-## Run the verified core demonstration
-
-Use Node.js 22 or newer; Node 24.19.0 was exercised locally and Node 24.20.0 was exercised in GitHub Actions. Node 22 compatibility has not been validated. This is source delivered as a prototype; there is no published package to install by name. The core tests/demo require no package installation or browser download.
-
-```bash
-npm test
-npm run demo
-```
-
-The core demo binds an ephemeral port on `127.0.0.1`, uses synthetic data and shuts down afterward. It runs the same controller used by the browser fixture, without executing a DOM or browser engine.
-
-`npm run demo` writes `artifacts/core-demo.json`. The intentionally broken controller is expected to fail the three recovery scenarios. Demo exit code 0 means that this expected distinction was observed, including the corrected controller passing all scenarios. It does not mean the broken controller passed.
-
-## Use the verified fetch engine
-
-```js
-import { createFaultFetch } from './src/fetch-fault.mjs';
-
-const probe = createFaultFetch(fetch, {
-  url: 'http://127.0.0.1:3000/api/profile',
-  kind: 'http-error',
-  status: 503,
-  count: 1,
-});
-
-// Supply probe.fetch to the code under test, then assert the intended recovery.
-await exerciseYourApplication(probe.fetch);
-probe.assertApplied();
-```
-
-`exerciseYourApplication` is the caller's test callback, not an included function. This version matches one exact absolute URL, including its query string, and GET by default. It never replaces global fetch. Later matching requests use the supplied underlying fetch function. Call `assertApplied()` so an unexercised fault fails the test. The browser adapter uses Playwright globs instead of this exact URL match.
-
-## Run browser validation
-
-The adapter's seven integration tests passed in a real Chromium browser in GitHub Actions. The workflow runs on pushes and can also be started manually. It checks bounded faults, incorrect endpoints, failed baselines, concurrent requests, recovery assertions and preservation of existing mocks after cleanup. These checks cover the supplied fixtures; they do not automatically discover recovery flows in other applications.
+The repository includes deliberately broken and corrected applications. Both pass their normal loading check; only the corrected application recovers from all three faults.
 
 ```bash
 npm install
-npx playwright install chromium --only-shell
-npm run test:browser
-npm run test:package
-npm run demo:browser
+npx playwright install chromium
+npx recovery-probe --demo
 ```
 
-On Linux, Playwright may also require its documented system dependencies. Browser installation downloads a browser. `demo:browser` writes `artifacts/browser-demo.json`; the checked-in report was recovered from the successful GitHub Actions log. The deliberately broken fixture is expected to fail its three recovery checks; demo exit code 0 means that the expected broken/corrected contrast was verified.
+The command prints a concise comparison:
 
-## Check a page under your control
+```text
+broken synthetic fixture
+  PASS         Normal connection (OK)
+  CAUGHT       HTTP 503 once (RECOVERY_ASSERTION_FAILED, injected 1)
+  CAUGHT       Interrupted request once (RECOVERY_ASSERTION_FAILED, injected 1)
+  CAUGHT       Malformed JSON once (RECOVERY_ASSERTION_FAILED, injected 1)
 
-The JSON runner handles a specific flow: visit the page, let it request GET data, show a Retry button after a failure, click Retry and confirm the ready element is visible. It does not automatically discover application flows or determine the correct recovery policy.
+fixed synthetic fixture
+  PASS         Normal connection (OK)
+  PASS         HTTP 503 once (OK, injected 1)
+  PASS         Interrupted request once (OK, injected 1)
+  PASS         Malformed JSON once (OK, injected 1)
+```
 
-Create a scenario file using your development or test environment:
+`--demo` exits successfully only when it observes the expected contrast: the happy path passes, the broken recovery is caught, and the corrected flow passes. Add `--json` to print the full report or `--out report.json` to save it.
+
+## Supported faults
+
+| Kind | Injected behavior |
+| --- | --- |
+| `http-error` | Fulfils the matched request with an HTTP error status; defaults to `503`. |
+| `connection-failure` | Aborts the matched Playwright request with `connectionfailed`, or throws from the fetch adapter. |
+| `invalid-json` | Returns status `200` with a deliberately malformed JSON body. |
+
+Faults are bounded by `count` (default `1`, maximum `20`). The count is reserved synchronously, so concurrent matching requests cannot over-inject.
+
+## Fetch-only tests
+
+The lightweight `recovery-probe/fetch` entry point has no runtime dependencies and does not require Playwright. It matches one exact absolute URL, including its query string, and never patches global `fetch`.
+
+```js
+import { createFaultFetch } from 'recovery-probe/fetch';
+
+const probe = createFaultFetch(fetch, {
+  url: 'http://127.0.0.1:3000/api/profile',
+  kind: 'connection-failure',
+});
+
+await exerciseApplication(probe.fetch);
+probe.assertApplied();
+```
+
+`exerciseApplication` represents your own test adapter or application controller. Calling `assertApplied()` is essential: it proves that every requested fault was consumed.
+
+## JSON-configured runner
+
+The CLI supports pages that automatically load GET data, expose a visible Retry button after failure, and show a ready element after recovery.
 
 ```json
 {
@@ -123,68 +131,76 @@ Create a scenario file using your development or test environment:
 ```
 
 ```bash
-node bin/recovery-probe.mjs --config scenario.json --out artifacts/profile.json
+npx recovery-probe --config recovery-probe.json --out artifacts/profile-recovery.json
 ```
 
-Exit codes: `0` all configured checks pass; `1` a check failed, was inconclusive or was skipped; `2` command/setup error. The runner creates a fresh context per scenario and blocks service workers so Playwright can intercept requests. Its default assertion checks visibility, not correctness of the displayed data. Use the helper below for stronger application-specific assertions.
+The runner first checks the normal baseline in a fresh browser context. If that baseline fails, fault comparisons are skipped and reported as inconclusive. Each fault then receives its own fresh context with service workers blocked so Playwright can intercept the request.
 
-## Integrate with an existing Playwright test
+Exit codes:
 
-For the unpublished source archive, import the helper by its local path:
+- `0`: every configured check passed, or the controlled demo observed its expected broken-versus-fixed result.
+- `1`: a recovery check failed, was inconclusive, or was skipped.
+- `2`: invalid arguments, configuration, or environment setup.
 
-```js
-import { withFault } from './src/index.mjs';
+## Result semantics
 
-await withFault(page, {
-  match: '**/api/profile',
-  kind: 'http-error',
-  status: 503,
-  count: 1,
-}, async () => {
-  await page.goto('http://127.0.0.1:3000/profile');
-  await page.getByRole('button', { name: 'Retry' }).click();
-  await expect(page.getByTestId('profile-name')).toHaveText('Expected Test User');
-});
+| Code | Meaning |
+| --- | --- |
+| `OK` | The configured assertion completed and the expected fault count was observed. |
+| `RECOVERY_ASSERTION_FAILED` | The fault occurred, but the recovery assertion did not pass. |
+| `FAULT_NOT_TRIGGERED` | The requested fault count was not observed. Check the route, method, cache, and service worker. |
+| `BASELINE_FAILED` | The ordinary flow failed, so the runner could not make a useful fault comparison. |
+| `INJECTION_ERROR` | Playwright could not apply or clean up the route reliably. |
+
+A passing result proves the configured recovery behavior for that test. It is not a certification of overall application resilience.
+
+## API
+
+### `withFault(page, options, exercise)`
+
+Installs one temporary Playwright route, runs `exercise`, verifies the requested fault count, and removes only that route handler.
+
+```ts
+interface FaultOptions {
+  match: string | RegExp;
+  kind: 'http-error' | 'connection-failure' | 'invalid-json';
+  status?: number;
+  count?: number;
+  method?: string;
+}
 ```
 
-`page` and `expect` above come from the caller's existing Playwright test. The default method is GET. Other methods can be selected explicitly for tests whose side effects you control. The helper allows a string glob or RegExp. The exercise callback must await its requests/assertions before returning and should run inside a test runner with an overall timeout.
+Register the fault after your own route mocks. The helper uses `route.fallback()` for requests it does not inject, allowing earlier handlers to continue processing them.
 
-Fault kinds:
+### `createFaultFetch(baseFetch, options)`
 
-| Kind | Injected behavior |
-|---|---|
-| `http-error` | Fulfill the matched request with an error status, default 503. |
-| `connection-failure` | Abort the matched request with Playwright's `connectionfailed` reason. |
-| `invalid-json` | Return status 200 and an invalid JSON body. |
+Creates an isolated fetch wrapper for one exact URL and method. It returns `{ fetch, summary, assertApplied }` and leaves the supplied fetch function unchanged.
 
-An aborted request is not a simulation of the entire device going offline. No token expiration, browser sleep, WebSocket interruption, slow-network profile or duplicate submission checking is implemented in version 0.1.
+### `probeRecovery(browser, config)`
 
-## What a result means
+Runs the baseline and the three default recovery checks used by the JSON CLI. For custom interactions or stronger assertions, prefer `withFault` inside your own test.
 
-**Pass** means the configured assertion completed after the specified number of injections. It is not a certification of overall app resilience.
+## Scope
 
-**Fail / `RECOVERY_ASSERTION_FAILED`** means the injection was confirmed and the configured expectation did not pass. The test author must decide whether that expectation matches the product's intended behavior.
+Recovery Probe deliberately focuses on deterministic request-level recovery checks. It does not simulate whole-device offline states, WebSocket interruptions, token expiry, browser sleep, slow-network profiles, or duplicate-submission safety.
 
-**Inconclusive / `FAULT_NOT_TRIGGERED`** means the requested fault count was not observed. **`BASELINE_FAILED`** means the ordinary flow failed, so the runner skips fault comparisons. **`INJECTION_ERROR`** means fault setup or cleanup could not be trusted.
+Playwright already provides the routing primitives used here. Recovery Probe adds bounded recipes, fault-occurrence verification, cleanup, consistent result codes, a fetch adapter, and a runnable broken-versus-fixed example. If a few direct `page.route()` calls are clearer for your test, use them; this package is most useful when teams want the recovery pattern to be repeatable.
 
-The helper attaches the original assertion error as `cause`. The JSON runner records structural outcomes without request bodies, response bodies, headers or full URLs. It does not send telemetry. User-supplied scenario names and assertion code remain the user's responsibility.
+The runner requires explicit selectors and endpoint matching. It does not discover an application's recovery policy automatically. Reports contain structural outcomes and environment versions, not request bodies, response bodies, headers, or full target URLs. Recovery Probe sends no telemetry.
 
-## Limits and existing alternatives
+## Development
 
-Playwright already supports request interception, error responses and aborted requests. Recovery Probe adds a small opinionated workflow around those primitives. Developers can implement equivalent checks themselves. [Playwright network documentation](https://playwright.dev/docs/network)
+```bash
+npm ci
+npm test                 # 9 fetch/core tests
+npm run test:package     # isolated tarball install + TypeScript + CLI checks
+npx playwright install chromium
+npm run test:browser     # 7 real-browser integration tests
+npm run demo:browser
+```
 
-Shopify's Toxiproxy is an established tool for deterministic network fault injection at the TCP level. This prototype does not claim to invent fault injection or replace that broader tooling. [Toxiproxy](https://github.com/Shopify/toxiproxy)
+CI runs package checks on Node.js 22 and 24, then runs the integration suite and controlled demo in Chromium. See [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution workflow and [SECURITY.md](SECURITY.md) for private vulnerability reporting.
 
-The current runner changes service-worker/cache behavior through routing, requires correct selectors and endpoint matching, and exercises only the supplied example flow. A caller's page routes can override context routes; register the fault after your own mocks. Full device recovery and production applications have not been validated.
+## License
 
-Commercial demand, differentiation, cross-platform support, Firefox/WebKit support, and compatibility beyond the tested runtime remain unverified. There is no cloud service, checkout, customer account system, background monitor, support SLA or paid edition.
-
-## Files
-
-- `src/`: core helper, opinionated runner and TypeScript declarations.
-- `bin/`: prototype command-line entry point.
-- `examples/`: synthetic local apps.
-- `test/`: core and real-browser integration tests.
-- `artifacts/`: saved demonstration results and their GitHub Actions provenance.
-
-License: MIT. The npm package is deliberately marked private while it is an unpublished prototype.
+[MIT](LICENSE) © 2026 Bojan Kovachki
