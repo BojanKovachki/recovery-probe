@@ -54,6 +54,20 @@ test('invalid baseline never creates an upload bundle', { timeout: 15000 }, asyn
   } finally { await rm(f.directory, { recursive: true, force: true }); }
 });
 
+test('passing the scenario but failing an existing regression is not verified', { timeout: 30000 }, async () => {
+  const f = await fixture(); const run = join(f.directory, 'run');
+  f.config.scenario.faults = ['http-error'];
+  f.config.tests = [[process.execPath, '-e', "const fs=require('node:fs');if(!fs.readFileSync('src/app.js','utf8').includes('// BUG:'))process.exit(1)"]];
+  try {
+    await prepareRepair(f.config, run, { allowExecution: true });
+    await generateRepair(run, { allowSourceUpload: true, apiKey: 'mock-key', fetchImpl: mockProvider });
+    const result = await verifyRepair(run, { allowExecution: true });
+    assert.equal(result.scenarioPassed, true);
+    assert.equal(result.testsPassed, false);
+    assert.equal(result.status, 'not-verified');
+  } finally { await rm(f.directory, { recursive: true, force: true }); }
+});
+
 test('dirty repositories and source symlinks are rejected', async () => {
   const f = await fixture();
   try {

@@ -1,9 +1,9 @@
-import { chromium } from 'playwright';
 import { checkDesktop, discoverDesktop } from './desktop.mjs';
 
 export async function openWeb(config) {
   const url = new URL(config.pageUrl);
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) throw new Error('pageUrl must be HTTP(S), without embedded credentials');
+  const { chromium } = await import('playwright');
   const browser = await chromium.launch({ headless: config.headless !== false });
   try {
     const context = await browser.newContext({ serviceWorkers: 'block', ...(config.storageState ? { storageState: config.storageState } : {}) });

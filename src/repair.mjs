@@ -226,7 +226,7 @@ export async function verifyRepair(directory, { allowExecution = false } = {}) {
   const scenarioPassed = !error && after?.ok === true;
   const testsPassed = testsAfter.length > 0 && testsAfter.length === config.tests?.length && testsAfter.every(result => result.code === 0);
   const result = {
-    schemaVersion: 1, status: scenarioPassed && testsPassed ? 'verified-candidate' : scenarioPassed ? 'scenario-passed-tests-missing' : 'not-verified',
+    schemaVersion: 1, status: scenarioPassed && testsPassed ? 'verified-candidate' : scenarioPassed && !(config.tests?.length) ? 'scenario-passed-tests-missing' : 'not-verified',
     scenarioPassed, testsPassed, error, baseCommit: state.baseCommit, summary: proposal.summary,
     limitation: 'A candidate only: the configured scenario and supplied test commands are bounded evidence, not proof of general correctness. Review candidate.patch. Nothing was applied to the original repository, committed, pushed or deployed.',
   };
