@@ -50,8 +50,7 @@ before(async () => {
   await page.locator('#profile').waitFor();
 }, { timeout: 30000 });
 after(async () => { if (browser) await browser.close(); if (app && app.exitCode === null) { const exited = new Promise(resolve => app.once('exit', resolve)); app.kill(); await exited; } if (server) await server.close(); });
-// Use the product's five-second default: shared CI hosts occasionally take over
-// 1.5 seconds to deliver Electron's first stable animation frame after navigation.
+// Use the product's five-second default for real, non-forced UI actions in CI.
 const config = (variant, extra = {}) => ({ cdp, pageUrl: `${server.url}/${variant}`, endpoint: `${server.url}/api/profile`, readySelector: '#profile', readyText: 'Synthetic Example', retrySelector: '#retry', timeoutMs: 5000, ...extra });
 
 test('connects to real Electron, preserves preload, discovers JSON requests without injecting', async () => {
