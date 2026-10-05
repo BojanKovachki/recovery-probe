@@ -23,6 +23,10 @@ Recovery Probe makes that failure deterministic:
 4. Fail if the fault was never observed, so a wrong route cannot create a false positive.
 5. Remove only its own route handler and preserve existing mocks.
 
+## Electron desktop preview
+
+The `feat/desktop-recovery-check` branch adds a development-only Electron renderer checker: discover GET JSON endpoints, inject a selected fault, exercise Retry or automatic recovery, and write a local HTML report plus an executable reproduction and fix-investigation brief. See [the desktop setup guide](docs/desktop.md). This preview requires one data-dependent UI assertion and does not patch application source. npm 0.2.0 does not include it.
+
 ## Install
 
 Recovery Probe is designed to be added to an existing Playwright project:

@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 
-function app(fixed) {
+function app(fixed, automatic = false, stale = false) {
   return `<!doctype html><html lang="en"><meta charset="utf-8"><title>Recovery Probe fixture</title>
 <main><h1>Sample profile</h1><p id="status" role="status"></p><p id="profile" hidden></p><button id="retry" hidden>Retry</button></main>
 <script type="module">
@@ -14,8 +14,9 @@ const controller = createProfileController(() => fetch('/api/profile'), {
   onChange(state) {
     status.textContent = state.phase;
     retry.hidden = state.phase !== 'error';
-    profile.hidden = state.phase !== 'ready';
-    profile.textContent = state.name ?? '';
+    profile.hidden = ${stale} ? false : state.phase !== 'ready';
+    profile.textContent = ${stale} ? 'Synthetic Example' : (state.name ?? '');
+    if (${automatic} && state.phase === 'error') setTimeout(() => controller.load(), 30);
   },
 });
 retry.addEventListener('click', () => controller.load());
@@ -34,9 +35,9 @@ export async function startDemoServer() {
     } else if (path === '/profile-controller.mjs') {
       response.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8' });
       response.end(controllerSource);
-    } else if (path === '/broken' || path === '/fixed') {
+    } else if (['/broken', '/fixed', '/automatic', '/stale'].includes(path)) {
       response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      response.end(app(path === '/fixed'));
+      response.end(app(path !== '/broken', path === '/automatic', path === '/stale'));
     } else {
       response.writeHead(404);
       response.end('Not found');
