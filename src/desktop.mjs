@@ -36,7 +36,7 @@ export async function connectDesktop(cdp = 'http://127.0.0.1:9222') {
     throw new Error('CDP must use a loopback HTTP or WebSocket address');
   }
   const { chromium } = await import('playwright');
-  return chromium.connectOverCDP(cdp, { timeout: 10000, noDefaults: true });
+  return chromium.connectOverCDP(cdp, { timeout: 10000 });
 }
 export function desktopPages(browser) {
   return browser.contexts().flatMap(context => context.pages()).filter(page => !page.url().startsWith('devtools:'));

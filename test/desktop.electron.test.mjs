@@ -37,6 +37,16 @@ before(async () => {
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   assert.ok(page, 'Electron renderer did not load');
+  const originalLocator = page.locator.bind(page);
+  page.locator = (...args) => {
+    const locator = originalLocator(...args);
+    const originalClick = locator.click.bind(locator);
+    locator.click = async options => {
+      try { return await originalClick(options); }
+      catch (error) { console.log('FIXTURE_CLICK_ERROR', error.message); throw error; }
+    };
+    return locator;
+  };
   await page.locator('#profile').waitFor();
 }, { timeout: 30000 });
 after(async () => { if (browser) await browser.close(); if (app && app.exitCode === null) { const exited = new Promise(resolve => app.once('exit', resolve)); app.kill(); await exited; } if (server) await server.close(); });
