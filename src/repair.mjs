@@ -1,5 +1,5 @@
 import { readFile, writeFile, mkdir, realpath, lstat } from 'node:fs/promises';
-import { resolve, join, dirname, relative, isAbsolute } from 'node:path';
+import { resolve, join, dirname, basename, relative, isAbsolute, sep } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
@@ -15,6 +15,19 @@ const git = async (cwd, args) => (await exec('git', ['-c', 'core.hooksPath=/dev/
 const sha = value => createHash('sha256').update(value).digest('hex');
 const save = (directory, name, value) => writeFile(join(directory, name), JSON.stringify(value, null, 2) + '\n', { mode: 0o600 });
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+// Resolve existing ancestor symlinks before creating anything near the source tree.
+async function canonicalDestination(path) {
+  let ancestor = dirname(resolve(path));
+  const missing = [basename(path)];
+  while (true) {
+    try { return resolve(await realpath(ancestor), ...missing); }
+    catch (error) {
+      if (error.code !== 'ENOENT' || ancestor === dirname(ancestor)) throw error;
+      missing.unshift(basename(ancestor)); ancestor = dirname(ancestor);
+    }
+  }
+}
 
 export function validateSourcePath(path) {
   if (typeof path !== 'string' || !/^[a-zA-Z0-9_@./-]+\.(?:[cm]?[jt]sx?|vue|svelte|html|css|rs)$/.test(path)
@@ -142,9 +155,9 @@ export async function prepareRepair(input, directory, { allowExecution = false }
   const repo = await realpath(config.repo);
   if (await realpath((await git(repo, ['rev-parse', '--show-toplevel'])).trim()) !== repo) throw new Error('repo must be the repository root');
   if ((await git(repo, ['status', '--porcelain', '--untracked-files=normal'])).trim()) throw new Error('Commit or stash your changes first; repair starts from a clean committed repository');
-  const dir = resolve(directory);
+  const dir = await canonicalDestination(directory);
   const rel = relative(repo, dir);
-  if (!rel || (!rel.startsWith('..') && !isAbsolute(rel))) throw new Error('Repair output must be outside the source repository');
+  if (!isAbsolute(rel) && rel !== '..' && !rel.startsWith(`..${sep}`)) throw new Error('Repair output must be outside the source repository');
   await mkdir(dirname(dir), { recursive: true, mode: 0o700 });
   await mkdir(dir, { mode: 0o700 }); // Never overwrite or reuse a run.
   const baseCommit = (await git(repo, ['rev-parse', 'HEAD'])).trim();

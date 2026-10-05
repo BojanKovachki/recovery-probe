@@ -80,3 +80,15 @@ test('dirty repositories and source symlinks are rejected', async () => {
     await assert.rejects(prepareRepair({ ...f.config, sourceFiles: ['src/link.js'] }, join(f.directory, 'link'), { allowExecution: true }), /symlinks/);
   } finally { await rm(f.directory, { recursive: true, force: true }); }
 });
+
+test('output cannot enter the original repository through a symlink or dot-prefix path', async () => {
+  const f = await fixture();
+  try {
+    const alias = join(f.directory, 'alias');
+    await symlink(f.repo, alias, 'dir');
+    for (const destination of [join(alias, 'new', 'run'), join(f.repo, '..private', 'run')]) {
+      await assert.rejects(prepareRepair(f.config, destination, { allowExecution: true }), /outside the source/);
+    }
+    assert.equal((await exec('git', ['status', '--porcelain'], { cwd: f.repo })).stdout, '');
+  } finally { await rm(f.directory, { recursive: true, force: true }); }
+});
