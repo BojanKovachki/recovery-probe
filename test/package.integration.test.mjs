@@ -9,6 +9,9 @@ import { fileURLToPath } from 'node:url';
 
 const exec = promisify(execFile);
 const root = fileURLToPath(new URL('../', import.meta.url));
+// Invoke the JS entry point with Node; .bin launchers differ on Windows.
+const tsc = join(root, 'node_modules', 'typescript', 'bin', 'tsc');
+const directoryLinkType = process.platform === 'win32' ? 'junction' : 'dir';
 const { version } = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
 
 test('a clean consumer installs the packed package and verifies exports, types and CLI', { timeout: 60000 }, async () => {
@@ -84,12 +87,12 @@ const stats: FetchFaultStats = probe.assertApplied();
 createFaultFetch(fetch, { url: 'https://example.test/data', kind: 'not-a-fault' });
 void response; void stats;
 `);
-    await exec(join(root, 'node_modules', '.bin', 'tsc'), ['--noEmit', '--strict', '--module', 'NodeNext', '--target', 'ES2022', '--lib', 'ES2022,DOM,DOM.Iterable', 'check.mts'], { cwd: consumer, timeout: 15000 });
+    await exec(process.execPath, [tsc, '--noEmit', '--strict', '--module', 'NodeNext', '--target', 'ES2022', '--lib', 'ES2022,DOM,DOM.Iterable', 'check.mts'], { cwd: consumer, timeout: 15000 });
 
-    await symlink(join(root, 'node_modules', 'playwright'), join(consumer, 'node_modules', 'playwright'), 'dir');
-    await symlink(join(root, 'node_modules', 'playwright-core'), join(consumer, 'node_modules', 'playwright-core'), 'dir');
+    await symlink(join(root, 'node_modules', 'playwright'), join(consumer, 'node_modules', 'playwright'), directoryLinkType);
+    await symlink(join(root, 'node_modules', 'playwright-core'), join(consumer, 'node_modules', 'playwright-core'), directoryLinkType);
     await mkdir(join(consumer, 'node_modules', '@types'));
-    await symlink(join(root, 'node_modules', '@types', 'node'), join(consumer, 'node_modules', '@types', 'node'), 'dir');
+    await symlink(join(root, 'node_modules', '@types', 'node'), join(consumer, 'node_modules', '@types', 'node'), directoryLinkType);
     await writeFile(join(consumer, 'check-main.mts'), `
 import type { Page } from 'playwright';
 import { checkWeb, type WebConfig } from 'recovery-probe/web';
@@ -106,7 +109,7 @@ void result;
 const webConfig: WebConfig = { pageUrl: 'http://localhost:3000', endpoint: 'http://localhost:3000/api/data', readySelector: '#data', recovery: 'automatic' };
 void checkWeb(webConfig);
 `);
-    await exec(join(root, 'node_modules', '.bin', 'tsc'), ['--noEmit', '--strict', '--module', 'NodeNext', '--target', 'ES2022', '--lib', 'ES2022,DOM,DOM.Iterable,ESNext.Disposable', '--types', 'node', 'check-main.mts'], { cwd: consumer, timeout: 15000 });
+    await exec(process.execPath, [tsc, '--noEmit', '--strict', '--module', 'NodeNext', '--target', 'ES2022', '--lib', 'ES2022,DOM,DOM.Iterable,ESNext.Disposable', '--types', 'node', 'check-main.mts'], { cwd: consumer, timeout: 15000 });
 
     const cli = join(consumer, 'node_modules', 'recovery-probe', 'bin', 'recovery-probe.mjs');
     const help = await exec(process.execPath, [cli, '--help'], { cwd: consumer, timeout: 10000 });
@@ -120,8 +123,11 @@ void checkWeb(webConfig);
     assert.match(repairHelp.stdout, /--allow-source-upload/);
     const versionResult = await exec(process.execPath, [cli, '--version'], { cwd: consumer, timeout: 10000 });
     assert.equal(versionResult.stdout.trim(), version);
-    const installedBin = join(consumer, 'node_modules', '.bin', 'recovery-probe');
-    const binVersion = await exec(installedBin, ['--version'], { cwd: consumer, timeout: 10000 });
+    // npm exec exercises the installed bin mapping, including Windows .cmd shims.
+    const binVersion = await exec(process.execPath, [
+      npmCli, 'exec', '--offline', '--yes=false', '--cache', join(temp, 'cache'),
+      '--', 'recovery-probe', '--version',
+    ], { cwd: consumer, timeout: 10000 });
     assert.equal(binVersion.stdout.trim(), version);
   } finally {
     await rm(temp, { recursive: true, force: true });
