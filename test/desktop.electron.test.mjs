@@ -36,9 +36,9 @@ test('connects to real Electron, preserves preload, discovers JSON requests with
 });
 test('catches the stuck retry in Electron for all three faults, and reload rescues it', async () => {
   await page.goto(`${server.url}/broken`);
-  const report = await checkDesktop(page, config('broken'));
+  const report = await checkDesktop(page, config('broken'), { onFailure: async (target, row) => { console.log('BROKEN_DIAGNOSTIC', JSON.stringify({ row, status: await target.locator('#status').innerText(), retryVisible: await target.locator('#retry').isVisible() })); } });
   assert.equal(report.ok, false);
-  assert.deepEqual(report.results.map(r => r.outcome), ['fail', 'fail', 'fail']);
+  assert.deepEqual(report.results.map(r => r.outcome), ['fail', 'fail', 'fail'], JSON.stringify(report));
   assert.ok(report.results.every(r => r.applied === 1 && r.retryClicked && r.successfulResponsesAfterFault === 0));
   assert.equal(report.finalReset, 'healthy');
 });
