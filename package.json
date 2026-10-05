@@ -1,8 +1,8 @@
 {
   "name": "recovery-probe",
-  "version": "0.3.0-preview.1",
+  "version": "0.3.0-preview.2",
   "type": "module",
-  "description": "Deterministic fault injection for testing recovery after failed requests.",
+  "description": "Recovery testing for web and Electron apps, with opt-in AI patch proposals and local verification.",
   "license": "MIT",
   "author": "Bojan Kovachki",
   "homepage": "https://github.com/BojanKovachki/recovery-probe#readme",
@@ -23,6 +23,11 @@
       "types": "./src/desktop.d.mts",
       "import": "./src/desktop.mjs",
       "default": "./src/desktop.mjs"
+    },
+    "./web": {
+      "types": "./src/web.d.mts",
+      "import": "./src/web.mjs",
+      "default": "./src/web.mjs"
     }
   },
   "bin": {
@@ -38,7 +43,8 @@
     "SECURITY.md",
     "README.md",
     "LICENSE",
-    "docs/desktop.md"
+    "docs/desktop.md",
+    "docs/repair.md"
   ],
   "sideEffects": false,
   "engines": {
@@ -82,11 +88,13 @@
     "test:core": "node --test test/fetch-core.test.mjs",
     "test:browser": "node --test test/recovery.integration.test.mjs",
     "test:package": "node --test test/package.integration.test.mjs",
-    "test:all": "npm run test:core && npm run test:package && npm run test:browser && npm run test:desktop",
+    "test:all": "npm run test:core && npm run test:package && npm run test:browser && npm run test:desktop && npm run test:repair",
     "demo": "node bin/core-demo.mjs",
     "demo:browser": "node bin/recovery-probe.mjs --demo --out artifacts/browser-demo.json",
     "prepublishOnly": "npm run test:core && npm run test:package",
     "test:desktop": "node --test test/desktop.test.mjs",
-    "test:desktop:electron": "node --test test/desktop.electron.test.mjs"
+    "test:desktop:electron": "node --test test/desktop.electron.test.mjs",
+    "test:repair": "node --test test/repair.test.mjs test/repair.integration.test.mjs test/web.integration.test.mjs",
+    "test:repair:electron": "node --test test/repair.electron.test.mjs"
   }
 }

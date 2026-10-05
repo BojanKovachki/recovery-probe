@@ -114,6 +114,9 @@ export async function checkDesktop(page, input, { onFailure } = {}) {
   if (pageIdentity(page.url()) !== config.pageUrl) throw new Error('The selected page does not match pageUrl');
   // Validate locator syntax before changing page state. A typo must not be a reported app bug.
   for (const key of ['readySelector', 'retrySelector', 'busySelector']) if (config[key]) await page.locator(config[key]).count();
+  // CDP can attach to a background Electron window. Activate the selected page
+  // so real actionability checks receive animation frames; never force clicks.
+  await page.bringToFront();
   const report = {
     schemaVersion: 1, mode: 'desktop renderer recovery', generatedAt: new Date().toISOString(),
     endpoint: config.endpoint, recovery: config.recovery, timeoutMs: config.timeoutMs,
@@ -169,6 +172,7 @@ export async function checkDesktop(page, input, { onFailure } = {}) {
       routeInstalled = true;
       stage = 'reload';
       await page.reload({ waitUntil: 'domcontentloaded', timeout: config.timeoutMs });
+      await page.bringToFront();
       if (!await waitUntil(() => injected, config.timeoutMs)) {
         row.code = 'FAULT_NOT_TRIGGERED'; stop = true;
       } else if (injectionError) {

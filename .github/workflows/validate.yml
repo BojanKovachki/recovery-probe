@@ -33,6 +33,8 @@ jobs:
         run: npm run test:package
       - name: Verify desktop configuration and report handling
         run: npm run test:desktop
+      - name: Verify repair safety and provider contract
+        run: node --test test/repair.test.mjs
       - name: Verify package contents
         run: npm pack --dry-run
 
@@ -56,6 +58,8 @@ jobs:
         run: npm run demo
       - name: Verify browser adapter
         run: npm run test:browser
+      - name: Verify authenticated web workflow and isolated repair pipeline (mock model)
+        run: npm run test:repair
       - name: Run controlled browser demonstration
         run: npm run demo:browser
       - name: Upload demonstration reports
@@ -84,3 +88,5 @@ jobs:
         run: npm install --no-save --package-lock=false --no-audit --no-fund electron@44.5.1
       - name: Test discovery, recovery checks and CLI in real Electron
         run: xvfb-run -a npm run test:desktop:electron
+      - name: Test real Electron before/after repair with a controlled model proposal
+        run: xvfb-run -a npm run test:repair:electron
