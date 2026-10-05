@@ -5,13 +5,14 @@ import { fileURLToPath } from 'node:url';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { promisify } from 'node:util';
-import { _electron as electron } from 'playwright';
+const require = createRequire(import.meta.url);
 import { startDemoServer } from '../examples/demo-server.mjs';
 import { checkDesktop, connectDesktop, discoverDesktop, selectDesktopPage } from '../src/desktop.mjs';
 const exec = promisify(execFile);
-let app; let browser; let page; let server; let cdp;
+let app; let browser; let page; let server; let cdp; let electronErrors = '';
 before(async () => {
   server = await startDemoServer();
   const portServer = createServer();
@@ -19,13 +20,26 @@ before(async () => {
   const port = portServer.address().port;
   await new Promise(resolve => portServer.close(resolve));
   cdp = `http://127.0.0.1:${port}`;
-  app = await electron.launch({ args: ['--no-sandbox', '--remote-debugging-address=127.0.0.1', `--remote-debugging-port=${port}`, fileURLToPath(new URL('./fixtures/electron/main.cjs', import.meta.url))], env: { ...process.env, RECOVERY_PROBE_FIXTURE_URL: `${server.url}/fixed` } });
-  await app.firstWindow();
+  app = spawn(require('electron'), ['--no-sandbox', '--remote-debugging-address=127.0.0.1', `--remote-debugging-port=${port}`, fileURLToPath(new URL('./fixtures/electron/main.cjs', import.meta.url))], { env: { ...process.env, RECOVERY_PROBE_FIXTURE_URL: `${server.url}/fixed` }, stdio: ['ignore', 'ignore', 'pipe'] });
+  app.stderr.on('data', chunk => { electronErrors = (electronErrors + chunk).slice(-12000); });
+  app.on('error', error => { electronErrors += error.message; });
+  const deadline = Date.now() + 20000;
+  let connected = false;
+  while (Date.now() < deadline) {
+    if (app.exitCode !== null) throw new Error('Electron exited: ' + electronErrors);
+    try { const response = await fetch(cdp + '/json/version'); if (response.ok) { connected = true; break; } } catch {}
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  assert.ok(connected, 'Electron CDP endpoint unavailable: ' + electronErrors);
   browser = await connectDesktop(cdp);
-  page = selectDesktopPage(browser, { pageUrl: `${server.url}/fixed` });
+  while (Date.now() < deadline) {
+    try { page = selectDesktopPage(browser, { pageUrl: `${server.url}/fixed` }); break; } catch {}
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  assert.ok(page, 'Electron renderer did not load');
   await page.locator('#profile').waitFor();
 }, { timeout: 30000 });
-after(async () => { if (browser) await browser.close(); if (app) await app.close(); if (server) await server.close(); });
+after(async () => { if (browser) await browser.close(); if (app && app.exitCode === null) { const exited = new Promise(resolve => app.once('exit', resolve)); app.kill(); await exited; } if (server) await server.close(); });
 const config = (variant, extra = {}) => ({ cdp, pageUrl: `${server.url}/${variant}`, endpoint: `${server.url}/api/profile`, readySelector: '#profile', readyText: 'Synthetic Example', retrySelector: '#retry', timeoutMs: 1500, ...extra });
 
 test('connects to real Electron, preserves preload, discovers JSON requests without injecting', async () => {
@@ -88,7 +102,8 @@ test('CLI writes useful reports and disconnecting leaves the Electron app alive'
     assert.equal(JSON.parse(await readFile(join(dir, 'report.json'), 'utf8')).ok, true);
     assert.match(await readFile(join(dir, 'fix-brief.md'), 'utf8'), /not an automatic diagnosis/);
     assert.match(await readFile(join(dir, 'reproduce.mjs'), 'utf8'), /checkDesktop/);
-    assert.equal(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length), 1);
+    assert.equal(app.exitCode, null);
+    assert.equal(browser.contexts().flatMap(c => c.pages()).length, 1);
     assert.equal(await page.evaluate(() => window.recoveryProbeFixture.kind), 'electron-preload');
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
