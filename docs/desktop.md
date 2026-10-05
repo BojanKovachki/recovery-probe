@@ -20,7 +20,7 @@ if (!app.isPackaged && process.env.RECOVERY_PROBE === '1') {
 }
 ```
 
-Set `RECOVERY_PROBE=1` using your existing cross-platform development tooling, then start the app normally. Keep the debugging endpoint on loopback, never expose port 9222 publicly, and remove/disable it after testing. Sign in with a test account and open the page you want to check. Save unfinished work first: checks reload this window and click only your configured Retry control.
+Set `RECOVERY_PROBE=1` using your existing cross-platform development tooling, then start the app normally. Keep the debugging endpoint on loopback, never expose port 9222 publicly, and remove/disable it after testing. Sign in with a test account and open the page you want to check. Keep the app window visible and unminimized while testing; Chromium can throttle a hidden renderer, preventing reliable user-like clicks. Save unfinished work first: checks reload this window and click only your configured Retry control.
 
 ## 2. Install and identify the window
 

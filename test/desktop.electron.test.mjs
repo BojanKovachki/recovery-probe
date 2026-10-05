@@ -26,7 +26,7 @@ before(async () => {
   await page.locator('#profile').waitFor();
 }, { timeout: 30000 });
 after(async () => { if (browser) await browser.close(); if (app) await app.close(); if (server) await server.close(); });
-const config = (variant, extra = {}) => ({ cdp, pageUrl: `${server.url}/${variant}`, endpoint: `${server.url}/api/profile`, readySelector: '#profile', readyText: 'Synthetic Example', retrySelector: '#retry', timeoutMs: 700, ...extra });
+const config = (variant, extra = {}) => ({ cdp, pageUrl: `${server.url}/${variant}`, endpoint: `${server.url}/api/profile`, readySelector: '#profile', readyText: 'Synthetic Example', retrySelector: '#retry', timeoutMs: 1500, ...extra });
 
 test('connects to real Electron, preserves preload, discovers JSON requests without injecting', async () => {
   assert.equal(await page.evaluate(() => window.recoveryProbeFixture.kind), 'electron-preload');
