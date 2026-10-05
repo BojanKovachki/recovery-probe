@@ -5,9 +5,27 @@
 [![Node.js](https://img.shields.io/badge/Node.js-22%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**Deterministic fault injection for testing whether web applications actually recover after failed requests.**
+**Find reproducible request-recovery bugs in web and Electron apps. Propose a source fix, then test the candidate.**
 
-A happy-path test can pass while a Retry button is completely broken. Recovery Probe adds a small, explicit workflow around Playwright routing and `fetch`: inject one controlled failure, exercise the application's recovery path, and prove that the intended fault really occurred.
+A happy-path test can pass while a transient failed request leaves an app permanently loading. Recovery Probe injects controlled failures and checks what happens next. Recovery may be automatic; a Retry button or special recovery screen is not required.
+
+## Release status
+
+| Version | Available functionality |
+| --- | --- |
+| npm `0.2.0` | Playwright/fetch fault helpers and the original configured CLI. No source investigation or automatic fixes. |
+| GitHub `0.3.0-preview.2`, `feat/repair-workflow` | Web and Electron discovery/checks; browser login-state support; opt-in AI source-edit proposals; isolated-checkout before/after verification. Not yet a stable npm release. |
+| Not implemented | General discovery/fixing of arbitrary bugs, production self-healing, autonomous deployment, native/IPC request interception. |
+
+The repair preview needs a local source repository, explicit source-file selection, one expected outcome, app launch/test commands, and your own API key/model for generation. It does **not** obtain these from installing an npm dependency. It returns a reviewable candidate, not a guaranteed fix. [Full setup and safety guide](docs/repair.md).
+
+```bash
+# Preview only; pin the commit when sharing a reproducible installation.
+npm install --save-dev github:BojanKovachki/recovery-probe#feat/repair-workflow playwright
+npx playwright install chromium
+npx recovery-probe web --help
+npx recovery-probe repair --help
+```
 
 ![Recovery Probe catches a broken retry flow and verifies the corrected flow](docs/demo.svg)
 
@@ -23,6 +41,10 @@ Recovery Probe makes that failure deterministic:
 4. Fail if the fault was never observed, so a wrong route cannot create a false positive.
 5. Remove only its own route handler and preserve existing mocks.
 
+## Web and Electron preview
+
+Use `web` for a Chromium portal and `desktop` to attach to an existing development Electron renderer. Both use the same Page-level checking engine. Checks discover GET JSON endpoints, inject selected faults, and produce local evidence. Use the separate `repair` command to reproduce in a clean checkout, request an AI proposal with explicit upload consent, and rerun the scenario after applying the candidate only to that copy. See [web/repair setup](docs/repair.md) and [desktop attachment](docs/desktop.md). npm 0.2.0 includes neither workflow.
+
 ## Install
 
 Recovery Probe is designed to be added to an existing Playwright project:
@@ -31,7 +53,7 @@ Recovery Probe is designed to be added to an existing Playwright project:
 npm install --save-dev recovery-probe
 ```
 
-Node.js 22 or newer is required. Playwright is an optional peer dependency: the fetch-only API works without it, while the browser helper and CLI require Playwright 1.62.1 or newer.
+Node.js 22 or newer is required. Playwright is an optional peer dependency: the fetch-only API works without it, while browser/desktop commands require Playwright `^1.62.1` (1.x).
 
 ## Quick start
 
@@ -186,7 +208,9 @@ Recovery Probe deliberately focuses on deterministic request-level recovery chec
 
 Playwright already provides the routing primitives used here. Recovery Probe adds bounded recipes, fault-occurrence verification, cleanup, consistent result codes, a fetch adapter, and a runnable broken-versus-fixed example. If a few direct `page.route()` calls are clearer for your test, use them; this package is most useful when teams want the recovery pattern to be repeatable.
 
-The runner requires explicit selectors and endpoint matching. It does not discover an application's recovery policy automatically. Reports contain structural outcomes and environment versions, not request bodies, response bodies, headers, or full target URLs. Recovery Probe sends no telemetry.
+The runner requires explicit selectors and endpoint matching. It does not discover an application's recovery policy automatically. Request/response bodies and headers are not collected by the checker. Preview reports include endpoint origin/path, selectors, expected text and configuration; optional screenshots, login state and command logs may be sensitive. Do not commit or share these blindly.
+
+Recovery Probe sends no telemetry. Tests/discovery do not call an AI service. Only explicit repair generation with `--allow-source-upload` sends the selected source contents and bounded observations to the configured OpenAI model. Login state and command logs are not part of that upload bundle. `store: false` is set on the API request; this is not a promise of zero provider retention. Review employer policy and provider data terms first.
 
 ## Development
 
@@ -196,10 +220,13 @@ npm test                 # 9 fetch/core tests
 npm run test:package     # isolated tarball install + TypeScript + CLI checks
 npx playwright install chromium
 npm run test:browser     # 7 real-browser integration tests
+npm run test:repair      # safety, authenticated portal, before/after pipeline
+# After installing the optional Electron test runtime:
+npm run test:repair:electron
 npm run demo:browser
 ```
 
-CI runs package checks on Node.js 22 and 24, then runs the integration suite and controlled demo in Chromium. See [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution workflow and [SECURITY.md](SECURITY.md) for private vulnerability reporting.
+CI runs package checks on Node.js 22 and 24, Chromium integration, and real Electron checks. Repair integration tests use a **controlled mock model response** but real apps, fault injection, source changes and reruns. They validate orchestration, not live AI diagnosis quality. See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
 
 ## License
 
