@@ -92,6 +92,7 @@ void response; void stats;
     await symlink(join(root, 'node_modules', '@types', 'node'), join(consumer, 'node_modules', '@types', 'node'), 'dir');
     await writeFile(join(consumer, 'check-main.mts'), `
 import type { Page } from 'playwright';
+import { checkWeb, type WebConfig } from 'recovery-probe/web';
 import { withFault, type FaultStats } from 'recovery-probe';
 declare const page: Page;
 const result: Promise<FaultStats> = withFault(page, {
@@ -102,6 +103,8 @@ const result: Promise<FaultStats> = withFault(page, {
 // @ts-expect-error Invalid public fault kinds must fail type-checking.
 void withFault(page, { match: '**/*', kind: 'not-a-fault' }, async () => {});
 void result;
+const webConfig: WebConfig = { pageUrl: 'http://localhost:3000', endpoint: 'http://localhost:3000/api/data', readySelector: '#data', recovery: 'automatic' };
+void checkWeb(webConfig);
 `);
     await exec(join(root, 'node_modules', '.bin', 'tsc'), ['--noEmit', '--strict', '--module', 'NodeNext', '--target', 'ES2022', '--lib', 'ES2022,DOM,DOM.Iterable,ESNext.Disposable', '--types', 'node', 'check-main.mts'], { cwd: consumer, timeout: 15000 });
 
@@ -111,6 +114,10 @@ void result;
     assert.match(help.stdout, /--config/);
     const desktopHelp = await exec(process.execPath, [cli, 'desktop', '--help'], { cwd: consumer, timeout: 10000 });
     assert.match(desktopHelp.stdout, /--discover/);
+    const webHelp = await exec(process.execPath, [cli, 'web', '--help'], { cwd: consumer, timeout: 10000 });
+    assert.match(webHelp.stdout, /--login/);
+    const repairHelp = await exec(process.execPath, [cli, 'repair', '--help'], { cwd: consumer, timeout: 10000 });
+    assert.match(repairHelp.stdout, /--allow-source-upload/);
     const versionResult = await exec(process.execPath, [cli, '--version'], { cwd: consumer, timeout: 10000 });
     assert.equal(versionResult.stdout.trim(), version);
     const installedBin = join(consumer, 'node_modules', '.bin', 'recovery-probe');
