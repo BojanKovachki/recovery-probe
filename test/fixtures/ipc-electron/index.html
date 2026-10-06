@@ -1,4 +1,5 @@
 <!doctype html><meta charset="utf-8"><title>IPC recovery fixture</title>
+<h1>Library</h1><section id="grid"></section>
 <p id="spinner">Loading</p><p id="row" role="listitem" hidden></p><p id="empty" hidden>Empty</p>
 <p id="error" role="alert" hidden>Unable to load files. Try again.</p>
 <script>
@@ -12,14 +13,15 @@ async function load() {
     let data;
     try { data = await fixtureApi.read(); }
     catch(error) {
-      if (mode === 'broken') throw error;
+      if (mode === 'broken' || mode === 'grid') throw error;
       await new Promise(resolve => setTimeout(resolve, 30));
       data = await fixtureApi.read();
     }
     // A successful null result fails mapping outside the transport retry branch.
-    row.textContent = data.name;
-    row.hidden = false;
-  } catch { if (mode === 'honest') document.querySelector('#error').hidden = false; else empty.hidden = false; }
+    if (data === null) throw Error('null');
+    if (mode === 'grid') document.querySelector('#grid').innerHTML = Array.from({length:13}, () => '<a href="#"><img width="12" height="12" alt="" src="data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\'/%3E"></a>').join('');
+    else { row.textContent = data.name; row.hidden = false; }
+  } catch { if (mode === 'honest') document.querySelector('#error').hidden = false; else if (mode !== 'grid') empty.hidden = false; }
   finally { spinner.hidden = true; }
 }
 load();

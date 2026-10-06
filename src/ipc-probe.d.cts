@@ -12,6 +12,8 @@ export interface IpcProbe {
   identify(challenge: string): Promise<{ senderId: number; pageUrl: string; registered: string[]; capabilities: { maxFaultCount: number } }>;
   begin(options: { id: string; channel: string; requiredChannels?: string[]; fault?: 'rejection' | 'null-result'; times?: number; ttlMs?: number }): IpcSnapshot;
   snapshot(): IpcSnapshot | null;
+  windowState(): { minimized: boolean };
+  setWindowMinimized(minimized: boolean): { minimized: boolean };
   reset(id?: string): IpcSnapshot | null;
   dispose(): void;
 }

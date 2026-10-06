@@ -91,6 +91,18 @@ exports.installIpcProbe = function installIpcProbe(ipcMain, { channels, sender, 
   installed.add(ipcMain);
   return Object.freeze({
     identify, begin, snapshot,
+    windowState() {
+      const window = sender()?.getOwnerBrowserWindow?.();
+      if (!window || window.isDestroyed()) throw new Error('Window control unavailable');
+      return { minimized: window.isMinimized() };
+    },
+    setWindowMinimized(minimized) {
+      if (typeof minimized !== 'boolean') throw new Error('Expected boolean window state');
+      const window = sender()?.getOwnerBrowserWindow?.();
+      if (!window || window.isDestroyed()) throw new Error('Window control unavailable');
+      if (minimized) window.minimize(); else window.restore();
+      return { minimized: window.isMinimized() };
+    },
     reset(id) {
       if (id !== undefined && state && id !== state.id) throw new Error('Stale run ID');
       disarm(); return snapshot();

@@ -3,11 +3,12 @@ import type { FaultKind } from './fetch-fault.mjs';
 export interface DesktopConfig {
   cdp?: string; page?: number; pageUrl: string; endpoint: string;
   readySelector: string; readyText?: string; busySelector?: string;
-  recovery?: 'retry' | 'automatic'; retrySelector?: string; timeoutMs?: number; faults?: FaultKind[];
+  recovery?: 'retry' | 'automatic'; retrySelector?: string; timeoutMs?: number; baselineTimeoutMs?: number; recoveryTimeoutMs?: number; times?: number; faults?: FaultKind[];
 }
 export interface DesktopRow {
   kind: FaultKind; outcome: 'pass' | 'fail' | 'inconclusive' | 'skipped'; code: string;
   applied: number; successfulResponsesAfterFault: number; retryClicked: boolean;
+  recoveryMs?: number | null;
   screenshot?: string; evidenceCaptureFailed?: boolean;
 }
 export interface DesktopReport {

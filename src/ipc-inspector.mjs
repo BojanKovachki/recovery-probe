@@ -60,7 +60,7 @@ function checked(response) {
  * Only identify(challenge) is async; retain its remote Promise before awaiting it.
  */
 export async function callIpcInspector(send, method, argument) {
-  if (!['identify', 'begin', 'snapshot', 'reset'].includes(method)) throw new Error('Unsupported probe control');
+  if (!['identify', 'begin', 'snapshot', 'reset', 'windowState', 'setWindowMinimized'].includes(method)) throw new Error('Unsupported probe control');
   const expression = `globalThis.__recoveryProbeIpc.${method}(${argument === undefined ? '' : JSON.stringify(argument)})`;
   if (method !== 'identify' || argument === undefined) {
     const result = checked(await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: false }));
