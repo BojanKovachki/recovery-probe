@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { connectDesktop, desktopPages } from './desktop.mjs';
 import { connectIpcInspector } from './ipc-inspector.mjs';
+import { resetIpcAndConfirm } from './ipc-control.mjs';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 export function validateIpcConfig(input) {
@@ -18,9 +19,9 @@ async function ui(page, config) {
   const busy = config.busySelector ? await page.locator(config.busySelector).all() : [];
   return { blocked: false, ready: await marker.count() === 1 && await marker.isVisible() && (await marker.innerText()).includes(config.readyText) && !(await Promise.all(busy.map(item => item.isVisible()))).some(Boolean) };
 }
-export async function checkIpc(input) {
+export async function checkIpc(input, { connectControl = connectIpcInspector } = {}) {
   const config = validateIpcConfig(input);
-  const control = await connectIpcInspector(config.inspector);
+  const control = await connectControl(config.inspector);
   let browser;
   let runId;
   const report = { schemaVersion: 1, mode: 'IPC renderer recovery', generatedAt: new Date().toISOString(), channel: config.channel, results: [], finalReset: 'not-run', ok: false,
@@ -48,12 +49,12 @@ export async function checkIpc(input) {
     if (config.busySelector) await page.locator(config.busySelector).count();
     const phase = async (fault, deadlineMs) => {
       const phaseId = randomUUID();
-      let began = false;
+      // Record intent before sending: begin may execute even if its reply is lost.
+      runId = phaseId;
       let snapshot;
       const started = Date.now();
       try {
         await control.call('begin', { id: phaseId, channel: config.channel, requiredChannels: config.requiredChannels, ...(fault ? { fault } : {}), ttlMs: Math.min(60000, config.baselineTimeoutMs + deadlineMs) });
-        runId = phaseId; began = true;
         await page.reload({ waitUntil: 'domcontentloaded', timeout: config.baselineTimeoutMs });
         await page.bringToFront();
         while (true) {
@@ -78,10 +79,7 @@ export async function checkIpc(input) {
           await sleep(50);
         }
       } finally {
-        if (began) {
-          const reset = await control.call('reset', phaseId);
-          if (reset?.armed !== null) throw new Error('IPC fault cleanup could not be verified');
-        }
+        await resetIpcAndConfirm(control, phaseId);
       }
     };
     try {
@@ -99,15 +97,19 @@ export async function checkIpc(input) {
       }
     } catch (error) { report.error = error.message; }
     finally {
-      await control.call('reset', runId);
-      // Reload cleanup cannot promote any earlier result to a pass.
-      try { report.cleanup = await phase(undefined, config.baselineTimeoutMs); report.finalReset = report.cleanup.outcome === 'pass' ? 'healthy' : 'not-verified'; }
+      // Only reload after disarm has been independently verified.
+      try {
+        if (runId) await resetIpcAndConfirm(control, runId);
+        report.cleanup = await phase(undefined, config.baselineTimeoutMs);
+        report.finalReset = report.cleanup.outcome === 'pass' ? 'healthy' : 'not-verified';
+      }
       catch (error) { report.finalReset = 'not-verified'; report.cleanupError = error.message; }
     }
     report.ok = !report.error && report.baseline?.outcome === 'pass' && report.results.length === config.faults.length && report.results.every(row => row.outcome === 'pass') && report.finalReset === 'healthy';
     return report;
   } finally {
-    try { if (runId) await control.call('reset', runId); }
+    try { if (runId) await resetIpcAndConfirm(control, runId); }
+    catch (error) { report.ok = false; report.finalReset = 'not-verified'; report.cleanupError = error.message; }
     finally { control.close(); if (browser) await browser.close(); }
   }
 }

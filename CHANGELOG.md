@@ -4,6 +4,13 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## [0.3.0-preview.5] - Unreleased
+
+- Use synchronous Node inspector evaluation for synchronous IPC controls, avoiding implicit Promise collection failures in Electron's main process.
+- Retain and explicitly await the asynchronous window-identification Promise, releasing its inspector object group afterward.
+- Treat a lost begin reply as uncertain execution: attempt scoped reset and independently verify disarmed state even when begin/reset replies fail.
+- Add protocol regression tests and real Electron lost-begin-reply fault-cleanup tests; fail closed when cleanup cannot be verified.
+
 ## [0.3.0-preview.4] - Unreleased
 
 - Add an explicitly enabled main-process IPC registration adapter, scoped to allowed read channels and one window's main frame.

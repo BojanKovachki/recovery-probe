@@ -44,6 +44,10 @@ test('real IPC: registration hook, serialized rejection, real retry, null and de
     await page.locator('#row').waitFor();
     control = await connectIpcInspector(inspector);
     assert.equal(await page.evaluate(() => typeof window.__recoveryProbeIpc), 'undefined');
+    for (let i = 0; i < 16; i++) {
+      assert.ok((await control.call('identify')).registered.includes('fixture:read'));
+      assert.equal(await control.call('snapshot'), null);
+    }
     await assert.rejects(control.call('identify', randomUUID()), /does not match/);
     const config = { cdp, inspector, channel: 'fixture:read', requiredChannels: ['fixture:versions'], readySelector: '#row', readyText: 'rp-fixture-cube.fbx', busySelector: '#spinner', retryDelayMs: 30, renderMarginMs: 500, baselineTimeoutMs: 5000 };
     const report = await checkIpc(config);
@@ -52,6 +56,32 @@ test('real IPC: registration hook, serialized rejection, real retry, null and de
     assert.equal(report.baseline.snapshot.channels['fixture:read'].calls, 1);
     assert.equal(report.results[0].snapshot.injected, 1);
     assert.equal(report.results[0].snapshot.successfulAfterFault, 1);
+    assert.equal((await control.call('snapshot')).armed, null);
+    // Simulate a protocol failure AFTER the real main-process begin has armed a
+    // fault. There must be no reload/injection before the checker disarms it.
+    let lostReply = false;
+    let uncertainId;
+    let observedReset;
+    const unreliable = {
+      async call(method, argument) {
+        const result = await control.call(method, argument);
+        if (method === 'begin' && argument.fault && !lostReply) {
+          lostReply = true; uncertainId = argument.id;
+          throw new Error('simulated lost begin reply');
+        }
+        if (method === 'reset' && argument === uncertainId) observedReset = result;
+        return result;
+      },
+      close() {},
+    };
+    const uncertain = await checkIpc(config, { connectControl: async () => unreliable });
+    assert.equal(lostReply, true);
+    assert.equal(uncertain.ok, false);
+    assert.match(uncertain.error, /lost begin reply/);
+    assert.equal(uncertain.results.length, 0);
+    assert.equal(observedReset.armed, null);
+    assert.equal(observedReset.injected, 0);
+    assert.equal(uncertain.finalReset, 'healthy');
     assert.equal((await control.call('snapshot')).armed, null);
     const nullResult = await checkIpc({ ...config, faults: ['null-result'] });
     assert.equal(nullResult.results[0].code, 'RECOVERY_NOT_OBSERVED', JSON.stringify(nullResult));
