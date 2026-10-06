@@ -124,6 +124,14 @@ test('real IPC: registration hook, serialized rejection, real retry, null and de
     assert.match(result.stdout, /PASS: rejection/);
     assert.equal(JSON.parse(await readFile(join(out, 'report.json'), 'utf8')).ok, true);
     assert.equal((await control.call('snapshot')).armed, null);
+    await page.goto(baseUrl + '?mode=honest');
+    const discoverFile = join(dir, 'discover.json');
+    await writeFile(discoverFile, JSON.stringify({ ...discoveryConfig, repeats: 1, readyText: 'must-not-persist' }));
+    const discoveryOut = join(dir, 'discovery');
+    const cliDiscovery = await exec(process.execPath, [fileURLToPath(new URL('../bin/recovery-probe.mjs', import.meta.url)), 'ipc', '--discover', '--config', discoverFile, '--out', discoveryOut], { timeout: 20000 });
+    assert.match(cliDiscovery.stdout, /ERROR_OR_RETRY_SHOWN/);
+    assert.ok(!((await readFile(join(discoveryOut, 'scenario.json'), 'utf8')).includes('must-not-persist')));
+    assert.equal((await control.call('snapshot')).armed, null);
     assert.equal(app.exitCode, null);
   } finally {
     control?.close(); if (browser) await browser.close();

@@ -1,3 +1,9 @@
+# Changelog
+
+All notable changes to Recovery Probe are documented here. The project follows [Semantic Versioning](https://semver.org/).
+
+Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
+
 ## 0.3.0-preview.6 (GitHub preview; npm publication separate)
 
 - Add bounded `ipc --discover`: three healthy baselines, repeated controls, single/double rejection and null-result experiments, three repetitions by default.
@@ -5,11 +11,6 @@
 - Preserve existing IPC verifier and public defaults; repeated hook faults are opt-in, atomically consumed and reset by run ID.
 - English text heuristics and whole-region fingerprints can be inconclusive on changing/localized screens. No new web discovery or autonomous repair claims.
 
-# Changelog
-
-All notable changes to Recovery Probe are documented here. The project follows [Semantic Versioning](https://semver.org/).
-
-Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
 ## [0.3.0-preview.5] - Unreleased
 

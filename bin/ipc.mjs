@@ -1,6 +1,6 @@
 import { readFile, mkdir, writeFile, mkdtemp } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
-import { discoverIpc } from '../src/ipc-discover.mjs';
+import { discoverIpc, discoveryConfig } from '../src/ipc-discover.mjs';
 import { checkIpc } from '../src/ipc-check.mjs';
 const escape = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export async function ipcMain(args) {
@@ -10,7 +10,9 @@ export async function ipcMain(args) {
 
 Requires a development-only main-process registration hook and two loopback ports:
 Electron CDP (usually 9222) and Node inspector (usually 9229).
-Checks renderer recovery after one IPC rejection; null-result is explicitly optional.
+Default: verify one IPC rejection; null-result is explicitly optional.
+--discover: compare healthy controls with single/double rejection and null-result experiments.
+Discovery uses English UI heuristics; findings require review. No readiness selector needed.
 No HTTP/Rust transport faults or AI calls. See docs/ipc.md for installation and scope.`);
     return;
   }
@@ -21,7 +23,8 @@ No HTTP/Rust transport faults or AI calls. See docs/ipc.md for installation and 
     options[args[i].slice(2)] = args[++i];
   }
   if (!options.config) throw new Error('--config is required');
-  const config = JSON.parse(await readFile(options.config, 'utf8'));
+  const rawConfig = JSON.parse(await readFile(options.config, 'utf8'));
+  const config = options.discover ? discoveryConfig(rawConfig) : rawConfig;
   const parent = resolve('.recovery-probe');
   let directory;
   if (options.out) { directory = resolve(options.out); await mkdir(directory, { mode: 0o700 }); }

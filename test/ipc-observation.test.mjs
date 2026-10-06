@@ -17,5 +17,6 @@ test('UI summaries omit raw text and discovery validates bounds without asking f
   assert.equal(summary.text, undefined);
   assert.ok(!JSON.stringify(summary).includes('private filename'));
   assert.equal(discoveryConfig({ channel: 'read' }).repeats, 3);
+  assert.equal(discoveryConfig({ channel: 'read', readyText: 'private filename' }).readyText, undefined);
   assert.throws(() => discoveryConfig({ channel: 'read', observationMs: 60001 }));
 });

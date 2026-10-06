@@ -7,7 +7,8 @@ import { readRegion, summarizeRegion, classifyObservation } from './ipc-observat
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 export function discoveryConfig(input) {
-  const c = { cdp: 'http://127.0.0.1:9222', inspector: 'http://127.0.0.1:9229', requiredChannels: [], observationMs: 8000, baselineTimeoutMs: 15000, repeats: 3, ...input };
+  const c = { cdp: 'http://127.0.0.1:9222', inspector: 'http://127.0.0.1:9229', channel: undefined, requiredChannels: [], observationMs: 8000, baselineTimeoutMs: 15000, repeats: 3 };
+  for (const key of Object.keys(c)) if (Object.hasOwn(input, key)) c[key] = input[key];
   if (typeof c.channel !== 'string' || !c.channel.trim()) throw new Error('channel is required (an explicitly allowed read channel)');
   if (!Array.isArray(c.requiredChannels) || c.requiredChannels.some(x => typeof x !== 'string' || !x.trim() || x === c.channel) || new Set(c.requiredChannels).size !== c.requiredChannels.length) throw new Error('Invalid requiredChannels');
   for (const key of ['observationMs', 'baselineTimeoutMs']) if (!Number.isInteger(c[key]) || c[key] < 500 || c[key] > 30000) throw new Error(`${key} must be 500–30000`);
