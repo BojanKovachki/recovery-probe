@@ -16,7 +16,8 @@ A happy-path test can pass while a transient failed request leaves an app perman
 | npm `0.2.0` | Playwright/fetch fault helpers and the original configured CLI. No source investigation or automatic fixes. |
 | npm `0.3.0-preview.2` (`next` as of October 5) | Web/Electron discovery and checks; login-state support; opt-in AI proposals and isolated verification. |
 | GitHub `0.3.0-preview.3` (prepared for npm publication) | Guided first run: browser setup, window/request selection, click-to-select loaded content, saved setup and one-command reruns. |
-| Not implemented | General discovery/fixing of arbitrary bugs, production self-healing, autonomous deployment, native/IPC request interception. |
+| GitHub `0.3.0-preview.4` (prepared for npm publication) | Development-only IPC rejection/null-result adapter and noninteractive desktop checks through a main-process registration hook. |
+| Not implemented | General discovery/fixing of arbitrary bugs, production self-healing, autonomous deployment, native/Rust HTTP transport interception. |
 
 The repair preview needs a local source repository, explicit source-file selection, one expected outcome, app launch/test commands, and your own API key/model for generation. It does **not** obtain these from installing an npm dependency. It returns a reviewable candidate, not a guaranteed fix. [Full setup and safety guide](docs/repair.md).
 
@@ -36,7 +37,7 @@ Chromium is downloaded automatically if missing. Sign in, choose a request if se
 
 Next time run `npx recovery-probe start web` or `npx recovery-probe start desktop` from the same folder. The saved expectation and login state are reused. `--fresh` refreshes login and choices; `--dir` keeps separate scenarios. Reports and auth stay in a locally ignored folder. These checks do not read source code or call AI services.
 
-This is guided setup, not autonomous discovery of business requirements. One chosen GET endpoint and one user-confirmed content marker are tested; general native software and Rust/IPC networking need other adapters. [Full guided-start instructions](docs/start.md).
+This is guided setup, not autonomous discovery of business requirements. One chosen GET endpoint and one user-confirmed content marker are tested; general native software and Rust networking need other adapters; IPC reads can use the separate preview.4 hook. [Full guided-start instructions](docs/start.md).
 
 ![Recovery Probe catches a broken retry flow and verifies the corrected flow](docs/demo.svg)
 
@@ -44,7 +45,7 @@ This is guided setup, not autonomous discovery of business requirements. One cho
 
 The desktop adapter currently intercepts **renderer GET fetch/XHR requests**, not the entire application's network stack. An Electron UI can load all its data through preload → IPC → a main-process or Rust client while exposing no interceptable renderer requests. In that architecture, connection/discovery alone cannot measure recovery. An empty discovery result is inconclusive, never a pass.
 
-If the application also has a browser build using ordinary fetch/XHR, test that build for a renderer recovery measurement. This does not validate the desktop IPC/native path. Desktop coverage needs a dedicated fault adapter at the actual request boundary; such an adapter is not implemented yet. Playwright can still drive the UI when those adapters are added.
+If the application also has a browser build using ordinary fetch/XHR, test that build for a renderer recovery measurement. This does not validate the desktop IPC/native path. For main-process IPC reads, preview.4 adds an explicit development-only registration hook and noninteractive checker: [IPC setup](docs/ipc.md). It tests renderer recovery after IPC rejection/null results, not Rust or HTTP behavior. Playwright can still drive the UI when those adapters are added.
 
 Electron attachment uses Playwright's `noDefaults` option to leave the existing application's download/focus/media settings alone. CI runs real attachment, fault checks and guided reruns on Electron 29.0.1 and 44.5.1; this is not a guarantee for every version or app architecture.
 

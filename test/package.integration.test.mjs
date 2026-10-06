@@ -54,6 +54,8 @@ import { createFaultFetch } from 'recovery-probe/fetch';
 assert.equal(defaultFaults.length, 3);
 assert.equal(ProbeError.name, 'ProbeError');
 assert.equal(typeof withFault, 'function');
+const { installIpcProbe } = await import('recovery-probe/ipc');
+assert.equal(typeof installIpcProbe, 'function');
 const desktop = await import('recovery-probe/desktop');
 assert.equal(typeof desktop.checkDesktop, 'function');
 const server = createServer((request, response) => {
@@ -118,6 +120,8 @@ void checkWeb(webConfig);
     const startHelp = await exec(process.execPath, [cli, 'start', '--help'], { cwd: consumer, timeout: 10000 });
     assert.match(startHelp.stdout, /start web/);
     assert.match(startHelp.stdout, /--fresh/);
+    const ipcHelp = await exec(process.execPath, [cli, 'ipc', '--help'], { cwd: consumer, timeout: 10000 });
+    assert.match(ipcHelp.stdout, /Node inspector/);
     const desktopHelp = await exec(process.execPath, [cli, 'desktop', '--help'], { cwd: consumer, timeout: 10000 });
     assert.match(desktopHelp.stdout, /--discover/);
     const webHelp = await exec(process.execPath, [cli, 'web', '--help'], { cwd: consumer, timeout: 10000 });
