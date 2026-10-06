@@ -1,5 +1,9 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('node:path');
+// The CI display is virtual. Avoid GPU startup/occlusion stalls without forcing UI clicks.
+app.disableHardwareAcceleration();
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.whenReady().then(async () => {
   // Xvfb has no window manager; keep animation frames running so real Playwright
   // click stability checks do not stall on the first interaction. Do not force clicks.

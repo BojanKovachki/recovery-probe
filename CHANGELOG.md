@@ -4,6 +4,14 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## [0.3.0-preview.4] - Unreleased
+
+- Add an explicitly enabled main-process IPC registration adapter, scoped to allowed read channels and one window's main frame.
+- Preserve normal call arguments, receiver and original return values; use no private Electron handler maps.
+- Add one-shot rejection/null-result plans with IDs, TTL, reset, pending-call isolation and bounded per-channel counters.
+- Add a noninteractive IPC checker over loopback Node inspector and renderer CDP, with measured baseline/deadline, dependency checks, fresh reloads and local reports.
+- Treat extra traffic, missing dependencies and hidden/offline environments as inconclusive. Do not claim HTTP/Rust fault coverage.
+
 ## [0.3.0-preview.3] - Unreleased
 
 - Attach to Electron without overriding download/focus/media defaults; fix older Electron rejecting Browser.setDownloadBehavior and test Electron 29.0.1 alongside 44.5.1.

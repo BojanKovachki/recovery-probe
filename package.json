@@ -1,6 +1,6 @@
 {
   "name": "recovery-probe",
-  "version": "0.3.0-preview.3",
+  "version": "0.3.0-preview.4",
   "type": "module",
   "description": "Recovery testing for web and Electron apps, with opt-in AI patch proposals and local verification.",
   "license": "MIT",
@@ -28,6 +28,11 @@
       "types": "./src/web.d.mts",
       "import": "./src/web.mjs",
       "default": "./src/web.mjs"
+    },
+    "./ipc": {
+      "types": "./src/ipc-probe.d.cts",
+      "import": "./src/ipc-probe.cjs",
+      "require": "./src/ipc-probe.cjs"
     }
   },
   "bin": {
@@ -45,7 +50,8 @@
     "LICENSE",
     "docs/desktop.md",
     "docs/repair.md",
-    "docs/start.md"
+    "docs/start.md",
+    "docs/ipc.md"
   ],
   "sideEffects": false,
   "engines": {
@@ -89,14 +95,16 @@
     "test:core": "node --test test/fetch-core.test.mjs",
     "test:browser": "node --test test/recovery.integration.test.mjs",
     "test:package": "node --test test/package.integration.test.mjs",
-    "test:all": "npm run test:core && npm run test:package && npm run test:browser && npm run test:desktop && npm run test:repair && npm run test:guided",
+    "test:all": "npm run test:core && npm run test:package && npm run test:browser && npm run test:desktop && npm run test:repair && npm run test:guided && npm run test:ipc",
     "demo": "node bin/core-demo.mjs",
     "demo:browser": "node bin/recovery-probe.mjs --demo --out artifacts/browser-demo.json",
-    "prepublishOnly": "npm run test:core && npm run test:package",
+    "prepublishOnly": "npm run test:core && npm run test:package && npm run test:ipc",
     "test:desktop": "node --test test/desktop.test.mjs",
     "test:desktop:electron": "node --test test/desktop.electron.test.mjs",
     "test:repair": "node --test test/repair.test.mjs test/repair.integration.test.mjs test/web.integration.test.mjs",
     "test:repair:electron": "node --test test/repair.electron.test.mjs",
-    "test:guided": "node --test test/guided-start.test.mjs test/guided-start.integration.test.mjs"
+    "test:guided": "node --test test/guided-start.test.mjs test/guided-start.integration.test.mjs",
+    "test:ipc": "node --test test/ipc-probe.test.mjs",
+    "test:ipc:electron": "node --test test/ipc.electron.test.mjs"
   }
 }

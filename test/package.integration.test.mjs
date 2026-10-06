@@ -54,6 +54,10 @@ import { createFaultFetch } from 'recovery-probe/fetch';
 assert.equal(defaultFaults.length, 3);
 assert.equal(ProbeError.name, 'ProbeError');
 assert.equal(typeof withFault, 'function');
+const { installIpcProbe } = await import('recovery-probe/ipc');
+assert.equal(typeof installIpcProbe, 'function');
+const { createRequire } = await import('node:module');
+assert.equal(typeof createRequire(import.meta.url)('recovery-probe/ipc').installIpcProbe, 'function');
 const desktop = await import('recovery-probe/desktop');
 assert.equal(typeof desktop.checkDesktop, 'function');
 const server = createServer((request, response) => {
@@ -80,6 +84,10 @@ try {
 
     await writeFile(join(consumer, 'check.mts'), `
 import { createFaultFetch, type FetchFaultStats } from 'recovery-probe/fetch';
+import { installIpcProbe, type IpcProbe } from 'recovery-probe/ipc';
+const ipc: IpcProbe = installIpcProbe({handle() {}}, {enabled: true, channels: ['fixture:read'], sender: () => undefined});
+// @ts-expect-error IPC faults must not be mislabeled as HTTP failures.
+ipc.begin({id: 'test', channel: 'fixture:read', fault: 'http-error'});
 const probe = createFaultFetch(fetch, { url: 'https://example.test/data', kind: 'http-error' });
 const response: Promise<Response> = probe.fetch('https://example.test/data');
 const stats: FetchFaultStats = probe.assertApplied();
@@ -118,6 +126,8 @@ void checkWeb(webConfig);
     const startHelp = await exec(process.execPath, [cli, 'start', '--help'], { cwd: consumer, timeout: 10000 });
     assert.match(startHelp.stdout, /start web/);
     assert.match(startHelp.stdout, /--fresh/);
+    const ipcHelp = await exec(process.execPath, [cli, 'ipc', '--help'], { cwd: consumer, timeout: 10000 });
+    assert.match(ipcHelp.stdout, /Node inspector/);
     const desktopHelp = await exec(process.execPath, [cli, 'desktop', '--help'], { cwd: consumer, timeout: 10000 });
     assert.match(desktopHelp.stdout, /--discover/);
     const webHelp = await exec(process.execPath, [cli, 'web', '--help'], { cwd: consumer, timeout: 10000 });

@@ -10,7 +10,7 @@ You can run the tester in a separate folder; your desktop application's producti
 
 The upcoming preview.3 attaches with `noDefaults: true`. This avoids Playwright's default download-behavior override, which older Electron versions can reject with `Browser.setDownloadBehavior: Browser context management is not supported`. It also preserves the application's focus/media defaults. CI covers Electron 29.0.1 and 44.5.1 with real renderer fault checks and guided reruns. Keep the test window visible; attachment does not disable app background throttling.
 
-A successful connection does not establish that the app uses supported networking. If its preload forwards data reads through IPC to Rust or another main-process client, renderer discovery may correctly find no GET JSON requests. This needs another fault adapter; do not keep changing selectors or report the absence of requests as a pass. A browser build using fetch can be tested with `web`, but the result only applies to that build's path.
+A successful connection does not establish that the app uses supported networking. If its preload forwards data reads through IPC to Rust or another main-process client, renderer discovery may correctly find no GET JSON requests. Use the explicit [IPC registration adapter](ipc.md) in preview.4 for renderer recovery after IPC rejection/null results; it does not test Rust transport. Do not keep changing selectors or report the absence of requests as a pass. A browser build using fetch can be tested with `web`, but the result only applies to that build's path.
 
 ## 1. Start the development app with a local debugging port
 

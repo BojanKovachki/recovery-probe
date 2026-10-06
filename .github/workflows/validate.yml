@@ -33,6 +33,8 @@ jobs:
         run: npm run test:core
       - name: Verify isolated package installation and TypeScript imports
         run: npm run test:package
+      - name: Verify IPC registration and fault isolation
+        run: npm run test:ipc
       - name: Verify desktop configuration and report handling
         run: npm run test:desktop
       - name: Verify repair safety and provider contract
@@ -119,5 +121,7 @@ jobs:
         run: npm install --no-save --package-lock=false --no-audit --no-fund electron@${{ matrix.electron }}
       - name: Test discovery, recovery checks and CLI in real Electron
         run: xvfb-run -a npm run test:desktop:electron
+      - name: Test IPC rejection, null result, dependencies and cleanup
+        run: xvfb-run -a npm run test:ipc:electron
       - name: Test real Electron before/after repair with a controlled model proposal
         run: xvfb-run -a npm run test:repair:electron
