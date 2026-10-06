@@ -56,6 +56,8 @@ assert.equal(ProbeError.name, 'ProbeError');
 assert.equal(typeof withFault, 'function');
 const { installIpcProbe } = await import('recovery-probe/ipc');
 assert.equal(typeof installIpcProbe, 'function');
+const { createRequire } = await import('node:module');
+assert.equal(typeof createRequire(import.meta.url)('recovery-probe/ipc').installIpcProbe, 'function');
 const desktop = await import('recovery-probe/desktop');
 assert.equal(typeof desktop.checkDesktop, 'function');
 const server = createServer((request, response) => {
@@ -82,6 +84,10 @@ try {
 
     await writeFile(join(consumer, 'check.mts'), `
 import { createFaultFetch, type FetchFaultStats } from 'recovery-probe/fetch';
+import { installIpcProbe, type IpcProbe } from 'recovery-probe/ipc';
+const ipc: IpcProbe = installIpcProbe({handle() {}}, {enabled: true, channels: ['fixture:read'], sender: () => undefined});
+// @ts-expect-error IPC faults must not be mislabeled as HTTP failures.
+ipc.begin({id: 'test', channel: 'fixture:read', fault: 'http-error'});
 const probe = createFaultFetch(fetch, { url: 'https://example.test/data', kind: 'http-error' });
 const response: Promise<Response> = probe.fetch('https://example.test/data');
 const stats: FetchFaultStats = probe.assertApplied();

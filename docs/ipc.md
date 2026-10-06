@@ -104,6 +104,7 @@ The global main-process control exposes `identify()`, `begin(...)`, `snapshot()`
 - `DEPENDENCY_FAILED` / `DEPENDENCY_NOT_READY`: a separate prerequisite failed or did not finish; not attributed to the selected recovery path.
 - `FAULT_NOT_TRIGGERED`: the configured invocation did not consume exactly one fault.
 - `TRAFFIC_AMBIGUOUS`: extra target traffic prevents identifying the expected single retry.
+- `TARGET_NAVIGATED`: the selected renderer left the intended screen.
 - `ENVIRONMENT_BLOCKED`: a sampled check found the renderer hidden or offline; retry may be paused.
 
 Exit codes: 0 all checks plus cleanup passed; 1 an observed recovery failure; 2 setup/inconclusive. Sampling cannot prove that no very brief visibility transition occurred. A successful handler return also does not certify its response schema; the fixture content assertion remains necessary. Two consecutive failures are deliberately not injected; exhausting a one-retry policy is a separate product expectation.

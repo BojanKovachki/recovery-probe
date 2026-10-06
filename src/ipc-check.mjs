@@ -50,6 +50,7 @@ export async function checkIpc(input) {
         while (true) {
           snapshot = await control.call('snapshot');
           if (snapshot?.id !== runId || snapshot.senderId !== identity.senderId) throw new Error('Probe run or target changed');
+          if (page.url() !== identity.pageUrl) return { outcome: 'inconclusive', code: 'TARGET_NAVIGATED', snapshot };
           const status = await ui(page, config);
           if (status.blocked) return { outcome: 'inconclusive', code: 'ENVIRONMENT_BLOCKED', snapshot };
           const target = snapshot.channels[config.channel];
@@ -65,8 +66,6 @@ export async function checkIpc(input) {
             const code = !fault ? 'BASELINE_FAILED' : snapshot.injected !== 1 ? 'FAULT_NOT_TRIGGERED' : !dependenciesReady ? 'DEPENDENCY_NOT_READY' : target.calls > 2 ? 'TRAFFIC_AMBIGUOUS' : 'RECOVERY_NOT_OBSERVED';
             return { outcome: code === 'RECOVERY_NOT_OBSERVED' ? 'fail' : 'inconclusive', code, snapshot };
           }
-          // Extra target traffic can mimic a retry; fail closed even if content appears.
-          if (fault && target.calls > 2) return { outcome: 'inconclusive', code: 'TRAFFIC_AMBIGUOUS', snapshot };
           await sleep(50);
         }
       } finally {
