@@ -17,6 +17,7 @@ A happy-path test can pass while a transient failed request leaves an app perman
 | npm `0.3.0-preview.2` (`next` as of October 5) | Web/Electron discovery and checks; login-state support; opt-in AI proposals and isolated verification. |
 | GitHub `0.3.0-preview.3` (prepared for npm publication) | Guided first run: browser setup, window/request selection, click-to-select loaded content, saved setup and one-command reruns. |
 | GitHub `0.3.0-preview.4` (prepared for npm publication) | Development-only IPC rejection/null-result adapter and noninteractive desktop checks through a main-process registration hook. |
+| GitHub `0.3.0-preview.5` (prepared for npm publication) | Inspector control reliability and verified cleanup after uncertain IPC begin/reset replies. Use this build for IPC testing. |
 | Not implemented | General discovery/fixing of arbitrary bugs, production self-healing, autonomous deployment, native/Rust HTTP transport interception. |
 
 The repair preview needs a local source repository, explicit source-file selection, one expected outcome, app launch/test commands, and your own API key/model for generation. It does **not** obtain these from installing an npm dependency. It returns a reviewable candidate, not a guaranteed fix. [Full setup and safety guide](docs/repair.md).

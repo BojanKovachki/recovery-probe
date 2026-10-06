@@ -32,6 +32,8 @@ No HTTP/Rust transport faults or AI calls. See docs/ipc.md for installation and 
   await writeFile(join(directory, 'report.html'), html, { mode: 0o600 });
   console.log(`Baseline: ${report.baseline?.code ?? report.error ?? 'not established'}`);
   for (const row of report.results) console.log(`${row.outcome.toUpperCase()}: ${row.fault} — ${row.code}; injected=${row.snapshot.injected}; later real successes=${row.snapshot.successfulAfterFault}`);
+  if (report.error) console.error(`Check stopped: ${report.error}`);
+  if (report.cleanupError) console.error(`Cleanup: ${report.cleanupError}`);
   console.log(`Final reload: ${report.finalReset}\nReport: ${join(directory, 'report.html')}`);
   process.exitCode = report.ok ? 0 : report.results.some(row => row.outcome === 'fail') ? 1 : 2;
 }

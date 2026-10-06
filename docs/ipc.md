@@ -1,6 +1,6 @@
 # IPC renderer recovery preview
 
-This adapter is in `0.3.0-preview.4` on GitHub, not yet published to npm. It tests renderer recovery after **one rejected IPC invocation**, or optionally **one successful null result**. It does not simulate HTTP status codes, Rust transport failures, token refresh, connection banners or native retry behavior. Use only read-only channels in a development build with known fixture data.
+This adapter is in `0.3.0-preview.5` on GitHub, not yet published to npm. It tests renderer recovery after **one rejected IPC invocation**, or optionally **one successful null result**. It does not simulate HTTP status codes, Rust transport failures, token refresh, connection banners or native retry behavior. Use only read-only channels in a development build with known fixture data.
 
 Unlike renderer HTTP routing, this boundary requires a small main-process hook. The local agent can perform the setup below; no interactive picker is required. Do not edit generated client files or access Electron's private handler map.
 
@@ -10,11 +10,11 @@ Node 22+ is required for the CLI. Electron 29's bundled Node can load the small 
 
 ```bash
 mkdir -p recovery-probe-tools && cd recovery-probe-tools
-npm install --save-dev github:BojanKovachki/recovery-probe#feat/ipc-recovery playwright@1.62.1
+npm install --save-dev github:BojanKovachki/recovery-probe#main playwright@1.62.1
 node -p "require.resolve('recovery-probe/ipc')"
 ```
 
-Pin the tested commit for reproducible installs. Record the absolute path printed by the last command. After npm publication, use `recovery-probe@0.3.0-preview.4` instead of the GitHub reference. Chromium need not be downloaded: the checker attaches to Electron.
+Pin the tested commit for reproducible installs. Record the absolute path printed by the last command. After npm publication, use `recovery-probe@0.3.0-preview.5` instead of the GitHub reference. Chromium need not be downloaded: the checker attaches to Electron.
 
 ## 2. Add a development-only registration hook
 
@@ -54,7 +54,7 @@ Sign in with a fixture account, open the intended route, and keep the window vis
 
 ## 4. Generate one local scenario
 
-The local agent should derive this configuration from the real handler names, retry policy and DOM. It should not guess the spinner selector or choose a row that virtualization hides. A fixture account with one known file provides a stable assertion.
+The local agent should derive this configuration from the real handler names, retry policy and DOM. It should not guess the spinner selector or choose a row that virtualization hides. A fixture account with one known file is the simplest setup, not a library requirement. An existing authorized staging account can also be used if the agent verifies one uniquely selected, fully loaded file row remains visible after a fresh reload under the actual sort/filter. Do not use an all-rows selector on a large virtualized table or modify account data merely to make the assertion pass. If no reliable visible marker is available, stop and request suitable fixture data.
 
 ```json
 {
@@ -108,5 +108,11 @@ The global main-process control exposes `identify()`, `begin(...)`, `snapshot()`
 - `ENVIRONMENT_BLOCKED`: a sampled check found the renderer hidden or offline; retry may be paused.
 
 Exit codes: 0 all checks plus cleanup passed; 1 an observed recovery failure; 2 setup/inconclusive. Sampling cannot prove that no very brief visibility transition occurred. A successful handler return also does not certify its response schema; the fixture content assertion remains necessary. Two consecutive failures are deliberately not injected; exhausting a one-retry policy is a separate product expectation.
+
+## Inspector reliability and uncertain replies
+
+Preview.5 evaluates synchronous controls without `awaitPromise`. Window identification uses a retained remote Promise followed by `Runtime.awaitPromise`, then releases its object group. This avoids the observed Electron main-process `Promise was collected` failure for implicit awaiting of plain values.
+
+A failed `begin` reply does not prove that arming failed. The checker records the ID before sending, attempts reset by that ID even on protocol errors, and independently reads back `armed: null`. It never retries begin or uses an unscoped reset to clear another run. If the inspector is unavailable or a plan remains armed, cleanup is unverified: stop the test app rather than continue. The hook's TTL remains a fallback, not a claim that cleanup succeeded. A protocol failure produces no application recovery verdict.
 
 All reports remain local. No AI service or source upload is used. The app still contacts its configured backend on real calls. After testing, disable the development flags and revert only the hook changes introduced for this test, preserving pre-existing work.

@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 /** Only the developer's explicitly selected loopback Node inspector is supported. */
 function loopback(raw, protocols) {
   const url = new URL(raw);
@@ -34,19 +36,44 @@ export async function connectIpcInspector(endpoint = 'http://127.0.0.1:9229') {
     socket.addEventListener('open', () => { clearTimeout(timer); resolve(); }, { once: true });
     socket.addEventListener('error', () => { clearTimeout(timer); reject(new Error('Cannot connect to Node inspector')); }, { once: true });
   });
-  const evaluate = expression => new Promise((resolve, reject) => {
+  const send = (method, params) => new Promise((resolve, reject) => {
+    if (socket.readyState !== WebSocket.OPEN) { reject(new Error('Inspector is not connected')); return; }
     const id = ++next;
     const timer = setTimeout(() => { pending.delete(id); reject(new Error('Inspector command timed out')); }, 5000);
     pending.set(id, { resolve, reject, timer });
-    socket.send(JSON.stringify({ id, method: 'Runtime.evaluate', params: { expression, returnByValue: true, awaitPromise: true } }));
+    try { socket.send(JSON.stringify({ id, method, params })); }
+    catch (error) { pending.delete(id); clearTimeout(timer); reject(error); }
   });
   return {
-    async call(method, argument) {
-      if (!['identify', 'begin', 'snapshot', 'reset'].includes(method)) throw new Error('Unsupported probe control');
-      const response = await evaluate(`globalThis.__recoveryProbeIpc.${method}(${argument === undefined ? '' : JSON.stringify(argument)})`);
-      if (response.exceptionDetails) throw new Error('IPC probe control failed: ' + (response.exceptionDetails.exception?.description ?? response.exceptionDetails.text));
-      return response.result?.value;
-    },
+    call: (method, argument) => callIpcInspector(send, method, argument),
     close() { socket.close(); },
   };
+}
+
+function checked(response) {
+  if (response.exceptionDetails) throw new Error('IPC probe control failed: ' + (response.exceptionDetails.exception?.description ?? response.exceptionDetails.text));
+  return response.result;
+}
+
+/** Keep synchronous controls synchronous. Electron main-process inspector evaluation
+ * can lose the implicit promise created by awaitPromise:true even for plain values.
+ * Only identify(challenge) is async; retain its remote Promise before awaiting it.
+ */
+export async function callIpcInspector(send, method, argument) {
+  if (!['identify', 'begin', 'snapshot', 'reset'].includes(method)) throw new Error('Unsupported probe control');
+  const expression = `globalThis.__recoveryProbeIpc.${method}(${argument === undefined ? '' : JSON.stringify(argument)})`;
+  if (method !== 'identify' || argument === undefined) {
+    const result = checked(await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: false }));
+    if (result?.subtype === 'promise') throw new Error('A synchronous IPC control unexpectedly returned a Promise');
+    return result?.value;
+  }
+  const objectGroup = `recovery-probe-${randomUUID()}`;
+  try {
+    const result = checked(await send('Runtime.evaluate', { expression, returnByValue: false, awaitPromise: false, objectGroup }));
+    if (result?.subtype !== 'promise' || !result.objectId) throw new Error('Window identification did not return a Promise');
+    return checked(await send('Runtime.awaitPromise', { promiseObjectId: result.objectId, returnByValue: true }))?.value;
+  } finally {
+    // Closing the inspector also releases references if explicit release fails.
+    await send('Runtime.releaseObjectGroup', { objectGroup }).catch(() => {});
+  }
 }

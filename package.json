@@ -1,6 +1,6 @@
 {
   "name": "recovery-probe",
-  "version": "0.3.0-preview.4",
+  "version": "0.3.0-preview.5",
   "type": "module",
   "description": "Recovery testing for web and Electron apps, with opt-in AI patch proposals and local verification.",
   "license": "MIT",
@@ -104,7 +104,7 @@
     "test:repair": "node --test test/repair.test.mjs test/repair.integration.test.mjs test/web.integration.test.mjs",
     "test:repair:electron": "node --test test/repair.electron.test.mjs",
     "test:guided": "node --test test/guided-start.test.mjs test/guided-start.integration.test.mjs",
-    "test:ipc": "node --test test/ipc-probe.test.mjs",
+    "test:ipc": "node --test test/ipc-probe.test.mjs test/ipc-control.test.mjs",
     "test:ipc:electron": "node --test test/ipc.electron.test.mjs"
   }
 }
