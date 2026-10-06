@@ -35,7 +35,8 @@ test('structural HTTP fixture matrix: three fetch styles, negative controls and 
     res.setHeader('Cache-Control','no-store');
     if(req.url==='/api/telemetry'){res.writeHead(204);res.end();return;}
     if(req.url==='/api/read'){res.setHeader('Content-Type','application/json');setTimeout(()=>res.end('{"name":"data"}'),options.delay??10);return;}
-    res.setHeader('Content-Type','text/html');loads++;res.end(fixture(options)+(options.unstable&&loads===5?'<aside>changed control</aside>':''));
+    if(req.url!=='/'){res.writeHead(404);res.end();return;}
+    res.setHeader('Content-Type','text/html');loads++;res.end(fixture(options).replace('</main>',(options.unstable&&loads===5?'<aside>changed control</aside>':'')+'</main>'));
   });
   await new Promise(r=>server.listen(0,'127.0.0.1',r));
   const base=`http://127.0.0.1:${server.address().port}`;
@@ -58,6 +59,7 @@ test('structural HTTP fixture matrix: three fetch styles, negative controls and 
       if(family==='repeated') assert.ok(report.baselines[0].repeatedReads.some(r=>r.code==='REPEATED_READS'));
       if(family==='grid') assert.equal(report.results[0].observation.after.images,0);
     }
+    await mkdir('artifacts',{recursive:true});await writeFile('artifacts/discovery-fixture-metrics.json',JSON.stringify(metrics,null,2));
     options={style:'async',family:'list',retries:1,unstable:true};loads=0;await page.goto(base);
     const unstable=await discoverHttp(page,{endpoint:base+'/api/read',faults:['http-error'],repeats:1,settleMs:200,recoveryTimeoutMs:1600});
     assert.equal(unstable.error,'CONTROL_UNSTABLE');assert.equal(unstable.failedControl.reasons.fingerprintChanged,true);assert.ok(unstable.failedControl.timeline.length);

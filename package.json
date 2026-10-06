@@ -93,7 +93,7 @@
   "scripts": {
     "test": "npm run test:core",
     "test:core": "node --test test/fetch-core.test.mjs",
-    "test:browser": "node --test test/recovery.integration.test.mjs test/discovery.integration.test.mjs",
+    "test:browser": "node --test test/recovery.integration.test.mjs test/discovery.integration.test.mjs test/attach.integration.test.mjs",
     "test:package": "node --test test/package.integration.test.mjs",
     "test:all": "npm run test:core && npm run test:package && npm run test:browser && npm run test:desktop && npm run test:repair && npm run test:guided && npm run test:ipc",
     "demo": "node bin/core-demo.mjs",

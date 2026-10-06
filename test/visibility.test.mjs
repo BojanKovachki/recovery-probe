@@ -9,8 +9,8 @@ function fixture(unsupported=false) {
 }
 test('unminimize is opt-in, reversible and supports an Electron control fallback',async()=>{
   for(const unsupported of [false,true]){
-    const f=fixture(unsupported);assert.equal((await windowVisibility(f.page,f.control)).windowState,'minimized');
-    const unchanged=await prepareVisibility(f.page,{control:f.control});assert.equal(f.state(),'minimized');await unchanged.revert();
-    const changed=await prepareVisibility(f.page,{control:f.control,restoreWindow:true});assert.equal(f.state(),'normal');await changed.revert();assert.equal(f.state(),'minimized');
+    const f=fixture(unsupported);const control=unsupported?f.control:undefined;assert.equal((await windowVisibility(f.page,control)).windowState,'minimized');
+    const unchanged=await prepareVisibility(f.page,{control});assert.equal(f.state(),'minimized');await unchanged.revert();
+    const changed=await prepareVisibility(f.page,{control,restoreWindow:true});assert.equal(f.state(),'normal');await changed.revert();assert.equal(f.state(),'minimized');
   }
 });

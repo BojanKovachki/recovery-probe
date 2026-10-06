@@ -150,7 +150,7 @@ For an already authorized, separately configured Chromium/Edge test session, use
 npx recovery-probe web --attach --config ./scenario.json --cdp http://127.0.0.1:9223
 ```
 
-This reuses the live page and its sessionStorage through reloads. It does not export credentials, create a managed device identity or bypass sign-in policy. CDP must be loopback-only. Sign in normally in a testing session you are permitted to automate. The tool disconnects at the end and leaves the browser open. Endpoint/window listing remains available through `desktop --list` / `desktop --discover`.
+This reuses the live page and its sessionStorage through reloads. It does not export credentials, create a managed device identity or bypass sign-in policy. CDP must be loopback-only. Sign in normally in a testing session you are permitted to automate. The tool disconnects at the end and leaves the browser open. List windows with `web --attach --list --cdp URL`. Observe endpoints with `web --attach --discover --page N --cdp URL` (no config); a config switches discovery to fault experiments. The older desktop spellings still work.
 
 ### Structural HTTP discovery
 

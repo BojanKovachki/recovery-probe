@@ -6,7 +6,11 @@ import { openWeb, checkWeb, discoverWeb } from '../src/web.mjs';
 import { writeDesktopReport } from '../src/desktop-report.mjs';
 
 export async function webMain(args) {
-  if (args.includes('--attach') && !args.includes('--help')) return attachMain(args.filter(a => a !== '--attach'));
+  if (args.includes('--attach') && !args.includes('--help')) {
+    const attached = args.filter(a => a !== '--attach');
+    if (args.includes('--list') || (args.includes('--discover') && !args.includes('--config'))) return (await import('./desktop.mjs')).desktopMain(attached);
+    return attachMain(attached);
+  }
   if (!args.length || args.includes('--help')) {
     console.log(`Recovery Probe web preview
   recovery-probe web --attach [--discover] --config scenario.json --cdp http://127.0.0.1:9223 [--restore-window]
