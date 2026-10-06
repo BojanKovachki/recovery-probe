@@ -14,18 +14,29 @@ A happy-path test can pass while a transient failed request leaves an app perman
 | Version | Available functionality |
 | --- | --- |
 | npm `0.2.0` | Playwright/fetch fault helpers and the original configured CLI. No source investigation or automatic fixes. |
-| GitHub `0.3.0-preview.2`, `feat/repair-workflow` | Web and Electron discovery/checks; browser login-state support; opt-in AI source-edit proposals; isolated-checkout before/after verification. Not yet a stable npm release. |
+| npm `0.3.0-preview.2` (`next` as of October 5) | Web/Electron discovery and checks; login-state support; opt-in AI proposals and isolated verification. |
+| GitHub `0.3.0-preview.3` (prepared for npm publication) | Guided first run: browser setup, window/request selection, click-to-select loaded content, saved setup and one-command reruns. |
 | Not implemented | General discovery/fixing of arbitrary bugs, production self-healing, autonomous deployment, native/IPC request interception. |
 
 The repair preview needs a local source repository, explicit source-file selection, one expected outcome, app launch/test commands, and your own API key/model for generation. It does **not** obtain these from installing an npm dependency. It returns a reviewable candidate, not a guaranteed fix. [Full setup and safety guide](docs/repair.md).
 
+## Guided start (preview.3)
+
+Start your development app as usual. In a separate tools folder, these three commands install and run the guided preview from GitHub until preview.3 is published:
+
 ```bash
-# Preview only; pin the commit when sharing a reproducible installation.
-npm install --save-dev github:BojanKovachki/recovery-probe#feat/repair-workflow playwright
-npx playwright install chromium
-npx recovery-probe web --help
-npx recovery-probe repair --help
+mkdir recovery-probe-tools && cd recovery-probe-tools
+npm install --save-dev github:BojanKovachki/recovery-probe#feat/guided-start playwright@1.62.1
+npx recovery-probe start web http://localhost:3000
 ```
+
+For Electron, use `npx recovery-probe start desktop` instead. Electron must first expose its loopback development debugging port; [see the setup guide](docs/start.md). Pin a GitHub commit for reproducibility. After preview.3 is published, install `recovery-probe@0.3.0-preview.3` in place of the GitHub reference.
+
+Chromium is downloaded automatically if missing. Sign in, choose a request if several are found, then click the loaded content that proves recovery. Confirm automatic recovery or enter the Retry button's visible label. No window-index lookup, handwritten selectors or JSON editing is needed for this flow.
+
+Next time run `npx recovery-probe start web` or `npx recovery-probe start desktop` from the same folder. The saved expectation and login state are reused. `--fresh` refreshes login and choices; `--dir` keeps separate scenarios. Reports and auth stay in a locally ignored folder. These checks do not read source code or call AI services.
+
+This is guided setup, not autonomous discovery of business requirements. One chosen GET endpoint and one user-confirmed content marker are tested; general native software and Rust/IPC networking need other adapters. [Full guided-start instructions](docs/start.md).
 
 ![Recovery Probe catches a broken retry flow and verifies the corrected flow](docs/demo.svg)
 

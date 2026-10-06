@@ -1,5 +1,7 @@
 # Try the desktop recovery preview
 
+For the new guided workflow without window-index lookup or JSON editing, see [guided start](start.md) (preview.3). The explicit configuration workflow below remains supported.
+
 This preview attaches to a running **Electron development app**. It discovers renderer GET JSON requests, then tests one selected endpoint against a UI assertion you configure once. It does not scan source code, patch files, or add runtime recovery to the application.
 
 You can run the tester in a separate folder; your desktop application's production dependencies do not change. Use Node.js 22 or newer for the tester. Electron itself may use a different bundled Node version.
@@ -24,17 +26,17 @@ Set `RECOVERY_PROBE=1` using your existing cross-platform development tooling, t
 
 ## 2. Install and identify the window
 
-Until the preview is released to npm, install the review branch in a separate tester folder:
+Install the published preview in a separate tester folder:
 
 ```bash
 mkdir recovery-probe-desktop-test
 cd recovery-probe-desktop-test
 npm init -y
-npm install --save-dev github:BojanKovachki/recovery-probe#feat/desktop-recovery-check playwright@1.62.1
+npm install --save-dev recovery-probe@0.3.0-preview.2 playwright@1.62.1
 npx recovery-probe desktop --list
 ```
 
-**Installing `recovery-probe` from npm without the GitHub reference still installs 0.2.0 and does not include this preview.** A downloaded or pinned commit build can be used instead of the moving branch.
+**Installing `recovery-probe` from npm without the preview version still installs 0.2.0 and does not include this preview.** Use an explicit preview version to keep installations reproducible.
 
 No Chromium download is needed: the tester connects to the Chromium already running inside your Electron app. `--list` prints window indexes and page URLs with query strings/fragments omitted. If there are multiple windows, select the intended one explicitly.
 

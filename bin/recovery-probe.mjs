@@ -12,6 +12,8 @@ function printHelp() {
 Usage:
   recovery-probe --demo [--out report.json] [--json]
   recovery-probe --config scenario.json [--out report.json] [--json]
+  recovery-probe start web http://localhost:3000
+  recovery-probe start desktop
   recovery-probe desktop --help
   recovery-probe web --help
   recovery-probe repair --help
@@ -54,6 +56,10 @@ function printSummary(report) {
 
 async function main() {
   const args = process.argv.slice(2);
+  if (args[0] === 'start') {
+    const { startMain } = await import('./start.mjs');
+    return startMain(args.slice(1));
+  }
   if (args[0] === 'web') {
     const { webMain } = await import('./web.mjs');
     return webMain(args.slice(1));

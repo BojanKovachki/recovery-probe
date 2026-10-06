@@ -118,3 +118,31 @@ test('CLI writes useful reports and disconnecting leaves the Electron app alive'
     assert.equal(await page.evaluate(() => window.recoveryProbeFixture.kind), 'electron-preload');
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+
+test('guided Electron setup picks content and reuses saved setup without a window index', { timeout: 20000 }, async () => {
+  const { runStart } = await import('../src/guided-start.mjs');
+  const { pickMarker } = await import('../src/pick-marker.mjs');
+  await page.goto(`${server.url}/fixed`);
+  const dir = await mkdtemp(join(tmpdir(), 'guided-electron-'));
+  const answers = ['', '1', '2', '', '5']; // ready, confirm marker, retry, default Retry label, deadline
+  const io = { interactive: true, log() {}, ask: async () => answers.shift() };
+  try {
+    const result = await runStart({ target: 'desktop', cdp, dir }, io, {
+      durationMs: 200,
+      pick: async target => {
+        const pending = pickMarker(target);
+        await target.locator('[data-recovery-probe-picker]').waitFor();
+        await target.locator('#profile').click();
+        return pending;
+      },
+    });
+    assert.equal(result.report.ok, true, JSON.stringify(result.report));
+    assert.equal(result.config.page, undefined);
+    assert.equal(answers.length, 0);
+    const rerun = await exec(process.execPath, [fileURLToPath(new URL('../bin/recovery-probe.mjs', import.meta.url)), 'start', 'desktop', '--dir', dir], { timeout: 10000 });
+    assert.match(rerun.stdout, /PASS: invalid-json/);
+    assert.equal(app.exitCode, null);
+    assert.equal(await page.evaluate(() => window.recoveryProbeFixture.kind), 'electron-preload');
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
