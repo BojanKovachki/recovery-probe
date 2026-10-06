@@ -167,3 +167,12 @@ Readiness waits for the explicit target and `requiredChannels`, then a structura
 Use `--restore-window` with discovery to opt into temporary un-minimizing. The CLI announces the action, restores the original minimized state at the end, and records restoration. Attached browsers use CDP window APIs. When the preview.7 Electron hook is available, its native window state is preferred because Electron’s browser-level CDP window state may be incomplete. Restart the app with the new hook to use that fallback. No always-on-top behaviour is used. A hidden but non-minimized window is diagnosed as possibly covered: keep it uncovered yourself. OS-specific occlusion causes are not proven by CDP. This does not add deliberate hidden-window experiments.
 
 HTML reports now lead with a compact findings table. Timelines record changed samples, bounded to 100 per phase; they are sampled evidence, not a complete event trace.
+
+
+## Healthy controls and partial experiments (preview.8)
+
+After the three initial baselines agree, each later healthy control and the final cleanup must match the established fingerprint as well as satisfy the existing dependency and stability checks. A stable intermediate screen is observed until it matches or the existing `baselineTimeoutMs` expires. The timeout is not increased. Persistent mismatches retain their timeline and differences and stop the run; fault injection does not proceed after a failed control.
+
+If an experiment stops after some completed faulted runs, `findings` includes an `INCOMPLETE_EXPERIMENT` entry with `kind: inconclusive`, `partial: true`, `completedRuns`, `plannedRuns`, `observedInterpretation` and `repeatConfirmed: false`. HTML and terminal summaries expose this partial evidence. It is not a completed experiment or a confirmed defect, even when the completed runs agree.
+
+This does not discover missing dependencies, fix application state carry-over or guarantee that the initial baselines captured all content. Known relevant dependencies must still be configured. Unchanged time windows bound the observation; later recovery remains untested.

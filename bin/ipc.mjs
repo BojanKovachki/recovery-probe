@@ -13,7 +13,7 @@ Requires a development-only main-process registration hook and two loopback port
 Electron CDP (usually 9222) and Node inspector (usually 9229).
 Default: verify one IPC rejection; null-result is explicitly optional.
 --discover: compare healthy controls with single/double rejection and null-result experiments.
-Discovery uses English UI heuristics; findings require review. No readiness selector needed.
+Discovery uses structural comparisons and language hints; findings require review. No readiness selector needed.
 No HTTP/Rust transport faults or AI calls. See docs/ipc.md for installation and scope.`);
     return;
   }
@@ -40,7 +40,7 @@ No HTTP/Rust transport faults or AI calls. See docs/ipc.md for installation and 
   await writeFile(join(directory, 'report.html'), html, { mode: 0o600 });
   if (options.discover) {
     await writeDiscoveryReport(directory, report, config);
-    for (const finding of report.findings) console.log(`${finding.kind.toUpperCase()}: ${finding.id} — ${finding.classification}; runs=${finding.confirmations}`);
+    for (const finding of report.findings) console.log(`${finding.kind.toUpperCase()}: ${finding.id} — ${finding.classification}; runs=${finding.confirmations}${finding.partial ? `/${finding.plannedRuns} partial; observed=${finding.observedInterpretation.classification}` : ''}`);
     if (report.error) console.error(`Discovery stopped: ${report.error}`);
     if (report.cleanupError) console.error(`Cleanup: ${report.cleanupError}`);
     console.log(`Final reload: ${report.finalReset}\nReport: ${join(directory, 'report.html')}\nReplay: recovery-probe ipc --discover --config ${join(directory, 'scenario.json')}`);

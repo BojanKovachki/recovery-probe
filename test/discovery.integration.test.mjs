@@ -10,12 +10,12 @@ function fixture(options) {
   return `<!doctype html><meta charset="utf-8"><main><h1>Catalog</h1><div id="loading" role="progressbar">…</div><section id="content"></section></main><script>
   const o=${JSON.stringify(options)}; const content=document.querySelector('#content'); let failures=0;let defaultRole=false;
   const request=()=>o.style==='xhr'?new Promise((resolve,reject)=>{const x=new XMLHttpRequest();x.open('GET','/api/read');x.onload=()=>{try{if(x.status!==200)throw Error();resolve(JSON.parse(x.responseText))}catch(e){reject(e)}};x.onerror=reject;x.send()}):fetch('/api/read').then(r=>{if(!r.ok)throw Error();return r.json()});
-  const success=data=>{if(data===null)throw Error();document.querySelector('#loading').remove();
+  const success=data=>{if(data===null)throw Error();document.querySelector('#loading').remove();const render=()=>{
     if(o.family==='legitimate-empty'){content.textContent='Keine Einträge';return;}
     if(o.family==='grid'){content.innerHTML=Array.from({length:13},()=>'<a href="#"><img width="12" height="12" alt="" src="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22/%3E"></a>').join('');return;}
     if(o.family==='virtualized'){content.style.cssText='height:80px;overflow:auto';const render=()=>{const start=Math.floor(content.scrollTop/20);content.innerHTML='<div style="height:2000px;position:relative"><ul style="position:absolute;top:'+start*20+'px">'+Array.from({length:4},(_,i)=>'<li aria-setsize="100" aria-posinset="'+(start+i+1)+'">Item '+(start+i)+'</li>').join('')+'</ul></div>';};content.onscroll=render;render();return;}
     content.innerHTML='<ul>'+Array.from({length:4},(_,i)=>'<li><span>Item '+i+'</span><span>'+(i===0&&!defaultRole?'manager':'user')+'</span></li>').join('')+'</ul>';
-  };
+  };setTimeout(render,o.renderDelay??0);};
   const failure=()=>{if(failures++<o.retries){setTimeout(load,30*2**(failures-1));return;}
     if(o.family==='distribution'){defaultRole=true;success({});return;}
     document.querySelector('#loading').remove();
@@ -36,7 +36,7 @@ test('structural HTTP fixture matrix: three fetch styles, negative controls and 
     if(req.url==='/api/telemetry'){res.writeHead(204);res.end();return;}
     if(req.url==='/api/read'){res.setHeader('Content-Type','application/json');setTimeout(()=>res.end('{"name":"data"}'),options.delay??10);return;}
     if(req.url!=='/'){res.writeHead(404);res.end();return;}
-    res.setHeader('Content-Type','text/html');loads++;res.end(fixture(options).replace('</main>',(options.unstable&&loads===5?'<aside>changed control</aside>':'')+'</main>'));
+    res.setHeader('Content-Type','text/html');loads++;res.end(fixture({...options,renderDelay:options.lateControl&&loads===5?900:0}).replace('</main>',(options.unstable&&loads===(options.unstableAt??5)?'<aside>changed control</aside>':'')+'</main>'));
   });
   await new Promise(r=>server.listen(0,'127.0.0.1',r));
   const base=`http://127.0.0.1:${server.address().port}`;
@@ -60,9 +60,15 @@ test('structural HTTP fixture matrix: three fetch styles, negative controls and 
       if(family==='grid') assert.equal(report.results[0].observation.after.images,0);
     }
     await mkdir('artifacts',{recursive:true});await writeFile('artifacts/discovery-fixture-metrics.json',JSON.stringify(metrics,null,2));
+    options={style:'async',family:'list',retries:1,lateControl:true};loads=0;await page.goto(base);
+    const delayed=await discoverHttp(page,{endpoint:base+'/api/read',faults:['http-error'],repeats:1,settleMs:200,baselineTimeoutMs:3000,recoveryTimeoutMs:1600});
+    assert.equal(delayed.error,undefined,JSON.stringify(delayed));assert.equal(delayed.results[0].control.ui.fingerprint,delayed.baselines[0].ui.fingerprint);assert.equal(delayed.finalReset,'healthy');
+    options={style:'async',family:'list',retries:0,unstable:true,unstableAt:9};loads=0;await page.goto(base);
+    const partial=await discoverHttp(page,{endpoint:base+'/api/read',faults:['http-error'],times:1,repeats:3,settleMs:200,baselineTimeoutMs:1500,recoveryTimeoutMs:600});
+    assert.equal(partial.error,'CONTROL_UNSTABLE');assert.equal(partial.results.length,2);assert.equal(partial.findings[0].classification,'INCOMPLETE_EXPERIMENT');assert.equal(partial.findings[0].completedRuns,2);assert.equal(partial.findings[0].plannedRuns,3);assert.equal(partial.findings[0].repeatConfirmed,false);assert.equal(partial.findings[0].observedInterpretation.classification,'SILENT_EMPTY');assert.equal(partial.finalReset,'healthy');
     options={style:'async',family:'list',retries:1,unstable:true};loads=0;await page.goto(base);
-    const unstable=await discoverHttp(page,{endpoint:base+'/api/read',faults:['http-error'],repeats:1,settleMs:200,recoveryTimeoutMs:1600});
-    assert.equal(unstable.error,'CONTROL_UNSTABLE');assert.equal(unstable.failedControl.reasons.fingerprintChanged,true);assert.ok(unstable.failedControl.timeline.length);
+    const unstable=await discoverHttp(page,{endpoint:base+'/api/read',faults:['http-error'],repeats:1,settleMs:200,baselineTimeoutMs:1500,recoveryTimeoutMs:1600});
+    assert.equal(unstable.error,'CONTROL_UNSTABLE');assert.equal(unstable.failedControl.reasons.fingerprintChanged,true);assert.equal(unstable.failedControl.ready,false);assert.ok(unstable.failedControl.elapsedMs>=1500);assert.ok(unstable.failedControl.timeline.length);
     // The explicit verifier must require ALL requested faults, and exclude every
     // injected HTTP-200 malformed body from later-success counts.
     options={style:'async',family:'list',retries:1};await page.goto(base);

@@ -1,3 +1,4 @@
+import { matchesHealthyControl, retainPartialFindings } from './discovery-control.mjs';
 import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { connectDesktop, desktopPages } from './desktop.mjs';
@@ -54,7 +55,7 @@ export async function discoverIpc(input) {
       return summary;
     };
     await observe();
-    const phase = async (fault, times = 1) => {
+    const phase = async (fault, times = 1, expectedFingerprint) => {
       runId = randomUUID();
       const id = runId;
       const started = performance.now();
@@ -82,7 +83,7 @@ export async function discoverIpc(input) {
           if (timeline.length < 100 && eventSignature !== previousEvent) { timeline.push(event); previousEvent = eventSignature; }
           const settled = target.pending === 0 && dependencies.every(row => row.successes > 0 && !row.pending);
           const stable = performance.now() - stableSince >= settleMs && !summary.loading;
-          const ready = settled && stable && target.successes >= 1 && (fault ? snapshot.injected === times && snapshot.successfulAfterFault > 0 && summary.fingerprint === report.baselines[0].ui.fingerprint : (summary.textLength > 0 || summary.images > 0 || summary.items > 0));
+          const ready = matchesHealthyControl(summary, expectedFingerprint) && settled && stable && target.successes >= 1 && (fault ? snapshot.injected === times && snapshot.successfulAfterFault > 0 && summary.fingerprint === report.baselines[0].ui.fingerprint : (summary.textLength > 0 || summary.images > 0 || summary.items > 0));
           const elapsed = firstInjectionObserved === undefined ? performance.now() - started : performance.now() - firstInjectionObserved;
           if (ready || elapsed >= (fault && firstInjectionObserved !== undefined ? config.observationMs : config.baselineTimeoutMs)) {
             const detectedAt = Date.now();
@@ -113,7 +114,7 @@ export async function discoverIpc(input) {
         const runs = [];
         for (let i = 0; i < config.repeats; i++) {
           // A healthy control before every faulted run also clears the previous state.
-          const healthy = await phase();
+          const healthy = await phase(undefined, 1, report.baselines[0].ui.fingerprint);
           if (!healthy.ready || healthy.newErrors || healthy.ui.fingerprint !== report.baselines[0].ui.fingerprint) { report.failedControl = { ...healthy, reasons: { notReady: !healthy.ready, newErrors: healthy.newErrors, fingerprintChanged: healthy.ui.fingerprint !== report.baselines[0].ui.fingerprint }, diff: compareRegions(report.baselines[0].ui, healthy.ui) }; throw new Error('CONTROL_UNSTABLE'); }
           const run = await phase(experiment.fault, experiment.times);
           run.control = { ui: healthy.ui, snapshot: healthy.snapshot };
@@ -134,7 +135,7 @@ export async function discoverIpc(input) {
     finally {
       try {
         if (runId) await resetIpcAndConfirm(control, runId);
-        const cleanup = await phase();
+        const cleanup = await phase(undefined, 1, report.baselines[0]?.ui.fingerprint);
         report.cleanup = cleanup;
         report.finalReset = cleanup.ready && !cleanup.newErrors && cleanup.ui.fingerprint === report.baselines[0]?.ui.fingerprint ? 'healthy' : 'not-verified';
       } catch (error) { report.cleanupError = error.message; }
@@ -148,5 +149,6 @@ export async function discoverIpc(input) {
     page?.off('pageerror', onError);
     control.close(); if (browser) await browser.close();
   }
+  retainPartialFindings(report, config.repeats);
   return report;
 }
