@@ -1,6 +1,6 @@
 # IPC renderer recovery preview
 
-This adapter is in `0.3.0-preview.5` on GitHub, not yet published to npm. It tests renderer recovery after **one rejected IPC invocation**, or optionally **one successful null result**. It does not simulate HTTP status codes, Rust transport failures, token refresh, connection banners or native retry behavior. Use only read-only channels in a development build with known fixture data.
+This adapter is in `0.3.0-preview.6` on GitHub, not yet published to npm. It tests renderer recovery after **one rejected IPC invocation**, or optionally **one successful null result**. It does not simulate HTTP status codes, Rust transport failures, token refresh, connection banners or native retry behavior. Use only read-only channels in a development build with known fixture data.
 
 Unlike renderer HTTP routing, this boundary requires a small main-process hook. The local agent can perform the setup below; no interactive picker is required. Do not edit generated client files or access Electron's private handler map.
 
@@ -14,7 +14,7 @@ npm install --save-dev github:BojanKovachki/recovery-probe#main playwright@1.62.
 node -p "require.resolve('recovery-probe/ipc')"
 ```
 
-Pin the tested commit for reproducible installs. Record the absolute path printed by the last command. After npm publication, use `recovery-probe@0.3.0-preview.5` instead of the GitHub reference. Chromium need not be downloaded: the checker attaches to Electron.
+Pin the tested commit for reproducible installs. Record the absolute path printed by the last command. After npm publication, use `recovery-probe@0.3.0-preview.6` instead of the GitHub reference. Chromium need not be downloaded: the checker attaches to Electron.
 
 ## 2. Add a development-only registration hook
 
@@ -107,7 +107,7 @@ The global main-process control exposes `identify()`, `begin(...)`, `snapshot()`
 - `TARGET_NAVIGATED`: the selected renderer left the intended screen.
 - `ENVIRONMENT_BLOCKED`: a sampled check found the renderer hidden or offline; retry may be paused.
 
-Exit codes: 0 all checks plus cleanup passed; 1 an observed recovery failure; 2 setup/inconclusive. Sampling cannot prove that no very brief visibility transition occurred. A successful handler return also does not certify its response schema; the fixture content assertion remains necessary. Two consecutive failures are deliberately not injected; exhausting a one-retry policy is a separate product expectation.
+Exit codes: 0 all checks plus cleanup passed; 1 an observed recovery failure; 2 setup/inconclusive. Sampling cannot prove that no very brief visibility transition occurred. A successful handler return also does not certify its response schema; the fixture content assertion remains necessary. In the default explicit verifier, two consecutive failures are not injected; exhausting a one-retry policy is a separate product expectation.
 
 ## Inspector reliability and uncertain replies
 
@@ -116,3 +116,40 @@ Preview.5 evaluates synchronous controls without `awaitPromise`. Window identifi
 A failed `begin` reply does not prove that arming failed. The checker records the ID before sending, attempts reset by that ID even on protocol errors, and independently reads back `armed: null`. It never retries begin or uses an unscoped reset to clear another run. If the inspector is unavailable or a plan remains armed, cleanup is unverified: stop the test app rather than continue. The hook's TTL remains a fallback, not a claim that cleanup succeeded. A protocol failure produces no application recovery verdict.
 
 All reports remain local. No AI service or source upload is used. The app still contacts its configured backend on real calls. After testing, disable the development flags and revert only the hook changes introduced for this test, preserving pre-existing work.
+
+## Experimental discovery (preview.6)
+
+Use the same development-only hook and loopback ports described above, but **restart the app with the new hook module** after upgrading. Discovery checks the loaded hook's repeated-fault capability before injecting anything. Open the chosen read-only screen and keep the window visible and online.
+
+```bash
+npx recovery-probe ipc --discover --config ./ipc-files.json
+```
+
+The existing config is accepted. `readySelector`, `readyText`, `busySelector`, `faults`, `retryDelayMs` and `renderMarginMs` are ignored in discovery mode. It automatically runs exactly three experiments: one rejection, two consecutive rejections, and one null result. This is an explicit fault plan, not autonomous exploration. A minimal config is:
+
+```json
+{
+  "channel": "fixture:read",
+  "requiredChannels": ["fixture:versions"],
+  "observationMs": 8000,
+  "baselineTimeoutMs": 15000,
+  "repeats": 3
+}
+```
+
+Replace channels with the explicitly allowed read channels in your app. Dependencies must be listed: the tool cannot discover native/IPC semantics or infer that an operation is read-only. Defaults use CDP 9222 and inspector 9229. Three healthy reloads establish a stable text fingerprint; another healthy control precedes every faulted run. Default success-path workload is 22 reloads (3 baselines + 18 control/fault reloads + 1 cleanup). Failure observations can take several minutes in total. Observation windows are explicit budgets, not inferred guarantees about the app's retry policy.
+
+Reports contain UI counts, English loading/empty/error/retry indicators, text hashes, call counters and timing samples. Raw UI text is used transiently but not saved; no response bodies, screenshots, credentials or source uploads are collected. A text hash is not guaranteed anonymization. Reports and scenario configs remain private local files ignored by git; discovery saves only its supported configuration fields, dropping ignored selectors/text. Channel names and port configuration still appear in the report.
+
+- `RECOVERED`: a later real read succeeded and stable UI text matched its healthy control.
+- `SILENT_EMPTY`: suspected failure-as-empty behaviour; review against product requirements. A legitimate empty healthy control does not trigger this lead.
+- `UNCAUGHT_ERROR`: additional renderer exceptions; inspect locally for cause.
+- `ERROR_OR_RETRY_SHOWN`: observed error/retry indication; no automatic bug claim.
+- `LOADING_AT_DEADLINE` / `UI_DIFFERENCE_AT_DEADLINE`: product decision needed, not proof of permanent failure.
+- `UNSTABLE`, `FAULT_NOT_TRIGGERED`, environment/dependency/control errors: inconclusive.
+
+English heuristics can misinterpret unrelated text and miss translated or icon-only states. Discovery uses the first main landmark, or the body if absent, and stops if healthy text varies. Virtualization, clocks and live content may make this unsuitable; use the existing explicit `ipc` verifier then. No DOM snapshots or region-specific source semantics are inferred. Visibility changes remain blockers, not deliberate experiments.
+
+Each finding includes counts of repeated outcomes, a suggested investigation and a replay instruction. Re-run the saved scenario with `ipc --discover --config PATH` after a local fix. Compare the same experiment and its healthy controls; disappearance of a heuristic alone does not prove a fix. There is no automatic patch application or `verify <id>` command in this preview.
+
+Exit 0 means completed with only informational observations; exit 2 means findings need review or the experiment was inconclusive. Discovery never returns exit 1 for an unverified heuristic defect. The existing explicit checker retains its exit codes. `recoveryMs` measures injection-to-detection, including sampling and a 300ms UI stability requirement; it is not just the handler duration.

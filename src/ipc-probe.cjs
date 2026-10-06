@@ -18,7 +18,7 @@ exports.installIpcProbe = function installIpcProbe(ipcMain, { channels, sender, 
   const identify = challenge => {
     const contents = sender();
     if (!contents || contents.isDestroyed()) throw new Error('Target WebContents is not available');
-    const identity = { senderId: contents.id, pageUrl: contents.getURL(), registered: [...registered] };
+    const identity = { senderId: contents.id, pageUrl: contents.getURL(), registered: [...registered], capabilities: { maxFaultCount: 10 } };
     if (challenge === undefined) return identity;
     if (typeof challenge !== 'string' || !/^[a-f0-9-]{36}$/.test(challenge)) throw new Error('Invalid window challenge');
     return contents.executeJavaScript(`globalThis.__recoveryProbeWindowNonce === ${JSON.stringify(challenge)}`).then(matches => {
@@ -35,7 +35,7 @@ exports.installIpcProbe = function installIpcProbe(ipcMain, { channels, sender, 
     if (state?.armed && Date.now() >= state.armed.expiresAt) disarm();
     return state ? JSON.parse(JSON.stringify(state)) : null;
   };
-  const begin = ({ id, channel, requiredChannels = [], fault, ttlMs = 30000 } = {}) => {
+  const begin = ({ id, channel, requiredChannels = [], fault, times = 1, ttlMs = 30000 } = {}) => {
     if (!active) throw new Error('IPC probe is disposed');
     if (typeof id !== 'string' || !id || id.length > 100 || seenIds.has(id)) throw new Error('Use a new non-empty run ID');
     if (seenIds.size >= 10000) throw new Error('Restart the dev app after 10000 probe runs');
@@ -43,11 +43,12 @@ exports.installIpcProbe = function installIpcProbe(ipcMain, { channels, sender, 
     const watched = [...new Set([channel, ...requiredChannels])];
     if (watched.some(c => !allowed.has(c) || !registered.has(c))) throw new Error('All watched channels must be allowed and registered after installing the probe');
     if (fault !== undefined && !['rejection', 'null-result'].includes(fault)) throw new Error('Supported IPC faults: rejection, null-result');
+    if (!Number.isInteger(times) || times < 1 || times > 10) throw new Error('times must be 1–10');
     if (!Number.isInteger(ttlMs) || ttlMs < 100 || ttlMs > 60000) throw new Error('ttlMs must be 100–60000');
     if (state && Object.values(state.channels).some(c => c.pending)) throw new Error('Previous real calls are still pending; wait before beginning another run');
     const identity = identify();
     disarm(); seenIds.add(id);
-    state = { id, channel, senderId: identity.senderId, injected: 0, injectedAt: null, successfulAfterFault: 0, armed: fault ? { fault, expiresAt: Date.now() + ttlMs } : null, channels: Object.create(null) };
+    state = { id, channel, senderId: identity.senderId, injected: 0, injectedAt: null, successfulAfterFault: 0, armed: fault ? { fault, remaining: times, expiresAt: Date.now() + ttlMs } : null, channels: Object.create(null) };
     for (const name of watched) state.channels[name] = { calls: 0, realCalls: 0, successes: 0, errors: 0, pending: 0, maxDurationMs: 0 };
     if (fault) { timer = setTimeout(disarm, ttlMs); timer.unref?.(); }
     return snapshot();
@@ -63,12 +64,13 @@ exports.installIpcProbe = function installIpcProbe(ipcMain, { channels, sender, 
       if (current.armed && Date.now() >= current.armed.expiresAt) disarm();
       if (channel === current.channel && current.armed) {
         const fault = current.armed.fault;
-        disarm(); current.injected++; current.injectedAt = Date.now();
+        current.armed.remaining--; if (!current.armed.remaining) disarm();
+        current.injected++; current.injectedAt ??= Date.now();
         return fault === 'null-result' ? Promise.resolve(null) : Promise.reject(new Error('Recovery Probe: injected IPC rejection'));
       }
       row.realCalls++; row.pending++;
       const started = Date.now();
-      const afterFault = current.injected === 1;
+      const afterFault = current.injected > 0;
       const finish = success => {
         row.pending--; row.maxDurationMs = Math.max(row.maxDurationMs, Date.now() - started);
         if (success) { row.successes++; if (afterFault && channel === current.channel) current.successfulAfterFault++; }
