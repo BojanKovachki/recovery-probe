@@ -36,7 +36,10 @@ export async function connectDesktop(cdp = 'http://127.0.0.1:9222') {
     throw new Error('CDP must use a loopback HTTP or WebSocket address');
   }
   const { chromium } = await import('playwright');
-  return chromium.connectOverCDP(cdp, { timeout: 10000 });
+  // Attach without overriding the application's download, focus or media settings.
+  // Older Electron releases reject Playwright's default Browser.setDownloadBehavior
+  // call with a browserContextId (for example Electron 29).
+  return chromium.connectOverCDP(cdp, { timeout: 10000, noDefaults: true });
 }
 export function desktopPages(browser) {
   return browser.contexts().flatMap(context => context.pages()).filter(page => !page.url().startsWith('devtools:'));

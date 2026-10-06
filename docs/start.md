@@ -10,7 +10,7 @@ Until preview.3 is published:
 
 ```bash
 mkdir recovery-probe-tools && cd recovery-probe-tools
-npm install --save-dev github:BojanKovachki/recovery-probe#feat/guided-start playwright@1.62.1
+npm install --save-dev github:BojanKovachki/recovery-probe#main playwright@1.62.1
 npx recovery-probe start web http://localhost:3000
 ```
 
