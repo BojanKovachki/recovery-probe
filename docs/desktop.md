@@ -6,6 +6,12 @@ This preview attaches to a running **Electron development app**. It discovers re
 
 You can run the tester in a separate folder; your desktop application's production dependencies do not change. Use Node.js 22 or newer for the tester. Electron itself may use a different bundled Node version.
 
+## Attachment and networking coverage
+
+The upcoming preview.3 attaches with `noDefaults: true`. This avoids Playwright's default download-behavior override, which older Electron versions can reject with `Browser.setDownloadBehavior: Browser context management is not supported`. It also preserves the application's focus/media defaults. CI covers Electron 29.0.1 and 44.5.1 with real renderer fault checks and guided reruns. Keep the test window visible; attachment does not disable app background throttling.
+
+A successful connection does not establish that the app uses supported networking. If its preload forwards data reads through IPC to Rust or another main-process client, renderer discovery may correctly find no GET JSON requests. This needs another fault adapter; do not keep changing selectors or report the absence of requests as a pass. A browser build using fetch can be tested with `web`, but the result only applies to that build's path.
+
 ## 1. Start the development app with a local debugging port
 
 For an app launched directly with Electron:

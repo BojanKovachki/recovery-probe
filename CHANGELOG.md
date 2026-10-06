@@ -6,6 +6,8 @@ Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-
 
 ## [0.3.0-preview.3] - Unreleased
 
+- Attach to Electron without overriding download/focus/media defaults; fix older Electron rejecting Browser.setDownloadBehavior and test Electron 29.0.1 alongside 44.5.1.
+
 - Add guided `start web` and `start desktop` commands with saved one-command reruns.
 - Download missing Chromium automatically; combine manual login, request discovery, content picking, checks and local reports.
 - Select a single Electron window automatically and show named choices for ambiguous windows/requests.

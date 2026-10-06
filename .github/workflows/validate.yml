@@ -98,7 +98,11 @@ jobs:
           if-no-files-found: warn
 
   electron:
-    name: Electron desktop recovery
+    name: Electron ${{ matrix.electron }} desktop recovery
+    strategy:
+      fail-fast: false
+      matrix:
+        electron: ['29.0.1', '44.5.1']
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
@@ -112,7 +116,7 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Install Electron test runtime
-        run: npm install --no-save --package-lock=false --no-audit --no-fund electron@44.5.1
+        run: npm install --no-save --package-lock=false --no-audit --no-fund electron@${{ matrix.electron }}
       - name: Test discovery, recovery checks and CLI in real Electron
         run: xvfb-run -a npm run test:desktop:electron
       - name: Test real Electron before/after repair with a controlled model proposal

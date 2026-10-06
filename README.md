@@ -26,7 +26,7 @@ Start your development app as usual. In a separate tools folder, these three com
 
 ```bash
 mkdir recovery-probe-tools && cd recovery-probe-tools
-npm install --save-dev github:BojanKovachki/recovery-probe#feat/guided-start playwright@1.62.1
+npm install --save-dev github:BojanKovachki/recovery-probe#main playwright@1.62.1
 npx recovery-probe start web http://localhost:3000
 ```
 
@@ -39,6 +39,14 @@ Next time run `npx recovery-probe start web` or `npx recovery-probe start deskto
 This is guided setup, not autonomous discovery of business requirements. One chosen GET endpoint and one user-confirmed content marker are tested; general native software and Rust/IPC networking need other adapters. [Full guided-start instructions](docs/start.md).
 
 ![Recovery Probe catches a broken retry flow and verifies the corrected flow](docs/demo.svg)
+
+## Does this cover my desktop app?
+
+The desktop adapter currently intercepts **renderer GET fetch/XHR requests**, not the entire application's network stack. An Electron UI can load all its data through preload → IPC → a main-process or Rust client while exposing no interceptable renderer requests. In that architecture, connection/discovery alone cannot measure recovery. An empty discovery result is inconclusive, never a pass.
+
+If the application also has a browser build using ordinary fetch/XHR, test that build for a renderer recovery measurement. This does not validate the desktop IPC/native path. Desktop coverage needs a dedicated fault adapter at the actual request boundary; such an adapter is not implemented yet. Playwright can still drive the UI when those adapters are added.
+
+Electron attachment uses Playwright's `noDefaults` option to leave the existing application's download/focus/media settings alone. CI runs real attachment, fault checks and guided reruns on Electron 29.0.1 and 44.5.1; this is not a guarantee for every version or app architecture.
 
 ## What it catches
 
