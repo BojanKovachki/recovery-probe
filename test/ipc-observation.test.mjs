@@ -20,3 +20,13 @@ test('UI summaries omit raw text and discovery validates bounds without asking f
   assert.equal(discoveryConfig({ channel: 'read', readyText: 'private filename' }).readyText, undefined);
   assert.throws(() => discoveryConfig({ channel: 'read', observationMs: 60001 }));
 });
+test('structural loss and value shifts remain separate from semantic interpretation', async () => {
+  const { compareRegions } = await import('../src/ipc-observation.mjs');
+  const before = summarizeRegion({text:'Heading',images:13,items:0,groups:{cards:13},structure:{a:13,img:13},distributions:{cards:{0:{manager:4,user:17}}}});
+  const after = summarizeRegion({text:'Heading',images:0,items:0,groups:{},structure:{},distributions:{}});
+  assert.equal(compareRegions(before,after).contentLoss,true);
+  assert.equal(classifyObservation({baseline:before,final:after,injected:1,expected:1,recovered:false}).classification,'CONTENT_LOSS');
+  const shifted = summarizeRegion({text:'Heading',images:13,items:0,groups:{cards:13},structure:{a:13,img:13},distributions:{cards:{0:{user:21}}}});
+  assert.equal(compareRegions(before,shifted).distributionChanges.length,1);
+  assert.ok(!JSON.stringify(shifted).includes('user'));
+});

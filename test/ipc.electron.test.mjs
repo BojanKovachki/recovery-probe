@@ -119,6 +119,7 @@ test('real IPC: registration hook, serialized rejection, real retry, null and de
     assert.equal(grid.results[0].observation.before.images, 13);
     assert.equal(grid.results[0].observation.after.images, 0);
     await control.call('setWindowMinimized', true);
+    for (let i = 0; i < 20 && !(await control.call('windowState')).minimized; i++) await new Promise(r => setTimeout(r, 50));
     assert.equal((await windowVisibility(page, control)).windowState, 'minimized');
     const restoredWindow = await prepareVisibility(page, { restoreWindow: true, control });
     assert.notEqual((await windowVisibility(page, control)).windowState, 'minimized');

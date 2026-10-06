@@ -139,3 +139,47 @@ npm run test:desktop:electron
 ```
 
 Actual compatibility with your application's Electron version and its startup/network design still needs your first local run.
+
+## Repeated HTTP faults and browser attachment (preview.7)
+
+The existing explicit verifier accepts `times` (integer 1–10, default 1), `baselineTimeoutMs` and `recoveryTimeoutMs` (default to the existing `timeoutMs`). All requested faults must be consumed; a partially consumed plan is `FAULT_NOT_TRIGGERED`, never a pass. Every injected malformed JSON HTTP-200 response is excluded from later successful responses. Successful checks now report sampled `recoveryMs` from the first injection.
+
+For an already authorized, separately configured Chromium/Edge test session, use the browser name rather than `desktop`:
+
+```bash
+npx recovery-probe web --attach --config ./scenario.json --cdp http://127.0.0.1:9223
+```
+
+This reuses the live page and its sessionStorage through reloads. It does not export credentials, create a managed device identity or bypass sign-in policy. CDP must be loopback-only. Sign in normally in a testing session you are permitted to automate. The tool disconnects at the end and leaves the browser open. Endpoint/window listing remains available through `desktop --list` / `desktop --discover`.
+
+### Structural HTTP discovery
+
+```bash
+npx recovery-probe web --attach --discover --config ./scenario.json --cdp http://127.0.0.1:9223
+```
+
+Minimal scenario:
+
+```json
+{
+  "endpoint": "http://localhost:3000/api/items",
+  "pageUrl": "http://localhost:3000/items",
+  "times": 2,
+  "faults": ["http-error", "connection-failure", "invalid-json"],
+  "requiredEndpoints": [],
+  "baselineTimeoutMs": 15000,
+  "recoveryTimeoutMs": 8000,
+  "settleMs": 800,
+  "repeats": 3
+}
+```
+
+The selected request must be a read-only renderer GET fetch/XHR. Query variants share its origin/path budget. No form actions, navigation or mutation injection is performed. Persistent faults and timed outages are not implemented. Discovery uses `times` for each listed fault, does not infer the retry policy, and does not click Retry. For retry-button assertions use the existing explicit verifier.
+
+Three healthy baselines precede experiments. A healthy control precedes every faulted reload and a healthy cleanup follows. Default three-fault/three-repeat plan uses 22 reloads. Existing readiness selectors/text are ignored and omitted from saved discovery scenarios. Use `requiredEndpoints` for known relevant dependencies. Other observed traffic is recorded under `coverage` without gating readiness. Non-GET requests are explicitly unsupported; unselected GETs are untested. Paths may be sensitive even when query values and bodies are omitted. No service-worker, native or unobserved traffic coverage is implied.
+
+Reports share the preview.7 IPC observation/interpretation fields; see [structural discovery](ipc.md#structural-discovery-preview7). Distribution shifts and structural replacement candidates are observations, not determinations of correct roles, permissions or semantics. Evidence includes fault counts and sampled recovery time; time windows cannot establish that an app will never heal. Baseline timing is measured separately. Request duration is measured from request to completion using a monotonic clock, including body transfer.
+
+`--restore-window` opts into reversible un-minimizing. Keep non-minimized windows uncovered. Exit 0 means informational results and healthy cleanup; exit 2 means findings need review or the run is inconclusive. Heuristics never use exit 1 as a verified bug verdict. Repeat the same command with the saved `scenario.json` after a proposed local fix.
+
+Git Bash may rewrite URL fragments such as `#/route`; pass them in JSON configuration or use `MSYS_NO_PATHCONV=1` when invoking a command that accepts them. Do not change routes solely to make assertions pass.

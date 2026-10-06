@@ -22,7 +22,7 @@ export function discoveryConfig(input) {
 export async function discoverIpc(input) {
   const config = discoveryConfig(input);
   const report = { schemaVersion: 2, mode: 'experimental IPC discovery', channel: config.channel, generatedAt: new Date().toISOString(), baselines: [], results: [], findings: [], finalReset: 'not-verified', ok: false,
-    limitation: 'One explicitly allowed IPC read on the current screen. Synthetic renderer-boundary faults only. English UI heuristics produce leads, not proven product defects. No source repair, automatic navigation, HTTP/Rust coverage or uploads. UI text is compared transiently; only hashes and counts are saved.' };
+    limitation: 'One explicitly allowed IPC read on the current screen. Synthetic renderer-boundary faults only. Structural changes and language hints produce leads, not proven product defects. No source repair, automatic navigation, HTTP/Rust coverage or uploads. UI text and repeated values are compared transiently; only hashes, structural shapes and counts are saved.' };
   const control = await connectIpcInspector(config.inspector);
   let browser, page, runId, identity, visibility;
   let settleMs = config.settleMs;
@@ -96,7 +96,7 @@ export async function discoverIpc(input) {
           }
           await sleep(100);
         }
-      } catch (error) { report.stoppedObservation = { reason: error.message, fault: fault ?? 'healthy', times, snapshot, ui: summary, timeline }; throw error; }
+      } catch (error) { report.stoppedObservation ??= { reason: error.message, fault: fault ?? 'healthy', times, snapshot, ui: summary, timeline }; throw error; }
       finally { await resetIpcAndConfirm(control, id); }
     };
     try {

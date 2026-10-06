@@ -41,7 +41,7 @@ export function readRegion(selector) {
         (cells.length ? cells : [child]).slice(0, 20).forEach((cell, index) => {
           const value = (cell.innerText ?? '').replace(/\s+/g, ' ').trim();
           if (!value) return;
-          const bucket = values[index] ??= {};
+          const bucket = values[index] ??= Object.create(null);
           bucket[value] = (bucket[value] ?? 0) + 1;
         });
       });

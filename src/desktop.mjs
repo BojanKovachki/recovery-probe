@@ -178,7 +178,7 @@ export async function checkDesktop(page, input, { onFailure } = {}) {
       await page.route(match, handler);
       routeInstalled = true;
       stage = 'reload';
-      await page.reload({ waitUntil: 'domcontentloaded', timeout: config.timeoutMs });
+      await page.reload({ waitUntil: 'domcontentloaded', timeout: config.baselineTimeoutMs });
       await page.bringToFront();
       if (!await waitUntil(() => injected, config.recoveryTimeoutMs)) {
         row.code = 'FAULT_NOT_TRIGGERED'; stop = true;
@@ -193,7 +193,8 @@ export async function checkDesktop(page, input, { onFailure } = {}) {
           row.retryClicked = true;
         }
         stage = 'recovery';
-        const recovered = await waitUntil(async () => row.successfulResponsesAfterFault > 0 && await healthy(page, config), config.recoveryTimeoutMs);
+        const remainingMs = Math.max(0, config.recoveryTimeoutMs - (Date.now() - injectedAt));
+        const recovered = await waitUntil(async () => row.successfulResponsesAfterFault > 0 && await healthy(page, config), remainingMs) && Date.now() - injectedAt <= config.recoveryTimeoutMs;
         row.outcome = recovered ? 'pass' : 'fail';
         row.code = recovered ? 'RECOVERED' : 'RECOVERY_NOT_OBSERVED';
         row.recoveryMs = recovered ? Date.now() - injectedAt : null;

@@ -59,7 +59,7 @@ export async function discoverHttp(page, input) {
         if (ready || elapsed >= (firstInjection === undefined ? config.baselineTimeoutMs : config.recoveryTimeoutMs)) return { fault: fault ?? 'healthy', times: fault ? times : 0, ready, elapsedMs: Math.round(performance.now() - started), ui, snapshot, timeline, newErrors: errors - initialErrors, recoveryMs: fault && ready ? Date.now() - snapshot.injectedAt : null, repeatedReads: Object.entries(snapshot.channels).filter(([, r]) => r.realCalls > 1).map(([endpoint, r]) => ({ code: 'REPEATED_READS', endpoint, count: r.realCalls, redundant: 'not-established' })) };
         await sleep(100);
       }
-    } catch (error) { report.stoppedObservation = { reason: error.message, fault: fault ?? 'healthy', times, snapshot, ui, timeline }; throw error; }
+    } catch (error) { report.stoppedObservation ??= { reason: error.message, fault: fault ?? 'healthy', times, snapshot, ui, timeline }; throw error; }
     finally {
       if (observer) {
         for (const entry of observer.coverage()) coverage.set(entry.method + entry.endpoint, entry);
