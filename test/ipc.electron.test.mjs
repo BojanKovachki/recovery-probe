@@ -118,6 +118,14 @@ test('real IPC: registration hook, serialized rejection, real retry, null and de
     assert.equal(grid.findings[2].classification, 'CONTENT_LOSS');
     assert.equal(grid.results[0].observation.before.images, 13);
     assert.equal(grid.results[0].observation.after.images, 0);
+    await page.goto(baseUrl + '?mode=delayed-control');
+    await page.locator('#grid img').first().waitFor();
+    await page.evaluate(() => sessionStorage.setItem('fixtureReloads', '0'));
+    const delayedControl = await discoverIpc({ ...discoveryConfig, repeats: 1 });
+    assert.equal(delayedControl.error, undefined, JSON.stringify(delayedControl));
+    assert.equal(delayedControl.results[0].control.ui.images, 13);
+    assert.equal(delayedControl.results[0].control.ui.fingerprint, delayedControl.baselines[0].ui.fingerprint);
+    assert.equal(delayedControl.finalReset, 'healthy');
     await control.call('setWindowMinimized', true);
     for (let i = 0; i < 20 && !(await control.call('windowState')).minimized; i++) await new Promise(r => setTimeout(r, 50));
     assert.equal((await windowVisibility(page, control)).windowState, 'minimized');

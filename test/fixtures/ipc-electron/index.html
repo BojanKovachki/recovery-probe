@@ -4,6 +4,8 @@
 <p id="error" role="alert" hidden>Unable to load files. Try again.</p>
 <script>
 const mode = new URLSearchParams(location.search).get('mode');
+const reloadCount = Number(sessionStorage.getItem('fixtureReloads') ?? 0) + 1;
+sessionStorage.setItem('fixtureReloads', String(reloadCount));
 const row = document.querySelector('#row');
 const spinner = document.querySelector('#spinner');
 const empty = document.querySelector('#empty');
@@ -13,15 +15,16 @@ async function load() {
     let data;
     try { data = await fixtureApi.read(); }
     catch(error) {
-      if (mode === 'broken' || mode === 'grid') throw error;
+      if (mode === 'broken' || (mode === 'grid' || mode === 'delayed-control')) throw error;
       await new Promise(resolve => setTimeout(resolve, 30));
       data = await fixtureApi.read();
     }
     // A successful null result fails mapping outside the transport retry branch.
     if (data === null) throw Error('null');
-    if (mode === 'grid') document.querySelector('#grid').innerHTML = Array.from({length:13}, () => '<a href="#"><img width="12" height="12" alt="" src="data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\'/%3E"></a>').join('');
+    if (mode === 'delayed-control' && reloadCount === 4) { spinner.hidden = true; await new Promise(resolve => setTimeout(resolve, 1200)); }
+    if ((mode === 'grid' || mode === 'delayed-control')) document.querySelector('#grid').innerHTML = Array.from({length:13}, () => '<a href="#"><img width="12" height="12" alt="" src="data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\'/%3E"></a>').join('');
     else { row.textContent = data.name; row.hidden = false; }
-  } catch { if (mode === 'honest') document.querySelector('#error').hidden = false; else if (mode !== 'grid') empty.hidden = false; }
+  } catch { if (mode === 'honest') document.querySelector('#error').hidden = false; else if (mode !== 'grid' && mode !== 'delayed-control') empty.hidden = false; }
   finally { spinner.hidden = true; }
 }
 load();

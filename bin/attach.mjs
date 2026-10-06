@@ -34,7 +34,7 @@ export async function attachMain(args) {
       finally { await visibility.revert(); }
       await writeDesktopReport(directory, report, config);
     }
-    for (const f of report.findings ?? report.results) console.log(`${f.id ?? f.kind}: ${f.classification ?? f.code}`);
+    for (const f of report.findings ?? report.results) console.log(`${f.id ?? f.kind}: ${f.classification ?? f.code}${f.partial ? `; runs=${f.completedRuns}/${f.plannedRuns} partial; observed=${f.observedInterpretation.classification}` : ''}`);
     if (report.error) console.error(report.error);
     console.log(`Final reload: ${report.finalReset}\nReport: ${directory}/report.html`);
     process.exitCode = report.ok ? 0 : options.discover ? 2 : report.results.some(r => r.outcome === 'fail') ? 1 : 2;

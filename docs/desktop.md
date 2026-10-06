@@ -183,3 +183,12 @@ Reports share the preview.7 IPC observation/interpretation fields; see [structur
 `--restore-window` opts into reversible un-minimizing. Keep non-minimized windows uncovered. Exit 0 means informational results and healthy cleanup; exit 2 means findings need review or the run is inconclusive. Heuristics never use exit 1 as a verified bug verdict. Repeat the same command with the saved `scenario.json` after a proposed local fix.
 
 Git Bash may rewrite URL fragments such as `#/route`; pass them in JSON configuration or use `MSYS_NO_PATHCONV=1` when invoking a command that accepts them. Do not change routes solely to make assertions pass.
+
+
+## Healthy controls and partial experiments (preview.8)
+
+After the three initial baselines agree, each later healthy control and the final cleanup must match the established fingerprint as well as satisfy the existing dependency and stability checks. A stable intermediate screen is observed until it matches or the existing `baselineTimeoutMs` expires. The timeout is not increased. Persistent mismatches retain their timeline and differences and stop the run; fault injection does not proceed after a failed control.
+
+If an experiment stops after some completed faulted runs, `findings` includes an `INCOMPLETE_EXPERIMENT` entry with `kind: inconclusive`, `partial: true`, `completedRuns`, `plannedRuns`, `observedInterpretation` and `repeatConfirmed: false`. HTML and terminal summaries expose this partial evidence. It is not a completed experiment or a confirmed defect, even when the completed runs agree.
+
+This does not discover missing dependencies, fix application state carry-over or guarantee that the initial baselines captured all content. Known relevant dependencies must still be configured. Unchanged time windows bound the observation; later recovery remains untested.

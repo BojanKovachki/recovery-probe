@@ -1,3 +1,4 @@
+import { matchesHealthyControl, retainPartialFindings } from './discovery-control.mjs';
 import { performance } from 'node:perf_hooks';
 import { pageIdentity } from './desktop.mjs';
 import { readRegion, summarizeRegion, compareRegions, classifyObservation } from './ipc-observation.mjs';
@@ -31,7 +32,7 @@ export async function discoverHttp(page, input) {
   let visibility, errors = 0, settleMs = config.settleMs;
   const onError = () => errors++;
   page.on('pageerror', onError);
-  const phase = async (fault, times = 1) => {
+  const phase = async (fault, times = 1, expectedFingerprint) => {
     const started = performance.now(), initialErrors = errors, timeline = [];
     let observer, snapshot, ui, previous, previousEvent, stableSince = started, firstInjection;
     try {
@@ -54,7 +55,7 @@ export async function discoverHttp(page, input) {
         if (dependencies.some(r => r.errors)) throw new Error('DEPENDENCY_FAILED');
         if (target.errors) throw new Error('REAL_REQUEST_FAILED');
         const settled = target.pending === 0 && dependencies.every(r => r.successes > 0 && r.pending === 0);
-        const ready = settled && !ui.loading && performance.now() - stableSince >= settleMs && target.successes > 0 && (fault ? snapshot.injected === times && snapshot.successfulAfterFault > 0 && ui.fingerprint === report.baselines[0].ui.fingerprint : (ui.textLength > 0 || ui.images > 0 || ui.items > 0));
+        const ready = matchesHealthyControl(ui, expectedFingerprint) && settled && !ui.loading && performance.now() - stableSince >= settleMs && target.successes > 0 && (fault ? snapshot.injected === times && snapshot.successfulAfterFault > 0 && ui.fingerprint === report.baselines[0].ui.fingerprint : (ui.textLength > 0 || ui.images > 0 || ui.items > 0));
         const elapsed = performance.now() - (firstInjection ?? started);
         if (ready || elapsed >= (firstInjection === undefined ? config.baselineTimeoutMs : config.recoveryTimeoutMs)) return { fault: fault ?? 'healthy', times: fault ? times : 0, ready, elapsedMs: Math.round(performance.now() - started), ui, snapshot, timeline, newErrors: errors - initialErrors, recoveryMs: fault && ready ? Date.now() - snapshot.injectedAt : null, repeatedReads: Object.entries(snapshot.channels).filter(([, r]) => r.realCalls > 1).map(([endpoint, r]) => ({ code: 'REPEATED_READS', endpoint, count: r.realCalls, redundant: 'not-established' })) };
         await sleep(100);
@@ -79,7 +80,7 @@ export async function discoverHttp(page, input) {
     for (const fault of config.faults) {
       const runs = [];
       for (let i = 0; i < config.repeats; i++) {
-        const healthy = await phase();
+        const healthy = await phase(undefined, 1, report.baselines[0].ui.fingerprint);
         if (!healthy.ready || healthy.newErrors || healthy.ui.fingerprint !== report.baselines[0].ui.fingerprint) { report.failedControl = { ...healthy, reasons: { notReady: !healthy.ready, newErrors: healthy.newErrors, fingerprintChanged: healthy.ui.fingerprint !== report.baselines[0].ui.fingerprint }, diff: compareRegions(report.baselines[0].ui, healthy.ui) }; throw new Error('CONTROL_UNSTABLE'); }
         const run = await phase(fault, config.times);
         run.control = { ui: healthy.ui, snapshot: healthy.snapshot };
@@ -92,7 +93,7 @@ export async function discoverHttp(page, input) {
     }
   } catch (error) { report.error = error.message; }
   finally {
-    try { const cleanup = await phase(); report.cleanup = cleanup; report.finalReset = cleanup.ready && !cleanup.newErrors && cleanup.ui.fingerprint === report.baselines[0]?.ui.fingerprint ? 'healthy' : 'not-verified'; }
+    try { const cleanup = await phase(undefined, 1, report.baselines[0]?.ui.fingerprint); report.cleanup = cleanup; report.finalReset = cleanup.ready && !cleanup.newErrors && cleanup.ui.fingerprint === report.baselines[0]?.ui.fingerprint ? 'healthy' : 'not-verified'; }
     catch (error) { report.cleanupError = error.message; }
     try { if (visibility) report.window.restoration = await visibility.revert(); }
     catch (error) { report.windowRestoreError = error.message; }
@@ -100,5 +101,6 @@ export async function discoverHttp(page, input) {
   }
   report.coverage = [...coverage.values()];
   report.ok = !report.error && !report.cleanupError && !report.windowRestoreError && report.finalReset === 'healthy' && report.findings.every(f => f.kind === 'observation');
+  retainPartialFindings(report, config.repeats);
   return report;
 }
