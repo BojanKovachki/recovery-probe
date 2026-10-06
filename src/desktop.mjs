@@ -9,10 +9,12 @@ export function pageIdentity(raw) {
   return u.href;
 }
 export function validateDesktopConfig(input) {
-  const config = { timeoutMs: 5000, recovery: 'retry', faults: [...kinds], ...input };
+  const config = { times: 1, timeoutMs: 5000, recovery: 'retry', faults: [...kinds], ...input };
   for (const key of ['pageUrl', 'endpoint', 'readySelector']) {
     if (typeof config[key] !== 'string' || !config[key].trim()) throw new Error(`${key} is required`);
   }
+  for (const key of ['baselineTimeoutMs', 'recoveryTimeoutMs']) { config[key] ??= config.timeoutMs; if (!Number.isInteger(config[key]) || config[key] < 200 || config[key] > 60000) throw new Error(`Invalid ${key}`); }
+  if (!Number.isInteger(config.times) || config.times < 1 || config.times > 10) throw new Error('times must be 1–10');
   const endpoint = new URL(config.endpoint);
   if (!['http:', 'https:'].includes(endpoint.protocol) || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
     throw new Error('endpoint must be an HTTP(S) origin and path, without credentials, query, or fragment');
@@ -105,8 +107,8 @@ async function baseline(page, config) {
   const listener = response => { if (isReadRequest(response.request(), page, config.endpoint) && response.ok()) successes++; };
   page.on('response', listener);
   try {
-    await page.reload({ waitUntil: 'domcontentloaded', timeout: config.timeoutMs });
-    return await waitUntil(async () => successes > 0 && await healthy(page, config), config.timeoutMs);
+    await page.reload({ waitUntil: 'domcontentloaded', timeout: config.baselineTimeoutMs });
+    return await waitUntil(async () => successes > 0 && await healthy(page, config), config.baselineTimeoutMs);
   } catch { return false; }
   finally { page.off('response', listener); }
 }
@@ -122,7 +124,7 @@ export async function checkDesktop(page, input, { onFailure } = {}) {
   await page.bringToFront();
   const report = {
     schemaVersion: 1, mode: 'desktop renderer recovery', generatedAt: new Date().toISOString(),
-    endpoint: config.endpoint, recovery: config.recovery, timeoutMs: config.timeoutMs,
+    endpoint: config.endpoint, recovery: config.recovery, timeoutMs: config.timeoutMs, baselineTimeoutMs: config.baselineTimeoutMs, recoveryTimeoutMs: config.recoveryTimeoutMs, times: config.times,
     results: [], finalReset: 'not-run', ok: false,
     limitation: 'A pass checks only the selected GET origin/path and configured UI marker. It is not proof of overall app health. Query variants share a fault budget. Native SDK/IPC requests are outside this check.',
   };
@@ -132,25 +134,27 @@ export async function checkDesktop(page, input, { onFailure } = {}) {
     report.results.push(row);
     if (stop) { row.code = 'PREVIOUS_CHECK_BLOCKED'; row.outcome = 'skipped'; continue; }
     if (!await baseline(page, config)) { stop = true; continue; }
-    let reserved = false;
+    let reserved = 0;
+    let injectedAt;
     let injected = false;
     let injectionError = false;
     let stage = 'setup';
     let routeInstalled = false;
-    let injectedRequest;
+    const injectedRequests = new Set();
     const pending = new Set();
     const match = url => pageIdentity(url.href) === config.endpoint;
     const handler = async route => {
-      if (reserved || !isReadRequest(route.request(), page, config.endpoint)) return route.fallback();
-      reserved = true;
-      injectedRequest = route.request();
+      if (reserved >= config.times || !isReadRequest(route.request(), page, config.endpoint)) return route.fallback();
+      reserved++;
+      injectedAt ??= Date.now();
+      injectedRequests.add(route.request());
       const op = (async () => {
         try {
           if (kind === 'connection-failure') await route.abort('connectionfailed');
           else await route.fulfill({ status: kind === 'http-error' ? 503 : 200, contentType: 'application/json', body: kind === 'invalid-json' ? '{invalid-json' : '{"error":"injected-test-fault"}' });
-          row.applied = 1;
+          row.applied++;
         } catch { injectionError = true; }
-        finally { injected = true; }
+        finally { injected = row.applied === config.times || injectionError; }
       })();
       pending.add(op);
       try { await op; } finally { pending.delete(op); }
@@ -160,10 +164,10 @@ export async function checkDesktop(page, input, { onFailure } = {}) {
     const candidates = new Set();
     const requestListener = request => {
       if (!isReadRequest(request, page, config.endpoint)) return;
-      if (reserved) candidates.add(request);
+      if (reserved === config.times) candidates.add(request);
     };
     const responseListener = response => {
-      if (candidates.has(response.request()) && response.request() !== injectedRequest) {
+      if (candidates.has(response.request()) && !injectedRequests.has(response.request())) {
         candidates.delete(response.request());
         if (response.ok()) row.successfulResponsesAfterFault++;
       }
@@ -174,9 +178,9 @@ export async function checkDesktop(page, input, { onFailure } = {}) {
       await page.route(match, handler);
       routeInstalled = true;
       stage = 'reload';
-      await page.reload({ waitUntil: 'domcontentloaded', timeout: config.timeoutMs });
+      await page.reload({ waitUntil: 'domcontentloaded', timeout: config.baselineTimeoutMs });
       await page.bringToFront();
-      if (!await waitUntil(() => injected, config.timeoutMs)) {
+      if (!await waitUntil(() => injected, config.recoveryTimeoutMs)) {
         row.code = 'FAULT_NOT_TRIGGERED'; stop = true;
       } else if (injectionError) {
         row.code = 'INJECTION_ERROR'; stop = true;
@@ -189,14 +193,16 @@ export async function checkDesktop(page, input, { onFailure } = {}) {
           row.retryClicked = true;
         }
         stage = 'recovery';
-        const recovered = await waitUntil(async () => row.successfulResponsesAfterFault > 0 && await healthy(page, config), config.timeoutMs);
+        const remainingMs = Math.max(0, config.recoveryTimeoutMs - (Date.now() - injectedAt));
+        const recovered = await waitUntil(async () => row.successfulResponsesAfterFault > 0 && await healthy(page, config), remainingMs) && Date.now() - injectedAt <= config.recoveryTimeoutMs;
         row.outcome = recovered ? 'pass' : 'fail';
         row.code = recovered ? 'RECOVERED' : 'RECOVERY_NOT_OBSERVED';
+        row.recoveryMs = recovered ? Date.now() - injectedAt : null;
       }
     } catch {
       if (stage === 'setup') { row.code = 'INJECTION_ERROR'; stop = true; }
       else if (injectionError) { row.code = 'INJECTION_ERROR'; stop = true; }
-      else if (!row.applied) { row.code = 'FAULT_NOT_TRIGGERED'; stop = true; }
+      else if (row.applied !== config.times) { row.code = 'FAULT_NOT_TRIGGERED'; stop = true; }
       else if (stage === 'retry') { row.outcome = 'inconclusive'; row.code = 'RETRY_ACTION_UNAVAILABLE'; }
       else if (stage === 'recovery') { row.outcome = 'fail'; row.code = 'RECOVERY_NOT_OBSERVED'; }
       else { row.code = 'RELOAD_FAILED'; stop = true; }

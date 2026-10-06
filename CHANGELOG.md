@@ -4,6 +4,16 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.3.0-preview.7 (GitHub preview; npm publication separate)
+
+- Compare rendered groups, image counts and hashed repeated-column distributions, separating observations from suspected interpretations.
+- Retain failed controls and phase-stop evidence; compact reports and change-only bounded timelines.
+- Add bounded repeated HTTP faults (`times`), structural HTTP discovery and `web --attach` with live session reuse.
+- Separate baseline/recovery windows and measure sampled recovery/request completion timing.
+- Add window-state diagnostics and explicit reversible un-minimizing, including a dev-only Electron fallback.
+- Report repeated reads without claiming redundancy, and list observed non-GET/unselected request coverage gaps.
+- Validate with synthetic grids, translated/icon-only states, virtualized DOM lists, explicit errors, empty results, delayed content and backoff; no claim of validation on an independent external app.
+
 ## 0.3.0-preview.6 (GitHub preview; npm publication separate)
 
 - Add bounded `ipc --discover`: three healthy baselines, repeated controls, single/double rejection and null-result experiments, three repetitions by default.

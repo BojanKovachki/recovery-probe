@@ -1,6 +1,6 @@
 # Recovery Probe
 
-> Experimental IPC discovery (preview.6, GitHub build): compare three healthy baselines with single/double rejections and null results, without a readiness selector. Findings are heuristic leads, not automatic fixes. [Setup and limitations](docs/ipc.md#experimental-discovery-preview6).
+> Preview.7 (GitHub build, not yet on npm) adds structural IPC/HTTP discovery, repeated HTTP faults and live browser attachment. Findings are evidence-backed leads, not automatic fixes. [Browser setup](docs/desktop.md#repeated-http-faults-and-browser-attachment-preview7) · [IPC setup](docs/ipc.md#structural-discovery-preview7).
 
 [![CI](https://github.com/BojanKovachki/recovery-probe/actions/workflows/validate.yml/badge.svg)](https://github.com/BojanKovachki/recovery-probe/actions/workflows/validate.yml)
 [![npm](https://img.shields.io/npm/v/recovery-probe.svg)](https://www.npmjs.com/package/recovery-probe)
@@ -21,6 +21,7 @@ A happy-path test can pass while a transient failed request leaves an app perman
 | GitHub `0.3.0-preview.4` (prepared for npm publication) | Development-only IPC rejection/null-result adapter and noninteractive desktop checks through a main-process registration hook. |
 | GitHub `0.3.0-preview.5` (prepared for npm publication) | Inspector control reliability and verified cleanup after uncertain IPC begin/reset replies. Inspector reliability fixes, also included in newer previews. |
 | GitHub `0.3.0-preview.6` (experimental, unpublished to npm) | Selector-free IPC UI comparison on an explicitly selected read channel; repeated faults, private timelines and heuristic findings. |
+| GitHub `0.3.0-preview.7` (experimental, unpublished to npm) | Structural IPC/HTTP comparison, repeated HTTP faults, retained control evidence and browser attachment. |
 | Not implemented | General discovery/fixing of arbitrary bugs, production self-healing, autonomous deployment, native/Rust HTTP transport interception. |
 
 The repair preview needs a local source repository, explicit source-file selection, one expected outcome, app launch/test commands, and your own API key/model for generation. It does **not** obtain these from installing an npm dependency. It returns a reviewable candidate, not a guaranteed fix. [Full setup and safety guide](docs/repair.md).

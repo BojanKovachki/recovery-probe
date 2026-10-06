@@ -1,3 +1,4 @@
+import { writeDiscoveryReport } from '../src/discovery-report.mjs';
 import { readFile, mkdir, writeFile, mkdtemp } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { discoverIpc, discoveryConfig } from '../src/ipc-discover.mjs';
@@ -18,12 +19,14 @@ No HTTP/Rust transport faults or AI calls. See docs/ipc.md for installation and 
   }
   const options = {};
   for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--restore-window') { options.restoreWindow = true; continue; }
     if (args[i] === '--discover') { options.discover = true; continue; }
     if (!['--config', '--out'].includes(args[i]) || !args[i + 1] || args[i + 1].startsWith('--')) throw new Error('Use ipc --config FILE [--out NEW_DIRECTORY] [--discover]');
     options[args[i].slice(2)] = args[++i];
   }
   if (!options.config) throw new Error('--config is required');
   const rawConfig = JSON.parse(await readFile(options.config, 'utf8'));
+  if (options.restoreWindow) rawConfig.restoreWindow = true;
   const config = options.discover ? discoveryConfig(rawConfig) : rawConfig;
   const parent = resolve('.recovery-probe');
   let directory;
@@ -36,6 +39,7 @@ No HTTP/Rust transport faults or AI calls. See docs/ipc.md for installation and 
   const html = `<!doctype html><meta charset="utf-8"><title>Recovery Probe IPC report</title><style>body{max-width:1000px;margin:40px auto;font:16px system-ui;padding:20px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f5f7;padding:20px}</style><h1>${report.ok ? 'Selected IPC experiments completed without findings requiring review' : 'IPC recovery needs investigation'}</h1><p>${escape(report.limitation)}</p><p>Final reload: ${escape(report.finalReset)}. Cleanup cannot turn an earlier failure into a pass.</p><pre>${escape(JSON.stringify(report, null, 2))}</pre>`;
   await writeFile(join(directory, 'report.html'), html, { mode: 0o600 });
   if (options.discover) {
+    await writeDiscoveryReport(directory, report, config);
     for (const finding of report.findings) console.log(`${finding.kind.toUpperCase()}: ${finding.id} — ${finding.classification}; runs=${finding.confirmations}`);
     if (report.error) console.error(`Discovery stopped: ${report.error}`);
     if (report.cleanupError) console.error(`Cleanup: ${report.cleanupError}`);
