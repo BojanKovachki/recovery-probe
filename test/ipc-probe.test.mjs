@@ -62,3 +62,17 @@ test('pending calls cannot contaminate a later run and invalid configuration fai
   assert.throws(() => validateIpcConfig({ channel: 'read', readySelector: '#row', readyText: 'file', faults: ['http-error'] }), /rejection/);
   assert.throws(() => f.ipc.handle('read', () => 0), /duplicate/);
 });
+test('bounded repeated faults consume atomically and reset never leaves the unused budget armed', async () => {
+  const f = fixture();
+  f.probe.begin({ id: 'two-rejections', channel: 'read', fault: 'rejection', times: 2 });
+  const results = await Promise.allSettled(Array.from({ length: 5 }, () => f.handlers.get('read')(f.event)));
+  assert.equal(results.filter(r => r.status === 'rejected').length, 2);
+  assert.equal(f.probe.snapshot().successfulAfterFault, 3);
+  assert.equal(f.probe.snapshot().armed, null);
+  f.probe.begin({ id: 'partial', channel: 'read', fault: 'rejection', times: 2 });
+  await assert.rejects(f.handlers.get('read')(f.event));
+  assert.equal(f.probe.snapshot().armed.remaining, 1);
+  f.probe.reset('partial');
+  assert.equal(await f.handlers.get('read')(f.event), 'real');
+  assert.throws(() => f.probe.begin({ id: 'bad-count', channel: 'read', times: 0 }), /times/);
+});

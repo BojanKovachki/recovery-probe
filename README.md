@@ -1,3 +1,5 @@
+> Experimental IPC discovery (preview.6, GitHub build): compare three healthy baselines with single/double rejections and null results, without a readiness selector. Findings are heuristic leads, not automatic fixes. [Setup and limitations](docs/ipc.md#experimental-discovery-preview6).
+
 # Recovery Probe
 
 [![CI](https://github.com/BojanKovachki/recovery-probe/actions/workflows/validate.yml/badge.svg)](https://github.com/BojanKovachki/recovery-probe/actions/workflows/validate.yml)

@@ -11,11 +11,12 @@ import { join } from 'node:path';
 import { freePort } from './repair-fixture.mjs';
 import { connectDesktop, desktopPages } from '../src/desktop.mjs';
 import { connectIpcInspector } from '../src/ipc-inspector.mjs';
+import { discoverIpc } from '../src/ipc-discover.mjs';
 import { checkIpc } from '../src/ipc-check.mjs';
 const require = createRequire(import.meta.url);
 const exec = promisify(execFile);
 
-test('real IPC: registration hook, serialized rejection, real retry, null and dependency boundaries, CLI cleanup', { timeout: 90000 }, async () => {
+test('real IPC: registration hook, serialized rejection, real retry, null and dependency boundaries, CLI cleanup', { timeout: 180000 }, async () => {
   const cdpPort = await freePort();
   let inspectorPort = await freePort();
   while (inspectorPort === cdpPort) inspectorPort = await freePort();
@@ -99,6 +100,23 @@ test('real IPC: registration hook, serialized rejection, real retry, null and de
     assert.equal(dependent.baseline.snapshot.injected, 0);
     await page.goto(baseUrl);
     await page.locator('#row').waitFor();
+    const discoveryConfig = { cdp, inspector, channel: 'fixture:read', requiredChannels: ['fixture:versions'], observationMs: 600, baselineTimeoutMs: 5000, repeats: 3 };
+    const discovered = await discoverIpc(discoveryConfig);
+    assert.equal(discovered.error, undefined, JSON.stringify(discovered));
+    assert.equal(discovered.findings[0].classification, 'RECOVERED');
+    assert.equal(discovered.findings[1].classification, 'SILENT_EMPTY');
+    assert.equal(discovered.findings[2].classification, 'SILENT_EMPTY');
+    assert.ok(discovered.findings.every(f => f.repeatConfirmed));
+    assert.equal(discovered.finalReset, 'healthy');
+    assert.ok(discovered.results[0].recoveryMs >= 0);
+    assert.ok(!JSON.stringify(discovered).includes('rp-fixture-cube.fbx'));
+    await page.goto(baseUrl + '?mode=honest');
+    const honest = await discoverIpc(discoveryConfig);
+    assert.equal(honest.error, undefined, JSON.stringify(honest));
+    assert.equal(honest.findings[0].classification, 'RECOVERED');
+    assert.ok(honest.findings.slice(1).every(f => f.classification === 'ERROR_OR_RETRY_SHOWN'));
+    assert.equal(honest.ok, true, JSON.stringify(honest));
+    await page.goto(baseUrl);
     const configFile = join(dir, 'scenario.json');
     const out = join(dir, 'result');
     await writeFile(configFile, JSON.stringify(config));

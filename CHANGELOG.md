@@ -1,3 +1,10 @@
+## 0.3.0-preview.6 (GitHub preview; npm publication separate)
+
+- Add bounded `ipc --discover`: three healthy baselines, repeated controls, single/double rejection and null-result experiments, three repetitions by default.
+- Report differential UI leads, repeat consistency, sampled recovery timing, bounded local timelines and coding-agent guidance. No readiness selector or retry-policy input required; the read channel and dev hook remain explicit.
+- Preserve existing IPC verifier and public defaults; repeated hook faults are opt-in, atomically consumed and reset by run ID.
+- English text heuristics and whole-region fingerprints can be inconclusive on changing/localized screens. No new web discovery or autonomous repair claims.
+
 # Changelog
 
 All notable changes to Recovery Probe are documented here. The project follows [Semantic Versioning](https://semver.org/).

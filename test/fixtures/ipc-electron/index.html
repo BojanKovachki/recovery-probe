@@ -1,5 +1,6 @@
 <!doctype html><meta charset="utf-8"><title>IPC recovery fixture</title>
-<p id="spinner">Loading</p><p id="row" hidden></p><p id="empty" hidden>Empty</p>
+<p id="spinner">Loading</p><p id="row" role="listitem" hidden></p><p id="empty" hidden>Empty</p>
+<p id="error" role="alert" hidden>Unable to load files. Try again.</p>
 <script>
 const mode = new URLSearchParams(location.search).get('mode');
 const row = document.querySelector('#row');
@@ -18,7 +19,7 @@ async function load() {
     // A successful null result fails mapping outside the transport retry branch.
     row.textContent = data.name;
     row.hidden = false;
-  } catch { empty.hidden = false; }
+  } catch { if (mode === 'honest') document.querySelector('#error').hidden = false; else empty.hidden = false; }
   finally { spinner.hidden = true; }
 }
 load();
