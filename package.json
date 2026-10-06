@@ -1,6 +1,6 @@
 {
   "name": "recovery-probe",
-  "version": "0.3.0-preview.2",
+  "version": "0.3.0-preview.3",
   "type": "module",
   "description": "Recovery testing for web and Electron apps, with opt-in AI patch proposals and local verification.",
   "license": "MIT",
@@ -44,7 +44,8 @@
     "README.md",
     "LICENSE",
     "docs/desktop.md",
-    "docs/repair.md"
+    "docs/repair.md",
+    "docs/start.md"
   ],
   "sideEffects": false,
   "engines": {
@@ -88,13 +89,14 @@
     "test:core": "node --test test/fetch-core.test.mjs",
     "test:browser": "node --test test/recovery.integration.test.mjs",
     "test:package": "node --test test/package.integration.test.mjs",
-    "test:all": "npm run test:core && npm run test:package && npm run test:browser && npm run test:desktop && npm run test:repair",
+    "test:all": "npm run test:core && npm run test:package && npm run test:browser && npm run test:desktop && npm run test:repair && npm run test:guided",
     "demo": "node bin/core-demo.mjs",
     "demo:browser": "node bin/recovery-probe.mjs --demo --out artifacts/browser-demo.json",
     "prepublishOnly": "npm run test:core && npm run test:package",
     "test:desktop": "node --test test/desktop.test.mjs",
     "test:desktop:electron": "node --test test/desktop.electron.test.mjs",
     "test:repair": "node --test test/repair.test.mjs test/repair.integration.test.mjs test/web.integration.test.mjs",
-    "test:repair:electron": "node --test test/repair.electron.test.mjs"
+    "test:repair:electron": "node --test test/repair.electron.test.mjs",
+    "test:guided": "node --test test/guided-start.test.mjs test/guided-start.integration.test.mjs"
   }
 }

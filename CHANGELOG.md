@@ -4,7 +4,16 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
-## [0.3.0-preview.2] - Unreleased
+## [0.3.0-preview.3] - Unreleased
+
+- Add guided `start web` and `start desktop` commands with saved one-command reruns.
+- Download missing Chromium automatically; combine manual login, request discovery, content picking, checks and local reports.
+- Select a single Electron window automatically and show named choices for ambiguous windows/requests.
+- Generate unique selectors from a user-selected content marker, and match Retry buttons by their visible label.
+- Save private login state and configuration in an ignored local folder; no source access or AI upload in guided checks.
+- Cover real browser setup/reruns, real Electron attachment and Windows publishing checks in CI.
+
+## [0.3.0-preview.2] - 2026-10-05
 
 - Add Chromium web discovery/checks and explicit private login-state saving.
 - Add opt-in OpenAI source-edit proposals from selected source files and reproduced evidence.

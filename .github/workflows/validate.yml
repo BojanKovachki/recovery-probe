@@ -27,6 +27,8 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify guided setup choices and argument handling
+        run: node --test test/guided-start.test.mjs
       - name: Verify fetch engine
         run: npm run test:core
       - name: Verify isolated package installation and TypeScript imports
@@ -56,6 +58,8 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify guided setup choices and argument handling
+        run: node --test test/guided-start.test.mjs
       - name: Verify publishing lifecycle without uploading
         run: npm publish --dry-run --tag next --access public
 
@@ -74,13 +78,15 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Install browser
-        run: npx playwright install --with-deps chromium --only-shell
+        run: npx playwright install --with-deps chromium
       - name: Run controlled fetch demonstration
         run: npm run demo
       - name: Verify browser adapter
         run: npm run test:browser
       - name: Verify authenticated web workflow and isolated repair pipeline (mock model)
         run: npm run test:repair
+      - name: Verify guided setup, content selection and saved reruns
+        run: node --test test/guided-start.integration.test.mjs
       - name: Run controlled browser demonstration
         run: npm run demo:browser
       - name: Upload demonstration reports

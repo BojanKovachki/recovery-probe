@@ -1,6 +1,6 @@
 # Web and Electron repair preview
 
-This is `0.3.0-preview.2`, available from `feat/repair-workflow`, not npm `latest` (0.2.0).
+The repair workflow is published in `0.3.0-preview.2` under npm `next`; npm `latest` remains 0.2.0. For simpler local testing, [guided start](start.md) is available in the upcoming preview.3.
 
 ## What it actually does
 
@@ -22,12 +22,12 @@ Node 22+, Git and Playwright Chromium are required. You do not have to modify yo
 mkdir recovery-probe-tools
 cd recovery-probe-tools
 npm init -y
-npm install --save-dev github:BojanKovachki/recovery-probe#feat/repair-workflow playwright
+npm install --save-dev recovery-probe@0.3.0-preview.2 playwright@1.62.1
 npx playwright install chromium
 npx recovery-probe --version
 ```
 
-Pin the branch's commit SHA instead of its name for a reproducible install. `npm install recovery-probe` still gives the older stable package.
+`npm install recovery-probe` still gives the older stable package.
 
 ## First test: user portal, without AI or source upload
 
@@ -114,7 +114,7 @@ The runner uses `shell: false`. Windows `npm.cmd`/`npx.cmd` cannot be launched d
 ["C:/Program Files/nodejs/node.exe", "C:/Program Files/nodejs/node_modules/npm/bin/npm-cli.js", "run", "dev"]
 ```
 
-Check your installation paths. Alternatively use a reviewed Node launch script. The CI suite runs on Linux; Windows process handling exists but has not been integration-tested on your desktop.
+Check your installation paths. Alternatively use a reviewed Node launch script. Package publishing is checked on Windows with Node 22 and 24. The repair process integration suite runs on Linux; Windows repair process handling has not been integration-tested on your desktop.
 
 ### Electron repair configuration
 
