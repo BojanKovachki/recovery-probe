@@ -88,7 +88,7 @@ A fresh private report directory is created automatically. Repeat the same comma
 
 The checker:
 
-1. Requires the hook to have captured all watched channels and identifies its selected window.
+1. Requires the hook to have captured all watched channels and identifies its selected window. A temporary nonce verifies that the CDP renderer and main-process hook refer to the same window, even if another running app has the same URL; the nonce is then removed.
 2. Reloads the current route to clear renderer query cache and verifies real data, exactly one target invocation, and successful dependency reads.
 3. Arms one fault with a unique ID and bounded TTL, then reloads.
 4. Requires exactly one injection, a later successful real target call, successful dependencies and the same visible content expectation. Extra target calls are inconclusive because unrelated refetches could resemble recovery.

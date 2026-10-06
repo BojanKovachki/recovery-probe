@@ -1,5 +1,5 @@
 export interface ProbeWebContents {
-  id: number; mainFrame: unknown; isDestroyed(): boolean; getURL(): string;
+  id: number; mainFrame: unknown; isDestroyed(): boolean; getURL(): string; executeJavaScript(code: string): Promise<unknown>;
 }
 export interface IpcSnapshot {
   id: string; channel: string; senderId: number; injected: number;
@@ -9,6 +9,7 @@ export interface IpcSnapshot {
 }
 export interface IpcProbe {
   identify(): { senderId: number; pageUrl: string; registered: string[] };
+  identify(challenge: string): Promise<{ senderId: number; pageUrl: string; registered: string[] }>;
   begin(options: { id: string; channel: string; requiredChannels?: string[]; fault?: 'rejection' | 'null-result'; ttlMs?: number }): IpcSnapshot;
   snapshot(): IpcSnapshot | null;
   reset(id?: string): IpcSnapshot | null;

@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { randomUUID } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { spawn, execFile } from 'node:child_process';
@@ -43,9 +44,11 @@ test('real IPC: registration hook, serialized rejection, real retry, null and de
     await page.locator('#row').waitFor();
     control = await connectIpcInspector(inspector);
     assert.equal(await page.evaluate(() => typeof window.__recoveryProbeIpc), 'undefined');
+    await assert.rejects(control.call('identify', randomUUID()), /does not match/);
     const config = { cdp, inspector, channel: 'fixture:read', requiredChannels: ['fixture:versions'], readySelector: '#row', readyText: 'rp-fixture-cube.fbx', busySelector: '#spinner', retryDelayMs: 30, renderMarginMs: 500, baselineTimeoutMs: 5000 };
     const report = await checkIpc(config);
     assert.equal(report.ok, true, JSON.stringify(report));
+    assert.equal(await page.evaluate(() => Object.hasOwn(globalThis, '__recoveryProbeWindowNonce')), false);
     assert.equal(report.baseline.snapshot.channels['fixture:read'].calls, 1);
     assert.equal(report.results[0].snapshot.injected, 1);
     assert.equal(report.results[0].snapshot.successfulAfterFault, 1);

@@ -32,6 +32,15 @@ export async function checkIpc(input) {
     const pages = desktopPages(browser).filter(page => page.url() === identity.pageUrl);
     if (pages.length !== 1) throw new Error('Keep exactly one matching target window open on the intended screen');
     const page = pages[0];
+    // Confirm both debugger ports belong to the same actual renderer, not merely
+    // two apps displaying the same URL. Remove the temporary challenge afterward.
+    const challenge = randomUUID();
+    await page.evaluate(value => {
+      if (Object.hasOwn(globalThis, '__recoveryProbeWindowNonce')) throw new Error('Window already has a probe challenge; reload before retrying');
+      Object.defineProperty(globalThis, '__recoveryProbeWindowNonce', { value, configurable: true });
+    }, challenge);
+    try { await control.call('identify', challenge); }
+    finally { await page.evaluate(value => { if (globalThis.__recoveryProbeWindowNonce === value) delete globalThis.__recoveryProbeWindowNonce; }, challenge); }
     await page.bringToFront();
     if ((await ui(page, config)).blocked) throw new Error('Target must be visible and online');
     // Validate selectors before arming anything.

@@ -15,10 +15,16 @@ exports.installIpcProbe = function installIpcProbe(ipcMain, { channels, sender, 
   let state = null;
   let timer;
   const seenIds = new Set();
-  const identify = () => {
+  const identify = challenge => {
     const contents = sender();
     if (!contents || contents.isDestroyed()) throw new Error('Target WebContents is not available');
-    return { senderId: contents.id, pageUrl: contents.getURL(), registered: [...registered] };
+    const identity = { senderId: contents.id, pageUrl: contents.getURL(), registered: [...registered] };
+    if (challenge === undefined) return identity;
+    if (typeof challenge !== 'string' || !/^[a-f0-9-]{36}$/.test(challenge)) throw new Error('Invalid window challenge');
+    return contents.executeJavaScript(`globalThis.__recoveryProbeWindowNonce === ${JSON.stringify(challenge)}`).then(matches => {
+      if (!matches) throw new Error('CDP window does not match the main-process target');
+      return identity;
+    });
   };
   const matches = event => {
     const contents = sender();
