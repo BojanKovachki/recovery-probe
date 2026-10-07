@@ -12,6 +12,10 @@ export function httpRefreshAdapter(page, config) {
 }
 export function ipcRefreshAdapter(control, config, senderId) {
   let id;
+  const disarm=async()=>{
+    if(id)return resetIpcAndConfirm(control,id);
+    if((await control.call('snapshot'))?.armed)throw Error('IPC_OTHER_PLAN_ARMED: not owned by this experiment');
+  };
   return {
     async begin(fault={}) {
       if(id)await resetIpcAndConfirm(control,id);
@@ -29,7 +33,7 @@ export function ipcRefreshAdapter(control, config, senderId) {
       await control.call('begin',{id,channel:config.channel,requiredChannels:config.requiredChannels,...fault});
     },
     async snapshot() {const s=await control.call('snapshot');if(!s||s.id!==id||s.senderId!==senderId)throw Error('IPC_TARGET_OR_RUN_CHANGED');return s;},
-    async disarm() {if(id)await resetIpcAndConfirm(control,id);},
-    async stop() {if(id)await resetIpcAndConfirm(control,id);},
+    disarm,
+    stop: disarm,
   };
 }

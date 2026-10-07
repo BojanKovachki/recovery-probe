@@ -18,6 +18,8 @@ test('refresh HTTP: populated content, spontaneous versus retriggered recovery, 
  const run=async(overrides={})=>{await page.goto(base);const c={...config,...overrides};return runRefresh(page,c,httpRefreshAdapter(page,c));};
  try {
   let r=await run();assert.equal(r.error,undefined,JSON.stringify(r));assert.equal(r.results[0].code,'CONTENT_LOSS_ON_REFRESH');assert.equal(r.results[0].observation.before.items,4);assert.equal(r.results[0].observation.after.items,0);assert.equal(r.results[0].secondTriggerResult,'RECOVERED_AFTER_TRIGGER');assert.equal(r.finalReset,'healthy');assert.equal(r.results[0].noSubsequentReadObserved,true);
+  for(const fault of ['connection-failure','invalid-json']) {r=await run({fault,secondTrigger:false});assert.equal(r.results[0].code,'CONTENT_LOSS_ON_REFRESH');assert.equal(r.results[0].injected,1);assert.equal(r.faultReset,'healthy');}
+  r=await run({repeats:3,secondTrigger:false});assert.equal(r.findings[0].repeatConfirmed,true);assert.equal(r.results.length,3);
   mode='retry';r=await run({secondTrigger:false});assert.equal(r.results[0].code,'RECOVERED_AUTOMATICALLY');assert.equal(r.results[0].secondTrigger,undefined);assert.equal(r.results[0].freshReadSucceeded,true);assert.equal(r.ok,true);
   mode='keep';r=await run({secondTrigger:false});assert.equal(r.results[0].code,'CONTENT_KEPT');assert.equal(r.results[0].freshReadSucceeded,false);assert.equal(r.results[0].spontaneous.ui.error,false);
   mode='legitimate-change';r=await run();assert.equal(r.error,'TRIGGER_CONTROL_UNSTABLE');assert.equal(r.results[0].control.snapshot.injected,0);assert.equal(r.finalReset,'healthy');

@@ -11,3 +11,9 @@ test('refresh IPC resets a possibly armed begin even when its reply is lost',asy
  const adapter=ipcRefreshAdapter(control,{channel:'read',requiredChannels:[]},1);
  await assert.rejects(adapter.begin({fault:'rejection'}),/reply lost/);await adapter.disarm();assert.equal(resetId,state.id);assert.equal(state.armed,null);
 });
+
+test('refresh never clears or reports cleanup for a foreign armed IPC plan',async()=>{
+ let mutated=false;const control={async call(method){if(method==='snapshot')return {id:'foreign',armed:{remaining:1},channels:{}};mutated=true;}};
+ const adapter=ipcRefreshAdapter(control,{channel:'read',requiredChannels:[]},1);
+ await assert.rejects(adapter.begin(),/ALREADY_ARMED/);await assert.rejects(adapter.disarm(),/OTHER_PLAN_ARMED/);assert.equal(mutated,false);
+});
