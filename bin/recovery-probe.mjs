@@ -14,6 +14,7 @@ Usage:
   recovery-probe --config scenario.json [--out report.json] [--json]
   recovery-probe start web http://localhost:3000
   recovery-probe start desktop
+  recovery-probe refresh --help
   recovery-probe ipc --help
   recovery-probe desktop --help
   recovery-probe web --help
@@ -57,6 +58,10 @@ function printSummary(report) {
 
 async function main() {
   const args = process.argv.slice(2);
+  if (args[0] === 'refresh') {
+    const { refreshMain } = await import('./refresh.mjs');
+    return refreshMain(args.slice(1));
+  }
   if (args[0] === 'ipc') {
     const { ipcMain } = await import('./ipc.mjs');
     return ipcMain(args.slice(1));

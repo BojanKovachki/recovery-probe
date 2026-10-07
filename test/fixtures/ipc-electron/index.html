@@ -15,7 +15,7 @@ async function load() {
     let data;
     try { data = await fixtureApi.read(); }
     catch(error) {
-      if (mode === 'broken' || (mode === 'grid' || mode === 'delayed-control')) throw error;
+      if (mode === 'broken' || mode === 'refresh' || (mode === 'grid' || mode === 'delayed-control')) throw error;
       await new Promise(resolve => setTimeout(resolve, 30));
       data = await fixtureApi.read();
     }
@@ -24,8 +24,9 @@ async function load() {
     if (mode === 'delayed-control' && reloadCount === 4) { spinner.hidden = true; await new Promise(resolve => setTimeout(resolve, 1200)); }
     if ((mode === 'grid' || mode === 'delayed-control')) document.querySelector('#grid').innerHTML = Array.from({length:13}, () => '<a href="#"><img width="12" height="12" alt="" src="data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\'/%3E"></a>').join('');
     else { row.textContent = data.name; row.hidden = false; }
-  } catch { if (mode === 'honest') document.querySelector('#error').hidden = false; else if (mode !== 'grid' && mode !== 'delayed-control') empty.hidden = false; }
+  } catch { if (mode === 'refresh') { row.hidden = true; empty.hidden = true; } else if (mode === 'honest') document.querySelector('#error').hidden = false; else if (mode !== 'grid' && mode !== 'delayed-control') empty.hidden = false; }
   finally { spinner.hidden = true; }
 }
 load();
+if (mode === 'refresh' || mode === 'refresh-retry') window.addEventListener('online', () => load());
 </script>

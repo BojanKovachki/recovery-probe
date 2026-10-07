@@ -4,6 +4,7 @@ export async function observeHttp(page, { endpoint, requiredEndpoints = [], faul
   const channels = Object.fromEntries([endpoint, ...requiredEndpoints].map(e => [e, { calls: 0, realCalls: 0, successes: 0, errors: 0, pending: 0, maxDurationMs: 0 }]));
   const requests = new Map(), coverage = new Map(), operations = new Set();
   let reserved = 0, applied = 0, injectedAt = null, successfulAfterFault = 0, active = true, injectionError = false;
+  let routed = Boolean(fault);
   const mainRead = r => { try { return r.frame() === page.mainFrame() && ['fetch', 'xhr'].includes(r.resourceType()); } catch { return false; } };
   const request = r => {
     if (!mainRead(r)) return;
@@ -46,11 +47,16 @@ export async function observeHttp(page, { endpoint, requiredEndpoints = [], faul
   try { if (fault) await page.route(match, handler); }
   catch (error) { page.off('request', request); page.off('requestfinished', finished); page.off('requestfailed', failed); throw error; }
   return {
-    snapshot: () => ({ injected: applied, injectedAt, successfulAfterFault, injectionError, channels: structuredClone(channels) }),
+    snapshot: () => ({ injected: applied, injectedAt, successfulAfterFault, injectionError, armed: fault && active && reserved < times ? { remaining: times - reserved } : null, channels: structuredClone(channels) }),
     coverage: () => [...coverage.values()],
+    async disarm() {
+      active = false;
+      if (routed) { await page.unroute(match, handler); routed = false; }
+      await Promise.allSettled([...operations]);
+    },
     async stop() {
       active = false;
-      try { if (fault) await page.unroute(match, handler); await Promise.allSettled([...operations]); }
+      try { if (routed) { await page.unroute(match, handler); routed = false; } await Promise.allSettled([...operations]); }
       finally { page.off('request', request); page.off('requestfinished', finished); page.off('requestfailed', failed); }
     },
   };
