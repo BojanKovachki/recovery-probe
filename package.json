@@ -1,6 +1,6 @@
 {
   "name": "recovery-probe",
-  "version": "0.3.0-preview.8",
+  "version": "0.3.0-preview.9",
   "type": "module",
   "description": "Recovery testing for web and Electron apps, with opt-in AI patch proposals and local verification.",
   "license": "MIT",
@@ -51,7 +51,8 @@
     "docs/desktop.md",
     "docs/repair.md",
     "docs/start.md",
-    "docs/ipc.md"
+    "docs/ipc.md",
+    "docs/refresh.md"
   ],
   "sideEffects": false,
   "engines": {
@@ -93,7 +94,7 @@
   "scripts": {
     "test": "npm run test:core",
     "test:core": "node --test test/fetch-core.test.mjs",
-    "test:browser": "node --test test/recovery.integration.test.mjs test/discovery.integration.test.mjs test/attach.integration.test.mjs",
+    "test:browser": "node --test test/recovery.integration.test.mjs test/discovery.integration.test.mjs test/attach.integration.test.mjs test/refresh.integration.test.mjs",
     "test:package": "node --test test/package.integration.test.mjs",
     "test:all": "npm run test:core && npm run test:package && npm run test:browser && npm run test:desktop && npm run test:repair && npm run test:guided && npm run test:ipc",
     "demo": "node bin/core-demo.mjs",
@@ -104,7 +105,7 @@
     "test:repair": "node --test test/repair.test.mjs test/repair.integration.test.mjs test/web.integration.test.mjs",
     "test:repair:electron": "node --test test/repair.electron.test.mjs",
     "test:guided": "node --test test/guided-start.test.mjs test/guided-start.integration.test.mjs",
-    "test:ipc": "node --test test/ipc-probe.test.mjs test/ipc-control.test.mjs test/ipc-observation.test.mjs test/visibility.test.mjs",
+    "test:ipc": "node --test test/ipc-probe.test.mjs test/ipc-control.test.mjs test/ipc-observation.test.mjs test/visibility.test.mjs test/refresh.test.mjs",
     "test:ipc:electron": "node --test test/ipc.electron.test.mjs"
   }
 }
