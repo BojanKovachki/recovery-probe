@@ -1,23 +1,23 @@
-# Try the desktop recovery preview
+# Attach to a desktop app or web browser
 
-For the new guided workflow without window-index lookup or JSON editing, see [guided start](start.md) (preview.3). The explicit configuration workflow below remains supported.
+For the guided workflow without window-index lookup or JSON editing, see [guided start](start.md). The explicit configuration workflow below remains supported.
 
-This preview attaches to a running **Electron development app**. It discovers renderer GET JSON requests, then tests one selected endpoint against a UI assertion you configure once. It does not scan source code, patch files, or add runtime recovery to the application.
+This preview attaches to a running **Electron development app or authorized Chromium-based test browser**. It discovers renderer GET JSON requests, then tests one selected endpoint against a UI assertion you configure once. It does not scan source code, patch files, or add runtime recovery to the application.
 
 You can run the tester in a separate folder; your desktop application's production dependencies do not change. Use Node.js 22 or newer for the tester. Electron itself may use a different bundled Node version.
 
 ## Attachment and networking coverage
 
-The upcoming preview.3 attaches with `noDefaults: true`. This avoids Playwright's default download-behavior override, which older Electron versions can reject with `Browser.setDownloadBehavior: Browser context management is not supported`. It also preserves the application's focus/media defaults. CI covers Electron 29.0.1 and 44.5.1 with real renderer fault checks and guided reruns. Keep the test window visible; attachment does not disable app background throttling.
+Attachment uses `chromium.connectOverCDP` with `noDefaults: true`. This avoids Playwright's default download-behavior override, which older Electron versions can reject with `Browser.setDownloadBehavior: Browser context management is not supported`. It also preserves the application's focus/media defaults. CI covers Electron 29.0.1 and 44.5.1 with real renderer fault checks and guided reruns. Keep the test window visible; attachment does not disable app background throttling.
 
-A successful connection does not establish that the app uses supported networking. If its preload forwards data reads through IPC to Rust or another main-process client, renderer discovery may correctly find no GET JSON requests. Use the explicit [IPC registration adapter](ipc.md) in preview.4 for renderer recovery after IPC rejection/null results; it does not test Rust transport. Do not keep changing selectors or report the absence of requests as a pass. A browser build using fetch can be tested with `web`, but the result only applies to that build's path.
+A successful connection does not establish that the app uses supported networking. If its preload forwards data reads through IPC to Rust or another main-process client, renderer discovery may correctly find no GET JSON requests. Use the explicit [IPC registration adapter](ipc.md) for renderer recovery after IPC rejection/null results; it does not test Rust transport. Do not keep changing selectors or report the absence of requests as a pass. A browser build using fetch can be tested with `web`, but the result only applies to that build's path.
 
 ## 1. Start the development app with a local debugging port
 
 For an app launched directly with Electron:
 
 ```bash
-npx electron --remote-debugging-port=9222 .
+npx electron --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 .
 ```
 
 For a custom development script, pass `--remote-debugging-port=9222` to the **Electron process**, not just the frontend dev server. If the script does not forward arguments, add this before `app.whenReady()` in the development-only main-process startup:
@@ -32,17 +32,17 @@ Set `RECOVERY_PROBE=1` using your existing cross-platform development tooling, t
 
 ## 2. Install and identify the window
 
-Install the published preview in a separate tester folder:
+Install the pinned preview in a separate tester folder:
 
 ```bash
 mkdir recovery-probe-desktop-test
 cd recovery-probe-desktop-test
 npm init -y
-npm install --save-dev recovery-probe@0.3.0-preview.2 playwright@1.62.1
+npm install --save-dev github:BojanKovachki/recovery-probe#88fdafe16b513042264b970d0c7bb662112fdf45 playwright@1.62.1
 npx recovery-probe desktop --list
 ```
 
-**Installing `recovery-probe` from npm without the preview version still installs 0.2.0 and does not include this preview.** Use an explicit preview version to keep installations reproducible.
+GitHub and npm releases are separate. The pinned commit above includes the current preview; do not assume npm dist-tags point to the same code.
 
 No Chromium download is needed: the tester connects to the Chromium already running inside your Electron app. `--list` prints window indexes and page URLs with query strings/fragments omitted. If there are multiple windows, select the intended one explicitly.
 

@@ -6,6 +6,7 @@ Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-
 
 ## 0.3.0-preview.9 (GitHub preview; npm publication separate)
 
+- Refresh the README, setup guides and package description around general web/Electron recovery testing; pin preview installation instructions.
 - Add `refresh --config FILE [--json]` for explicit synthetic window-event experiments on populated screens, using HTTP or IPC fault adapters.
 - Keep fault-free trigger controls, idle attribution checks, spontaneous observations, optional second-trigger recovery and final cleanup separate.
 - Record content preservation independently from freshness, bounded no-subsequent-read observations, partial plans and repeat consistency without confirming inconclusive experiments.

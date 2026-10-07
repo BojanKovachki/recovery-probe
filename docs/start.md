@@ -1,20 +1,20 @@
 # Guided start
 
-Available in `0.3.0-preview.3` (prepared in GitHub; not yet published to npm).
+This workflow is included in the current preview. See the [README](../README.md) for installation and supported application paths.
 
 Start your app using its normal development command. Recovery Probe does not need its repository or production dependencies. Node 22+ is required. Use a development/test account and backend: a locally running app can still call remote services.
 
-## Three commands for a portal
+## Three commands for a web app
 
-Until preview.3 is published:
+Install the pinned GitHub preview:
 
 ```bash
 mkdir recovery-probe-tools && cd recovery-probe-tools
-npm install --save-dev github:BojanKovachki/recovery-probe#main playwright@1.62.1
+npm install --save-dev github:BojanKovachki/recovery-probe#88fdafe16b513042264b970d0c7bb662112fdf45 playwright@1.62.1
 npx recovery-probe start web http://localhost:3000
 ```
 
-Replace the URL with your portal's local address. The GitHub branch is a moving preview; pin its commit SHA for reproducibility. Once published, substitute `recovery-probe@0.3.0-preview.3` for the GitHub reference. Do not assume npm `latest` contains this command.
+Replace the URL with your web app's local address. The commit pin keeps the install reproducible. GitHub merges do not publish to npm; use a registry version only after confirming that version is available.
 
 The command downloads Chromium if it is missing, opens a visible browser, and guides you through setup:
 

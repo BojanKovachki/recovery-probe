@@ -1,6 +1,6 @@
 # IPC renderer recovery preview
 
-This adapter is in `0.3.0-preview.6` on GitHub, not yet published to npm. It tests renderer recovery after **one rejected IPC invocation**, or optionally **one successful null result**. It does not simulate HTTP status codes, Rust transport failures, token refresh, connection banners or native retry behavior. Use only read-only channels in a development build with known fixture data.
+This adapter tests renderer recovery after bounded **rejected IPC invocations** or **successful null results**. It supports initial-load discovery and opt-in [refresh experiments](refresh.md). It does not simulate HTTP status codes, Rust transport failures, token refresh, connection banners or native retry behavior. Use only read-only channels in a development build with known fixture data.
 
 Unlike renderer HTTP routing, this boundary requires a small main-process hook. The local agent can perform the setup below; no interactive picker is required. Do not edit generated client files or access Electron's private handler map.
 
@@ -10,11 +10,11 @@ Node 22+ is required for the CLI. Electron 29's bundled Node can load the small 
 
 ```bash
 mkdir -p recovery-probe-tools && cd recovery-probe-tools
-npm install --save-dev github:BojanKovachki/recovery-probe#main playwright@1.62.1
+npm install --save-dev github:BojanKovachki/recovery-probe#88fdafe16b513042264b970d0c7bb662112fdf45 playwright@1.62.1
 node -p "require.resolve('recovery-probe/ipc')"
 ```
 
-Pin the tested commit for reproducible installs. Record the absolute path printed by the last command. After npm publication, use `recovery-probe@0.3.0-preview.6` instead of the GitHub reference. Chromium need not be downloaded: the checker attaches to Electron.
+Pin the tested commit for reproducible installs. Record the absolute path printed by the last command. Use an npm version instead only after confirming that the intended release is published. Chromium need not be downloaded: the checker attaches to Electron.
 
 ## 2. Add a development-only registration hook
 

@@ -2,7 +2,7 @@
   "name": "recovery-probe",
   "version": "0.3.0-preview.9",
   "type": "module",
-  "description": "Recovery testing for web and Electron apps, with opt-in AI patch proposals and local verification.",
+  "description": "Test recovery from failed reads in web and Electron desktop apps, during loading and refresh.",
   "license": "MIT",
   "author": "Bojan Kovachki",
   "homepage": "https://github.com/BojanKovachki/recovery-probe#readme",
@@ -89,7 +89,10 @@
     "fault-injection",
     "e2e",
     "retry",
-    "fetch"
+    "fetch",
+    "electron",
+    "ipc",
+    "refresh"
   ],
   "scripts": {
     "test": "npm run test:core",
