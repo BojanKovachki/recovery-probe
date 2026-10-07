@@ -52,7 +52,7 @@ The output directory must be new. The command writes private `report.json`, `rep
 
 ## Sequence
 
-1. Establish three matching healthy baselines, with the target and required dependencies successful.
+1. Calibrate three healthy reloads for the full `baselineTimeoutMs` window each. Require stable matching end states, a successful target read and successful required dependencies. An early stable intermediate screen is not accepted as the baseline. Later controls can finish early once they match this established baseline.
 2. Before each experiment, reload a healthy screen, then observe an idle window. Target traffic in that window stops the run as attribution-ambiguous.
 3. Dispatch the configured event with no fault. Require a target read and a stable healthy fingerprint; record the watched reads seen during this control. Legitimate changed content makes this strict comparison inconclusive, not a suspected defect.
 4. Reload into the established healthy state and repeat the idle check.
@@ -84,3 +84,7 @@ The report retains healthy-control timing/timelines, fault counters, before/afte
 Own HTTP routes are removed; IPC plans use scoped verified reset and bounded TTL. Ctrl+C/SIGTERM requests cooperative cancellation followed by disarm and cleanup. Abrupt termination, a hung target or loss of control connectivity can prevent cleanup: restart the test app if cleanup is unverified. Network and page lifecycle settings are never changed by this mode. No process can guarantee cleanup after an uncatchable kill.
 
 HTTP controls use the selected origin/path across query variants; IPC controls use the allowed main-frame sender/channel. Neither tests native transport failures. Initial baseline completeness, changing live data, hidden windows and unknown dependencies remain limitations. No mobile WebView compatibility claim is made without testing. Saved endpoint paths, channels and event names may be private; UI text/payloads are not saved, and hashed summaries are not anonymization.
+
+## Initial readiness (preview.10)
+
+Calibration adds three full bounded observation windows before injection. It compares end states without preferring nonempty screens or higher item counts: legitimate empty results remain valid. Each baseline retains elapsed time and its bounded timeline. A mismatch or unsettled final state stops the experiment before injection. No baseline is trusted until all three agree, so an unsuccessful calibration cannot claim verified final UI restoration; fault reset is reported separately. Content arriving after the window and unknown dependencies remain limitations. This generic policy is shared by HTTP and IPC refresh experiments; initial-load discovery is unchanged.
