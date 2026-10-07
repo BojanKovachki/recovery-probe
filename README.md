@@ -21,7 +21,7 @@ Desktop support currently means Electron, not arbitrary native applications. IPC
 
 ## Install the current preview
 
-The current source version is **0.3.0-preview.9**. GitHub merges and npm publication are separate; do not assume npm `latest` or `next` contains these features. This pinned install contains the tested preview.9 implementation:
+The current source version is **0.3.0-preview.10**. GitHub merges and npm publication are separate; do not assume npm `latest` or `next` contains these features. The pin below installs preview.9. For the preview.10 readiness correction, install the commit identified in its merged PR; npm publication is separate.
 
 ```bash
 mkdir recovery-probe-tools && cd recovery-probe-tools

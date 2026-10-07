@@ -27,6 +27,7 @@ export async function runRefresh(page, input, adapter, { signal } = {}) {
   const c = refreshConfig(input), target = c.transport === 'http' ? c.endpoint : c.channel;
   const required = c.transport === 'http' ? c.requiredEndpoints : c.requiredChannels;
   const report = { schemaVersion: 1, mode: 'refresh experiment', trigger: { ...c.trigger, synthesized: true, changesNetworkState: false },
+    readiness: { strategy: 'bounded-end-state-calibration', calibrationRuns: 3, calibrationWindowMs: c.baselineTimeoutMs, settleMs: c.settleMs, limitation: 'Matching stable end states do not prove completeness beyond the calibration window.' },
     baselines: [], results: [], findings: [], ok: false, finalReset: 'not-verified', faultReset: 'not-verified',
     limitation: 'Synthetic window event only; no network outage, OS resume, token expiry or native transport is simulated. Timing establishes association, not causal proof. Trigger handlers may have application side effects. No recovery beyond the observation window is established.' };
   const initialUrl = page.url(); let errors=0; const onError=()=>errors++; page.on('pageerror',onError);
@@ -39,7 +40,7 @@ export async function runRefresh(page, input, adapter, { signal } = {}) {
     if(snapshot.injectionError)throw Error('INJECTION_ERROR');
     return {ui,snapshot};
   }
-  async function observe(ms, predicate, ignoreAbort=false) {
+  async function observe(ms, predicate, ignoreAbort=false, fullWindow=false) {
     const start=performance.now(), timeline=[];let last, previous, stableSince=start;
     do {
       if(!ignoreAbort)checkAbort();last=await sample();
@@ -49,17 +50,17 @@ export async function runRefresh(page, input, adapter, { signal } = {}) {
       const event={elapsedMs,...last};
       if(timeline.length<100 && (JSON.stringify(timeline.at(-1)?.ui)!==signature || JSON.stringify(timeline.at(-1)?.snapshot)!==JSON.stringify(last.snapshot)))timeline.push(event);
       const stable=performance.now()-stableSince>=c.settleMs;
-      if(predicate?.(last,stable))return {...last,elapsedMs,timeline,ready:true};
-      if(performance.now()-start>=ms)return {...last,elapsedMs,timeline,ready:false};
+      if(!fullWindow&&predicate?.(last,stable))return {...last,elapsedMs,timeline,ready:true};
+      if(performance.now()-start>=ms)return {...last,elapsedMs,timeline,ready:Boolean(fullWindow&&predicate?.(last,stable))};
       await sleep(50);
     } while(true);
   }
   const settled=s=>Object.values(s.channels).every(r=>r.pending===0);
   const healthy=(value,stable,expected)=>stable&&!value.ui.loading&&!Object.values(value.snapshot.channels).some(r=>r.errors)&&settled(value.snapshot)&&value.snapshot.channels[target].successes>0&&required.every(k=>value.snapshot.channels[k].successes>0)&&(!expected||value.ui.fingerprint===expected);
-  async function load(expected, ignoreAbort=false) {
+  async function load(expected, ignoreAbort=false, calibrate=false) {
     const initialErrors=errors;await adapter.begin();
     await page.reload({waitUntil:'domcontentloaded',timeout:c.baselineTimeoutMs});
-    const result=await observe(c.baselineTimeoutMs,(v,stable)=>healthy(v,stable,expected),ignoreAbort);
+    const result=await observe(c.baselineTimeoutMs,(v,stable)=>healthy(v,stable,expected),ignoreAbort,calibrate);
     if(errors!==initialErrors)result.ready=false;return result;
   }
   async function quiet() {
@@ -77,9 +78,11 @@ export async function runRefresh(page, input, adapter, { signal } = {}) {
   let baseline;
   try {
     for(let i=0;i<3;i++) {
-      checkAbort();const b=await load(baseline?.ui.fingerprint);report.baselines.push(b);
-      if(!b.ready||errors)throw Error('BASELINE_UNSTABLE'); baseline??=b;
+      checkAbort();const b=await load(undefined,false,true);report.baselines.push(b);
+      if(!b.ready||errors)throw Error('BASELINE_UNSTABLE');
     }
+    if(!report.baselines.every(b=>b.ui.fingerprint===report.baselines[0].ui.fingerprint))throw Error('BASELINE_UNSTABLE');
+    baseline=report.baselines[0];
     for(let i=0;i<c.repeats;i++) {
       const row={run:i+1,requested:c.times,observationMs:c.observationMs,attribution:{kind:'temporal-association',causalProof:false},stage:'control'};
       report.results.push(row);const initialErrors=errors;

@@ -4,6 +4,12 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.3.0-preview.10 (GitHub preview; npm publication separate)
+
+- Calibrate HTTP/IPC refresh baselines using three full bounded windows and matching stable end states, rather than the first stable intermediate screen.
+- Retain calibration evidence and trust a baseline only after all three reloads agree. Legitimate empty screens are not rejected based on item counts.
+- Add delayed image-card and empty-content regression coverage.
+
 ## 0.3.0-preview.9 (GitHub preview; npm publication separate)
 
 - Refresh the README, setup guides and package description around general web/Electron recovery testing; pin preview installation instructions.
