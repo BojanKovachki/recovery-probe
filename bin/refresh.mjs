@@ -28,11 +28,11 @@ export async function refreshMain(args) {
       try{await control.call('identify',nonce);}finally{await page.evaluate(()=>delete globalThis.__recoveryProbeWindowNonce);}
       adapter=ipcRefreshAdapter(control,c,identity.senderId);
     } else {page=selectDesktopPage(browser,c);adapter=httpRefreshAdapter(page,c);}
-    visibility=await prepareVisibility(page,{...c,control});
+    visibility=await prepareVisibility(page,{...c,control,announce:console.error});
     report=await runRefresh(page,c,adapter,{signal:abort.signal});report.window={initial:visibility.initial};
   } catch(error) {report??={schemaVersion:1,mode:'refresh experiment',ok:false,finalReset:'not-verified',results:[],findings:[]};report.error=error.message;}
   finally {
-    try{if(visibility)report.window.restoration=await visibility.revert();}catch(error){report.ok=false;report.windowRestoreError=error.message;}
+    try{if(visibility){report.window??={initial:visibility.initial};report.window.restoration=await visibility.revert();}}catch(error){report.ok=false;report.windowRestoreError=error.message;}
     control?.close();try{if(browser)await browser.close();}catch(error){report.ok=false;report.disconnectError=error.message;}
     process.off('SIGINT',onSignal);process.off('SIGTERM',onSignal);
   }

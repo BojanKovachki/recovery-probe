@@ -21,7 +21,7 @@ export async function windowVisibility(page, control) {
     return { visibility: visible, mechanism: 'unavailable', diagnosis: visible === 'visible' ? 'visible' : 'hidden: window state unavailable; restore and uncover the target window' };
   } finally { await session?.detach().catch(() => {}); }
 }
-export async function prepareVisibility(page, { restoreWindow = false, control } = {}) {
+export async function prepareVisibility(page, { restoreWindow = false, control, announce = console.log } = {}) {
   const initial = await windowVisibility(page, control);
   let changed = false;
   const set = async state => {
@@ -39,7 +39,7 @@ export async function prepareVisibility(page, { restoreWindow = false, control }
     return { changed: true, restored: true, final };
   };
   if (restoreWindow && initial.windowState === 'minimized') {
-    console.log('Recovery Probe: restoring the minimized target window for this run; its original state will be restored afterwards.');
+    announce('Recovery Probe: restoring the minimized target window for this run; its original state will be restored afterwards.');
     changed = true; // An unsuccessful reply may still have executed.
     try {
       await set('normal');
