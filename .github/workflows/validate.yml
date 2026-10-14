@@ -91,12 +91,16 @@ jobs:
         run: node --test test/guided-start.integration.test.mjs
       - name: Run controlled browser demonstration
         run: npm run demo:browser
+      - name: Verify the runnable CI recovery example
+        run: npm run test:ci-example
       - name: Upload demonstration reports
         if: always()
         uses: actions/upload-artifact@v6
         with:
           name: recovery-probe-demo-reports
-          path: artifacts/*.json
+          path: |
+            artifacts/*.json
+            artifacts/ci-example-*/
           if-no-files-found: warn
 
   electron:

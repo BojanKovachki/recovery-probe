@@ -1,6 +1,6 @@
 node_modules
 *.tgz
-artifacts/*.json
+artifacts/
 playwright-report/
 test-results/
 BUSINESS.md

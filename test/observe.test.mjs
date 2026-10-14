@@ -22,6 +22,9 @@ test('fault-free IPC observation tracks starts and settlements, preserves promis
   const f = fixture();
   const a = ipcObservationAdapter(f.control, c, 1);
   await a.start();
+  assert.equal(a.metadata().version, f.probe.identify().version);
+  assert.equal(a.metadata().runtime.node, process.versions.node);
+  assert.equal('pageUrl' in a.metadata(), false);
   const pending = f.call();
   const started = await a.snapshot();
   assert.equal(started.channels[c.channel].pending, 1);
@@ -80,6 +83,9 @@ test('an unresponsive renderer does not trap observation or prevent owned cleanu
     const row = { calls: 0, successes: 0, errors: 0, pending: 0, lastReadAt: null, lastCompletedAt: null };
     const adapter = { async start() {}, async snapshot() { return { channels: { 'fixture:read': row } }; }, async stop() { stopped = true; } };
     const report = await runObservation(page, { transport: 'ipc', channel: 'fixture:read', regionSelector: '#data', contentSelector: 'li', observationMs: 500 }, adapter, { signal: abort.signal });
+    assert.equal(report.sampling.completedSamples, 0);
+    assert.equal(report.sampling.startToStart.meanMs, null);
+    assert.ok(report.metadata.recoveryProbeVersion);
     assert.equal(stopped, true);
     assert.equal(report.cleanup, 'complete');
     assert.equal(report.captureComplete, false);
@@ -102,4 +108,20 @@ test('the operator interval acknowledgement follows its read-counter boundary', 
   assert.equal(announced, true);
   assert.equal(report.intervals[0].reads.calls, 0);
   assert.equal(report.intervals[1].reads.calls, 1);
+});
+
+// preview.12 hooks support observation but do not expose version/runtime metadata.
+test('older observation-capable hooks retain coverage with unknown provenance', async () => {
+  const f = fixture();
+  const control = { async call(method, arg) {
+    const value = await f.control.call(method, arg);
+    if (method === 'identify') { delete value.version; delete value.runtime; }
+    return value;
+  } };
+  const adapter = ipcObservationAdapter(control, c, 1);
+  await adapter.start();
+  assert.equal(adapter.metadata().version, null);
+  assert.equal(adapter.metadata().runtime.electron, null);
+  assert.equal((await adapter.snapshot()).injected, 0);
+  await adapter.stop();
 });

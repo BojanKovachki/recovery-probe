@@ -10,8 +10,8 @@ Install the exact npm preview after confirming availability:
 
 ```bash
 mkdir recovery-probe-tools && cd recovery-probe-tools
-npm view recovery-probe@0.3.0-preview.12 version
-npm install --save-dev --save-exact recovery-probe@0.3.0-preview.12 playwright@1.62.1
+npm view recovery-probe@0.3.0-preview.13 version
+npm install --save-dev --save-exact recovery-probe@0.3.0-preview.13 playwright@1.62.1
 npx recovery-probe start web http://localhost:3000
 ```
 

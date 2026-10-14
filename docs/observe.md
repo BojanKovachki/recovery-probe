@@ -3,7 +3,7 @@
 Available in **0.3.0-preview.12**. Install the exact preview and verify the CLI:
 
 ```bash
-npm install --save-dev --save-exact recovery-probe@0.3.0-preview.12 playwright@1.62.1
+npm install --save-dev --save-exact recovery-probe@0.3.0-preview.13 playwright@1.62.1
 npx recovery-probe --version
 ```
 
@@ -28,7 +28,7 @@ Save a local JSON file, for example `observe.json`:
 }
 ```
 
-IPC requires the [explicit development hook](ipc.md), loaded **from the same installed preview.12 package** before handler registration. It must advertise `observation` and `readTimestamps` capabilities. An old running hook is rejected before starting a plan; reinstalling the CLI alone does not update a hook already loaded in the app. Resolve the updated hook with `node -p "require.resolve('recovery-probe/ipc')"`, update the app's development hook path if needed, and restart the development app **before reproducing the cached state**. The selected window is verified against that hook without reloading it.
+IPC requires the [explicit development hook](ipc.md), loaded **from the same installed package version** before handler registration. It must advertise `observation` and `readTimestamps` capabilities. An old running hook is rejected before starting a plan; reinstalling the CLI alone does not update a hook already loaded in the app. Resolve the updated hook with `node -p "require.resolve('recovery-probe/ipc')"`, update the app's development hook path if needed, and restart the development app **before reproducing the cached state**. The selected window is verified against that hook without reloading it.
 
 For renderer HTTP reads, use:
 
@@ -65,6 +65,14 @@ npx recovery-probe observe --config observe.json
 Enter starts an interval at the next sample boundary; it does not navigate or reset counters. Thus the second interval can show **zero new reads** while retaining the last observed read/completion time from the first interval. Up to 50 intervals are allowed. Terminal input is not saved as a label; do not type credentials. `--interactive` enables newline markers on piped stdin; without it, noninteractive runs have a single interval. `--json` writes the report to stdout and keeps progress on stderr.
 
 To observe a particular cached state that already exists, start on a neutral screen immediately before returning to it. Reads before capture are unknown. Start earlier if you need a measured age of the last read.
+
+## Report provenance and sampling
+
+Since preview.13, `metadata` records the installed Recovery Probe version, CLI Node version, browser version when available, and the IPC hook's reported version, runtime and observation capabilities. Older observation-capable hooks remain compatible; unavailable metadata is null. Restart with the new hook if its version/runtime metadata is needed. No environment variables, account information, full user agent or registered-channel inventory is included.
+
+`sampleMs` is the requested delay **after each completed sample**, not a guaranteed sampling resolution. `sampling.sampleDuration` summarizes the UI-read-to-counter-snapshot duration; `sampling.startToStart` measures actual cadence, including protocol work, delays and operator callbacks. Both contain count, meanMs, minMs and maxMs. All completed samples contribute, including unchanged samples omitted from the timeline. With no samples the duration statistics are null; with fewer than two samples cadence statistics are null. A timed-out/incomplete sample is not included. `captureComplete` retains its existing meaning and does not guarantee that brief UI flashes were captured.
+
+JSON findings retain their codes/bases and add a plain-language `summary`. HTML shows first-content sample bounds relative to each interval rather than an exact paint time.
 
 ## Interpretation
 
