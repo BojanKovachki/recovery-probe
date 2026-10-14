@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { observationConfig, ipcObservationAdapter } from '../src/observe.mjs';
+import { observationConfig, ipcObservationAdapter, runObservation } from '../src/observe.mjs';
 import { installIpcProbe } from '../src/ipc-probe.cjs';
 
 function fixture() {
@@ -66,4 +66,24 @@ test('observation rejects faults and expires its lease; unsupported hooks fail b
   const old = ipcObservationAdapter({ async call(method) { calls.push(method); return { senderId: 1, capabilities: {} }; } }, c, 1);
   await assert.rejects(old.start(), /UNSUPPORTED/); await old.stop();
   assert.deepEqual(calls, ['identify']);
+});
+
+test('an unresponsive renderer does not trap observation or prevent owned cleanup', { timeout: 10000 }, async () => {
+  for (const interrupt of [false, true]) {
+    let evaluations = 0, stopped = false;
+    const abort = new AbortController();
+    const page = { on() {}, off() {}, evaluate() {
+      if (++evaluations === 1) return Promise.resolve(); // CSS validation.
+      if (interrupt) abort.abort();
+      return new Promise(() => {}); // A blocked renderer never answers the UI read.
+    } };
+    const row = { calls: 0, successes: 0, errors: 0, pending: 0, lastReadAt: null, lastCompletedAt: null };
+    const adapter = { async start() {}, async snapshot() { return { channels: { 'fixture:read': row } }; }, async stop() { stopped = true; } };
+    const report = await runObservation(page, { transport: 'ipc', channel: 'fixture:read', regionSelector: '#data', contentSelector: 'li', observationMs: 500 }, adapter, { signal: abort.signal });
+    assert.equal(stopped, true);
+    assert.equal(report.cleanup, 'complete');
+    assert.equal(report.captureComplete, false);
+    assert.equal(report.status, interrupt ? 'interrupted' : 'incomplete');
+    if (!interrupt) assert.match(report.error, /UI_SAMPLE_TIMEOUT/);
+  }
 });

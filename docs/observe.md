@@ -44,7 +44,7 @@ Select an existing page using `desktop --list`. HTTP observes main-frame GET fet
 
 `regionSelector` must identify at most one region. The region may disappear or become hidden during navigation. `contentSelector` is a CSS selector **inside that region**, chosen to identify actual data rows/cards rather than headings, placeholders or loading skeletons. This explicit marker is the only basis for saying data-dependent content is present. Nothing infers a framework mount, a user id, or ownership from the DOM.
 
-The duration is bounded to 500–120000 ms; sampling is bounded to 50–1000 ms. Default duration is 30000 ms and sampling is 100 ms. Only one target is counted per capture. Existing fault/discovery configs must be adapted: unrelated options are rejected to avoid silently performing a different experiment.
+The duration is bounded to 500–120000 ms; sampling is bounded to 50–1000 ms. Default duration is 30000 ms and sampling is 100 ms. Setup, protocol operations and cleanup add overhead. An unresponsive UI sample times out after 5 seconds and produces incomplete evidence; Ctrl+C interrupts a pending UI sample. Only one target is counted per capture. Existing fault/discovery configs must be adapted: unrelated options are rejected to avoid silently performing a different experiment.
 
 ## Capture a return visit
 

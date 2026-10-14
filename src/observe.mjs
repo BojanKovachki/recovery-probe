@@ -74,6 +74,23 @@ const counts = row => ({ calls: row.calls, successes: row.successes, errors: row
 const delta = (row, base) => ({ calls: row.calls - base.calls, successes: row.successes - base.successes, errors: row.errors - base.errors, pending: row.pending, pendingAtStart: base.pending });
 const age = (snapshot, at) => at === null ? null : Math.max(0, snapshot.capturedAt - at);
 
+async function boundedUiRead(action, signal) {
+  let timer, cancel;
+  try {
+    return await Promise.race([
+      Promise.resolve().then(() => {
+        if (signal?.aborted) throw Error('CAPTURE_INTERRUPTED');
+        return action();
+      }),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(Error('UI_SAMPLE_TIMEOUT: renderer did not respond within 5000 ms')), 5000);
+        cancel = () => reject(Error('CAPTURE_INTERRUPTED'));
+        signal?.addEventListener('abort', cancel, { once: true });
+      }),
+    ]);
+  } finally { clearTimeout(timer); signal?.removeEventListener('abort', cancel); }
+}
+
 /** Observe only. No reload, navigation, routing, focus changes or final UI reset. */
 export async function runObservation(page, input, adapter, { signal, takeMarker = () => false, onReady = () => {}, onSample = () => {} } = {}) {
   const c = observationConfig(input);
@@ -103,7 +120,7 @@ export async function runObservation(page, input, adapter, { signal, takeMarker 
   const gap = code => { if (!report.coverage.gaps.includes(code)) report.coverage.gaps.push(code); };
   try {
     // Validate CSS without requiring the region to be mounted yet.
-    await page.evaluate(({ regionSelector, contentSelector }) => { document.querySelector(regionSelector); document.querySelector(contentSelector); }, c);
+    await boundedUiRead(() => page.evaluate(({ regionSelector, contentSelector }) => { document.querySelector(regionSelector); document.querySelector(contentSelector); }, c), signal);
     page.on('pageerror', errors); page.on('domcontentloaded', documentLoaded);
     attempted = true;
     await adapter.start();
@@ -122,7 +139,7 @@ export async function runObservation(page, input, adapter, { signal, takeMarker 
       }
       const before = await adapter.snapshot();
       const sampleStart = elapsed();
-      const raw = await page.evaluate(readRegion, { regionSelector: c.regionSelector, contentSelector: c.contentSelector });
+      const raw = await boundedUiRead(() => page.evaluate(readRegion, { regionSelector: c.regionSelector, contentSelector: c.contentSelector }), signal);
       const ui = raw.presence === 'visible' ? summarizeRegion(raw) : raw;
       const after = await adapter.snapshot();
       if (newDocument) throw Error('DOCUMENT_REPLACED: capture stopped; the in-memory state may have been reset');
@@ -157,7 +174,8 @@ export async function runObservation(page, input, adapter, { signal, takeMarker 
       await new Promise(resolve => setTimeout(resolve, Math.min(c.sampleMs, Math.max(0, c.observationMs - (performance.now() - started)))));
     }
   } catch (error) {
-    report.status = 'incomplete'; report.error = error.message;
+    report.status = signal?.aborted ? 'interrupted' : 'incomplete';
+    if (!signal?.aborted) report.error = error.message;
   } finally {
     if (interval) closeInterval();
     report.elapsedMs = started === undefined ? 0 : elapsed();
