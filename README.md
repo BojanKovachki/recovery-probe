@@ -34,6 +34,8 @@ If the version check reports that the version is unavailable, npm publication is
 
 ## Choose a workflow
 
+**Unreleased source addition:** [fault-free observation](docs/observe.md) records selected reads and content while you navigate, without reloading or clearing caches. It is not yet included in npm `0.3.0-preview.11`.
+
 | Goal | Entry point | Guide |
 | --- | --- | --- |
 | Set up a first request-recovery check interactively | `recovery-probe start web URL` or `start desktop` | [Guided start](docs/start.md) |
@@ -48,6 +50,8 @@ If the version check reports that the version is unavailable, npm publication is
 Guided setup asks you to choose a request and loaded content that proves success; later runs reuse the saved scenario. Structural discovery compares healthy and faulted screens without requiring a hand-written content selector, but still needs a selected read target and a valid baseline. Neither workflow infers your product's intended recovery policy.
 
 HTTP and IPC structural discovery calibrate three healthy reloads for the full `baselineTimeoutMs` window before injecting faults (45 seconds with the default 15-second window). All three stable end states must agree. This avoids treating a briefly stable loading shell as the healthy screen, accepts legitimate empty regions, and keeps an unsuccessful calibration inconclusive. Later controls may finish early once they match the calibrated baseline. Content arriving after the window remains outside the evidence.
+
+**Session-isolation boundary:** recovery/discovery/refresh workflows reload the renderer to establish controls. That clears in-memory caches and can hide state carried between sessions. Those modes cannot prove account isolation; content preservation within one session is not an ownership check. The new observation workflow collects evidence without resetting that state, but does not infer identities or data ownership.
 
 ## Refresh experiments
 

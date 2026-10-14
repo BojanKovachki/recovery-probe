@@ -3,14 +3,15 @@ export interface ProbeWebContents {
 }
 export interface IpcSnapshot {
   id: string; channel: string; senderId: number; injected: number;
+  startedAt: number; capturedAt: number; observation: boolean; observingUntil: number | null;
   injectedAt: number | null; successfulAfterFault: number;
   armed: { fault: 'rejection' | 'null-result'; remaining: number; expiresAt: number } | null;
-  channels: Record<string, { calls: number; realCalls: number; successes: number; errors: number; pending: number; maxDurationMs: number }>;
+  channels: Record<string, { calls: number; realCalls: number; successes: number; errors: number; pending: number; maxDurationMs: number; firstReadAt: number | null; lastReadAt: number | null; firstCompletedAt: number | null; lastCompletedAt: number | null; lastSuccessAt: number | null }>;
 }
 export interface IpcProbe {
-  identify(): { senderId: number; pageUrl: string; registered: string[]; capabilities: { maxFaultCount: number } };
-  identify(challenge: string): Promise<{ senderId: number; pageUrl: string; registered: string[]; capabilities: { maxFaultCount: number } }>;
-  begin(options: { id: string; channel: string; requiredChannels?: string[]; fault?: 'rejection' | 'null-result'; times?: number; ttlMs?: number }): IpcSnapshot;
+  identify(): { senderId: number; pageUrl: string; registered: string[]; capabilities: { maxFaultCount: number; observation: true; readTimestamps: true } };
+  identify(challenge: string): Promise<{ senderId: number; pageUrl: string; registered: string[]; capabilities: { maxFaultCount: number; observation: true; readTimestamps: true } }>;
+  begin(options: { id: string; channel: string; requiredChannels?: string[]; times?: number; ttlMs?: number } & ({ observation: true; fault?: never } | { observation?: false; fault?: 'rejection' | 'null-result' })): IpcSnapshot;
   snapshot(): IpcSnapshot | null;
   windowState(): { minimized: boolean };
   setWindowMinimized(minimized: boolean): { minimized: boolean };

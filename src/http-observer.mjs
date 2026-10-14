@@ -1,7 +1,8 @@
 import { performance } from 'node:perf_hooks';
 import { pageIdentity } from './desktop.mjs';
 export async function observeHttp(page, { endpoint, requiredEndpoints = [], fault, times = 1 }) {
-  const channels = Object.fromEntries([endpoint, ...requiredEndpoints].map(e => [e, { calls: 0, realCalls: 0, successes: 0, errors: 0, pending: 0, maxDurationMs: 0 }]));
+  const channels = Object.fromEntries([endpoint, ...requiredEndpoints].map(e => [e, { calls: 0, realCalls: 0, successes: 0, errors: 0, pending: 0, maxDurationMs: 0, firstReadAt: null, lastReadAt: null, firstCompletedAt: null, lastCompletedAt: null, lastSuccessAt: null }]));
+  const startedAt = Date.now();
   const requests = new Map(), coverage = new Map(), operations = new Set();
   let reserved = 0, applied = 0, injectedAt = null, successfulAfterFault = 0, active = true, injectionError = false;
   let routed = Boolean(fault);
@@ -13,6 +14,7 @@ export async function observeHttp(page, { endpoint, requiredEndpoints = [], faul
     const row = r.method() === 'GET' && channels[url];
     if (!row) return;
     row.calls++; row.realCalls++; row.pending++;
+    row.firstReadAt ??= Date.now(); row.lastReadAt = Date.now();
     requests.set(r, { row, start: performance.now(), injected: false, afterFault: reserved === times && injectedAt !== null, target: url === endpoint });
   };
   const finish = async (r, failed) => {
@@ -21,8 +23,10 @@ export async function observeHttp(page, { endpoint, requiredEndpoints = [], faul
     const response = failed ? null : await r.response().catch(() => null);
     meta.row.pending--;
     if (meta.injected) return;
+    const completed = Date.now();
+    meta.row.firstCompletedAt ??= completed; meta.row.lastCompletedAt = completed;
     meta.row.maxDurationMs = Math.max(meta.row.maxDurationMs, Math.round(performance.now() - meta.start));
-    if (response?.ok()) { meta.row.successes++; if (meta.target && meta.afterFault) successfulAfterFault++; }
+    if (response?.ok()) { meta.row.successes++; meta.row.lastSuccessAt = completed; if (meta.target && meta.afterFault) successfulAfterFault++; }
     else meta.row.errors++;
   };
   const finished = r => { const p = finish(r, false); operations.add(p); p.finally(() => operations.delete(p)); };
@@ -47,7 +51,7 @@ export async function observeHttp(page, { endpoint, requiredEndpoints = [], faul
   try { if (fault) await page.route(match, handler); }
   catch (error) { page.off('request', request); page.off('requestfinished', finished); page.off('requestfailed', failed); throw error; }
   return {
-    snapshot: () => ({ injected: applied, injectedAt, successfulAfterFault, injectionError, armed: fault && active && reserved < times ? { remaining: times - reserved } : null, channels: structuredClone(channels) }),
+    snapshot: () => ({ startedAt, capturedAt: Date.now(), injected: applied, injectedAt, successfulAfterFault, injectionError, armed: fault && active && reserved < times ? { remaining: times - reserved } : null, channels: structuredClone(channels) }),
     coverage: () => [...coverage.values()],
     async disarm() {
       active = false;

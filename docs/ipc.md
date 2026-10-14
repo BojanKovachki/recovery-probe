@@ -1,5 +1,7 @@
 # IPC renderer recovery preview
 
+For cache/navigation evidence that must survive without a reload, see the unreleased [fault-free observation workflow](observe.md). The recovery checks below reload the renderer and cannot establish session or account isolation.
+
 This adapter tests renderer recovery after bounded **rejected IPC invocations** or **successful null results**. It supports initial-load discovery and opt-in [refresh experiments](refresh.md). It does not simulate HTTP status codes, Rust transport failures, token refresh, connection banners or native retry behavior. Use only read-only channels in a development build with known fixture data.
 
 Unlike renderer HTTP routing, this boundary requires a small main-process hook. The local agent can perform the setup below; no interactive picker is required. Do not edit generated client files or access Electron's private handler map.

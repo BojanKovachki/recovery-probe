@@ -4,6 +4,13 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## Unreleased
+
+- Add `observe --config FILE` for fault-free HTTP/IPC read observation in an existing renderer without reloads, navigation, focus changes or UI cleanup resets. Operator interval markers preserve cumulative read history.
+- Record read starts/completions and sampled content evidence, including `CONTENT_BEFORE_READ` observations. Pre-capture history remains unknown; no identity, ownership or security verdict is inferred.
+- Add bounded, owned IPC observation leases, timestamped snapshots and the documented `recovery-probe/ipc-inspector` subpath. Old hooks fail capability checks before mutation.
+- Validate cache reuse and stale content with synthetic browser/Electron fixtures, alongside a per-identity cache control. Document the session-isolation boundary of reload-based checks.
+
 ## 0.3.0-preview.11 (release candidate; npm publication separate)
 
 - Extend bounded end-state calibration to HTTP and IPC initial-load discovery: observe three full healthy windows and require matching stable end states before trusting a baseline or injecting faults.

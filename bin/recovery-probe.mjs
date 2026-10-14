@@ -15,6 +15,7 @@ Usage:
   recovery-probe start web http://localhost:3000
   recovery-probe start desktop
   recovery-probe refresh --help
+  recovery-probe observe --help
   recovery-probe ipc --help
   recovery-probe desktop --help
   recovery-probe web --help
@@ -58,6 +59,10 @@ function printSummary(report) {
 
 async function main() {
   const args = process.argv.slice(2);
+  if (args[0] === 'observe') {
+    const { observeMain } = await import('./observe.mjs');
+    return observeMain(args.slice(1));
+  }
   if (args[0] === 'refresh') {
     const { refreshMain } = await import('./refresh.mjs');
     return refreshMain(args.slice(1));

@@ -3,10 +3,17 @@ const hash = value => createHash('sha256').update(value).digest('hex');
 
 // Runs in the page. Neither raw text nor attribute values are persisted.
 export function readRegion(selector) {
+  const observation = typeof selector === 'object' && selector !== null ? selector : null;
+  if (observation) {
+    selector = observation.regionSelector;
+    document.querySelector(observation.contentSelector); // Validate even when the region is absent.
+  }
   const roots = selector ? document.querySelectorAll(selector) : null;
+  if (observation && roots?.length === 0) return { presence: 'absent', contentCount: 0, visible: document.visibilityState === 'visible', online: navigator.onLine };
   if (roots && roots.length !== 1) throw new Error('regionSelector must identify one region');
   const root = roots?.[0] ?? document.querySelector('main, [role="main"]') ?? document.body;
   const visible = e => !!(e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden' && getComputedStyle(e).display !== 'none');
+  if (observation && !visible(root)) return { presence: 'hidden', contentCount: 0, visible: document.visibilityState === 'visible', online: navigator.onLine };
   const nodes = [...root.querySelectorAll('*')].filter(visible).slice(0, 5000);
   const count = s => [...root.querySelectorAll(s)].filter(visible).length;
   const text = (root.innerText ?? '').replace(/\s+/g, ' ').trim();
@@ -49,6 +56,7 @@ export function readRegion(selector) {
     }
   }
   return { text, structure, groups, distributions,
+    ...(observation ? { presence: 'visible', contentCount: [...root.querySelectorAll(observation.contentSelector)].filter(visible).length } : {}),
     region: selector ? 'selected' : root === document.body ? 'body' : 'main',
     truncated: root.querySelectorAll('*').length > 5000,
     visible: document.visibilityState === 'visible', online: navigator.onLine,
