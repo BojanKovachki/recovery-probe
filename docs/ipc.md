@@ -12,8 +12,8 @@ Node 22+ is required for the CLI. Electron 29's bundled Node can load the small 
 
 ```bash
 mkdir -p recovery-probe-tools && cd recovery-probe-tools
-npm view recovery-probe@0.3.0-preview.13 version
-npm install --save-dev --save-exact recovery-probe@0.3.0-preview.13 playwright@1.62.1
+npm view recovery-probe@0.3.0-preview.14 version
+npm install --save-dev --save-exact recovery-probe@0.3.0-preview.14 playwright@1.62.1
 node -p "require.resolve('recovery-probe/ipc')"
 ```
 

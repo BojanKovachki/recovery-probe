@@ -3,7 +3,7 @@
 Available in **0.3.0-preview.12**. Install the exact preview and verify the CLI:
 
 ```bash
-npm install --save-dev --save-exact recovery-probe@0.3.0-preview.13 playwright@1.62.1
+npm install --save-dev --save-exact recovery-probe@0.3.0-preview.14 playwright@1.62.1
 npx recovery-probe --version
 ```
 
@@ -49,6 +49,12 @@ Select an existing page using `desktop --list`. HTTP observes main-frame GET fet
 
 `regionSelector` must identify at most one region. The region may disappear or become hidden during navigation. `contentSelector` is a CSS selector **inside that region**, chosen to identify actual data rows/cards rather than headings, placeholders or loading skeletons. This explicit marker is the only basis for saying data-dependent content is present. Nothing infers a framework mount, a user id, or ownership from the DOM.
 
+Since preview.14, `detail` defaults to `"content"`: each sample reads visible selected markers and their normalized text, without traversing the region's full structure, controls and repeated-value distributions. Existing configs automatically use this lighter path. Set `"detail": "region"` to retain detailed region diagnostics alongside the same marker evidence. Fault-injection/discovery workflows retain their detailed inspections.
+
+`ui.contentCount` counts visible matches of your content selector. In region detail, `ui.items` is a separate generic list/row heuristic and is **not** the number of application records. Content fingerprints cover ordered normalized marker text/count, not attributes, image pixels, input values, server data or account identity. Controls inside a selected marker contribute to its text; use a narrower marker when appropriate.
+
+Marker inspection is capped at the first 1000 selector matches and 200000 normalized text characters per sample. Exceeding either sets `ui.content.truncated` and a coverage gap; counts may then be partial and comparisons are unavailable. These caps limit collected evidence, not a guarantee about browser execution time. CSS matching and reading a large individual element still cost work.
+
 The duration is bounded to 500–120000 ms; sampling is bounded to 50–1000 ms. Default duration is 30000 ms and sampling is 100 ms. Setup, protocol operations and cleanup add overhead. An unresponsive UI sample times out after 5 seconds and produces incomplete evidence; Ctrl+C interrupts a pending UI sample. Only one target is counted per capture. Existing fault/discovery configs must be adapted: unrelated options are rejected to avoid silently performing a different experiment.
 
 ## Capture a return visit
@@ -74,6 +80,21 @@ Since preview.13, `metadata` records the installed Recovery Probe version, CLI N
 
 JSON findings retain their codes/bases and add a plain-language `summary`. HTML shows first-content sample bounds relative to each interval rather than an exact paint time.
 
+Since preview.14, `sampling.phases` also summarizes `beforeSnapshotMs`, `uiRoundTripMs`, `rendererReadMs`, `summarizeMs`, and `afterSnapshotMs`. Renderer time is measured inside the page; the other durations use the CLI's monotonic clock. **Renderer time is included in the UI round trip**, so these fields must not all be added together. They help distinguish renderer work from protocol/serialization and counter costs. Timing values are excluded from the UI signature, so timing noise does not fill the change-only timeline. An observation lease, inspector transport or busy app can still dominate cadence.
+
+For a reproducible local diagnostic from a repository checkout, run `npm run benchmark:observe` after installing dependencies and Chromium. It alternates content/region reads of a synthetic 200-row fixture, discards warmup samples, and prints renderer, round-trip, summarization and transfer measurements. This is not a performance pass/fail gate or a guarantee of detecting a particular flash duration. Compare actual cadence in field reports before drawing conclusions about the application under test.
+
+## Content comparisons
+
+`comparisons` and the HTML/terminal summaries make two relationships explicit:
+
+- `INTERVAL_RETURN`: compare the first visible selected content in a new operator interval with the last visible selected content from an earlier interval. Read counts explain whether new selected calls started in the current interval. An interval is not a verified route, mount or identity transition.
+- `READ_COMPLETION`: compare a sample before observed completion(s) with the first subsequent sample whose before/after counters agree on the number of completions. A completion during a UI read is ambiguous: comparison waits for a later sample. Successful and failed completion counts are reported separately; overlapping completions may be grouped.
+
+Results are `unchanged`, `changed`, or `unavailable`. Unavailable means the required visible, untruncated marker summaries are missing. An unchanged result means only that the sampled ordered marker text and count match. It does not prove that content stayed continuously visible, that the data is fresh, or that the renderer has consumed a completed read. A delayed render may change in later timeline entries. There is no comparison when a suitable pre-completion sample was not captured; an unresolved completion at capture end cannot establish a post-completion comparison. Up to 1000 comparisons are retained; exceeding that records a coverage gap.
+
+The browser tests include unchanged content after a failed refresh, changed content after a successful refresh, cached interval return, a sampled 250 ms pulse, and a pulse entirely between samples that remains undetected. These controls deliberately distinguish captured evidence from missed transitions.
+
 ## Interpretation
 
 Local `report.json` and `report.html` contain interval read counts, starts/completions, first-content sample bounds, and a change-only sampled timeline. `scenario.json` records the selected scope. No screenshots, response bodies or raw UI values are saved. Region text and repeated values are hashed; hashes are **not anonymization**, particularly for predictable text. Treat reports and selectors as private evidence.
@@ -85,6 +106,8 @@ The observer brackets each UI sample with read snapshots. If a completion arrive
 This release has no automatic login steps, operator identity assertions, identity callback, ownership oracle, or `CROSS_IDENTITY_CONTENT` verdict. A separate account-switch experiment needs evidence about identity and expected data sharing. Reload-based recovery and refresh checks still reset renderer state and cannot establish session isolation.
 
 Capture ends without touching UI state. HTTP listeners are detached; the owned IPC observation lease is ended with its run id. Faults cannot be included in an observation plan, and an active foreign plan is never replaced. An observation lease also expires if the client disappears. Calls already started may finish normally after capture.
+
+`snapshot` remains the last observation snapshot, explicitly labelled `snapshotStage: "before-cleanup"`. `cleanupEvidence` separately records HTTP listener detachment or the verified IPC readback (owned run id, capture time, expired/cleared observation lease, no armed fault and zero injections). A pre-cleanup snapshot with an active lease does not contradict successful cleanup. Failed cleanup remains incomplete; setup failures may have no cleanup evidence.
 
 A document reload/navigation ends capture as incomplete because the renderer state may have been reset; SPA navigation is allowed. Hidden-document samples and truncated regions are coverage gaps. Very short flashes between samples may be missed. If the content marker is never observed, `CONTENT_MARKER_NOT_OBSERVED` records the missing evidence; it may reflect an empty screen, an unvisited route, or a wrong selector. Exit `0` means the bounded capture completed without recorded coverage gaps; `2` means incomplete coverage or a setup/cleanup error; `130` means operator interruption. None means a recovery or security pass.
 

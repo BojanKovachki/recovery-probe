@@ -69,6 +69,13 @@ test('real Electron observation CLI preserves cache across identity changes and 
       assert.ok(report.metadata.ipcHook.runtime.electron);
       assert.ok(report.metadata.browserVersion);
       assert.equal(report.sampling.completedSamples, report.samples);
+      assert.equal(report.detail, 'content');
+      assert.equal(report.sampling.phases.rendererReadMs.count, report.samples);
+      assert.equal(report.snapshotStage, 'before-cleanup');
+      assert.equal(report.cleanupEvidence.verified, true);
+      assert.equal(report.cleanupEvidence.runId, report.snapshot.id);
+      assert.equal(report.cleanupEvidence.observingUntil, null);
+      assert.equal(report.cleanupEvidence.armed, null);
       assert.equal(report.sampling.startToStart.count, report.samples - 1);
       assert.equal(report.snapshot.channels[config.channel].calls, fixed ? 1 : 0);
       assert.equal(report.findings.length, fixed ? 0 : 1);

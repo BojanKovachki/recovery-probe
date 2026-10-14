@@ -4,6 +4,13 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.3.0-preview.14 (2026-10-14)
+
+- Default fault-free observation to lightweight selected-content sampling; retain `detail: "region"` for full diagnostics. Explicit marker/text limits flag partial evidence; unrelated controls do not affect marker comparisons.
+- Compare ordered visible marker text/count across observed read completions and operator intervals. Distinguish unchanged, changed and unavailable evidence, successful/failed settlements, and ambiguous completion during sampling. No freshness or ownership verdict is inferred.
+- Measure renderer, protocol round-trip, summarization and counter-snapshot phases separately. Add a reproducible synthetic benchmark and controlled brief-transition coverage tests; no guaranteed temporal resolution is claimed.
+- Persist separate cleanup readback evidence and label the observation snapshot as pre-cleanup. Extend browser and Electron checks; update the observation guide and CLI/HTML explanations.
+
 ## 0.3.0-preview.13 (2026-10-14)
 
 - Add observation report provenance: package/CLI runtime, available browser version and allowlisted IPC hook version/runtime/capabilities. Older observation-capable hooks remain supported with unknown metadata.

@@ -14,6 +14,7 @@ export async function observeMain(args) {
 Fault-free observation of an existing browser or Electron renderer.
 No reload, navigation, focus change, fault injection or final UI reset.
 Choose transport: http or ipc and explicit regionSelector/contentSelector CSS markers.
+Sampling defaults to detail: "content"; use "region" for full DOM diagnostics.
 Navigate manually during the bounded capture. Enter marks a new interval in an
 interactive terminal; --interactive also enables newline markers on piped input.
 Ctrl+C saves partial evidence. CONTENT_BEFORE_READ is an observation, not a defect.
@@ -93,7 +94,8 @@ IPC requires the observation-capable development hook. See docs/observe.md.`);
   else {
     for (const i of report.intervals) console.log(`Interval ${i.index}: ${i.reads?.calls ?? '?'} reads, ${i.reads?.successes ?? '?'} successes, ${i.reads?.errors ?? '?'} errors${i.findings.length ? '; ' + i.findings.join(', ') : ''}`);
     for (const finding of report.findings) console.log(`Interval ${finding.interval}: ${observationSummary(finding)}`);
-    console.log(`Sampling: requested delay ${config.sampleMs} ms; measured mean cadence ${report.sampling.startToStart.meanMs ?? 'unavailable'} ms.`);
+    for (const comparison of report.comparisons ?? []) console.log(`Interval ${comparison.interval}: ${comparison.summary}`);
+    console.log(`Sampling: ${config.detail}; requested delay ${config.sampleMs} ms; measured mean cadence ${report.sampling.startToStart.meanMs ?? 'unavailable'} ms.`);
     if (report.error) console.error(report.error);
     console.log(`Capture: ${report.status} (not a health verdict)\nReport: ${join(directory, 'report.html')}`);
   }

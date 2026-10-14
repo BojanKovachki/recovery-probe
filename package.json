@@ -1,6 +1,6 @@
 {
   "name": "recovery-probe",
-  "version": "0.3.0-preview.13",
+  "version": "0.3.0-preview.14",
   "type": "module",
   "description": "Test recovery from failed reads in web and Electron desktop apps, during loading and refresh.",
   "license": "MIT",
@@ -117,6 +117,7 @@
     "test:guided": "node --test test/guided-start.test.mjs test/guided-start.integration.test.mjs",
     "test:ipc": "node --test test/ipc-probe.test.mjs test/ipc-control.test.mjs test/ipc-observation.test.mjs test/visibility.test.mjs test/refresh.test.mjs test/observe.test.mjs test/observation-report.test.mjs",
     "test:ipc:electron": "node --test --test-concurrency=1 test/ipc.electron.test.mjs test/observe.electron.test.mjs",
+    "benchmark:observe": "node scripts/benchmark-observe.mjs",
     "test:ci-example": "node examples/ci/verify.mjs"
   }
 }
