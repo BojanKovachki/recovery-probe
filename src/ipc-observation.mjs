@@ -3,17 +3,42 @@ const hash = value => createHash('sha256').update(value).digest('hex');
 
 // Runs in the page. Neither raw text nor attribute values are persisted.
 export function readRegion(selector) {
+  const readStarted = performance.now();
   const observation = typeof selector === 'object' && selector !== null ? selector : null;
+  const finish = value => observation ? { ...value, rendererReadMs: performance.now() - readStarted } : value;
   if (observation) {
     selector = observation.regionSelector;
     document.querySelector(observation.contentSelector); // Validate even when the region is absent.
   }
   const roots = selector ? document.querySelectorAll(selector) : null;
-  if (observation && roots?.length === 0) return { presence: 'absent', contentCount: 0, visible: document.visibilityState === 'visible', online: navigator.onLine };
+  if (observation && roots?.length === 0) return finish({ presence: 'absent', contentCount: 0, visible: document.visibilityState === 'visible', online: navigator.onLine });
   if (roots && roots.length !== 1) throw new Error('regionSelector must identify one region');
   const root = roots?.[0] ?? document.querySelector('main, [role="main"]') ?? document.body;
-  const visible = e => !!(e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden' && getComputedStyle(e).display !== 'none');
-  if (observation && !visible(root)) return { presence: 'hidden', contentCount: 0, visible: document.visibilityState === 'visible', online: navigator.onLine };
+  // Cache only within this synchronous read: no DOM references survive a sample.
+  const visibility = new WeakMap();
+  const visible = e => {
+    if (!visibility.has(e)) {
+      const style = getComputedStyle(e);
+      visibility.set(e, !!(e.getClientRects().length && style.visibility !== 'hidden' && style.display !== 'none'));
+    }
+    return visibility.get(e);
+  };
+  if (observation && !visible(root)) return finish({ presence: 'hidden', contentCount: 0, visible: document.visibilityState === 'visible', online: navigator.onLine });
+  let content;
+  if (observation) {
+    const matches = root.querySelectorAll(observation.contentSelector);
+    const texts = [];
+    let remaining = 200000, truncated = matches.length > 1000;
+    for (const e of [...matches].slice(0, 1000)) {
+      if (!visible(e)) continue;
+      const text = (e.innerText ?? '').replace(/\s+/g, ' ').trim();
+      if (text.length > remaining) truncated = true;
+      texts.push(text.slice(0, remaining)); remaining = Math.max(0, remaining - text.length);
+    }
+    content = { texts, truncated };
+    if (observation.detail === 'content') return finish({ presence: 'visible', contentCount: texts.length,
+      content, truncated, visible: document.visibilityState === 'visible', online: navigator.onLine });
+  }
   const nodes = [...root.querySelectorAll('*')].filter(visible).slice(0, 5000);
   const count = s => [...root.querySelectorAll(s)].filter(visible).length;
   const text = (root.innerText ?? '').replace(/\s+/g, ' ').trim();
@@ -55,10 +80,10 @@ export function readRegion(selector) {
       distributions[key] = values;
     }
   }
-  return { text, structure, groups, distributions,
-    ...(observation ? { presence: 'visible', contentCount: [...root.querySelectorAll(observation.contentSelector)].filter(visible).length } : {}),
+  return finish({ text, structure, groups, distributions,
+    ...(observation ? { presence: 'visible', contentCount: content.texts.length, content } : {}),
     region: selector ? 'selected' : root === document.body ? 'body' : 'main',
-    truncated: root.querySelectorAll('*').length > 5000,
+    truncated: root.querySelectorAll('*').length > 5000 || Boolean(content?.truncated),
     visible: document.visibilityState === 'visible', online: navigator.onLine,
     items: count('tbody tr, [role="row"]:not(:has([role="columnheader"])), [role="listitem"], li'),
     images: count('img, [role="img"], svg'), links: count('a[href]'), buttons: count('button, [role="button"]'),
@@ -66,10 +91,14 @@ export function readRegion(selector) {
     empty: /\b(no (files|items|results|data)|nothing (here|found)|empty|keine (dateien|einträge|ergebnisse))\b/i.test(text),
     error: count('[role="alert"]') > 0 || /\b(error|failed|unable to|something went wrong|fehler|fehlgeschlagen)\b/i.test(text),
     retry: [...root.querySelectorAll('button, [role="button"]')].some(e => visible(e) && /\b(retry|try again|erneut versuchen|wiederholen)\b/i.test(e.innerText || e.getAttribute('aria-label') || '')),
-  };
+  });
 }
 export function summarizeRegion(raw) {
-  const { text, distributions = {}, ...summary } = raw;
+  const { text, distributions = {}, content, rendererReadMs: _timing, ...summary } = raw;
+  if (content) summary.content = { basis: 'ordered-visible-marker-text', count: content.texts.length,
+    textLength: content.texts.reduce((sum, value) => sum + value.length, 0),
+    textFingerprint: hash(JSON.stringify(content.texts)), truncated: content.truncated };
+  if (text === undefined) return summary;
   const values = {};
   for (const [family, columns] of Object.entries(distributions)) {
     values[family] = {};

@@ -16,6 +16,9 @@ const c = { channel: 'fixture:read', observationMs: 500 };
 test('observation config rejects mutation options and requires explicit content evidence', () => {
   const input = { transport: 'http', endpoint: 'http://localhost/api/items', regionSelector: '#items', contentSelector: 'li' };
   assert.equal(observationConfig(input).observationMs, 30000);
+  assert.equal(observationConfig(input).detail, 'content');
+  assert.equal(observationConfig({ ...input, detail: 'region' }).detail, 'region');
+  assert.throws(() => observationConfig({ ...input, detail: 'auto' }), /detail/);
   for (const extra of [{ reload: true }, { fault: 'rejection' }, { observationMs: 0 }, { contentSelector: '' }, { endpoint: 'http://localhost/api/items?token=secret' }, { cdp: 'http://remote.example:9222' }]) assert.throws(() => observationConfig({ ...input, ...extra }));
 });
 test('fault-free IPC observation tracks starts and settlements, preserves promises, and stops without clearing UI state', async () => {
@@ -35,7 +38,11 @@ test('fault-free IPC observation tracks starts and settlements, preserves promis
   const ended = await a.snapshot();
   assert.equal(ended.channels[c.channel].successes, 1);
   assert.ok(ended.channels[c.channel].lastCompletedAt >= ended.channels[c.channel].lastReadAt);
-  await a.stop();
+  const cleanup = await a.stop();
+  assert.equal(cleanup.verified, true);
+  assert.equal(cleanup.runId, started.id);
+  assert.equal(cleanup.observingUntil, null);
+  assert.equal(cleanup.injected, 0);
   assert.equal(f.probe.snapshot().observingUntil, null);
   const unobserved = f.call(); f.complete(); await unobserved;
   assert.equal(f.probe.snapshot().channels[c.channel].calls, 1);
@@ -124,4 +131,16 @@ test('older observation-capable hooks retain coverage with unknown provenance', 
   assert.equal(adapter.metadata().runtime.electron, null);
   assert.equal((await adapter.snapshot()).injected, 0);
   await adapter.stop();
+});
+
+test('cleanup evidence is not returned when the readback still shows an active lease', async () => {
+  const f = fixture(); let reset = false;
+  const control = { async call(method, arg) {
+    if (method === 'reset') { reset = true; return; } // Simulate an acknowledged but ineffective reset.
+    return f.control.call(method, arg);
+  } };
+  const adapter = ipcObservationAdapter(control, c, 1);
+  await adapter.start();
+  try { await assert.rejects(adapter.stop(), /CLEANUP_UNVERIFIED/); assert.equal(reset, true); }
+  finally { f.probe.reset(f.probe.snapshot().id); }
 });

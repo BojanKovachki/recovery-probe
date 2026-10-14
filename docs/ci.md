@@ -60,6 +60,6 @@ jobs:
 
 ## Adapt it to an application
 
-Install `recovery-probe@0.3.0-preview.13` and your compatible Playwright runtime. Copy the example's orchestration pattern into your test suite, replace the synthetic server startup with your authorized test application, choose one read-only request and specify the expected recovery action and result. Keep the healthy control, bounded fault count, cleanup, inconclusive outcomes and process exit checks. Run the normal gate against the current app; the deliberately broken variant belongs only in a synthetic verification fixture.
+Install `recovery-probe@0.3.0-preview.14` and your compatible Playwright runtime. Copy the example's orchestration pattern into your test suite, replace the synthetic server startup with your authorized test application, choose one read-only request and specify the expected recovery action and result. Keep the healthy control, bounded fault count, cleanup, inconclusive outcomes and process exit checks. Run the normal gate against the current app; the deliberately broken variant belongs only in a synthetic verification fixture.
 
 This example provides local/CI execution and artifacts. It does not post PR comments, upload to a hosted Recovery Probe service or infer what your product ought to display.

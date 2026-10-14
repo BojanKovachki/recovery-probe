@@ -21,18 +21,20 @@ Desktop support currently means Electron, not arbitrary native applications. IPC
 
 ## Install the current preview
 
-This checkout targets **0.3.0-preview.13**. Preview releases use npm's `next` tag; `latest` is the stable channel. Confirm that the exact version is published before installing it:
+This checkout targets **0.3.0-preview.14**. Preview releases use npm's `next` tag; `latest` is the stable channel. Confirm that the exact version is published before installing it:
 
 ```bash
 mkdir recovery-probe-tools && cd recovery-probe-tools
-npm view recovery-probe@0.3.0-preview.13 version
-npm install --save-dev --save-exact recovery-probe@0.3.0-preview.13 playwright@1.62.1
+npm view recovery-probe@0.3.0-preview.14 version
+npm install --save-dev --save-exact recovery-probe@0.3.0-preview.14 playwright@1.62.1
 npx recovery-probe --version
 ```
 
 If the version check reports that the version is unavailable, npm publication is still pending; use the [source installation](CONTRIBUTING.md#install-an-unpublished-source-preview). A GitHub merge alone does not publish the package. Use Node.js 22 or newer. A separate tools folder keeps the tester out of your application's production dependencies. Browser/desktop commands require Playwright; attached targets use their existing browser runtime. The guided web flow downloads Chromium when needed. See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ## Choose a workflow
+
+**New in preview.14:** [observation](docs/observe.md) now defaults to lightweight content sampling, reports marker text/count comparisons across reads and return intervals, and records sampling phase timings plus separate cleanup evidence. Use `"detail": "region"` for full DOM diagnostics.
 
 **New in preview.12:** [fault-free observation](docs/observe.md) records selected reads and content while you navigate, without reloading or clearing caches. See the guide for updating the development IPC hook before capturing cached state.
 

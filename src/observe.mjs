@@ -1,4 +1,4 @@
-import { observationMetadata, samplingMetrics, observationSummary } from './observation-report.mjs';
+import { observationMetadata, samplingMetrics, observationSummary, contentComparisons } from './observation-report.mjs';
 import { performance } from 'node:perf_hooks';
 import { randomUUID } from 'node:crypto';
 import { readRegion, summarizeRegion } from './ipc-observation.mjs';
@@ -7,12 +7,13 @@ import { observeHttp } from './http-observer.mjs';
 export function observationConfig(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw Error('Observation config must be an object');
   const c = { transport: undefined, cdp: 'http://127.0.0.1:9222', inspector: 'http://127.0.0.1:9229', page: undefined, pageUrl: undefined,
-    channel: undefined, endpoint: undefined, regionSelector: undefined, contentSelector: undefined, observationMs: 30000, sampleMs: 100 };
+    channel: undefined, endpoint: undefined, regionSelector: undefined, contentSelector: undefined, detail: 'content', observationMs: 30000, sampleMs: 100 };
   for (const key of Object.keys(input)) {
     if (!Object.hasOwn(c, key)) throw Error(`Unsupported observation option: ${key}`);
     c[key] = input[key];
   }
   if (!['http', 'ipc'].includes(c.transport)) throw Error('transport must be http or ipc');
+  if (!['content', 'region'].includes(c.detail)) throw Error('detail must be content or region');
   for (const key of ['regionSelector', 'contentSelector']) if (typeof c[key] !== 'string' || !c[key].trim()) throw Error(`${key} must be an explicit CSS selector`);
   for (const [key, low, high] of [['observationMs', 500, 120000], ['sampleMs', 50, 1000]]) {
     if (!Number.isInteger(c[key]) || c[key] < low || c[key] > high) throw Error(`${key} must be ${low}–${high}`);
@@ -59,7 +60,8 @@ export function ipcObservationAdapter(control, config, senderId) {
       let resetError;
       try { await control.call('reset', id); } catch (error) { resetError = error; }
       const s = await control.call('snapshot');
-      if (!s || s.id !== id || s.observingUntil || s.armed) throw Error(`IPC_OBSERVATION_CLEANUP_UNVERIFIED${resetError ? ': ' + resetError.message : ''}`);
+      if (!s || s.id !== id || s.observingUntil || s.armed || s.injected !== 0) throw Error(`IPC_OBSERVATION_CLEANUP_UNVERIFIED${resetError ? ': ' + resetError.message : ''}`);
+      return { transport: 'ipc', verified: true, runId: s.id, capturedAt: s.capturedAt, observingUntil: s.observingUntil, armed: s.armed, injected: s.injected };
     },
   };
 }
@@ -69,7 +71,7 @@ export function httpObservationAdapter(page, config) {
   return {
     async start() { observer = await observeHttp(page, { endpoint: config.endpoint }); },
     snapshot() { return observer.snapshot(); },
-    async stop() { await observer?.stop(); },
+    async stop() { await observer?.stop(); return { transport: 'http', listenersDetached: true }; },
   };
 }
 
@@ -99,8 +101,9 @@ export async function runObservation(page, input, adapter, { signal, takeMarker 
   const c = observationConfig(input);
   const target = c.transport === 'ipc' ? c.channel : c.endpoint;
   const metrics = samplingMetrics(c.sampleMs);
+  const comparisons = contentComparisons();
   const report = { schemaVersion: 1, metadata: observationMetadata(), mode: 'fault-free observation', transport: c.transport, target, generatedAt: new Date().toISOString(),
-    status: 'incomplete', captureComplete: false, observationMs: c.observationMs, sampleMs: c.sampleMs, intervals: [], findings: [], timeline: [],
+    status: 'incomplete', captureComplete: false, observationMs: c.observationMs, sampleMs: c.sampleMs, detail: c.detail, intervals: [], findings: [], comparisons: [], timeline: [],
     injected: 0, reloads: 0, cleanup: 'not-started',
     coverage: { historyBeforeCapture: 'unknown', pendingBeforeCapture: 'unknown', scope: 'One selected renderer and read target; only calls starting during capture are counted.', gaps: [] },
     limitation: 'Observations are not recovery passes or account-isolation verdicts. Cache reuse may be legitimate. Intervals start at capture or an operator marker, not at a proven mount or identity change. HTTP success means a completed 2xx response, not valid JSON or UI correctness. UI changes between samples can be missed. Only hashes, structural counts and read metadata are stored; hashes are not anonymization.' };
@@ -143,11 +146,16 @@ export async function runObservation(page, input, adapter, { signal, takeMarker 
         lastSnapshot = await adapter.snapshot(); closeInterval(); openInterval(lastSnapshot);
         await onInterval(interval.index);
       }
+      const beforeStart = performance.now();
       const before = await adapter.snapshot();
+      const uiStart = performance.now();
       const sampleStart = elapsed();
-      const raw = await boundedUiRead(() => page.evaluate(readRegion, { regionSelector: c.regionSelector, contentSelector: c.contentSelector }), signal);
+      const { rendererReadMs, ...raw } = await boundedUiRead(() => page.evaluate(readRegion, { regionSelector: c.regionSelector, contentSelector: c.contentSelector, detail: c.detail }), signal);
+      const summarizeStart = performance.now();
       const ui = raw.presence === 'visible' ? summarizeRegion(raw) : raw;
+      const afterStart = performance.now();
       const after = await adapter.snapshot();
+      const afterEnd = performance.now();
       if (newDocument) throw Error('DOCUMENT_REPLACED: capture stopped; the in-memory state may have been reset');
       lastSnapshot = after;
       const row = after.channels[target];
@@ -175,7 +183,11 @@ export async function runObservation(page, input, adapter, { signal, takeMarker 
         if (report.timeline.length < 1000) report.timeline.push(event); else gap('TIMELINE_LIMIT_REACHED');
         previousSignature = signature;
       }
-      metrics.add(event.fromMs, event.toMs);
+      for (const comparison of comparisons.add(event)) {
+        if (report.comparisons.length < 1000) report.comparisons.push(comparison); else gap('COMPARISON_LIMIT_REACHED');
+      }
+      metrics.add(event.fromMs, event.toMs, { beforeSnapshotMs: uiStart - beforeStart, uiRoundTripMs: summarizeStart - uiStart,
+        rendererReadMs, summarizeMs: afterStart - summarizeStart, afterSnapshotMs: afterEnd - afterStart });
       interval.samples++; samples++;
       await onSample(event);
       if (performance.now() - started >= c.observationMs) { report.status = 'complete'; break; }
@@ -190,9 +202,10 @@ export async function runObservation(page, input, adapter, { signal, takeMarker 
     report.samples = samples;
     report.sampling = metrics.snapshot();
     report.snapshot = lastSnapshot;
+    report.snapshotStage = 'before-cleanup';
     page.off('pageerror', errors); page.off('domcontentloaded', documentLoaded);
     if (attempted) {
-      try { await adapter.stop(); report.cleanup = 'complete'; }
+      try { report.cleanupEvidence = await adapter.stop() ?? null; report.cleanup = 'complete'; }
       catch (error) { report.cleanup = 'unverified'; report.cleanupError = error.message; report.status = 'incomplete'; }
     }
     if (samples > 0 && !report.intervals.some(i => i.firstContent)) gap('CONTENT_MARKER_NOT_OBSERVED');

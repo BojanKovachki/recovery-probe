@@ -85,6 +85,8 @@ jobs:
         run: npm run demo
       - name: Verify browser adapter
         run: npm run test:browser
+      - name: Measure synthetic observation sampling (diagnostic, no timing threshold)
+        run: node scripts/benchmark-observe.mjs > artifacts/observe-benchmark.json
       - name: Verify authenticated web workflow and isolated repair pipeline (mock model)
         run: npm run test:repair
       - name: Verify guided setup, content selection and saved reruns
