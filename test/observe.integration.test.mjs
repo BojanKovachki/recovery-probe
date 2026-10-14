@@ -109,6 +109,39 @@ test('synthetic identity change: stale content before completion and after failu
   }
 });
 
+test('return samples retain a temporary marker reduction and later baseline match without another read', async () => {
+  const page = await browser.newPage();
+  try {
+    await page.goto(origin);
+    await page.evaluate(() => { document.querySelector('#view').innerHTML = '<section id="records-region">' +
+      Array.from({ length: 19 }, (_, i) => `<li>synthetic-${i}</li>`).join('') + '</section>'; });
+    let phase = 0, mark = false;
+    const c = config({ observationMs: 1000 });
+    const report = await runObservation(page, c, httpObservationAdapter(page, c), {
+      takeMarker: () => { const value = mark; mark = false; return value; },
+      onSample: async e => {
+        if (phase === 0) {
+          phase = 1; mark = true;
+          await page.locator('li').evaluateAll(rows => rows.slice(-2).forEach(row => { row.style.display = 'none'; }));
+        } else if (phase === 1 && e.interval === 2 && e.ui.contentCount === 17) {
+          phase = 2;
+          await page.locator('li').evaluateAll(rows => rows.forEach(row => { row.style.display = ''; }));
+        }
+      },
+    });
+    assert.equal(report.captureComplete, true, JSON.stringify(report));
+    const returned = report.comparisons.find(c => c.basis === 'INTERVAL_RETURN');
+    assert.equal(returned.result, 'changed');
+    assert.equal(returned.before.content.count, 19);
+    assert.equal(returned.after.content.count, 17);
+    assert.equal(returned.followUp.firstBaselineMatch.content.count, 19);
+    assert.equal(returned.followUp.latest.result, 'unchanged');
+    assert.ok(returned.followUp.samples > 1);
+    assert.equal(report.snapshot.channels[c.endpoint].calls, 0);
+    assert.match(returned.followUp.summary, /Initially different; a later sample matched/);
+  } finally { await page.close(); }
+});
+
 test('synthetic fresh cross-identity cache reuse is visible; a per-identity key control reads before rendering', async () => {
   for (const fixed of [false, true]) {
     const page = await prepared(fixed);

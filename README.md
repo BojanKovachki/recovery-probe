@@ -19,14 +19,14 @@ Recovery Probe injects bounded faults, compares healthy and faulted screens, and
 
 Desktop support currently means Electron, not arbitrary native applications. IPC faults do not exercise native/Rust networking, HTTP status handling or token refresh. An unsupported data path is inconclusive, never a successful recovery check.
 
-## Install the current preview
+## Install
 
-This checkout targets **0.3.0-preview.14**. Preview releases use npm's `next` tag; `latest` is the stable channel. Confirm that the exact version is published before installing it:
+**0.3.0** is the stable release target on npm's `latest` channel. The commands below pin the version for reproducible reports. Prereleases use `next` and are opt-in.
 
 ```bash
 mkdir recovery-probe-tools && cd recovery-probe-tools
-npm view recovery-probe@0.3.0-preview.14 version
-npm install --save-dev --save-exact recovery-probe@0.3.0-preview.14 playwright@1.62.1
+npm view recovery-probe@0.3.0 version
+npm install --save-dev --save-exact recovery-probe@0.3.0 playwright@1.62.1
 npx recovery-probe --version
 ```
 
@@ -34,9 +34,9 @@ If the version check reports that the version is unavailable, npm publication is
 
 ## Choose a workflow
 
-**New in preview.14:** [observation](docs/observe.md) now defaults to lightweight content sampling, reports marker text/count comparisons across reads and return intervals, and records sampling phase timings plus separate cleanup evidence. Use `"detail": "region"` for full DOM diagnostics.
+**New in 0.3.0:** guided setup, HTTP/IPC discovery, refresh experiments and [fault-free observation](docs/observe.md) extend the original recovery helpers. Observation records selected reads and content while you navigate without reloading or clearing caches. Lightweight sampling, phase timings and separate cleanup evidence make capture cost and scope explicit. Use `"detail": "region"` for full DOM diagnostics.
 
-**New in preview.12:** [fault-free observation](docs/observe.md) records selected reads and content while you navigate, without reloading or clearing caches. See the guide for updating the development IPC hook before capturing cached state.
+Content comparisons preserve the first observed result and summarize later samples: a temporary difference can subsequently match the baseline, or diverge again. These are observations, not ownership, freshness or stability verdicts. See the guide for updating the development IPC hook before capturing cached state; see the changelog for upgrading from 0.2.0.
 
 | Goal | Entry point | Guide |
 | --- | --- | --- |
@@ -59,7 +59,7 @@ HTTP and IPC structural discovery calibrate three healthy reloads for the full `
 
 ## Refresh experiments
 
-The preview.9 refresh mode tests an **already populated screen** using an explicitly configured synthetic window event, such as `online`. It first checks the event without a fault, then injects the next selected read failure and observes the screen without reloading. An optional second event tests whether another refresh repairs the screen.
+Refresh mode tests an **already populated screen** using an explicitly configured synthetic window event, such as `online`. It first checks the event without a fault, then injects the next selected read failure and observes the screen without reloading. An optional second event tests whether another refresh repairs the screen.
 
 ```bash
 npx recovery-probe refresh --config ./refresh.json --out ./refresh-run1 --json

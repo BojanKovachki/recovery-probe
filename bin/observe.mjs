@@ -5,7 +5,7 @@ import { createInterface } from 'node:readline';
 import { connectDesktop, selectDesktopPage, desktopPages } from '../src/desktop.mjs';
 import { connectIpcInspector } from '../src/ipc-inspector.mjs';
 import { observationConfig, runObservation, httpObservationAdapter, ipcObservationAdapter } from '../src/observe.mjs';
-import { observationMetadata, samplingMetrics, observationSummary, renderObservationReport } from '../src/observation-report.mjs';
+import { observationMetadata, samplingMetrics, observationSummary, renderObservationReport, comparisonFollowUpSummary } from '../src/observation-report.mjs';
 
 export async function observeMain(args) {
   if (!args.length || args.includes('--help')) {
@@ -94,7 +94,7 @@ IPC requires the observation-capable development hook. See docs/observe.md.`);
   else {
     for (const i of report.intervals) console.log(`Interval ${i.index}: ${i.reads?.calls ?? '?'} reads, ${i.reads?.successes ?? '?'} successes, ${i.reads?.errors ?? '?'} errors${i.findings.length ? '; ' + i.findings.join(', ') : ''}`);
     for (const finding of report.findings) console.log(`Interval ${finding.interval}: ${observationSummary(finding)}`);
-    for (const comparison of report.comparisons ?? []) console.log(`Interval ${comparison.interval}: ${comparison.summary}`);
+    for (const comparison of report.comparisons ?? []) console.log(`Interval ${comparison.interval}: ${comparison.summary} ${comparisonFollowUpSummary(comparison)}`);
     console.log(`Sampling: ${config.detail}; requested delay ${config.sampleMs} ms; measured mean cadence ${report.sampling.startToStart.meanMs ?? 'unavailable'} ms.`);
     if (report.error) console.error(report.error);
     console.log(`Capture: ${report.status} (not a health verdict)\nReport: ${join(directory, 'report.html')}`);

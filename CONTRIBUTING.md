@@ -51,3 +51,9 @@ A useful pull request:
 - updates the README and changelog when the public interface changes.
 
 By submitting a contribution, you agree that it is licensed under the project's MIT license.
+
+## Publishing a release
+
+Run the package, browser and supported Electron CI jobs against the exact proposed source, inspect the tarball, update the installation guides and changelog, and merge only after those checks pass. Publish from the verified merged commit so npm `gitHead` and the GitHub tag agree.
+
+Stable versions publish to `latest`; prereleases must explicitly use `--tag next` and the GitHub prerelease label. Run `npm publish --dry-run` before publishing. After publication, verify registry version, integrity and tags, install into a clean consumer, and check the CLI and exports before publishing the corresponding GitHub release. Never replace an existing npm version or move a released tag.

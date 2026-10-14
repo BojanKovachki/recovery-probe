@@ -2,7 +2,7 @@
 
 For the guided workflow without window-index lookup or JSON editing, see [guided start](start.md). The explicit configuration workflow below remains supported.
 
-This preview attaches to a running **Electron development app or authorized Chromium-based test browser**. It discovers renderer GET JSON requests, then tests one selected endpoint against a UI assertion you configure once. It does not scan source code, patch files, or add runtime recovery to the application.
+This workflow attaches to a running **Electron development app or authorized Chromium-based test browser**. It discovers renderer GET JSON requests, then tests one selected endpoint against a UI assertion you configure once. It does not scan source code, patch files, or add runtime recovery to the application.
 
 You can run the tester in a separate folder; your desktop application's production dependencies do not change. Use Node.js 22 or newer for the tester. Electron itself may use a different bundled Node version.
 
@@ -32,14 +32,14 @@ Set `RECOVERY_PROBE=1` using your existing cross-platform development tooling, t
 
 ## 2. Install and identify the window
 
-Install the exact preview in a separate tester folder:
+Install the exact version in a separate tester folder:
 
 ```bash
 mkdir recovery-probe-desktop-test
 cd recovery-probe-desktop-test
 npm init -y
-npm view recovery-probe@0.3.0-preview.14 version
-npm install --save-dev --save-exact recovery-probe@0.3.0-preview.14 playwright@1.62.1
+npm view recovery-probe@0.3.0 version
+npm install --save-dev --save-exact recovery-probe@0.3.0 playwright@1.62.1
 npx recovery-probe desktop --list
 ```
 
