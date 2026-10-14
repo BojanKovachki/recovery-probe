@@ -23,7 +23,9 @@ test('refresh HTTP: populated content, spontaneous versus retriggered recovery, 
   mode='retry';r=await run({secondTrigger:false});assert.equal(r.results[0].code,'RECOVERED_AUTOMATICALLY');assert.equal(r.results[0].secondTrigger,undefined);assert.equal(r.results[0].freshReadSucceeded,true);assert.equal(r.ok,true);
   mode='keep';r=await run({secondTrigger:false});assert.equal(r.results[0].code,'CONTENT_KEPT');assert.equal(r.results[0].freshReadSucceeded,false);assert.equal(r.results[0].spontaneous.ui.error,false);
   mode='legitimate-change';r=await run();assert.equal(r.error,'TRIGGER_CONTROL_UNSTABLE');assert.equal(r.results[0].control.snapshot.injected,0);assert.equal(r.finalReset,'healthy');
-  mode='background';r=await run();assert.match(r.error,/ATTRIBUTION_AMBIGUOUS/);assert.equal(r.results[0].trigger,undefined);assert.equal(r.faultReset,'healthy');
+  // Polling may leave a read pending at the calibration deadline or be caught
+  // by the idle control. Both must stop before any fault/trigger is applied.
+  mode='background';r=await run();assert.match(r.error,/BASELINE_UNSTABLE|ATTRIBUTION_AMBIGUOUS/);assert.ok(r.baselines.every(b=>b.snapshot.injected===0));assert.ok(r.results.every(row=>row.trigger===undefined));assert.equal(r.ok,false);assert.equal(r.faultReset,'healthy');
   mode='wrong-target';r=await run({requiredEndpoints:[base+'/api/other']}); // Baseline dependency isn't read: safely inconclusive.
   assert.equal(r.error,'BASELINE_UNSTABLE');
   r=await run();assert.equal(r.findings[0].classification,'TRIGGER_NO_READ');assert.equal(r.results[0].trigger,undefined);

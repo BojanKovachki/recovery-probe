@@ -27,12 +27,14 @@ export async function discoverHttp(page, input) {
   const initialUrl = page.url();
   if (config.pageUrl && pageIdentity(initialUrl) !== pageIdentity(config.pageUrl)) throw new Error('Page identity mismatch');
   const report = { schemaVersion: 2, mode: 'HTTP discovery', baselines: [], results: [], findings: [], coverage: [], finalReset: 'not-verified', ok: false,
+    readiness: { strategy: 'bounded-end-state-calibration', calibrationRuns: 3, calibrationWindowMs: config.baselineTimeoutMs, calibrationComplete: false, relevantEndpoints: [config.endpoint, ...config.requiredEndpoints], settleMs: config.settleMs, note: 'Only selected dependencies gate readiness. Matching stable end states do not prove completeness beyond the calibration window.' },
     limitation: 'Synthetic GET fetch/XHR faults on the selected origin/path; query variants share the budget. Observed structural changes are not semantic proof of a defect. Native, IPC and service-worker-only traffic are not covered. No payloads, raw UI text or credentials are saved.' };
   const coverage = new Map();
-  let visibility, errors = 0, settleMs = config.settleMs;
+  let visibility, errors = 0, trustedFingerprint;
+  const settleMs = config.settleMs;
   const onError = () => errors++;
   page.on('pageerror', onError);
-  const phase = async (fault, times = 1, expectedFingerprint) => {
+  const phase = async (fault, times = 1, expectedFingerprint, calibrate = false) => {
     const started = performance.now(), initialErrors = errors, timeline = [];
     let observer, snapshot, ui, previous, previousEvent, stableSince = started, firstInjection;
     try {
@@ -55,9 +57,9 @@ export async function discoverHttp(page, input) {
         if (dependencies.some(r => r.errors)) throw new Error('DEPENDENCY_FAILED');
         if (target.errors) throw new Error('REAL_REQUEST_FAILED');
         const settled = target.pending === 0 && dependencies.every(r => r.successes > 0 && r.pending === 0);
-        const ready = matchesHealthyControl(ui, expectedFingerprint) && settled && !ui.loading && performance.now() - stableSince >= settleMs && target.successes > 0 && (fault ? snapshot.injected === times && snapshot.successfulAfterFault > 0 && ui.fingerprint === report.baselines[0].ui.fingerprint : (ui.textLength > 0 || ui.images > 0 || ui.items > 0));
+        const ready = matchesHealthyControl(ui, expectedFingerprint) && settled && !ui.loading && performance.now() - stableSince >= settleMs && target.successes > 0 && (!fault || (snapshot.injected === times && snapshot.successfulAfterFault > 0 && ui.fingerprint === trustedFingerprint));
         const elapsed = performance.now() - (firstInjection ?? started);
-        if (ready || elapsed >= (firstInjection === undefined ? config.baselineTimeoutMs : config.recoveryTimeoutMs)) return { fault: fault ?? 'healthy', times: fault ? times : 0, ready, elapsedMs: Math.round(performance.now() - started), ui, snapshot, timeline, newErrors: errors - initialErrors, recoveryMs: fault && ready ? Date.now() - snapshot.injectedAt : null, repeatedReads: Object.entries(snapshot.channels).filter(([, r]) => r.realCalls > 1).map(([endpoint, r]) => ({ code: 'REPEATED_READS', endpoint, count: r.realCalls, redundant: 'not-established' })) };
+        if ((!calibrate && ready) || elapsed >= (firstInjection === undefined ? config.baselineTimeoutMs : config.recoveryTimeoutMs)) return { fault: fault ?? 'healthy', times: fault ? times : 0, ready, elapsedMs: Math.round(performance.now() - started), ui, snapshot, timeline, newErrors: errors - initialErrors, recoveryMs: fault && ready ? Date.now() - snapshot.injectedAt : null, repeatedReads: Object.entries(snapshot.channels).filter(([, r]) => r.realCalls > 1).map(([endpoint, r]) => ({ code: 'REPEATED_READS', endpoint, count: r.realCalls, redundant: 'not-established' })) };
         await sleep(100);
       }
     } catch (error) { report.stoppedObservation ??= { reason: error.message, fault: fault ?? 'healthy', times, snapshot, ui, timeline }; throw error; }
@@ -71,16 +73,16 @@ export async function discoverHttp(page, input) {
   try {
     visibility = await prepareVisibility(page, config); report.window = { initial: visibility.initial };
     for (let i = 0; i < 3; i++) {
-      const baseline = await phase(); report.baselines.push(baseline);
-      if (!baseline.ready || baseline.newErrors || baseline.ui.fingerprint !== report.baselines[0].ui.fingerprint) throw new Error('BASELINE_UNSTABLE');
+      const baseline = await phase(undefined, 1, undefined, true); report.baselines.push(baseline);
+      if (!baseline.ready || baseline.newErrors) throw new Error('BASELINE_UNSTABLE');
     }
-    const durations = report.baselines.map(b => b.elapsedMs);
-    settleMs = Math.min(5000, config.settleMs + Math.max(...durations) - Math.min(...durations));
-    report.readiness = { relevantEndpoints: [config.endpoint, ...config.requiredEndpoints], settleMs, note: 'Only selected dependencies gate readiness. Other/background requests are listed as untested coverage; periodicity and relevance are not inferred.' };
+    if (!report.baselines.every(b => b.ui.fingerprint === report.baselines[0].ui.fingerprint)) throw new Error('BASELINE_UNSTABLE');
+    trustedFingerprint = report.baselines[0].ui.fingerprint;
+    report.readiness.calibrationComplete = true;
     for (const fault of config.faults) {
       const runs = [];
       for (let i = 0; i < config.repeats; i++) {
-        const healthy = await phase(undefined, 1, report.baselines[0].ui.fingerprint);
+        const healthy = await phase(undefined, 1, trustedFingerprint);
         if (!healthy.ready || healthy.newErrors || healthy.ui.fingerprint !== report.baselines[0].ui.fingerprint) { report.failedControl = { ...healthy, reasons: { notReady: !healthy.ready, newErrors: healthy.newErrors, fingerprintChanged: healthy.ui.fingerprint !== report.baselines[0].ui.fingerprint }, diff: compareRegions(report.baselines[0].ui, healthy.ui) }; throw new Error('CONTROL_UNSTABLE'); }
         const run = await phase(fault, config.times);
         run.control = { ui: healthy.ui, snapshot: healthy.snapshot };
@@ -93,7 +95,7 @@ export async function discoverHttp(page, input) {
     }
   } catch (error) { report.error = error.message; }
   finally {
-    try { const cleanup = await phase(undefined, 1, report.baselines[0]?.ui.fingerprint); report.cleanup = cleanup; report.finalReset = cleanup.ready && !cleanup.newErrors && cleanup.ui.fingerprint === report.baselines[0]?.ui.fingerprint ? 'healthy' : 'not-verified'; }
+    try { const cleanup = await phase(undefined, 1, trustedFingerprint); report.cleanup = cleanup; report.finalReset = trustedFingerprint !== undefined && cleanup.ready && !cleanup.newErrors && cleanup.ui.fingerprint === trustedFingerprint ? 'healthy' : 'not-verified'; }
     catch (error) { report.cleanupError = error.message; }
     try { if (visibility) report.window.restoration = await visibility.revert(); }
     catch (error) { report.windowRestoreError = error.message; }

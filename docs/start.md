@@ -6,15 +6,16 @@ Start your app using its normal development command. Recovery Probe does not nee
 
 ## Three commands for a web app
 
-Install the pinned GitHub preview:
+Install the exact npm preview after confirming availability:
 
 ```bash
 mkdir recovery-probe-tools && cd recovery-probe-tools
-npm install --save-dev github:BojanKovachki/recovery-probe#88fdafe16b513042264b970d0c7bb662112fdf45 playwright@1.62.1
+npm view recovery-probe@0.3.0-preview.11 version
+npm install --save-dev --save-exact recovery-probe@0.3.0-preview.11 playwright@1.62.1
 npx recovery-probe start web http://localhost:3000
 ```
 
-Replace the URL with your web app's local address. The commit pin keeps the install reproducible. GitHub merges do not publish to npm; use a registry version only after confirming that version is available.
+Replace the URL with your web app's local address. If the version is not published yet, use the [source installation](../CONTRIBUTING.md#install-an-unpublished-source-preview). The exact npm version keeps later runs reproducible.
 
 The command downloads Chromium if it is missing, opens a visible browser, and guides you through setup:
 
@@ -73,3 +74,9 @@ Each run produces `report.html`, `report.json`, the generated `scenario.json`, `
 Guided checks do not read repository source code, call AI, or upload their reports. The app still makes its normal requests. Chromium/package installation needs download access. Keep saved authentication, endpoint paths and selected content private, and follow your organization's existing development/testing policies. A local editor using a cloud coding assistant is not local model inference.
 
 Automatic source edits remain a separate opt-in `repair` workflow; no such command is run by guided start. Fully local model generation is not implemented. Playwright handles the browser adapter; the fetch adapter already runs independently of browser automation.
+
+## Initial baseline calibration (preview.11)
+
+Calibration observes three full `baselineTimeoutMs` windows before injection: 45 seconds with the default 15-second window. It does not prefer a nonempty screen or a larger item count. A legitimately empty selected region is valid after successful target/dependency reads and a stable end state. Delayed content within the window is included in the baseline. `readiness.calibrationComplete` becomes true only when all three healthy end states agree; their bounded timelines remain in the report.
+
+Unstable or unfinished calibration stops fault experiments. Cleanup still removes faults and attempts a healthy reload, but `finalReset` remains `not-verified` without a trusted baseline. Later controls and cleanup can finish early once they match that baseline. Known dependencies must still be configured; content arriving after the calibration window remains untested.

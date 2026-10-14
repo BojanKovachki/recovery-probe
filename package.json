@@ -1,6 +1,6 @@
 {
   "name": "recovery-probe",
-  "version": "0.3.0-preview.10",
+  "version": "0.3.0-preview.11",
   "type": "module",
   "description": "Test recovery from failed reads in web and Electron desktop apps, during loading and refresh.",
   "license": "MIT",
@@ -79,7 +79,8 @@
     "url": "https://github.com/BojanKovachki/recovery-probe/issues"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "tag": "next"
   },
   "keywords": [
     "playwright",
@@ -97,7 +98,7 @@
   "scripts": {
     "test": "npm run test:core",
     "test:core": "node --test test/fetch-core.test.mjs",
-    "test:browser": "node --test test/recovery.integration.test.mjs test/discovery.integration.test.mjs test/attach.integration.test.mjs test/refresh.integration.test.mjs",
+    "test:browser": "node --test test/recovery.integration.test.mjs test/discovery.integration.test.mjs test/discovery-calibration.integration.test.mjs test/attach.integration.test.mjs test/refresh.integration.test.mjs",
     "test:package": "node --test test/package.integration.test.mjs",
     "test:all": "npm run test:core && npm run test:package && npm run test:browser && npm run test:desktop && npm run test:repair && npm run test:guided && npm run test:ipc",
     "demo": "node bin/core-demo.mjs",

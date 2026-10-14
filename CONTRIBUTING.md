@@ -19,6 +19,20 @@ npx playwright install chromium
 npm run test:browser
 ```
 
+## Install an unpublished source preview
+
+When the version shown in the README is not on npm yet, install from a local checkout:
+
+```bash
+git clone https://github.com/BojanKovachki/recovery-probe.git
+cd recovery-probe
+npm ci
+node bin/recovery-probe.mjs --version
+node bin/recovery-probe.mjs --help
+```
+
+Record `git rev-parse HEAD` with any report so the source is reproducible. Use `node bin/recovery-probe.mjs` in place of `npx recovery-probe` in the guides when running from this checkout. Installing from source does not imply that the version is published to npm.
+
 Run the controlled demonstrations when behavior or output changes:
 
 ```bash

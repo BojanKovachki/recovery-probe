@@ -46,7 +46,7 @@ test('structural HTTP fixture matrix: three fetch styles, negative controls and 
     for(const style of ['async','promise','xhr']) for(const family of ['grid','translated','icon-empty','explicit-error','legitimate-empty','delayed-content','backoff','distribution','repeated','virtualized']) {
       options={style,family,retries: family==='backoff'?3:family==='delayed-content'?1:0, delay:family==='delayed-content'?250:10,language:style==='xhr'?'icon':'de'};
       await page.goto(base);
-      const config={endpoint:base+'/api/read',faults:['http-error'],times:family==='backoff'?3:1,repeats:1,settleMs:200,baselineTimeoutMs:5000,recoveryTimeoutMs:1600};
+      const config={endpoint:base+'/api/read',faults:['http-error'],times:family==='backoff'?3:1,repeats:1,settleMs:200,baselineTimeoutMs:1200,recoveryTimeoutMs:1600};
       const report=await discoverHttp(page,config);
       assert.equal(report.error,undefined,JSON.stringify({family,style,error:report.error,stopped:report.stoppedObservation}));
       assert.equal(report.finalReset,'healthy');
