@@ -23,10 +23,11 @@ export function discoveryConfig(input) {
 export async function discoverIpc(input) {
   const config = discoveryConfig(input);
   const report = { schemaVersion: 2, mode: 'experimental IPC discovery', channel: config.channel, generatedAt: new Date().toISOString(), baselines: [], results: [], findings: [], finalReset: 'not-verified', ok: false,
+    readiness: { strategy: 'bounded-end-state-calibration', calibrationRuns: 3, calibrationWindowMs: config.baselineTimeoutMs, calibrationComplete: false, relevantChannels: [config.channel, ...config.requiredChannels], settleMs: config.settleMs, note: 'Relevant channels are explicit. Matching stable end states do not prove completeness beyond the calibration window.' },
     limitation: 'One explicitly allowed IPC read on the current screen. Synthetic renderer-boundary faults only. Structural changes and language hints produce leads, not proven product defects. No source repair, automatic navigation, HTTP/Rust coverage or uploads. UI text and repeated values are compared transiently; only hashes, structural shapes and counts are saved.' };
   const control = await connectIpcInspector(config.inspector);
-  let browser, page, runId, identity, visibility;
-  let settleMs = config.settleMs;
+  let browser, page, runId, identity, visibility, trustedFingerprint;
+  const settleMs = config.settleMs;
   let errorCount = 0;
   const onError = () => { errorCount++; };
   try {
@@ -55,7 +56,7 @@ export async function discoverIpc(input) {
       return summary;
     };
     await observe();
-    const phase = async (fault, times = 1, expectedFingerprint) => {
+    const phase = async (fault, times = 1, expectedFingerprint, calibrate = false) => {
       runId = randomUUID();
       const id = runId;
       const started = performance.now();
@@ -83,9 +84,9 @@ export async function discoverIpc(input) {
           if (timeline.length < 100 && eventSignature !== previousEvent) { timeline.push(event); previousEvent = eventSignature; }
           const settled = target.pending === 0 && dependencies.every(row => row.successes > 0 && !row.pending);
           const stable = performance.now() - stableSince >= settleMs && !summary.loading;
-          const ready = matchesHealthyControl(summary, expectedFingerprint) && settled && stable && target.successes >= 1 && (fault ? snapshot.injected === times && snapshot.successfulAfterFault > 0 && summary.fingerprint === report.baselines[0].ui.fingerprint : (summary.textLength > 0 || summary.images > 0 || summary.items > 0));
+          const ready = matchesHealthyControl(summary, expectedFingerprint) && settled && stable && target.successes >= 1 && (!fault || (snapshot.injected === times && snapshot.successfulAfterFault > 0 && summary.fingerprint === trustedFingerprint));
           const elapsed = firstInjectionObserved === undefined ? performance.now() - started : performance.now() - firstInjectionObserved;
-          if (ready || elapsed >= (fault && firstInjectionObserved !== undefined ? config.observationMs : config.baselineTimeoutMs)) {
+          if ((!calibrate && ready) || elapsed >= (fault && firstInjectionObserved !== undefined ? config.observationMs : config.baselineTimeoutMs)) {
             const detectedAt = Date.now();
             return { elapsedMs: Math.round(performance.now() - started), fault: fault ?? 'healthy', times: fault ? times : 0, ready, ui: summary, snapshot, timeline,
               newErrors: errorCount - initialErrors,
@@ -102,19 +103,18 @@ export async function discoverIpc(input) {
     };
     try {
       for (let i = 0; i < 3; i++) {
-        const baseline = await phase();
+        const baseline = await phase(undefined, 1, undefined, true);
         report.baselines.push(baseline);
         if (!baseline.ready || baseline.newErrors) throw new Error('BASELINE_NOT_HEALTHY');
-        if (baseline.ui.fingerprint !== report.baselines[0].ui.fingerprint) throw new Error('BASELINE_UNSTABLE: automatic text comparison is unsuitable; use explicit ipc checks');
       }
-      const durations = report.baselines.map(b => b.elapsedMs);
-      settleMs = Math.min(5000, config.settleMs + Math.max(...durations) - Math.min(...durations));
-      report.readiness = { relevantChannels: [config.channel, ...config.requiredChannels], settleMs, note: 'Relevant channels are explicit; other/background channels do not gate readiness. Stability is not proof all unobserved data loaded.' };
+      if (!report.baselines.every(b => b.ui.fingerprint === report.baselines[0].ui.fingerprint)) throw new Error('BASELINE_UNSTABLE: automatic text comparison is unsuitable; use explicit ipc checks');
+      trustedFingerprint = report.baselines[0].ui.fingerprint;
+      report.readiness.calibrationComplete = true;
       for (const experiment of [{ fault: 'rejection', times: 1 }, { fault: 'rejection', times: 2 }, { fault: 'null-result', times: 1 }]) {
         const runs = [];
         for (let i = 0; i < config.repeats; i++) {
           // A healthy control before every faulted run also clears the previous state.
-          const healthy = await phase(undefined, 1, report.baselines[0].ui.fingerprint);
+          const healthy = await phase(undefined, 1, trustedFingerprint);
           if (!healthy.ready || healthy.newErrors || healthy.ui.fingerprint !== report.baselines[0].ui.fingerprint) { report.failedControl = { ...healthy, reasons: { notReady: !healthy.ready, newErrors: healthy.newErrors, fingerprintChanged: healthy.ui.fingerprint !== report.baselines[0].ui.fingerprint }, diff: compareRegions(report.baselines[0].ui, healthy.ui) }; throw new Error('CONTROL_UNSTABLE'); }
           const run = await phase(experiment.fault, experiment.times);
           run.control = { ui: healthy.ui, snapshot: healthy.snapshot };
@@ -135,9 +135,9 @@ export async function discoverIpc(input) {
     finally {
       try {
         if (runId) await resetIpcAndConfirm(control, runId);
-        const cleanup = await phase(undefined, 1, report.baselines[0]?.ui.fingerprint);
+        const cleanup = await phase(undefined, 1, trustedFingerprint);
         report.cleanup = cleanup;
-        report.finalReset = cleanup.ready && !cleanup.newErrors && cleanup.ui.fingerprint === report.baselines[0]?.ui.fingerprint ? 'healthy' : 'not-verified';
+        report.finalReset = trustedFingerprint !== undefined && cleanup.ready && !cleanup.newErrors && cleanup.ui.fingerprint === trustedFingerprint ? 'healthy' : 'not-verified';
       } catch (error) { report.cleanupError = error.message; }
     }
     report.ok = !report.error && report.finalReset === 'healthy' && report.findings.every(f => f.kind === 'observation');

@@ -103,7 +103,7 @@ test('real IPC: registration hook, serialized rejection, real retry, null and de
     assert.equal(dependent.baseline.snapshot.injected, 0);
     await page.goto(baseUrl);
     await page.locator('#row').waitFor();
-    const discoveryConfig = { cdp, inspector, channel: 'fixture:read', requiredChannels: ['fixture:versions'], observationMs: 900, baselineTimeoutMs: 5000, repeats: 3, settleMs: 300 };
+    const discoveryConfig = { cdp, inspector, channel: 'fixture:read', requiredChannels: ['fixture:versions'], observationMs: 900, baselineTimeoutMs: 1500, repeats: 3, settleMs: 300 };
     const discovered = await discoverIpc(discoveryConfig);
     assert.equal(discovered.error, undefined, JSON.stringify(discovered));
     assert.equal(discovered.findings[0].classification, 'RECOVERED');
@@ -123,12 +123,36 @@ test('real IPC: registration hook, serialized rejection, real retry, null and de
     await page.goto(baseUrl + '?mode=delayed-control');
     await page.locator('#grid img').first().waitFor();
     await page.evaluate(() => sessionStorage.setItem('fixtureReloads', '0'));
-    const delayedControl = await discoverIpc({ ...discoveryConfig, repeats: 1 });
+    const delayedControl = await discoverIpc({ ...discoveryConfig, baselineTimeoutMs: 3000, repeats: 1 });
     assert.equal(delayedControl.error, undefined, JSON.stringify(delayedControl));
     assert.equal(delayedControl.results[0].control.ui.images, 13);
     assert.equal(delayedControl.results[0].control.ui.fingerprint, delayedControl.baselines[0].ui.fingerprint);
     assert.equal(delayedControl.finalReset, 'healthy');
+    for (const mode of ['delayed-baseline', 'empty-region', 'unstable-baseline']) {
+      await page.goto(baseUrl + '?mode=' + mode);
+      await page.locator('#spinner').waitFor({ state: 'hidden' });
+      await page.evaluate(() => sessionStorage.setItem('fixtureReloads', '0'));
+      const calibration = await discoverIpc({ ...discoveryConfig, repeats: 1, ...(mode === 'empty-region' ? { regionSelector: '#grid' } : {}) });
+      assert.equal(calibration.baselines.length, 3, JSON.stringify(calibration));
+      assert.ok(calibration.baselines.every(b => b.elapsedMs >= discoveryConfig.baselineTimeoutMs));
+      if (mode === 'unstable-baseline') {
+        assert.match(calibration.error, /BASELINE_UNSTABLE/);
+        assert.equal(calibration.readiness.calibrationComplete, false);
+        assert.equal(calibration.results.length, 0);
+        assert.equal(calibration.finalReset, 'not-verified');
+      } else {
+        assert.equal(calibration.error, undefined, JSON.stringify(calibration));
+        assert.equal(calibration.readiness.calibrationComplete, true);
+        assert.ok(calibration.baselines.every(b => b.ready && b.ui.images === (mode === 'empty-region' ? 0 : 13)));
+        assert.equal(calibration.results[0].snapshot.injected, 1);
+        if (mode === 'delayed-baseline') assert.equal(calibration.findings[0].classification, 'CONTENT_LOSS');
+        else assert.ok(calibration.findings.every(f => f.kind !== 'suspected-defect'));
+        assert.equal(calibration.finalReset, 'healthy');
+      }
+      assert.equal((await control.call('snapshot')).armed, null);
+    }
     await page.goto(baseUrl + '?mode=refresh');
+    await page.locator('#row').waitFor();
     const refreshConfig = { transport: 'ipc', cdp, inspector, channel: 'fixture:read', requiredChannels: ['fixture:versions'], trigger: { type: 'dom-event', target: 'window', name: 'online' }, fault: 'rejection', times: 1, repeats: 1, baselineTimeoutMs: 3000, observationMs: 500, idleMs: 200, settleMs: 100, secondTrigger: true };
     const refreshAdapter = () => ipcRefreshAdapter(control, refreshConfig, report.baseline.snapshot.senderId);
     const refresh = await runRefresh(page, refreshConfig, refreshAdapter());
@@ -143,6 +167,7 @@ test('real IPC: registration hook, serialized rejection, real retry, null and de
     assert.equal(refreshPartial.results[0].secondTrigger, undefined);
     assert.equal((await control.call('snapshot')).armed, null);
     await page.goto(baseUrl + '?mode=refresh-retry');
+    await page.locator('#row').waitFor();
     const refreshRetry = await runRefresh(page, { ...refreshConfig, secondTrigger: false }, refreshAdapter());
     assert.equal(refreshRetry.results[0].code, 'RECOVERED_AUTOMATICALLY');
     const refreshFile = join(dir, 'refresh.json');

@@ -56,7 +56,7 @@ test('guided authenticated portal setup, saved CLI rerun and real recovery failu
   let browser;
   const logs = [];
   try {
-    const answers = ['2', '1', '1', '1']; // endpoint, marker confirmation, automatic, one-second deadline
+    const answers = ['profile', '1', '1', '1']; // endpoint, marker confirmation, automatic, one-second deadline
     const io = { interactive: true, log: value => logs.push(value), ask: async prompt => {
       if (prompt.startsWith('Sign in')) {
         const context = browser.contexts()[0];
@@ -64,7 +64,15 @@ test('guided authenticated portal setup, saved CLI rerun and real recovery failu
         await context.pages()[0].goto(`${url}/working`);
         return '';
       }
-      return answers.shift();
+      const answer = answers.shift();
+      if (answer === 'profile') {
+        // Discovery order follows response completion, not request order.
+        // Select the displayed target instead of assuming it is option two.
+        const choice = logs.find(value => value.trim().endsWith(`. ${url}/api/profile`));
+        assert.ok(choice, JSON.stringify(logs));
+        return choice.trim().match(/^(\d+)\./)[1];
+      }
+      return answer;
     } };
     const first = await runStart({ target: 'web', url, dir }, io, {
       launchWeb: async () => (browser = await chromium.launch()), durationMs: 200,

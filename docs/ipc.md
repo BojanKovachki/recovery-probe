@@ -10,11 +10,12 @@ Node 22+ is required for the CLI. Electron 29's bundled Node can load the small 
 
 ```bash
 mkdir -p recovery-probe-tools && cd recovery-probe-tools
-npm install --save-dev github:BojanKovachki/recovery-probe#88fdafe16b513042264b970d0c7bb662112fdf45 playwright@1.62.1
+npm view recovery-probe@0.3.0-preview.11 version
+npm install --save-dev --save-exact recovery-probe@0.3.0-preview.11 playwright@1.62.1
 node -p "require.resolve('recovery-probe/ipc')"
 ```
 
-Pin the tested commit for reproducible installs. Record the absolute path printed by the last command. Use an npm version instead only after confirming that the intended release is published. Chromium need not be downloaded: the checker attaches to Electron.
+Record the absolute path printed by the last command. If the version is not published yet, use the [source installation](../CONTRIBUTING.md#install-an-unpublished-source-preview) and run the path-resolution command there. Chromium need not be downloaded: the checker attaches to Electron.
 
 ## 2. Add a development-only registration hook
 
@@ -137,7 +138,7 @@ The existing config is accepted. `readySelector`, `readyText`, `busySelector`, `
 }
 ```
 
-Replace channels with the explicitly allowed read channels in your app. Dependencies must be listed: the tool cannot discover native/IPC semantics or infer that an operation is read-only. Defaults use CDP 9222 and inspector 9229. Three healthy reloads establish a stable text fingerprint; another healthy control precedes every faulted run. Default success-path workload is 22 reloads (3 baselines + 18 control/fault reloads + 1 cleanup). Failure observations can take several minutes in total. Observation windows are explicit budgets, not inferred guarantees about the app's retry policy.
+Replace channels with the explicitly allowed read channels in your app. Dependencies must be listed: the tool cannot discover native/IPC semantics or infer that an operation is read-only. Defaults use CDP 9222 and inspector 9229. Three healthy reloads each run for the full `baselineTimeoutMs` window and must have matching stable end states; another healthy control precedes every faulted run. Default success-path workload is 22 reloads (3 baselines + 18 control/fault reloads + 1 cleanup). Failure observations can take several minutes in total. Observation windows are explicit budgets, not inferred guarantees about the app's retry policy.
 
 Reports contain UI counts, English loading/empty/error/retry indicators, text hashes, call counters and timing samples. Raw UI text is used transiently but not saved; no response bodies, screenshots, credentials or source uploads are collected. A text hash is not guaranteed anonymization. Reports and scenario configs remain private local files ignored by git; discovery saves only its supported configuration fields, dropping ignored selectors/text. Channel names and port configuration still appear in the report.
 
@@ -160,7 +161,7 @@ Preview.7 extends `ipc --discover` with rendered element groups, image/link/butt
 
 A result now separates `observation` (before/after counts, indicators, distributions, calls, timing, repeated reads) from `interpretation` (classification, kind, confidence). `assessment` is retained in IPC results for compatibility. `regionReplacedCandidate` means a structural replacement was observed, not that a particular product screen was identified. `REPEATED_READS` is informational; arguments and purpose are not compared, so redundancy is not established. Hashed values can still be guessed and must not be treated as anonymized data.
 
-Readiness waits for the explicit target and `requiredChannels`, then a structural stability interval (`settleMs`, default 800ms). Baseline completion-time range increases that interval, capped at 5 seconds. This is a heuristic, not automatic dependency discovery. Unwatched reads, delayed independent work and continuous polling need explicit configuration; they cannot be assumed complete. `regionSelector` optionally scopes comparison to one region; otherwise the first main landmark or body is used. There is a 5,000-element/100-group observation budget. Only rendered DOM is counted in virtualized views; no total dataset count is inferred.
+Readiness requires successful reads from the explicit target and `requiredChannels`, no pending watched reads, no loading indicator, and the configured structural stability interval (`settleMs`, default 800ms). Initial calibration evaluates these conditions at the end of each full window; later controls may finish early when they also match the trusted baseline. This is a heuristic, not automatic dependency discovery. Unwatched reads, delayed independent work and continuous polling need explicit configuration; they cannot be assumed complete. `regionSelector` optionally scopes comparison to one region; otherwise the first main landmark or body is used. There is a 5,000-element/100-group observation budget. Only rendered DOM is counted in virtualized views; no total dataset count is inferred.
 
 `failedControl` preserves the control that stopped a run, its readiness/error/fingerprint reasons and a structural diff. `stoppedObservation` preserves the sampled state for a phase error. `coverage` lists watched and other registered channels and states that multiplexed argument-level methods are not identified. Uninstrumented IPC/native calls remain unknown.
 
@@ -176,3 +177,9 @@ After the three initial baselines agree, each later healthy control and the fina
 If an experiment stops after some completed faulted runs, `findings` includes an `INCOMPLETE_EXPERIMENT` entry with `kind: inconclusive`, `partial: true`, `completedRuns`, `plannedRuns`, `observedInterpretation` and `repeatConfirmed: false`. HTML and terminal summaries expose this partial evidence. It is not a completed experiment or a confirmed defect, even when the completed runs agree.
 
 This does not discover missing dependencies, fix application state carry-over or guarantee that the initial baselines captured all content. Known relevant dependencies must still be configured. Unchanged time windows bound the observation; later recovery remains untested.
+
+## Initial baseline calibration (preview.11)
+
+Calibration observes three full `baselineTimeoutMs` windows before injection: 45 seconds with the default 15-second window. It does not prefer a nonempty screen or a larger item count. A legitimately empty selected region is valid after successful target/dependency reads and a stable end state. Delayed content within the window is included in the baseline. `readiness.calibrationComplete` becomes true only when all three healthy end states agree; their bounded timelines remain in the report.
+
+Unstable or unfinished calibration stops fault experiments. Cleanup still removes faults and attempts a healthy reload, but `finalReset` remains `not-verified` without a trusted baseline. Later controls and cleanup can finish early once they match that baseline. Known dependencies must still be configured; content arriving after the calibration window remains untested.

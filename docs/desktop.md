@@ -32,17 +32,18 @@ Set `RECOVERY_PROBE=1` using your existing cross-platform development tooling, t
 
 ## 2. Install and identify the window
 
-Install the pinned preview in a separate tester folder:
+Install the exact preview in a separate tester folder:
 
 ```bash
 mkdir recovery-probe-desktop-test
 cd recovery-probe-desktop-test
 npm init -y
-npm install --save-dev github:BojanKovachki/recovery-probe#88fdafe16b513042264b970d0c7bb662112fdf45 playwright@1.62.1
+npm view recovery-probe@0.3.0-preview.11 version
+npm install --save-dev --save-exact recovery-probe@0.3.0-preview.11 playwright@1.62.1
 npx recovery-probe desktop --list
 ```
 
-GitHub and npm releases are separate. The pinned commit above includes the current preview; do not assume npm dist-tags point to the same code.
+If the version is not published yet, use the [source installation](../CONTRIBUTING.md#install-an-unpublished-source-preview). GitHub and npm releases are separate; the exact npm version keeps later runs reproducible.
 
 No Chromium download is needed: the tester connects to the Chromium already running inside your Electron app. `--list` prints window indexes and page URLs with query strings/fragments omitted. If there are multiple windows, select the intended one explicitly.
 
@@ -176,7 +177,7 @@ Minimal scenario:
 
 The selected request must be a read-only renderer GET fetch/XHR. Query variants share its origin/path budget. No form actions, navigation or mutation injection is performed. Persistent faults and timed outages are not implemented. Discovery uses `times` for each listed fault, does not infer the retry policy, and does not click Retry. For retry-button assertions use the existing explicit verifier.
 
-Three healthy baselines precede experiments. A healthy control precedes every faulted reload and a healthy cleanup follows. Default three-fault/three-repeat plan uses 22 reloads. Existing readiness selectors/text are ignored and omitted from saved discovery scenarios. Use `requiredEndpoints` for known relevant dependencies. Other observed traffic is recorded under `coverage` without gating readiness. Non-GET requests are explicitly unsupported; unselected GETs are untested. Paths may be sensitive even when query values and bodies are omitted. No service-worker, native or unobserved traffic coverage is implied.
+Three healthy baselines each run for the full `baselineTimeoutMs` window and must have matching stable end states before experiments begin. A healthy control precedes every faulted reload and a healthy cleanup follows. Default three-fault/three-repeat plan uses 22 reloads. Existing readiness selectors/text are ignored and omitted from saved discovery scenarios. Use `requiredEndpoints` for known relevant dependencies. Other observed traffic is recorded under `coverage` without gating readiness. Non-GET requests are explicitly unsupported; unselected GETs are untested. Paths may be sensitive even when query values and bodies are omitted. No service-worker, native or unobserved traffic coverage is implied.
 
 Reports share the preview.7 IPC observation/interpretation fields; see [structural discovery](ipc.md#structural-discovery-preview7). Distribution shifts and structural replacement candidates are observations, not determinations of correct roles, permissions or semantics. Evidence includes fault counts and sampled recovery time; time windows cannot establish that an app will never heal. Baseline timing is measured separately. Request duration is measured from request to completion using a monotonic clock, including body transfer.
 
@@ -192,3 +193,9 @@ After the three initial baselines agree, each later healthy control and the fina
 If an experiment stops after some completed faulted runs, `findings` includes an `INCOMPLETE_EXPERIMENT` entry with `kind: inconclusive`, `partial: true`, `completedRuns`, `plannedRuns`, `observedInterpretation` and `repeatConfirmed: false`. HTML and terminal summaries expose this partial evidence. It is not a completed experiment or a confirmed defect, even when the completed runs agree.
 
 This does not discover missing dependencies, fix application state carry-over or guarantee that the initial baselines captured all content. Known relevant dependencies must still be configured. Unchanged time windows bound the observation; later recovery remains untested.
+
+## Initial baseline calibration (preview.11)
+
+Calibration observes three full `baselineTimeoutMs` windows before injection: 45 seconds with the default 15-second window. It does not prefer a nonempty screen or a larger item count. A legitimately empty selected region is valid after successful target/dependency reads and a stable end state. Delayed content within the window is included in the baseline. `readiness.calibrationComplete` becomes true only when all three healthy end states agree; their bounded timelines remain in the report.
+
+Unstable or unfinished calibration stops fault experiments. Cleanup still removes faults and attempts a healthy reload, but `finalReset` remains `not-verified` without a trusted baseline. Later controls and cleanup can finish early once they match that baseline. Known dependencies must still be configured; content arriving after the calibration window remains untested.
