@@ -36,6 +36,7 @@ test('a clean consumer installs the packed package and verifies exports, types a
     const packed = JSON.parse((await npm(['pack', '--json', '--pack-destination', temp], root)).stdout)[0];
     assert.equal(packed.name, 'recovery-probe');
     assert.equal(packed.version, version);
+    for (const path of ['src/observation-report.mjs', 'docs/ci.md', 'examples/ci/run.mjs', 'examples/ci/verify.mjs', 'examples/ci/scenario.json']) assert.ok(packed.files.some(file => file.path === path), path);
     assert.ok(packed.files.some(file => file.path === 'src/fetch-fault.d.mts'));
     assert.ok(packed.files.some(file => file.path === 'CHANGELOG.md'));
     assert.ok(packed.files.every(file => !file.path.startsWith('test/') && !file.path.startsWith('artifacts/')));

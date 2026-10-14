@@ -5,7 +5,7 @@ import { createInterface } from 'node:readline';
 import { connectDesktop, selectDesktopPage, desktopPages } from '../src/desktop.mjs';
 import { connectIpcInspector } from '../src/ipc-inspector.mjs';
 import { observationConfig, runObservation, httpObservationAdapter, ipcObservationAdapter } from '../src/observe.mjs';
-const escape = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+import { observationMetadata, samplingMetrics, observationSummary, renderObservationReport } from '../src/observation-report.mjs';
 
 export async function observeMain(args) {
   if (!args.length || args.includes('--help')) {
@@ -35,9 +35,10 @@ IPC requires the observation-capable development hook. See docs/observe.md.`);
   const abort = new AbortController();
   const stop = () => abort.abort();
   process.on('SIGINT', stop); process.on('SIGTERM', stop);
-  let browser, control, input, report, pendingMarkers = 0;
+  let browser, control, input, report, pendingMarkers = 0, browserVersion = null;
   try {
     browser = await connectDesktop(config.cdp);
+    try { browserVersion = await browser.version(); } catch { /* Metadata may be unavailable on an attached runtime. */ }
     let page, adapter;
     if (config.transport === 'ipc') {
       control = await connectIpcInspector(config.inspector);
@@ -76,7 +77,7 @@ IPC requires the observation-capable development hook. See docs/observe.md.`);
       onInterval() { console.error('New observation interval.'); },
     });
   } catch (error) {
-    report ??= { schemaVersion: 1, mode: 'fault-free observation', status: 'incomplete', captureComplete: false, intervals: [], findings: [], reloads: 0, injected: 0 };
+    report ??= { schemaVersion: 1, metadata: observationMetadata(), sampling: samplingMetrics(config.sampleMs).snapshot(), mode: 'fault-free observation', status: 'incomplete', captureComplete: false, intervals: [], findings: [], reloads: 0, injected: 0 };
     report.error = error.message;
   } finally {
     if (input) { input.close(); process.stdin.pause(); }
@@ -84,13 +85,15 @@ IPC requires the observation-capable development hook. See docs/observe.md.`);
     try { await browser?.close(); } catch (error) { report.status = 'incomplete'; report.captureComplete = false; report.disconnectError = error.message; }
     process.off('SIGINT', stop); process.off('SIGTERM', stop);
   }
+  report.metadata.browserVersion = browserVersion;
   await writeFile(join(directory, 'scenario.json'), JSON.stringify(config, null, 2), { mode: 0o600 });
   await writeFile(join(directory, 'report.json'), JSON.stringify(report, null, 2), { mode: 0o600 });
-  const rows = report.intervals.map(i => `<tr><td>${i.index}</td><td>${i.reads?.calls ?? 'unknown'}</td><td>${i.reads?.successes ?? 'unknown'}</td><td>${i.reads?.errors ?? 'unknown'}</td><td>${i.firstContent ? i.firstContent.toMs - i.startMs + ' ms' : 'not sampled'}</td></tr>`).join('');
-  await writeFile(join(directory, 'report.html'), `<!doctype html><meta charset="utf-8"><title>Recovery Probe observation</title><style>body{font:16px system-ui;max-width:1000px;margin:40px auto;padding:20px}td,th{text-align:left;padding:8px}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style><h1>Fault-free observation</h1><p>Capture: ${escape(report.status)}. This is not a recovery or account-isolation verdict.</p><p>${escape(report.limitation ?? report.error)}</p><table><thead><tr><th>Interval</th><th>Reads started</th><th>Successes</th><th>Errors</th><th>First content sample</th></tr></thead><tbody>${rows}</tbody></table>${report.findings.map(f => `<p>Interval ${f.interval}: <strong>${escape(f.code)}</strong> — ${escape(f.basis)}</p>`).join('')}<details><summary>Evidence and coverage</summary><pre>${escape(JSON.stringify(report, null, 2))}</pre></details>`, { mode: 0o600 });
+  await writeFile(join(directory, 'report.html'), renderObservationReport(report), { mode: 0o600 });
   if (options.json) console.log(JSON.stringify({ ...report, reportPath: join(directory, 'report.json') }));
   else {
     for (const i of report.intervals) console.log(`Interval ${i.index}: ${i.reads?.calls ?? '?'} reads, ${i.reads?.successes ?? '?'} successes, ${i.reads?.errors ?? '?'} errors${i.findings.length ? '; ' + i.findings.join(', ') : ''}`);
+    for (const finding of report.findings) console.log(`Interval ${finding.interval}: ${observationSummary(finding)}`);
+    console.log(`Sampling: requested delay ${config.sampleMs} ms; measured mean cadence ${report.sampling.startToStart.meanMs ?? 'unavailable'} ms.`);
     if (report.error) console.error(report.error);
     console.log(`Capture: ${report.status} (not a health verdict)\nReport: ${join(directory, 'report.html')}`);
   }

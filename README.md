@@ -21,12 +21,12 @@ Desktop support currently means Electron, not arbitrary native applications. IPC
 
 ## Install the current preview
 
-This checkout targets **0.3.0-preview.12**. Preview releases use npm's `next` tag; `latest` is the stable channel. Confirm that the exact version is published before installing it:
+This checkout targets **0.3.0-preview.13**. Preview releases use npm's `next` tag; `latest` is the stable channel. Confirm that the exact version is published before installing it:
 
 ```bash
 mkdir recovery-probe-tools && cd recovery-probe-tools
-npm view recovery-probe@0.3.0-preview.12 version
-npm install --save-dev --save-exact recovery-probe@0.3.0-preview.12 playwright@1.62.1
+npm view recovery-probe@0.3.0-preview.13 version
+npm install --save-dev --save-exact recovery-probe@0.3.0-preview.13 playwright@1.62.1
 npx recovery-probe --version
 ```
 
@@ -42,6 +42,8 @@ If the version check reports that the version is unavailable, npm publication is
 | Discover and test renderer reads in an existing browser or Electron window | `recovery-probe desktop --cdp URL` | [Attachment and HTTP discovery](docs/desktop.md) |
 | Compare an Electron screen under IPC faults | `recovery-probe ipc --discover --config FILE` | [IPC setup and discovery](docs/ipc.md) |
 | Test a refresh after content has already loaded | `recovery-probe refresh --config FILE --json` | [Refresh experiments](docs/refresh.md) |
+| Observe cached content without a reload | `recovery-probe observe --config FILE` | [Observation](docs/observe.md) |
+| Run a repeatable synthetic recovery check in CI | `npm run test:ci-example` (source checkout) | [CI example](docs/ci.md) |
 | Add an explicit recovery assertion to a test | `withFault` or `createFaultFetch` | Examples below |
 | Propose and verify a source change | Opt-in repair workflow | [Repair setup and limits](docs/repair.md) |
 

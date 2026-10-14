@@ -47,6 +47,10 @@ test('fresh cached content is observed without a reload or read; absence during 
     assert.equal(report.coverage.historyBeforeCapture, 'unknown');
     assert.equal(await page.evaluate(() => window.fixtureNonce), nonce);
     assert.ok(!JSON.stringify(report).includes('synthetic-alpha-private-value'));
+    assert.equal(report.sampling.completedSamples, report.samples);
+    assert.equal(report.sampling.startToStart.count, report.samples - 1);
+    assert.ok(report.samples > report.timeline.length);
+    assert.match(report.findings[0].summary, /without a new selected read/);
     assert.equal(report.cleanup, 'complete');
   } finally { await page.close(); }
 });

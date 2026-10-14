@@ -64,6 +64,12 @@ test('real Electron observation CLI preserves cache across identity changes and 
       assert.equal(code, 0, errors + output);
       const report = JSON.parse(await readFile(join(out, 'report.json'), 'utf8'));
       assert.equal(report.captureComplete, true, JSON.stringify(report));
+      assert.equal(report.metadata.recoveryProbeVersion, createRequire(import.meta.url)('../package.json').version);
+      assert.equal(report.metadata.ipcHook.version, report.metadata.recoveryProbeVersion);
+      assert.ok(report.metadata.ipcHook.runtime.electron);
+      assert.ok(report.metadata.browserVersion);
+      assert.equal(report.sampling.completedSamples, report.samples);
+      assert.equal(report.sampling.startToStart.count, report.samples - 1);
       assert.equal(report.snapshot.channels[config.channel].calls, fixed ? 1 : 0);
       assert.equal(report.findings.length, fixed ? 0 : 1);
       assert.equal(report.intervals.length, 2);

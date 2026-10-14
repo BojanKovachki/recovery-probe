@@ -1,3 +1,4 @@
+import { observationMetadata, samplingMetrics, observationSummary } from './observation-report.mjs';
 import { performance } from 'node:perf_hooks';
 import { randomUUID } from 'node:crypto';
 import { readRegion, summarizeRegion } from './ipc-observation.mjs';
@@ -34,11 +35,13 @@ export function observationConfig(input) {
 }
 
 export function ipcObservationAdapter(control, config, senderId) {
-  let id;
+  let id, metadata = null;
   return {
+    metadata: () => metadata,
     async start() {
       const identity = await control.call('identify');
       if (!identity.capabilities?.observation || !identity.capabilities?.readTimestamps) throw Error('IPC_OBSERVATION_UNSUPPORTED: restart the development app with the new observation-capable hook');
+      metadata = { version: identity.version ?? null, runtime: { node: identity.runtime?.node ?? null, electron: identity.runtime?.electron ?? null, chrome: identity.runtime?.chrome ?? null }, capabilities: { observation: identity.capabilities.observation, readTimestamps: identity.capabilities.readTimestamps, maxFaultCount: identity.capabilities.maxFaultCount ?? null } };
       if (identity.senderId !== senderId) throw Error('IPC_TARGET_CHANGED');
       const previous = await control.call('snapshot');
       if (previous?.armed || previous?.observingUntil) throw Error('IPC_PLAN_ALREADY_ACTIVE');
@@ -95,7 +98,8 @@ async function boundedUiRead(action, signal) {
 export async function runObservation(page, input, adapter, { signal, takeMarker = () => false, onReady = () => {}, onInterval = () => {}, onSample = () => {} } = {}) {
   const c = observationConfig(input);
   const target = c.transport === 'ipc' ? c.channel : c.endpoint;
-  const report = { schemaVersion: 1, mode: 'fault-free observation', transport: c.transport, target, generatedAt: new Date().toISOString(),
+  const metrics = samplingMetrics(c.sampleMs);
+  const report = { schemaVersion: 1, metadata: observationMetadata(), mode: 'fault-free observation', transport: c.transport, target, generatedAt: new Date().toISOString(),
     status: 'incomplete', captureComplete: false, observationMs: c.observationMs, sampleMs: c.sampleMs, intervals: [], findings: [], timeline: [],
     injected: 0, reloads: 0, cleanup: 'not-started',
     coverage: { historyBeforeCapture: 'unknown', pendingBeforeCapture: 'unknown', scope: 'One selected renderer and read target; only calls starting during capture are counted.', gaps: [] },
@@ -124,6 +128,7 @@ export async function runObservation(page, input, adapter, { signal, takeMarker 
     page.on('pageerror', errors); page.on('domcontentloaded', documentLoaded);
     attempted = true;
     await adapter.start();
+    report.metadata.ipcHook = adapter.metadata?.() ?? null;
     started = performance.now();
     lastSnapshot = await adapter.snapshot();
     report.startedAt = lastSnapshot.startedAt;
@@ -162,6 +167,7 @@ export async function runObservation(page, input, adapter, { signal, takeMarker 
           basis: readCounts.calls === 0 && readCounts.pendingAtStart === 0 ? 'NO_READ_OBSERVED_IN_INTERVAL' : 'NO_COMPLETION_OBSERVED_IN_INTERVAL',
           reads: readCounts, lastReadAgeMs: event.lastReadAgeMs, lastCompletionAgeMs: event.lastCompletionAgeMs,
           note: 'The configured content marker is visible. This does not establish cache origin, ownership, a mount boundary, or a defect; earlier and unobserved reads are possible.' };
+        finding.summary = observationSummary(finding);
         interval.findings.push(finding.code); report.findings.push(finding);
       }
       const signature = JSON.stringify([interval.index, ui, readCounts, pageErrors]);
@@ -169,6 +175,7 @@ export async function runObservation(page, input, adapter, { signal, takeMarker 
         if (report.timeline.length < 1000) report.timeline.push(event); else gap('TIMELINE_LIMIT_REACHED');
         previousSignature = signature;
       }
+      metrics.add(event.fromMs, event.toMs);
       interval.samples++; samples++;
       await onSample(event);
       if (performance.now() - started >= c.observationMs) { report.status = 'complete'; break; }
@@ -181,6 +188,7 @@ export async function runObservation(page, input, adapter, { signal, takeMarker 
     if (interval) closeInterval();
     report.elapsedMs = started === undefined ? 0 : elapsed();
     report.samples = samples;
+    report.sampling = metrics.snapshot();
     report.snapshot = lastSnapshot;
     page.off('pageerror', errors); page.off('domcontentloaded', documentLoaded);
     if (attempted) {

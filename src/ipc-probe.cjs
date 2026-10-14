@@ -1,4 +1,5 @@
 'use strict';
+const { version } = require('../package.json');
 
 const installed = new WeakSet();
 
@@ -18,7 +19,7 @@ exports.installIpcProbe = function installIpcProbe(ipcMain, { channels, sender, 
   const identify = challenge => {
     const contents = sender();
     if (!contents || contents.isDestroyed()) throw new Error('Target WebContents is not available');
-    const identity = { senderId: contents.id, pageUrl: contents.getURL(), registered: [...registered], capabilities: { maxFaultCount: 10, observation: true, readTimestamps: true } };
+    const identity = { version, runtime: { node: process.versions.node, electron: process.versions.electron ?? null, chrome: process.versions.chrome ?? null }, senderId: contents.id, pageUrl: contents.getURL(), registered: [...registered], capabilities: { maxFaultCount: 10, observation: true, readTimestamps: true } };
     if (challenge === undefined) return identity;
     if (typeof challenge !== 'string' || !/^[a-f0-9-]{36}$/.test(challenge)) throw new Error('Invalid window challenge');
     return contents.executeJavaScript(`globalThis.__recoveryProbeWindowNonce === ${JSON.stringify(challenge)}`).then(matches => {

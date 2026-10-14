@@ -1,0 +1,8 @@
+{
+  "requestPath": "/api/profile",
+  "readySelector": "#profile",
+  "expectedText": "Synthetic Example",
+  "retrySelector": "#retry",
+  "timeoutMs": 3000,
+  "fault": { "kind": "http-error", "status": 503, "count": 1 }
+}

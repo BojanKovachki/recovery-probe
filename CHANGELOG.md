@@ -4,6 +4,12 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.3.0-preview.13 (2026-10-14)
+
+- Add observation report provenance: package/CLI runtime, available browser version and allowlisted IPC hook version/runtime/capabilities. Older observation-capable hooks remain supported with unknown metadata.
+- Measure completed-sample duration and actual start-to-start cadence independently of the configured post-sample delay, including unchanged samples. Report first-content sample bounds and explain no-read versus pending-read findings without changing their codes or verdict semantics.
+- Add a runnable synthetic CI recovery example with a saved scenario, explicit content assertion, bounded 503 injection, nonzero failure exits, JSON/Markdown reports and Playwright traces. Verify broken and fixed controls in CI; setup failures cannot satisfy the expected broken result.
+
 ## 0.3.0-preview.12 (2026-10-14)
 
 - Add `observe --config FILE` for fault-free HTTP/IPC read observation in an existing renderer without reloads, navigation, focus changes or UI cleanup resets. Operator interval markers preserve cumulative read history.
