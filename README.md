@@ -21,12 +21,12 @@ Desktop support currently means Electron, not arbitrary native applications. IPC
 
 ## Install the current preview
 
-This checkout targets **0.3.0-preview.11**. Preview releases use npm's `next` tag; `latest` is the stable channel. Confirm that the exact version is published before installing it:
+This checkout targets **0.3.0-preview.12**. Preview releases use npm's `next` tag; `latest` is the stable channel. Confirm that the exact version is published before installing it:
 
 ```bash
 mkdir recovery-probe-tools && cd recovery-probe-tools
-npm view recovery-probe@0.3.0-preview.11 version
-npm install --save-dev --save-exact recovery-probe@0.3.0-preview.11 playwright@1.62.1
+npm view recovery-probe@0.3.0-preview.12 version
+npm install --save-dev --save-exact recovery-probe@0.3.0-preview.12 playwright@1.62.1
 npx recovery-probe --version
 ```
 
@@ -34,7 +34,7 @@ If the version check reports that the version is unavailable, npm publication is
 
 ## Choose a workflow
 
-**Unreleased source addition:** [fault-free observation](docs/observe.md) records selected reads and content while you navigate, without reloading or clearing caches. It is not yet included in npm `0.3.0-preview.11`.
+**New in preview.12:** [fault-free observation](docs/observe.md) records selected reads and content while you navigate, without reloading or clearing caches. See the guide for updating the development IPC hook before capturing cached state.
 
 | Goal | Entry point | Guide |
 | --- | --- | --- |

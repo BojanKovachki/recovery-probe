@@ -1,6 +1,6 @@
 {
   "name": "recovery-probe",
-  "version": "0.3.0-preview.11",
+  "version": "0.3.0-preview.12",
   "type": "module",
   "description": "Test recovery from failed reads in web and Electron desktop apps, during loading and refresh.",
   "license": "MIT",

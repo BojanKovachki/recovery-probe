@@ -1,6 +1,11 @@
 # Observe reads without resetting the app
 
-**Unreleased source workflow.** npm `0.3.0-preview.11` does not contain this command or the observation-capable IPC hook. Use a checkout containing this change (see [source setup](../CONTRIBUTING.md#install-an-unpublished-source-preview)) and record its commit. Do not infer npm availability from a GitHub change.
+Available in **0.3.0-preview.12**. Install the exact preview and verify the CLI:
+
+```bash
+npm install --save-dev --save-exact recovery-probe@0.3.0-preview.12 playwright@1.62.1
+npx recovery-probe --version
+```
 
 Use observation when reloading would erase the state you are investigating: cached rows, content carried between screens, or content surviving a session change. The command attaches to an existing development browser/Electron renderer. It never reloads, navigates, clicks, changes focus, clears caches, injects faults, or resets the UI at the end. You operate the app yourself.
 
@@ -23,7 +28,7 @@ Save a local JSON file, for example `observe.json`:
 }
 ```
 
-IPC requires the [explicit development hook](ipc.md), loaded **from the same new source build** before handler registration. It must advertise `observation` and `readTimestamps` capabilities. An old running hook is rejected before starting a plan; reinstalling the CLI alone does not update a hook already loaded in the app. The selected window is verified against that hook without reloading it.
+IPC requires the [explicit development hook](ipc.md), loaded **from the same installed preview.12 package** before handler registration. It must advertise `observation` and `readTimestamps` capabilities. An old running hook is rejected before starting a plan; reinstalling the CLI alone does not update a hook already loaded in the app. Resolve the updated hook with `node -p "require.resolve('recovery-probe/ipc')"`, update the app's development hook path if needed, and restart the development app **before reproducing the cached state**. The selected window is verified against that hook without reloading it.
 
 For renderer HTTP reads, use:
 
@@ -49,7 +54,7 @@ The duration is bounded to 500–120000 ms; sampling is bounded to 50–1000 ms.
 ## Capture a return visit
 
 ```bash
-node bin/recovery-probe.mjs observe --config observe.json
+npx recovery-probe observe --config observe.json
 ```
 
 1. Start on a neutral screen and wait for the terminal's `Observing` message.
@@ -77,7 +82,7 @@ A document reload/navigation ends capture as incomplete because the renderer sta
 
 ## Supported inspector API
 
-Advanced scripts can use `recovery-probe/ipc-inspector` after installing a package built from this source, without importing private `src/` paths:
+Advanced scripts can use `recovery-probe/ipc-inspector` after installing preview.12, without importing private `src/` paths:
 
 ```js
 import { randomUUID } from 'node:crypto';

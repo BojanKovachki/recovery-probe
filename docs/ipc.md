@@ -1,6 +1,6 @@
 # IPC renderer recovery preview
 
-For cache/navigation evidence that must survive without a reload, see the unreleased [fault-free observation workflow](observe.md). The recovery checks below reload the renderer and cannot establish session or account isolation.
+For cache/navigation evidence that must survive without a reload, see the [fault-free observation workflow](observe.md). The recovery checks below reload the renderer and cannot establish session or account isolation.
 
 This adapter tests renderer recovery after bounded **rejected IPC invocations** or **successful null results**. It supports initial-load discovery and opt-in [refresh experiments](refresh.md). It does not simulate HTTP status codes, Rust transport failures, token refresh, connection banners or native retry behavior. Use only read-only channels in a development build with known fixture data.
 
@@ -12,8 +12,8 @@ Node 22+ is required for the CLI. Electron 29's bundled Node can load the small 
 
 ```bash
 mkdir -p recovery-probe-tools && cd recovery-probe-tools
-npm view recovery-probe@0.3.0-preview.11 version
-npm install --save-dev --save-exact recovery-probe@0.3.0-preview.11 playwright@1.62.1
+npm view recovery-probe@0.3.0-preview.12 version
+npm install --save-dev --save-exact recovery-probe@0.3.0-preview.12 playwright@1.62.1
 node -p "require.resolve('recovery-probe/ipc')"
 ```
 
