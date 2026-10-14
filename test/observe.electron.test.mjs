@@ -67,6 +67,7 @@ test('real Electron observation CLI preserves cache across identity changes and 
       assert.equal(report.snapshot.channels[config.channel].calls, fixed ? 1 : 0);
       assert.equal(report.findings.length, fixed ? 0 : 1);
       assert.equal(report.intervals.length, 2);
+      assert.equal(report.intervals[1].reads.calls, fixed ? 1 : 0);
       if (!fixed) assert.equal(report.findings[0].interval, 2);
       assert.equal(await page.evaluate(() => window.fixtureNonce), nonce);
       assert.equal((await control.call('snapshot')).observingUntil, null);

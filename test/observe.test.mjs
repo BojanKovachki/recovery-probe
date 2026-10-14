@@ -87,3 +87,19 @@ test('an unresponsive renderer does not trap observation or prevent owned cleanu
     if (!interrupt) assert.match(report.error, /UI_SAMPLE_TIMEOUT/);
   }
 });
+
+test('the operator interval acknowledgement follows its read-counter boundary', async () => {
+  const row = { calls: 0, successes: 0, errors: 0, pending: 0, lastReadAt: null, lastCompletedAt: null };
+  const abort = new AbortController(); let announced = false, marker = true;
+  const page = { on() {}, off() {}, async evaluate() { return { presence: 'absent', contentCount: 0, visible: true, online: true }; } };
+  const adapter = { async start() {}, async snapshot() { return { channels: { 'fixture:read': { ...row } } }; }, async stop() {} };
+  const report = await runObservation(page, { transport: 'ipc', channel: 'fixture:read', regionSelector: '#data', contentSelector: 'li', observationMs: 500 }, adapter, {
+    signal: abort.signal,
+    takeMarker() { const value = marker; marker = false; return value; },
+    onInterval() { announced = true; row.calls++; row.successes++; }, // Immediate action on the acknowledgement.
+    onSample() { abort.abort(); },
+  });
+  assert.equal(announced, true);
+  assert.equal(report.intervals[0].reads.calls, 0);
+  assert.equal(report.intervals[1].reads.calls, 1);
+});

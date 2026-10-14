@@ -92,7 +92,7 @@ async function boundedUiRead(action, signal) {
 }
 
 /** Observe only. No reload, navigation, routing, focus changes or final UI reset. */
-export async function runObservation(page, input, adapter, { signal, takeMarker = () => false, onReady = () => {}, onSample = () => {} } = {}) {
+export async function runObservation(page, input, adapter, { signal, takeMarker = () => false, onReady = () => {}, onInterval = () => {}, onSample = () => {} } = {}) {
   const c = observationConfig(input);
   const target = c.transport === 'ipc' ? c.channel : c.endpoint;
   const report = { schemaVersion: 1, mode: 'fault-free observation', transport: c.transport, target, generatedAt: new Date().toISOString(),
@@ -136,6 +136,7 @@ export async function runObservation(page, input, adapter, { signal, takeMarker 
         if (report.intervals.length >= 50) throw Error('INTERVAL_LIMIT_REACHED');
         // Use a fresh boundary snapshot; do not attribute between-sample reads to the next interval.
         lastSnapshot = await adapter.snapshot(); closeInterval(); openInterval(lastSnapshot);
+        await onInterval(interval.index);
       }
       const before = await adapter.snapshot();
       const sampleStart = elapsed();

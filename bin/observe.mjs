@@ -71,9 +71,9 @@ IPC requires the observation-capable development hook. See docs/observe.md.`);
       takeMarker() {
         if (!pendingMarkers) return false;
         pendingMarkers--;
-        console.error('New observation interval.');
         return true;
       },
+      onInterval() { console.error('New observation interval.'); },
     });
   } catch (error) {
     report ??= { schemaVersion: 1, mode: 'fault-free observation', status: 'incomplete', captureComplete: false, intervals: [], findings: [], reloads: 0, injected: 0 };
