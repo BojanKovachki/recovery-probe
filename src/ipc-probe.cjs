@@ -18,7 +18,7 @@ exports.installIpcProbe = function installIpcProbe(ipcMain, { channels, sender, 
   const identify = challenge => {
     const contents = sender();
     if (!contents || contents.isDestroyed()) throw new Error('Target WebContents is not available');
-    const identity = { senderId: contents.id, pageUrl: contents.getURL(), registered: [...registered], capabilities: { maxFaultCount: 10 } };
+    const identity = { senderId: contents.id, pageUrl: contents.getURL(), registered: [...registered], capabilities: { maxFaultCount: 10, observation: true, readTimestamps: true } };
     if (challenge === undefined) return identity;
     if (typeof challenge !== 'string' || !/^[a-f0-9-]{36}$/.test(challenge)) throw new Error('Invalid window challenge');
     return contents.executeJavaScript(`globalThis.__recoveryProbeWindowNonce === ${JSON.stringify(challenge)}`).then(matches => {
@@ -30,12 +30,12 @@ exports.installIpcProbe = function installIpcProbe(ipcMain, { channels, sender, 
     const contents = sender();
     return contents && !contents.isDestroyed() && event?.sender === contents && contents.mainFrame && event.senderFrame === contents.mainFrame;
   };
-  const disarm = () => { clearTimeout(timer); if (state) state.armed = null; };
+  const disarm = () => { clearTimeout(timer); if (state) { state.armed = null; state.observingUntil = null; } };
   const snapshot = () => {
-    if (state?.armed && Date.now() >= state.armed.expiresAt) disarm();
-    return state ? JSON.parse(JSON.stringify(state)) : null;
+    if ((state?.armed && Date.now() >= state.armed.expiresAt) || (state?.observingUntil && Date.now() >= state.observingUntil)) disarm();
+    return state ? JSON.parse(JSON.stringify({ ...state, capturedAt: Date.now() })) : null;
   };
-  const begin = ({ id, channel, requiredChannels = [], fault, times = 1, ttlMs = 30000 } = {}) => {
+  const begin = ({ id, channel, requiredChannels = [], fault, observation = false, times = 1, ttlMs = 30000 } = {}) => {
     if (!active) throw new Error('IPC probe is disposed');
     if (typeof id !== 'string' || !id || id.length > 100 || seenIds.has(id)) throw new Error('Use a new non-empty run ID');
     if (seenIds.size >= 10000) throw new Error('Restart the dev app after 10000 probe runs');
@@ -43,24 +43,29 @@ exports.installIpcProbe = function installIpcProbe(ipcMain, { channels, sender, 
     const watched = [...new Set([channel, ...requiredChannels])];
     if (watched.some(c => !allowed.has(c) || !registered.has(c))) throw new Error('All watched channels must be allowed and registered after installing the probe');
     if (fault !== undefined && !['rejection', 'null-result'].includes(fault)) throw new Error('Supported IPC faults: rejection, null-result');
+    if (typeof observation !== 'boolean' || (observation && fault !== undefined)) throw new Error('Observation must be fault-free');
     if (!Number.isInteger(times) || times < 1 || times > 10) throw new Error('times must be 1–10');
-    if (!Number.isInteger(ttlMs) || ttlMs < 100 || ttlMs > 60000) throw new Error('ttlMs must be 100–60000');
+    if (!Number.isInteger(ttlMs) || ttlMs < 100 || ttlMs > (observation ? 125000 : 60000)) throw new Error('ttlMs exceeds the supported bounds');
+    snapshot(); // Expire a previous lease before the atomic ownership check.
+    if (state?.observingUntil || (observation && state?.armed)) throw new Error('IPC_PLAN_ALREADY_ACTIVE');
     if (state && Object.values(state.channels).some(c => c.pending)) throw new Error('Previous real calls are still pending; wait before beginning another run');
     const identity = identify();
     disarm(); seenIds.add(id);
-    state = { id, channel, senderId: identity.senderId, injected: 0, injectedAt: null, successfulAfterFault: 0, armed: fault ? { fault, remaining: times, expiresAt: Date.now() + ttlMs } : null, channels: Object.create(null) };
-    for (const name of watched) state.channels[name] = { calls: 0, realCalls: 0, successes: 0, errors: 0, pending: 0, maxDurationMs: 0 };
-    if (fault) { timer = setTimeout(disarm, ttlMs); timer.unref?.(); }
+    state = { id, channel, senderId: identity.senderId, startedAt: Date.now(), observation, observingUntil: observation ? Date.now() + ttlMs : null, injected: 0, injectedAt: null, successfulAfterFault: 0, armed: fault ? { fault, remaining: times, expiresAt: Date.now() + ttlMs } : null, channels: Object.create(null) };
+    for (const name of watched) state.channels[name] = { calls: 0, realCalls: 0, successes: 0, errors: 0, pending: 0, maxDurationMs: 0, firstReadAt: null, lastReadAt: null, firstCompletedAt: null, lastCompletedAt: null, lastSuccessAt: null };
+    if (fault || observation) { timer = setTimeout(disarm, ttlMs); timer.unref?.(); }
     return snapshot();
   };
   function handle(channel, real) {
     if (!allowed.has(channel)) return Reflect.apply(original, this, [channel, real]);
     if (typeof real !== 'function') return Reflect.apply(original, this, [channel, real]);
     function dispatch(event, ...args) {
+      if (state?.observingUntil && Date.now() >= state.observingUntil) disarm();
       const current = state;
-      const row = active && current && matches(event) && event.sender.id === current.senderId ? current.channels[channel] : null;
+      const row = active && current && (!current.observation || current.observingUntil) && matches(event) && event.sender.id === current.senderId ? current.channels[channel] : null;
       if (!row) return Reflect.apply(real, this, [event, ...args]);
       row.calls++;
+      row.firstReadAt ??= Date.now(); row.lastReadAt = Date.now();
       if (current.armed && Date.now() >= current.armed.expiresAt) disarm();
       if (channel === current.channel && current.armed) {
         const fault = current.armed.fault;
@@ -72,6 +77,9 @@ exports.installIpcProbe = function installIpcProbe(ipcMain, { channels, sender, 
       const started = Date.now();
       const afterFault = current.injected > 0;
       const finish = success => {
+        const completed = Date.now();
+        row.firstCompletedAt ??= completed; row.lastCompletedAt = completed;
+        if (success) row.lastSuccessAt = completed;
         row.pending--; row.maxDurationMs = Math.max(row.maxDurationMs, Date.now() - started);
         if (success) { row.successes++; if (afterFault && channel === current.channel) current.successfulAfterFault++; }
         else row.errors++;

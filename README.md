@@ -21,18 +21,20 @@ Desktop support currently means Electron, not arbitrary native applications. IPC
 
 ## Install the current preview
 
-This checkout targets **0.3.0-preview.11**. Preview releases use npm's `next` tag; `latest` is the stable channel. Confirm that the exact version is published before installing it:
+This checkout targets **0.3.0-preview.12**. Preview releases use npm's `next` tag; `latest` is the stable channel. Confirm that the exact version is published before installing it:
 
 ```bash
 mkdir recovery-probe-tools && cd recovery-probe-tools
-npm view recovery-probe@0.3.0-preview.11 version
-npm install --save-dev --save-exact recovery-probe@0.3.0-preview.11 playwright@1.62.1
+npm view recovery-probe@0.3.0-preview.12 version
+npm install --save-dev --save-exact recovery-probe@0.3.0-preview.12 playwright@1.62.1
 npx recovery-probe --version
 ```
 
 If the version check reports that the version is unavailable, npm publication is still pending; use the [source installation](CONTRIBUTING.md#install-an-unpublished-source-preview). A GitHub merge alone does not publish the package. Use Node.js 22 or newer. A separate tools folder keeps the tester out of your application's production dependencies. Browser/desktop commands require Playwright; attached targets use their existing browser runtime. The guided web flow downloads Chromium when needed. See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ## Choose a workflow
+
+**New in preview.12:** [fault-free observation](docs/observe.md) records selected reads and content while you navigate, without reloading or clearing caches. See the guide for updating the development IPC hook before capturing cached state.
 
 | Goal | Entry point | Guide |
 | --- | --- | --- |
@@ -48,6 +50,8 @@ If the version check reports that the version is unavailable, npm publication is
 Guided setup asks you to choose a request and loaded content that proves success; later runs reuse the saved scenario. Structural discovery compares healthy and faulted screens without requiring a hand-written content selector, but still needs a selected read target and a valid baseline. Neither workflow infers your product's intended recovery policy.
 
 HTTP and IPC structural discovery calibrate three healthy reloads for the full `baselineTimeoutMs` window before injecting faults (45 seconds with the default 15-second window). All three stable end states must agree. This avoids treating a briefly stable loading shell as the healthy screen, accepts legitimate empty regions, and keeps an unsuccessful calibration inconclusive. Later controls may finish early once they match the calibrated baseline. Content arriving after the window remains outside the evidence.
+
+**Session-isolation boundary:** recovery/discovery/refresh workflows reload the renderer to establish controls. That clears in-memory caches and can hide state carried between sessions. Those modes cannot prove account isolation; content preservation within one session is not an ownership check. The new observation workflow collects evidence without resetting that state, but does not infer identities or data ownership.
 
 ## Refresh experiments
 

@@ -1,6 +1,6 @@
 {
   "name": "recovery-probe",
-  "version": "0.3.0-preview.11",
+  "version": "0.3.0-preview.12",
   "type": "module",
   "description": "Test recovery from failed reads in web and Electron desktop apps, during loading and refresh.",
   "license": "MIT",
@@ -29,6 +29,10 @@
       "import": "./src/web.mjs",
       "default": "./src/web.mjs"
     },
+    "./ipc-inspector": {
+      "types": "./src/ipc-inspector.d.mts",
+      "import": "./src/ipc-inspector.mjs"
+    },
     "./ipc": {
       "types": "./src/ipc-probe.d.cts",
       "import": "./src/ipc-probe.cjs",
@@ -52,7 +56,8 @@
     "docs/repair.md",
     "docs/start.md",
     "docs/ipc.md",
-    "docs/refresh.md"
+    "docs/refresh.md",
+    "docs/observe.md"
   ],
   "sideEffects": false,
   "engines": {
@@ -98,7 +103,7 @@
   "scripts": {
     "test": "npm run test:core",
     "test:core": "node --test test/fetch-core.test.mjs",
-    "test:browser": "node --test test/recovery.integration.test.mjs test/discovery.integration.test.mjs test/discovery-calibration.integration.test.mjs test/attach.integration.test.mjs test/refresh.integration.test.mjs",
+    "test:browser": "node --test test/recovery.integration.test.mjs test/discovery.integration.test.mjs test/discovery-calibration.integration.test.mjs test/attach.integration.test.mjs test/refresh.integration.test.mjs test/observe.integration.test.mjs",
     "test:package": "node --test test/package.integration.test.mjs",
     "test:all": "npm run test:core && npm run test:package && npm run test:browser && npm run test:desktop && npm run test:repair && npm run test:guided && npm run test:ipc",
     "demo": "node bin/core-demo.mjs",
@@ -109,7 +114,7 @@
     "test:repair": "node --test test/repair.test.mjs test/repair.integration.test.mjs test/web.integration.test.mjs",
     "test:repair:electron": "node --test test/repair.electron.test.mjs",
     "test:guided": "node --test test/guided-start.test.mjs test/guided-start.integration.test.mjs",
-    "test:ipc": "node --test test/ipc-probe.test.mjs test/ipc-control.test.mjs test/ipc-observation.test.mjs test/visibility.test.mjs test/refresh.test.mjs",
-    "test:ipc:electron": "node --test test/ipc.electron.test.mjs"
+    "test:ipc": "node --test test/ipc-probe.test.mjs test/ipc-control.test.mjs test/ipc-observation.test.mjs test/visibility.test.mjs test/refresh.test.mjs test/observe.test.mjs",
+    "test:ipc:electron": "node --test --test-concurrency=1 test/ipc.electron.test.mjs test/observe.electron.test.mjs"
   }
 }

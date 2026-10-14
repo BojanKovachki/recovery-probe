@@ -1,0 +1,31 @@
+<!doctype html><meta charset="utf-8"><title>Synthetic cache observation fixture</title>
+<nav><button id="items">Items</button><button id="home">Home</button><button id="switch">Switch identity</button><button id="expire">Expire cache</button><button id="fail">Fail next read</button></nav>
+<main id="view">Home</main>
+<script>
+const cache = new Map();
+const fixed = new URLSearchParams(location.search).get('fixed') === 'true';
+let identity = 'alpha', failNext = false, generation = 0;
+window.fixtureNonce = Math.random();
+sessionStorage.boots = String(Number(sessionStorage.boots || 0) + 1);
+const view = document.querySelector('#view');
+const paint = data => { const list = document.querySelector('#records'); if (list) list.innerHTML = data.map(name => `<li>${name}</li>`).join(''); };
+async function openItems() {
+  const current = ++generation;
+  const key = fixed ? identity : 'all';
+  view.innerHTML = '<section id="records-region"><ul id="records"></ul></section>';
+  const saved = cache.get(key);
+  if (saved) paint(saved.data);
+  if (saved && Date.now() - saved.at < 60000) return;
+  const fail = failNext; failNext = false;
+  try {
+    const data = window.fixtureCacheApi ? await fixtureCacheApi.read(identity, fail) : await fetch(`/api/items?identity=${identity}&fail=${fail}`).then(r => { if (!r.ok) throw Error('synthetic failure'); return r.json(); });
+    cache.set(key, { data, at: Date.now() });
+    if (current === generation) paint(data);
+  } catch { /* Deliberately keep stale content in this synthetic fixture. */ }
+}
+document.querySelector('#items').onclick = openItems;
+document.querySelector('#home').onclick = () => { generation++; view.textContent = 'Home'; };
+document.querySelector('#switch').onclick = () => { generation++; identity = identity === 'alpha' ? 'beta' : 'alpha'; if (fixed) cache.clear(); view.textContent = 'Home'; };
+document.querySelector('#expire').onclick = () => { for (const entry of cache.values()) entry.at = 0; };
+document.querySelector('#fail').onclick = () => { failNext = true; };
+</script>

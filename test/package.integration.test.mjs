@@ -56,6 +56,9 @@ assert.equal(ProbeError.name, 'ProbeError');
 assert.equal(typeof withFault, 'function');
 const { installIpcProbe } = await import('recovery-probe/ipc');
 assert.equal(typeof installIpcProbe, 'function');
+const inspector = await import('recovery-probe/ipc-inspector');
+assert.equal(typeof inspector.connectIpcInspector, 'function');
+assert.equal(typeof inspector.callIpcInspector, 'function');
 const { createRequire } = await import('node:module');
 assert.equal(typeof createRequire(import.meta.url)('recovery-probe/ipc').installIpcProbe, 'function');
 const desktop = await import('recovery-probe/desktop');
@@ -85,9 +88,20 @@ try {
     await writeFile(join(consumer, 'check.mts'), `
 import { createFaultFetch, type FetchFaultStats } from 'recovery-probe/fetch';
 import { installIpcProbe, type IpcProbe } from 'recovery-probe/ipc';
+import { connectIpcInspector } from 'recovery-probe/ipc-inspector';
+const inspector = await connectIpcInspector();
+const snapshot = await inspector.call('snapshot');
+const timestamp: number | null | undefined = snapshot?.channels['fixture:read'].lastCompletedAt;
+const identity = await inspector.call('identify');
+const capability: boolean = identity.capabilities.observation;
+// @ts-expect-error Unsupported controls cannot be called through the typed inspector API.
+void inspector.call('execute-arbitrary-script');
+void timestamp; void capability;
 const ipc: IpcProbe = installIpcProbe({handle() {}}, {enabled: true, channels: ['fixture:read'], sender: () => undefined});
 // @ts-expect-error IPC faults must not be mislabeled as HTTP failures.
 ipc.begin({id: 'test', channel: 'fixture:read', fault: 'http-error'});
+// @ts-expect-error Observations cannot inject faults.
+ipc.begin({id: 'test', channel: 'fixture:read', observation: true, fault: 'rejection'});
 const probe = createFaultFetch(fetch, { url: 'https://example.test/data', kind: 'http-error' });
 const response: Promise<Response> = probe.fetch('https://example.test/data');
 const stats: FetchFaultStats = probe.assertApplied();
@@ -128,6 +142,9 @@ void checkWeb(webConfig);
     assert.match(startHelp.stdout, /--fresh/);
     const ipcHelp = await exec(process.execPath, [cli, 'ipc', '--help'], { cwd: consumer, timeout: 10000 });
     assert.match(ipcHelp.stdout, /Node inspector/);
+    const observeHelp = await exec(process.execPath, [cli, 'observe', '--help'], { cwd: consumer, timeout: 10000 });
+    assert.match(observeHelp.stdout, /No reload/);
+    assert.ok(packed.files.some(file => file.path === 'docs/observe.md'));
     const desktopHelp = await exec(process.execPath, [cli, 'desktop', '--help'], { cwd: consumer, timeout: 10000 });
     assert.match(desktopHelp.stdout, /--discover/);
     const webHelp = await exec(process.execPath, [cli, 'web', '--help'], { cwd: consumer, timeout: 10000 });

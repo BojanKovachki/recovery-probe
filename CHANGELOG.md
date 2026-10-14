@@ -4,13 +4,20 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
-## 0.3.0-preview.11 (release candidate; npm publication separate)
+## 0.3.0-preview.12 (2026-10-14)
+
+- Add `observe --config FILE` for fault-free HTTP/IPC read observation in an existing renderer without reloads, navigation, focus changes or UI cleanup resets. Operator interval markers preserve cumulative read history.
+- Record read starts/completions and sampled content evidence, including `CONTENT_BEFORE_READ` observations. Pre-capture history remains unknown; no identity, ownership or security verdict is inferred.
+- Add bounded, owned IPC observation leases, timestamped snapshots and the documented `recovery-probe/ipc-inspector` subpath. Old hooks fail capability checks before mutation.
+- Validate cache reuse and stale content with synthetic browser/Electron fixtures, alongside a per-identity cache control. Document the session-isolation boundary of reload-based checks.
+
+## 0.3.0-preview.11 (2026-10-14)
 
 - Extend bounded end-state calibration to HTTP and IPC initial-load discovery: observe three full healthy windows and require matching stable end states before trusting a baseline or injecting faults.
 - Accept genuinely empty selected regions after successful target/dependency reads. Retain calibration evidence and report `readiness.calibrationComplete`; failed calibration cannot claim verified final UI restoration.
 - Use the configured `settleMs` consistently instead of deriving extra stability time from the duration of full calibration windows. Later controls and cleanup may finish early only after matching a trusted baseline.
 - Add browser and real Electron regression cases for delayed image cards, empty regions and inconsistent end states.
-- Align installation guides on the exact preview version, document an unpublished-source fallback, and default preview publishing to npm's `next` tag. This candidate also includes the previously unpublished preview.3–preview.10 changes below.
+- Align installation guides on the exact preview version, document an unpublished-source fallback, and default preview publishing to npm's `next` tag. This npm release also includes the previously unpublished preview.3–preview.10 changes below.
 
 ## 0.3.0-preview.10 (GitHub preview; npm publication separate)
 
