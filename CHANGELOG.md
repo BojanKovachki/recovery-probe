@@ -4,6 +4,17 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.3.0 (2026-10-14)
+
+- Promote the validated 0.3.0 preview series to the stable npm `latest` channel: guided web/Electron setup, HTTP/IPC discovery and recovery checks, refresh experiments, fault-free observation, and a runnable CI example.
+- Preserve initial content comparisons and add bounded follow-up evidence: first later baseline match, latest sampled comparison, sample bounds and unavailable-sample counts. Terminal, JSON and HTML distinguish a temporary difference from the last sampled state without claiming stability or ownership.
+- Add controlled temporary-marker, later-divergence, interval-boundary and unavailable-evidence tests. Keep comparison tracking within the existing report cap.
+- Align installation guides on 0.3.0, including the older repair guide. AI-assisted repair remains experimental and opt-in; explicit account-identity/ownership expectations remain outside this release.
+
+### Upgrading from 0.2.0
+
+The existing `withFault`, `createFaultFetch` and JSON-configured recovery CLI remain available. Use Node 22+ for the tester and Playwright 1.62.1 within the supported 1.x range for browser commands. The development IPC hook is tested in Electron 29.0.1 and 44.5.1; update its package and restart the development app when upgrading. New discovery workflows require explicit targets and calibrated healthy controls, and observation reports are not recovery or account-isolation verdicts. See the README workflow table for the new commands and their limits.
+
 ## 0.3.0-preview.14 (2026-10-14)
 
 - Default fault-free observation to lightweight selected-content sampling; retain `detail: "region"` for full diagnostics. Explicit marker/text limits flag partial evidence; unrelated controls do not affect marker comparisons.

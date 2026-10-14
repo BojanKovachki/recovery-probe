@@ -1,9 +1,9 @@
 # Observe reads without resetting the app
 
-Available in **0.3.0-preview.12**. Install the exact preview and verify the CLI:
+Available in **0.3.0**. Install the exact version and verify the CLI:
 
 ```bash
-npm install --save-dev --save-exact recovery-probe@0.3.0-preview.14 playwright@1.62.1
+npm install --save-dev --save-exact recovery-probe@0.3.0 playwright@1.62.1
 npx recovery-probe --version
 ```
 
@@ -95,6 +95,17 @@ Results are `unchanged`, `changed`, or `unavailable`. Unavailable means the requ
 
 The browser tests include unchanged content after a failed refresh, changed content after a successful refresh, cached interval return, a sampled 250 ms pulse, and a pulse entirely between samples that remains undetected. These controls deliberately distinguish captured evidence from missed transitions.
 
+### Later samples after a comparison
+
+In 0.3.0, each retained comparison also has `followUp` evidence from later completed samples in the **same operator interval**. The original `result`, `before` and `after` remain unchanged. Follow-up compares with the original `before` baseline, not the first return sample:
+
+- `samples`, `comparableSamples` and `unavailableSamples` count later samples, including unchanged samples omitted from the timeline.
+- `firstBaselineMatch` records the first later sample matching the baseline, or null. It records an observation, not an exact transition time.
+- `latest` records the last follow-up sample, its bounds and its comparison result. Absent/hidden or truncated evidence is unavailable; it cannot establish a match.
+- `summary` appears in JSON, terminal and HTML output. For a 19 → 17 → 19 marker sequence it says that content initially differed and a later sample matched. If content diverges again, the latest comparison says changed. With no later sample, that absence is explicit.
+
+Tracking ends at the next operator interval or capture termination, including interruption. These are sampled comparisons, not a settling rule, continuous-visibility claim, identity assertion or recovery verdict. Read completions and later UI changes are not proof of causality. The existing 1000-comparison cap also bounds follow-up tracking.
+
 ## Interpretation
 
 Local `report.json` and `report.html` contain interval read counts, starts/completions, first-content sample bounds, and a change-only sampled timeline. `scenario.json` records the selected scope. No screenshots, response bodies or raw UI values are saved. Region text and repeated values are hashed; hashes are **not anonymization**, particularly for predictable text. Treat reports and selectors as private evidence.
@@ -113,7 +124,7 @@ A document reload/navigation ends capture as incomplete because the renderer sta
 
 ## Supported inspector API
 
-Advanced scripts can use `recovery-probe/ipc-inspector` after installing preview.12, without importing private `src/` paths:
+Advanced scripts can use `recovery-probe/ipc-inspector` after installing 0.3.0, without importing private `src/` paths:
 
 ```js
 import { randomUUID } from 'node:crypto';

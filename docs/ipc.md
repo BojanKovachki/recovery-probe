@@ -1,4 +1,4 @@
-# IPC renderer recovery preview
+# IPC renderer recovery
 
 For cache/navigation evidence that must survive without a reload, see the [fault-free observation workflow](observe.md). The recovery checks below reload the renderer and cannot establish session or account isolation.
 
@@ -12,8 +12,8 @@ Node 22+ is required for the CLI. Electron 29's bundled Node can load the small 
 
 ```bash
 mkdir -p recovery-probe-tools && cd recovery-probe-tools
-npm view recovery-probe@0.3.0-preview.14 version
-npm install --save-dev --save-exact recovery-probe@0.3.0-preview.14 playwright@1.62.1
+npm view recovery-probe@0.3.0 version
+npm install --save-dev --save-exact recovery-probe@0.3.0 playwright@1.62.1
 node -p "require.resolve('recovery-probe/ipc')"
 ```
 
@@ -153,7 +153,7 @@ Reports contain UI counts, English loading/empty/error/retry indicators, text ha
 
 English heuristics can misinterpret unrelated text and miss translated or icon-only states. Discovery uses the first main landmark, or the body if absent, and stops if healthy text varies. Virtualization, clocks and live content may make this unsuitable; use the existing explicit `ipc` verifier then. No DOM snapshots or region-specific source semantics are inferred. Visibility changes remain blockers, not deliberate experiments.
 
-Each finding includes counts of repeated outcomes, a suggested investigation and a replay instruction. Re-run the saved scenario with `ipc --discover --config PATH` after a local fix. Compare the same experiment and its healthy controls; disappearance of a heuristic alone does not prove a fix. There is no automatic patch application or `verify <id>` command in this preview.
+Each finding includes counts of repeated outcomes, a suggested investigation and a replay instruction. Re-run the saved scenario with `ipc --discover --config PATH` after a local fix. Compare the same experiment and its healthy controls; disappearance of a heuristic alone does not prove a fix. There is no automatic patch application or `verify <id>` command in this workflow.
 
 Exit 0 means completed with only informational observations; exit 2 means findings need review or the experiment was inconclusive. Discovery never returns exit 1 for an unverified heuristic defect. The existing explicit checker retains its exit codes. `recoveryMs` measures injection-to-detection, including sampling and a 300ms UI stability requirement; it is not just the handler duration.
 

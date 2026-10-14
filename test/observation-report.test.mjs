@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { observationMetadata, samplingMetrics, observationSummary, renderObservationReport, contentComparisons } from '../src/observation-report.mjs';
+import { observationMetadata, samplingMetrics, observationSummary, renderObservationReport, contentComparisons, comparisonFollowUpSummary } from '../src/observation-report.mjs';
 import { createRequire } from 'node:module';
 
 test('sampling measures actual durations and start cadence, including unchanged samples', () => {
@@ -52,6 +52,74 @@ test('sample phase metrics include repeated samples without leaking timing into 
   assert.deepEqual(metrics.snapshot().phases.rendererReadMs, { count: 2, meanMs: 3.06, minMs: 2.12, maxMs: 4 });
   assert.equal(metrics.snapshot().phases.ignored, undefined);
 });
+
+test('return follow-up preserves the initial difference, later match, latest divergence and interval boundary', () => {
+  const tracker = contentComparisons();
+  let clock = 0;
+  const add = options => tracker.add({ ...sample(0, options), fromMs: clock += 100, toMs: clock + 10 });
+  add({ count: 19 });
+  const [returned] = add({ count: 17, interval: 2 });
+  assert.match(comparisonFollowUpSummary(returned), /No later sample/);
+  add({ count: 19, interval: 2 });
+  assert.equal(returned.result, 'changed');
+  assert.equal(returned.after.content.count, 17);
+  assert.equal(returned.followUp.firstBaselineMatch.fromMs, 300);
+  assert.equal(returned.followUp.latest.result, 'unchanged');
+  assert.match(returned.followUp.summary, /Initially different; a later sample matched/);
+  add({ count: 19, interval: 2 }); // Include unchanged samples omitted from the timeline.
+  add({ count: 18, interval: 2 });
+  assert.equal(returned.followUp.samples, 3);
+  assert.equal(returned.followUp.latest.result, 'changed');
+  assert.match(returned.followUp.summary, /Latest follow-up sample .*changed/);
+  const ended = JSON.stringify(returned);
+  add({ count: 19, interval: 3 });
+  assert.equal(JSON.stringify(returned), ended);
+});
+
+test('hidden, absent and truncated follow-up samples cannot establish a baseline match', () => {
+  const tracker = contentComparisons();
+  tracker.add(sample(0));
+  const [comparison] = tracker.add(sample(1, { text: 'different' }));
+  for (const options of [{ visible: false }, { presence: 'absent', count: 0 }, { truncated: true }]) tracker.add(sample(1, options));
+  assert.equal(comparison.followUp.samples, 3);
+  assert.equal(comparison.followUp.unavailableSamples, 3);
+  assert.equal(comparison.followUp.comparableSamples, 0);
+  assert.equal(comparison.followUp.firstBaselineMatch, null);
+  assert.equal(comparison.followUp.latest.result, 'unavailable');
+  tracker.add(sample(1));
+  assert.equal(comparison.followUp.latest.result, 'unchanged');
+  assert.equal(comparison.followUp.comparableSamples, 1);
+  tracker.add(sample(1, { visible: false }));
+  assert.equal(comparison.followUp.latest.result, 'unavailable');
+  assert.ok(comparison.followUp.firstBaselineMatch);
+});
+
+test('an unchanged first comparison can diverge later; an incomplete baseline stays unavailable', () => {
+  const tracker = contentComparisons();
+  tracker.add(sample(0));
+  const [same] = tracker.add(sample(1));
+  tracker.add(sample(1, { text: 'different' }));
+  assert.equal(same.result, 'unchanged');
+  assert.equal(same.followUp.latest.result, 'changed');
+  assert.equal(same.followUp.firstBaselineMatch, null);
+  tracker.add(sample(1, { truncated: true }));
+  const [unknown] = tracker.add(sample(2));
+  tracker.add(sample(2));
+  assert.equal(unknown.result, 'unavailable');
+  assert.equal(unknown.followUp.latest.result, 'unavailable');
+});
+
+test('follow-up tracking is bounded by the report comparison cap', () => {
+  const tracker = contentComparisons();
+  tracker.add(sample(0));
+  let first, last;
+  for (let i = 1; i <= 1001; i++) {
+    [last] = tracker.add(sample(i));
+    first ??= last;
+  }
+  assert.equal(first.followUp.samples, 1000);
+  assert.equal(last.followUp, undefined);
+});
 test('report explanations distinguish no read from no completion and preserve safe HTML', () => {
   const noRead = { code: 'CONTENT_BEFORE_READ', basis: 'NO_READ_OBSERVED_IN_INTERVAL', interval: 1 };
   const pending = { ...noRead, basis: 'NO_COMPLETION_OBSERVED_IN_INTERVAL' };
@@ -63,4 +131,12 @@ test('report explanations distinguish no read from no completion and preserve sa
   assert.ok(!html.includes('<script>'));
   assert.match(html, /&lt;script&gt;/);
   assert.match(html, /unavailable/);
+  const tracker = contentComparisons();
+  tracker.add(sample(0));
+  const [comparison] = tracker.add(sample(1, { text: 'different' }));
+  tracker.add(sample(1));
+  const withComparison = renderObservationReport({ metadata, status: 'complete', intervals: [], findings: [], comparisons: [comparison] });
+  assert.match(withComparison, /Initially different; a later sample matched/);
+  assert.match(withComparison, /Latest follow-up sample/);
+  assert.equal(comparisonFollowUpSummary({}), '');
 });

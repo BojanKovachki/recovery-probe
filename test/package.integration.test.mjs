@@ -46,6 +46,7 @@ test('a clean consumer installs the packed package and verifies exports, types a
     const installedPackage = JSON.parse(await readFile(join(consumer, 'node_modules', 'recovery-probe', 'package.json'), 'utf8'));
     assert.equal(installedPackage.private, undefined);
     assert.deepEqual(installedPackage.engines, { node: '>=22' });
+    assert.equal(installedPackage.publishConfig.tag, version.includes('-') ? 'next' : 'latest');
 
     await writeFile(join(consumer, 'check.mjs'), `
 import assert from 'node:assert/strict';

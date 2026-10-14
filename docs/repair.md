@@ -1,6 +1,6 @@
-# Web and Electron repair preview
+# Web and Electron repair (experimental)
 
-The repair workflow is published in `0.3.0-preview.2` under npm `next`; npm `latest` remains 0.2.0. For simpler local testing, [guided start](start.md) is available in the upcoming preview.3.
+The opt-in repair workflow is included in 0.3.0 and remains experimental. For recovery testing without source upload or model credentials, use [guided start](start.md).
 
 ## What it actually does
 
@@ -22,12 +22,12 @@ Node 22+, Git and Playwright Chromium are required. You do not have to modify yo
 mkdir recovery-probe-tools
 cd recovery-probe-tools
 npm init -y
-npm install --save-dev recovery-probe@0.3.0-preview.2 playwright@1.62.1
+npm install --save-dev recovery-probe@0.3.0 playwright@1.62.1
 npx playwright install chromium
 npx recovery-probe --version
 ```
 
-`npm install recovery-probe` still gives the older stable package.
+The exact version keeps saved experiments reproducible. Review generated changes before applying them.
 
 ## First test: user portal, without AI or source upload
 
@@ -37,7 +37,7 @@ Start your portal locally using its existing development command and a test acco
 npx recovery-probe web --login --url http://127.0.0.1:3100 --state ./private-portal-state.json
 ```
 
-Sign in yourself in the Chromium window, return to the app, then press Enter in the terminal. The command refuses to overwrite an existing state file. State includes cookies/local storage/IndexedDB, not session storage. Keep it private. Session-storage-only auth needs your existing Playwright login fixture with the `withFault` helper; this preview does not export that state. Use the same origin/port for subsequent checks.
+Sign in yourself in the Chromium window, return to the app, then press Enter in the terminal. The command refuses to overwrite an existing state file. State includes cookies/local storage/IndexedDB, not session storage. Keep it private. Session-storage-only auth needs your existing Playwright login fixture with the `withFault` helper; this workflow does not export that state. Use the same origin/port for subsequent checks.
 
 ```bash
 npx recovery-probe web --discover --url http://127.0.0.1:3100/users --state ./private-portal-state.json --out ./portal-discovery
@@ -102,7 +102,7 @@ Create `portal-repair.json` in the tools folder, outside the app repository:
 }
 ```
 
-Replace source paths, commands, endpoint and selectors with your app's actual ones. The launch example assumes Vite; other frameworks need their own command. Commands are executable/argument arrays, not shell strings. Do not include shell metacharacters. `repo` and `storageState` resolve relative to this config file. Commands execute in the isolated checkout root. An app requiring environment variables can use a reviewed development launch script; the preview does not inherit arbitrary service secrets.
+Replace source paths, commands, endpoint and selectors with your app's actual ones. The launch example assumes Vite; other frameworks need their own command. Commands are executable/argument arrays, not shell strings. Do not include shell metacharacters. `repo` and `storageState` resolve relative to this config file. Commands execute in the isolated checkout root. An app requiring environment variables can use a reviewed development launch script; the workflow does not inherit arbitrary service secrets.
 
 `sourceFiles` is an explicit allowlist of 1–12 small text source files, at most 100 KB each/300 KB total. It is not a whole-repository scanner. Tests/configs, hidden files, traversal and symlink sources are rejected. Include enough of the request/controller/component logic for the model to investigate. Do not include credentials. The model can return exact replacements in those files, not commands, configuration changes or test rewrites.
 
