@@ -1,4 +1,8 @@
 /** Synthetic application controller shared by the browser fixture and Node tests. */
+/**
+ * @param {() => Promise<Response>} fetchProfile
+ * @param {{ fixed?: boolean, onChange?: (state: { phase: string, name: string | null }) => void }} [options]
+ */
 export function createProfileController(
   fetchProfile,
   { fixed = true, onChange = () => {} } = {},

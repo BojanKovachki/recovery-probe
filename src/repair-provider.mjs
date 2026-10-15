@@ -22,6 +22,10 @@ export const proposalSchema = {
 }
 
 /** One bounded, opt-in request. Source contents are never uploaded by a test run. */
+/**
+ * @param {any} bundle
+ * @param {{ model?: string, allowSourceUpload?: boolean, apiKey?: string, fetchImpl?: typeof fetch, [key: string]: any }} [options]
+ */
 export async function proposeRepair(
   bundle,
   {
