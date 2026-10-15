@@ -1,0 +1,43 @@
+<!doctype html><meta charset="utf-8"><title>Synthetic job queue fixture</title>
+<style>#queue-region{min-height:40px}</style>
+<section id="catalog"><button data-start="job-a">Start A</button><button data-start="job-b">Start B</button></section>
+<section id="queue-region"><ul id="queue"></ul></section>
+<script>
+// Synthetic queue: the first started job runs, later jobs wait. The broken variant shows an
+// optimistic "Pause" label for a fixed time after Start, even when the job is only queued.
+const params = new URLSearchParams(location.search);
+const fixed = params.get('fixed') === 'true';
+const optimisticMs = Number(params.get('optimisticMs') || 3000);
+const names = { 'job-a': 'synthetic-private-job-a', 'job-b': 'synthetic-private-job-b' };
+const api = window.fixtureQueueApi ?? {
+  read: () => fetch('/api/queue').then(r => r.json()),
+  start: id => fetch('/api/queue/' + id, { method: 'POST' }).then(r => r.json()),
+  noise: () => Promise.resolve(),
+  onQueueChanged: () => {},
+};
+let jobs = [];
+const optimistic = new Map();
+const labelOf = job => {
+  const pending = optimistic.get(job.id);
+  if (pending && Date.now() < pending.until) return pending.label;
+  return job.running ? 'Pause' : 'Move up';
+};
+const render = () => {
+  document.querySelector('#queue').innerHTML = jobs.map(job =>
+    `<li data-job><span class="job-name">${names[job.id]}</span><span class="job-progress">${job.progress}%</span><button class="job-action">${labelOf(job)}</button></li>`).join('');
+};
+const refresh = async () => { jobs = await api.read(); render(); };
+document.querySelectorAll('[data-start]').forEach(button => button.addEventListener('click', async () => {
+  const id = button.dataset.start;
+  const othersRunning = jobs.some(job => job.running && job.id !== id);
+  const label = fixed && othersRunning ? 'Move up' : 'Pause';
+  optimistic.set(id, { label, until: Date.now() + optimisticMs });
+  setTimeout(render, optimisticMs + 10);
+  await api.start(id);
+  await refresh();
+}));
+api.onQueueChanged(() => { refresh(); });
+setInterval(refresh, 400);
+setInterval(() => { api.noise(); }, 50);
+refresh();
+</script>
