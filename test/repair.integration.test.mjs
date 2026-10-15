@@ -79,6 +79,47 @@ test(
 )
 
 test(
+  'a multi-line proposal applies when Git converts line endings on checkout',
+  { timeout: 60000 },
+  async () => {
+    const f = await fixture()
+    const run = join(f.directory, 'run')
+    // Git for Windows checks out CRLF by default; a global setting reproduces it anywhere.
+    const gitConfig = join(f.directory, 'gitconfig')
+    await writeFile(gitConfig, '[core]\n\tautocrlf = true\n')
+    const previous = process.env.GIT_CONFIG_GLOBAL
+    process.env.GIT_CONFIG_GLOBAL = gitConfig
+    try {
+      await prepareRepair(f.config, run, { allowExecution: true })
+      assert.equal(
+        await readFile(join(run, 'checkout/src/app.js'), 'utf8'),
+        f.original,
+        'the checkout holds the committed bytes',
+      )
+      await writeFile(
+        join(run, 'proposal.json'),
+        JSON.stringify({
+          ...fixtureProposal,
+          edits: [
+            {
+              path: 'src/app.js',
+              find: '  } catch {\n    // BUG: the loading flag prevents the scheduled retry.',
+              replace: '  } catch {\n    busy = false;',
+            },
+          ],
+        }),
+      )
+      const result = await verifyRepair(run, { allowExecution: true })
+      assert.equal(result.status, 'verified-candidate', JSON.stringify(result))
+    } finally {
+      if (previous === undefined) delete process.env.GIT_CONFIG_GLOBAL
+      else process.env.GIT_CONFIG_GLOBAL = previous
+      await rm(f.directory, { recursive: true, force: true })
+    }
+  },
+)
+
+test(
   'a harmless but ineffective patch is never called verified',
   { timeout: 30000 },
   async () => {
@@ -174,8 +215,15 @@ test('dirty repositories and source symlinks are rejected', async () => {
       /clean committed/,
     )
     await rm(join(f.repo, 'uncommitted.txt'))
-    await symlink('app.js', join(f.repo, 'src/link.js'))
-    await exec('git', ['add', '.'], { cwd: f.repo })
+    // Commit the symlink through the index, so no symlink rights are needed on Windows.
+    const link = exec('git', ['hash-object', '-w', '--stdin'], { cwd: f.repo })
+    link.child.stdin.end('app.js')
+    const blob = (await link).stdout.trim()
+    await exec(
+      'git',
+      ['update-index', '--add', '--cacheinfo', `120000,${blob},src/link.js`],
+      { cwd: f.repo },
+    )
     await exec(
       'git',
       [
@@ -189,6 +237,8 @@ test('dirty repositories and source symlinks are rejected', async () => {
       ],
       { cwd: f.repo },
     )
+    // Check it out as this platform would: a symlink, or a plain file on Windows.
+    await exec('git', ['checkout', '--', 'src/link.js'], { cwd: f.repo })
     await assert.rejects(
       prepareRepair(
         { ...f.config, sourceFiles: ['src/link.js'] },
@@ -206,7 +256,8 @@ test('output cannot enter the original repository through a symlink or dot-prefi
   const f = await fixture()
   try {
     const alias = join(f.directory, 'alias')
-    await symlink(f.repo, alias, 'dir')
+    // A junction needs no symlink rights on Windows; other platforms ignore the type.
+    await symlink(f.repo, alias, 'junction')
     for (const destination of [
       join(alias, 'new', 'run'),
       join(f.repo, '..private', 'run'),

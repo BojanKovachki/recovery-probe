@@ -336,11 +336,18 @@ export async function prepareRepair(
   await mkdir(dir, { mode: 0o700 }) // Never overwrite or reuse a run.
   const baseCommit = (await git(repo, ['rev-parse', 'HEAD'])).trim()
   const workspace = join(dir, 'checkout')
+  // Check out the committed bytes, whatever this machine's Git converts. Git for Windows
+  // writes CRLF by default, and a model's multi-line edit with LF breaks would not match.
+  // Explicit eol attributes in .gitattributes still apply.
   await git(dir, [
     'clone',
     '--local',
     '--no-hardlinks',
     '--no-checkout',
+    '--config',
+    'core.autocrlf=false',
+    '--config',
+    'core.eol=lf',
     '--',
     repo,
     workspace,
@@ -349,7 +356,18 @@ export async function prepareRepair(
   await git(workspace, ['remote', 'remove', 'origin']) // No accidental push target.
   const sources = []
   for (const path of config.sourceFiles) {
-    await git(workspace, ['ls-files', '--error-unmatch', '--', path])
+    // The index says what a path is. Without symlink rights, Git for Windows checks out
+    // a committed symlink as a plain file holding the link text.
+    const [mode] = (
+      await git(workspace, [
+        'ls-files',
+        '--stage',
+        '--error-unmatch',
+        '--',
+        path,
+      ])
+    ).split(' ')
+    if (mode === '120000') throw new Error('Source symlinks are not allowed')
     const content = await sourceFile(workspace, path)
     sources.push({ path, content, sha256: sha(content) })
   }
