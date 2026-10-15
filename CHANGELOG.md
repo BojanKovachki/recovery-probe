@@ -4,6 +4,13 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.4.0-preview.2 (2026-10-15)
+
+- Apply consistent Prettier formatting and add formatting, ESLint and JavaScript type checks to CI.
+- Add JSDoc annotations for implementation type checking without a build step; strict mode remains off.
+- Preserve original causes in two wrapped errors and make small lint-driven cleanups. No new observation or fault-injection features.
+- Publish the maintenance changes from PRs #22–#24 on the opt-in `next` channel; stable `latest` remains 0.3.0.
+
 ## 0.4.0-preview.1 (2026-10-15)
 
 - Record configured user actions during observation (name, time, real-input flag) and report the tracked rows that appeared or changed after each action.

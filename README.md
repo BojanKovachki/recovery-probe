@@ -32,6 +32,8 @@ npx recovery-probe --version
 
 If the version check reports that the version is unavailable, npm publication is still pending; use the [source installation](CONTRIBUTING.md#install-an-unpublished-source-preview). A GitHub merge alone does not publish the package. Use Node.js 22 or newer. A separate tools folder keeps the tester out of your application's production dependencies. Browser/desktop commands require Playwright; attached targets use their existing browser runtime. The guided web flow downloads Chromium when needed. See [CHANGELOG.md](CHANGELOG.md) for version history.
 
+For the 0.4 observation preview, install `recovery-probe@0.4.0-preview.2` (the `next` channel) with the same Playwright version. Preview.2 adds formatting, lint and implementation type checks; the action/row observation features were introduced in preview.1.
+
 ## Choose a workflow
 
 **New in 0.3.0:** guided setup, HTTP/IPC discovery, refresh experiments and [fault-free observation](docs/observe.md) extend the original recovery helpers. Observation records selected reads and content while you navigate without reloading or clearing caches. Lightweight sampling, phase timings and separate cleanup evidence make capture cost and scope explicit. Use `"detail": "region"` for full DOM diagnostics.
