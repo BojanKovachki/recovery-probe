@@ -1,5 +1,14 @@
 const kinds = new Set(['http-error', 'connection-failure', 'invalid-json'])
 
+// A relative or malformed URL cannot be the absolute target, so it is never matched.
+const absoluteHref = (value) => {
+  try {
+    return new URL(value).href
+  } catch {
+    return null
+  }
+}
+
 /** Fault-injected fetch for an exact, absolute URL. Each instance is isolated. */
 export function createFaultFetch(baseFetch, options) {
   if (typeof baseFetch !== 'function')
@@ -54,14 +63,13 @@ export function createFaultFetch(baseFetch, options) {
     },
     async fetch(input, init) {
       const inputUrl = input instanceof Request ? input.url : input
-      const requestUrl = new URL(inputUrl)
       const requestMethod = (
         init?.method ?? (input instanceof Request ? input.method : 'GET')
       ).toUpperCase()
       const signal =
         init?.signal ?? (input instanceof Request ? input.signal : undefined)
       if (
-        requestUrl.href !== target.href ||
+        absoluteHref(inputUrl) !== target.href ||
         requestMethod !== method ||
         signal?.aborted
       ) {

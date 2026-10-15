@@ -1,29 +1,40 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { resolve, join } from 'node:path'
+import { escapeHtml, renderTemplate } from './report-template.mjs'
 
-const escape = (value) =>
-  String(value ?? '').replace(
-    /[&<>"']/g,
-    (c) =>
-      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[
-        c
-      ],
-  )
-export function desktopReportHtml(report) {
-  const rows = report.results
+export function desktopReportHtml(report, target = 'desktop') {
+  const results = report.results
     .map(
       (row) =>
-        `<tr><td>${escape(row.kind)}</td><td class="${escape(row.outcome)}">${escape(row.outcome.toUpperCase())}</td><td>${escape(row.code)}</td><td>${row.applied}</td><td>${row.successfulResponsesAfterFault}</td><td>${row.retryClicked ? 'Yes' : 'No'}</td></tr>`,
+        `<tr><td>${escapeHtml(row.kind)}</td><td class="${escapeHtml(row.outcome)}">${escapeHtml(row.outcome.toUpperCase())}</td><td>${escapeHtml(row.code)}</td><td>${row.applied}</td><td>${row.successfulResponsesAfterFault}</td><td>${row.retryClicked ? 'Yes' : 'No'}</td></tr>`,
     )
     .join('')
-  const images = report.results
+  const screenshots = report.results
     .filter((row) => row.screenshot && /^[a-z0-9-]+\.png$/.test(row.screenshot))
     .map(
       (row) =>
-        `<figure><figcaption>${escape(row.kind)} — ${escape(row.code)}</figcaption><img alt="Renderer at the end of the recovery check" src="${escape(row.screenshot)}"></figure>`,
+        `<figure><figcaption>${escapeHtml(row.kind)} — ${escapeHtml(row.code)}</figcaption><img alt="Renderer at the end of the recovery check" src="${escapeHtml(row.screenshot)}"></figure>`,
     )
     .join('')
-  return `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Recovery Probe — desktop report</title><style>body{font:16px/1.6 system-ui,sans-serif;background:#f6f7f9;color:#17212f;margin:0;padding:40px}main{max-width:1100px;margin:auto}h1{font-size:32px;letter-spacing:-1px}code{overflow-wrap:anywhere}table{width:100%;border-collapse:collapse;background:white;font-size:14px}th,td{text-align:left;border-bottom:1px solid #ddd;padding:12px}section{background:white;padding:20px;margin:24px 0;border-radius:10px}.pass{color:#087443}.fail{color:#b3261e}.inconclusive,.skipped{color:#755300}img{max-width:100%;border:1px solid #ddd}figcaption{font-weight:600}small{color:#536174}.scroll{overflow:auto}</style><main><p>RECOVERY PROBE · DESKTOP PREVIEW</p><h1>${report.ok ? 'Selected recovery checks passed' : 'Recovery needs investigation'}</h1><p><code>GET ${escape(report.endpoint)}</code></p><p>Recovery: <strong>${escape(report.recovery)}</strong> · Deadline: ${report.timeoutMs} ms · ${escape(report.generatedAt)}</p><div class="scroll"><table><thead><tr><th>Injected fault</th><th>Outcome</th><th>Result</th><th>Injected</th><th>Later successful responses</th><th>Retry clicked</th></tr></thead><tbody>${rows}</tbody></table></div><section><h2>How to read this</h2><p><strong>PASS:</strong> the fault occurred, the configured action completed, a later matching request succeeded, and the selected healthy UI marker appeared. <strong>FAIL:</strong> after the fault and action, recovery was not observed by the deadline. Investigate the app and the chosen assertion. <strong>INCONCLUSIVE:</strong> setup, baseline, interception or the recovery action could not be verified; this is not a confirmed app bug.</p><p>Final reload reset: <strong>${escape(report.finalReset)}</strong>. A reload that rescues a stuck page does not turn the original failed recovery check into a pass.</p><p>${escape(report.limitation)}</p></section><section><h2>Reproduce and investigate</h2><p>From this output directory, run <code>node reproduce.mjs</code> while your development app is on the same screen. See <code>scenario.json</code> and <code>fix-brief.md</code>.</p><p>No source patch was applied. No data was uploaded. Review local artifacts before sharing them.</p></section>${images}<small>HTTP status success and a visible marker do not certify response semantics. Choose a marker that only appears when this endpoint's data has actually loaded; configure readyText/busySelector for a stronger assertion.</small></main></html>`
+  return renderTemplate('desktop', {
+    target,
+    targetLabel: target.toUpperCase(),
+    heading: report.ok
+      ? 'Selected recovery checks passed'
+      : 'Recovery needs investigation',
+    endpoint: report.endpoint,
+    recovery: report.recovery,
+    timeoutMs: report.timeoutMs,
+    generatedAt: report.generatedAt,
+    results,
+    finalReset: report.finalReset,
+    limitation: report.limitation,
+    reproduceWhere:
+      target === 'web'
+        ? 'against the configured development URL'
+        : 'while your development app is on the same screen',
+    screenshots,
+  })
 }
 export async function writeDesktopReport(directory, report, config) {
   const dir = resolve(directory)
@@ -43,23 +54,14 @@ export async function writeDesktopReport(directory, report, config) {
   for (const [name, value] of Object.entries({
     'report.json': JSON.stringify(report, null, 2) + '\n',
     'scenario.json': JSON.stringify(config, null, 2) + '\n',
-    'report.html': desktopReportHtml(report),
+    'report.html': desktopReportHtml(
+      report,
+      config.target === 'web' ? 'web' : 'desktop',
+    ),
     'fix-brief.md': brief,
     'reproduce.mjs': reproduction,
   })) {
-    await writeFile(
-      join(dir, name),
-      config.target === 'web' && name === 'report.html'
-        ? value
-            .replaceAll('desktop report', 'web report')
-            .replaceAll('DESKTOP PREVIEW', 'WEB PREVIEW')
-            .replace(
-              'while your development app is on the same screen',
-              'against the configured development URL',
-            )
-        : value,
-      { mode: 0o600 },
-    )
+    await writeFile(join(dir, name), value, { mode: 0o600 })
   }
   return dir
 }

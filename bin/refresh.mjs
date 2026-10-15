@@ -13,14 +13,8 @@ import {
   httpRefreshAdapter,
   ipcRefreshAdapter,
 } from '../src/refresh-adapters.mjs'
-const escape = (value) =>
-  String(value).replace(
-    /[&<>"']/g,
-    (c) =>
-      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[
-        c
-      ],
-  )
+import { escapeHtml, renderTemplate } from '../src/report-template.mjs'
+
 export async function refreshMain(args) {
   if (args.includes('--help')) {
     console.log(
@@ -136,7 +130,13 @@ export async function refreshMain(args) {
   )
   await writeFile(
     resolve(directory, 'report.html'),
-    `<!doctype html><meta charset="utf-8"><title>Recovery Probe refresh</title><style>body{font:16px system-ui;max-width:1000px;margin:40px auto;padding:20px}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style><h1>Refresh experiment</h1><p>${escape(report.limitation ?? report.error)}</p>${report.results.map((r) => `<p>${escape(r.summary ?? r.code ?? r.stage)}</p>`).join('')}<details><summary>Evidence</summary><pre>${escape(JSON.stringify(report, null, 2))}</pre></details>`,
+    renderTemplate('refresh', {
+      limitation: report.limitation ?? report.error,
+      results: report.results
+        .map((r) => `<p>${escapeHtml(r.summary ?? r.code ?? r.stage)}</p>`)
+        .join(''),
+      evidence: JSON.stringify(report, null, 2),
+    }),
     { mode: 0o600 },
   )
   const summary = {

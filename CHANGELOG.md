@@ -4,6 +4,12 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.4.0-preview.4 (2026-10-15)
+
+- `createFaultFetch` passes relative URLs, such as `fetch('/api/x')`, to the supplied fetch untouched. Previously they threw `Invalid URL`.
+- The HTML reports are built from template files in `src/report-templates`. Text slots are escaped, a missing slot throws, and the rendered text is unchanged.
+- The README leads with one idea, whether apps show the right data, and with the demo. It drops from 2,380 to about 1,070 words. The fault kinds and library API move to `docs/api.md`, and the JSON-configured runner to `docs/runner.md`.
+
 ## 0.4.0-preview.3 (2026-10-15)
 
 - Restore an existing instance-level `webContents.send` (for example an app's tracing wrapper) when an observation ends or the hook is disposed, instead of deleting it. Previously that wrapper was lost and later pushes bypassed it. A wrapper installed after the observation began is left in place.

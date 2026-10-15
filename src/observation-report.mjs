@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module'
+import { escapeHtml, renderTemplate } from './report-template.mjs'
 const { version } = createRequire(import.meta.url)('../package.json')
 
 export function observationMetadata() {
@@ -306,16 +307,18 @@ export function comparisonDigest(report) {
   )
 }
 
-const escape = (value) =>
-  String(value).replace(
-    /[&<>"']/g,
-    (c) =>
-      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[
-        c
-      ],
-  )
+const trackedRowHtml = (r) => {
+  const changes = r.transitions
+    .map(
+      (t) =>
+        `${escapeHtml(t.from)} → ${escapeHtml(t.to)} at ${seconds(t.afterMs)}–${seconds(t.byMs)} s`,
+    )
+    .join('<br>')
+  return `<tr><td>${escapeHtml(rowName(r.row))}</td><td>${seconds(r.firstSeen.fromMs)}–${seconds(r.firstSeen.toMs)} s as ${escapeHtml(r.firstSeen.state)}</td><td>${changes || 'none'}</td><td>${escapeHtml(r.lastState)}</td></tr>`
+}
+
 export function renderObservationReport(report) {
-  const rows = report.intervals
+  const intervals = report.intervals
     .map(
       (i) =>
         `<tr><td>${i.index}</td><td>${i.reads?.calls ?? 'unknown'}</td><td>${i.reads?.successes ?? 'unknown'}</td><td>${i.reads?.errors ?? 'unknown'}</td><td>${i.firstContent ? `${i.firstContent.fromMs - i.startMs}–${i.firstContent.toMs - i.startMs} ms` : 'not sampled'}</td></tr>`,
@@ -325,27 +328,58 @@ export function renderObservationReport(report) {
   const comparisons = (report.comparisons ?? [])
     .map(
       (c) =>
-        `<p>Interval ${escape(c.interval)}: ${escape(c.summary)} ${c.completions ? `(${c.completions.successes} successful, ${c.completions.errors} failed read completions)` : `(${c.reads.calls} selected reads started in this interval)`} ${escape(comparisonFollowUpSummary(c))}</p>`,
+        `<p>Interval ${escapeHtml(c.interval)}: ${escapeHtml(c.summary)} ${c.completions ? `(${c.completions.successes} successful, ${c.completions.errors} failed read completions)` : `(${c.reads.calls} selected reads started in this interval)`} ${escapeHtml(comparisonFollowUpSummary(c))}</p>`,
     )
     .join('')
-  const phases = Object.entries(sampling?.phases ?? {})
+  const phaseRows = Object.entries(sampling?.phases ?? {})
     .map(
       ([name, s]) =>
-        `<tr><td>${escape(name)}</td><td>${s.meanMs}</td><td>${s.maxMs}</td></tr>`,
+        `<tr><td>${escapeHtml(name)}</td><td>${s.meanMs}</td><td>${s.maxMs}</td></tr>`,
     )
     .join('')
   const effects = report.actionEffects ?? []
   const actionsHtml = effects.length
-    ? `<h2>Actions</h2>${effects.map((e) => `<p>${escape(actionSummary(e))}</p>`).join('')}`
+    ? `<h2>Actions</h2>${effects.map((e) => `<p>${escapeHtml(actionSummary(e))}</p>`).join('')}`
     : ''
-  const rowsHtml = report.rows?.length
-    ? `<h2>Tracked rows</h2><table><thead><tr><th>Row</th><th>First seen</th><th>State changes</th><th>Last state</th></tr></thead><tbody>${report.rows.map((r) => `<tr><td>${escape(rowName(r.row))}</td><td>${seconds(r.firstSeen.fromMs)}–${seconds(r.firstSeen.toMs)} s as ${escape(r.firstSeen.state)}</td><td>${r.transitions.map((t) => `${escape(t.from)} → ${escape(t.to)} at ${seconds(t.afterMs)}–${seconds(t.byMs)} s`).join('<br>') || 'none'}</td><td>${escape(r.lastState)}</td></tr>`).join('')}</tbody></table><p>Row keys are hashed unless an alias was configured. States outside the configured allowlist are recorded as “other”.</p>`
+  const trackedRows = report.rows?.length
+    ? `<h2>Tracked rows</h2><table><thead><tr><th>Row</th><th>First seen</th><th>State changes</th><th>Last state</th></tr></thead><tbody>${report.rows.map(trackedRowHtml).join('')}</tbody></table><p>Row keys are hashed unless an alias was configured. States outside the configured allowlist are recorded as “other”.</p>`
     : ''
   const notes = (report.notes ?? [])
-    .map((n) => `<p>Note: ${escape(n.note)}</p>`)
+    .map((n) => `<p>Note: ${escapeHtml(n.note)}</p>`)
     .join('')
   const operatorHtml = report.operator
-    ? `<p>Scripted steps: ${escape(report.operator.status)}${report.operator.error ? ` — ${escape(report.operator.error)}` : ''}.</p>`
+    ? `<p>Scripted steps: ${escapeHtml(report.operator.status)}${report.operator.error ? ` — ${escapeHtml(report.operator.error)}` : ''}.</p>`
     : ''
-  return `<!doctype html><meta charset="utf-8"><title>Recovery Probe observation</title><style>body{font:16px system-ui;max-width:1000px;margin:40px auto;padding:20px}td,th{text-align:left;padding:8px}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style><h1>Fault-free observation</h1><p>Capture: ${escape(report.status)}. This is not a recovery or account-isolation verdict.</p><p>Recovery Probe ${escape(report.metadata?.recoveryProbeVersion ?? 'unknown')} · Node ${escape(report.metadata?.runtime?.node ?? 'unknown')} · Browser ${escape(report.metadata?.browserVersion ?? 'unknown')} · IPC hook ${escape(report.metadata?.ipcHook?.version ?? 'unknown / not applicable')}</p>${sampling ? `<p>Configured delay: ${sampling.requestedDelayMs} ms. Completed samples: ${sampling.completedSamples}. Mean sample duration: ${sampling.sampleDuration.meanMs ?? 'unavailable'} ms. Mean start-to-start cadence: ${sampling.startToStart.meanMs ?? 'unavailable'} ms (maximum ${sampling.startToStart.maxMs ?? 'unavailable'} ms).</p><p>${escape(sampling.note)}</p>` : ''}<p>Sampling detail: ${escape(report.detail ?? 'region (legacy)')}. Marker counts describe the configured content selector; generic region item counts are heuristics.</p>${phases ? `<table><thead><tr><th>Measured phase</th><th>Mean ms</th><th>Maximum ms</th></tr></thead><tbody>${phases}</tbody></table><p>Renderer read time is included in the UI round trip, not additional to it.</p>` : ''}<p>${escape(report.limitation ?? report.error)}</p><table><thead><tr><th>Interval</th><th>Reads started</th><th>Successes</th><th>Errors</th><th>First content sample bounds</th></tr></thead><tbody>${rows}</tbody></table>${report.findings.map((f) => `<p>Interval ${f.interval}: ${escape(observationSummary(f))} <strong>${escape(f.code)}</strong> — ${escape(f.basis)}</p>`).join('')}${operatorHtml}${actionsHtml}${rowsHtml}${notes}${comparisons}<p>Comparisons concern sampled marker text and count, not ownership or freshness. A completion does not guarantee the UI has consumed its result.</p><p>Cleanup: ${escape(report.cleanup ?? 'unknown')}. The observation snapshot is from before cleanup; cleanupEvidence records the separate cleanup check when available.</p><details><summary>Evidence and coverage</summary><pre>${escape(JSON.stringify(report, null, 2))}</pre></details>`
+  const samplingHtml = sampling
+    ? `<p>Configured delay: ${sampling.requestedDelayMs} ms. Completed samples: ${sampling.completedSamples}. Mean sample duration: ${sampling.sampleDuration.meanMs ?? 'unavailable'} ms. Mean start-to-start cadence: ${sampling.startToStart.meanMs ?? 'unavailable'} ms (maximum ${sampling.startToStart.maxMs ?? 'unavailable'} ms).</p><p>${escapeHtml(sampling.note)}</p>`
+    : ''
+  const phases = phaseRows
+    ? `<table><thead><tr><th>Measured phase</th><th>Mean ms</th><th>Maximum ms</th></tr></thead><tbody>${phaseRows}</tbody></table><p>Renderer read time is included in the UI round trip, not additional to it.</p>`
+    : ''
+  const findings = report.findings
+    .map(
+      (f) =>
+        `<p>Interval ${f.interval}: ${escapeHtml(observationSummary(f))} <strong>${escapeHtml(f.code)}</strong> — ${escapeHtml(f.basis)}</p>`,
+    )
+    .join('')
+  return renderTemplate('observation', {
+    status: report.status,
+    version: report.metadata?.recoveryProbeVersion ?? 'unknown',
+    node: report.metadata?.runtime?.node ?? 'unknown',
+    browser: report.metadata?.browserVersion ?? 'unknown',
+    ipcHook: report.metadata?.ipcHook?.version ?? 'unknown / not applicable',
+    sampling: samplingHtml,
+    detail: report.detail ?? 'region (legacy)',
+    phases,
+    limitation: report.limitation ?? report.error,
+    intervals,
+    findings,
+    operator: operatorHtml,
+    actions: actionsHtml,
+    trackedRows,
+    notes,
+    comparisons,
+    cleanup: report.cleanup ?? 'unknown',
+    evidence: JSON.stringify(report, null, 2),
+  })
 }

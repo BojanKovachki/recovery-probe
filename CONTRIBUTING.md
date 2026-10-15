@@ -20,9 +20,14 @@ npm test
 npm run test:package
 npx playwright install chromium
 npm run test:browser
+npm run test:repair     # safety, authenticated portal, before/after pipeline
+# After installing the optional Electron test runtime:
+npm run test:repair:electron
 ```
 
-Code and JSON are formatted with Prettier (`npm run format`) and linted with ESLint (`npm run lint`); CI fails on either. Functions passed to `page.evaluate` run in the browser: keep them self-contained, and list new in-page modules in `eslint.config.mjs` so they get browser globals. TypeScript checks the JavaScript in `src`, `bin` and `examples` (`npm run typecheck`, `checkJs` without emitting); add JSDoc types where inference is not enough. Strict mode is off for now and can be tightened file by file. Markdown, HTML fixtures and workflow files are left as written. `.gitattributes` keeps LF line endings on every platform so local checks match CI. The repository-wide reformat is listed in `.git-blame-ignore-revs`; run `git config blame.ignoreRevsFile .git-blame-ignore-revs` to skip it in local blame.
+Repair integration tests use a **controlled mock model response** but real apps, fault injection, source changes and reruns. They validate orchestration, not live AI diagnosis quality.
+
+Code and JSON are formatted with Prettier (`npm run format`) and linted with ESLint (`npm run lint`); CI fails on either. Functions passed to `page.evaluate` run in the browser: keep them self-contained, and list new in-page modules in `eslint.config.mjs` so they get browser globals. TypeScript checks the JavaScript in `src`, `bin` and `examples` (`npm run typecheck`, `checkJs` without emitting); add JSDoc types where inference is not enough. Strict mode is off for now and can be tightened file by file. Markdown, HTML fixtures, report templates and workflow files are left as written. Report markup lives in `src/report-templates`: `{{slot}}` takes text and escapes it, `{{{slot}}}` takes markup built with `escapeHtml`. `.gitattributes` keeps LF line endings on every platform so local checks match CI. The repository-wide reformat is listed in `.git-blame-ignore-revs`; run `git config blame.ignoreRevsFile .git-blame-ignore-revs` to skip it in local blame.
 
 ## Install an unpublished source preview
 

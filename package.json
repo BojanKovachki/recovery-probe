@@ -1,8 +1,8 @@
 {
   "name": "recovery-probe",
-  "version": "0.4.0-preview.3",
+  "version": "0.4.0-preview.4",
   "type": "module",
-  "description": "Test whether web and Electron desktop apps show the right data: recovery after failed reads, cached content, and screens that lag behind their data.",
+  "description": "Test whether web and Electron desktop apps show the right data.",
   "license": "MIT",
   "author": "Bojan Kovachki",
   "homepage": "https://github.com/BojanKovachki/recovery-probe#readme",
@@ -58,7 +58,9 @@
     "docs/ipc.md",
     "docs/refresh.md",
     "docs/observe.md",
-    "docs/ci.md"
+    "docs/ci.md",
+    "docs/api.md",
+    "docs/runner.md"
   ],
   "sideEffects": false,
   "engines": {
@@ -127,7 +129,7 @@
     "test:repair": "node --test test/repair.test.mjs test/repair.integration.test.mjs test/web.integration.test.mjs",
     "test:repair:electron": "node --test test/repair.electron.test.mjs",
     "test:guided": "node --test test/guided-start.test.mjs test/guided-start.integration.test.mjs",
-    "test:ipc": "node --test test/ipc-probe.test.mjs test/ipc-control.test.mjs test/ipc-observation.test.mjs test/visibility.test.mjs test/refresh.test.mjs test/observe.test.mjs test/observation-report.test.mjs test/observe-features.test.mjs",
+    "test:ipc": "node --test test/ipc-probe.test.mjs test/ipc-control.test.mjs test/ipc-observation.test.mjs test/visibility.test.mjs test/refresh.test.mjs test/observe.test.mjs test/observation-report.test.mjs test/report-template.test.mjs test/observe-features.test.mjs",
     "test:ipc:electron": "node --test --test-concurrency=1 test/ipc.electron.test.mjs test/observe.electron.test.mjs test/observe-queue.electron.test.mjs",
     "benchmark:observe": "node scripts/benchmark-observe.mjs",
     "test:ci-example": "node examples/ci/verify.mjs"

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Recovery Probe IPC report</title>
+    <style>
+      body {
+        max-width: 1000px;
+        margin: 40px auto;
+        font: 16px system-ui;
+        padding: 20px;
+      }
+      pre {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        background: #f4f5f7;
+        padding: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>{{heading}}</h1>
+    <p>{{limitation}}</p>
+    <p>
+      Final reload: {{finalReset}}. Cleanup cannot turn an earlier failure into
+      a pass.
+    </p>
+    <pre>{{evidence}}</pre>
+  </body>
+</html>
