@@ -39,6 +39,8 @@ Replace channel names with the exact existing read channels. Include the second 
 
 Set `RECOVERY_PROBE_IPC=1` and `RECOVERY_PROBE_IPC_MODULE` to the absolute `.cjs` path from step 1 when starting the development app. No company application's production dependency needs changing. Do not expose controls through preload or contextBridge.
 
+For fault-free observation the hook also accepts optional `classify`, `pushChannels` and `classifyPush` options, which count calls per method label on shared channels and main-to-renderer pushes without storing arguments or payloads. See [Actions, tracked rows and delayed UI updates](observe.md#actions-tracked-rows-and-delayed-ui-updates).
+
 Registration is captured using the public `ipcMain.handle` API. Install before registration, once per process. Unaffected calls keep their original arguments, receiver and return value/Promise. The adapter observes completion without recording arguments, results or full errors. Calling `dispose()` disarms and restores the registration function; existing dispatchers become transparent. Restart the development app to remove them entirely.
 
 ## 3. Enable both local debugging interfaces

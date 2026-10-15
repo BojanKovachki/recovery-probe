@@ -4,6 +4,15 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.4.0-preview.1 (2026-10-15)
+
+- Record configured user actions during observation (name, time, real-input flag) and report the tracked rows that appeared or changed after each action.
+- Track rows with hashed keys or configured aliases and allowlisted state labels. Add the `DELAYED_UI_UPDATE` observation: a row state that persisted across completed selected reads and then changed without a data event in the sampled window.
+- Accept `{ css, role, name, text }` selectors for content, rows and actions.
+- Let the development IPC hook count calls per method label on shared channels (`classify`) and observe main-to-renderer pushes as data events (`pushChannels`, `classifyPush`) without storing arguments or payloads. Select them with `methods` and `dataEvents`.
+- Omit per-completion comparisons for busy targets with an explicit note, and print one comparison line per interval.
+- Add opt-in `observe --steps` for explicit same-document navigation, clicks with real input events, waits and interval marks. Observation without steps still never acts.
+
 ## 0.3.0 (2026-10-14)
 
 - Promote the validated 0.3.0 preview series to the stable npm `latest` channel: guided web/Electron setup, HTTP/IPC discovery and recovery checks, refresh experiments, fault-free observation, and a runnable CI example.

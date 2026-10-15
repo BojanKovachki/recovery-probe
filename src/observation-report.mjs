@@ -110,10 +110,57 @@ export function contentComparisons() {
   };
 }
 
+const seconds = ms => (Math.round(ms / 100) / 10).toFixed(1);
+const range = ([low, high]) => { const a = seconds(Math.max(0, low)), b = seconds(high); return a === b ? `about ${a} s` : `${a}–${b} s`; };
+const rowName = row => row.startsWith('key:') ? `row ${row.slice(4, 12)}` : `row ‘${row}’`;
+
 export function observationSummary(finding) {
+  if (finding.code === 'DELAYED_UI_UPDATE') {
+    const data = finding.basis === 'NO_DATA_EVENT_BEFORE_UI_CHANGE'
+      ? `; no data event arrived in the change window${finding.sinceLastDataEventMs === null ? '' : ` (the last one was ${seconds(finding.sinceLastDataEventMs)} s earlier)`}`
+      : '; data events were not observed for this target';
+    const action = finding.afterAction ? ` The change came ${range(finding.afterAction.changedAfterActionMs)} after action ‘${finding.afterAction.name}’${finding.previousStateStartedAfterActionMs == null ? '; the earlier state did not start right after an action' : '; the earlier state started right after it'}.` : '';
+    return `${rowName(finding.row)[0].toUpperCase()}${rowName(finding.row).slice(1)} stayed ${finding.from} for ${seconds(finding.persistedMs)} s across ${finding.unchangedReadCompletions} completed selected reads, then changed to ${finding.to}${data}.${action}`;
+  }
   if (finding.basis === 'NO_READ_OBSERVED_IN_INTERVAL') return 'Content was visible without a new selected read in this interval.';
   if (finding.basis === 'NO_COMPLETION_OBSERVED_IN_INTERVAL') return 'Content was visible before any selected read completed in this interval (a read was pending or had started).';
   return 'Content/read ordering was observed; inspect the evidence.';
+}
+
+/** Rows that appeared or changed after each configured action, relative to the action time. */
+export function actionEffects(report) {
+  const actions = report.actions ?? [];
+  const same = (ref, action) => ref && ref.name === action.name && ref.atMs === action.atMs;
+  return actions.map(action => {
+    const appeared = (report.rows ?? []).filter(r => same(r.firstSeen.afterAction, action)).map(r => ({
+      row: r.row, state: r.firstSeen.state, appearedAfterMs: [r.firstSeen.fromMs - action.atMs, r.firstSeen.toMs - action.atMs],
+      changes: r.transitions.filter(t => same(t.afterAction, action)).map(t => ({ from: t.from, to: t.to, afterActionMs: [t.afterMs - action.atMs, t.byMs - action.atMs] })),
+    }));
+    const changed = (report.rows ?? []).filter(r => !same(r.firstSeen.afterAction, action)).flatMap(r => r.transitions.filter(t => same(t.afterAction, action))
+      .map(t => ({ row: r.row, from: t.from, to: t.to, afterActionMs: [t.afterMs - action.atMs, t.byMs - action.atMs] })));
+    return { ...action, appeared, changed };
+  });
+}
+
+export function actionSummary(effect) {
+  // Rows without a tracked state that merely appeared (for example after navigating) are counted, not listed.
+  const quiet = effect.appeared.filter(a => ['none', 'other'].includes(a.state) && !a.changes.length);
+  const parts = effect.appeared.filter(a => !quiet.includes(a)).map(a => `${rowName(a.row)} appeared ${range(a.appearedAfterMs)} later as ${a.state}${a.changes.map(c => `, then ${c.from} → ${c.to} ${range(c.afterActionMs)} after the action`).join('')}`);
+  parts.push(...effect.changed.map(c => `${rowName(c.row)} changed ${c.from} → ${c.to} ${range(c.afterActionMs)} after the action`));
+  if (quiet.length) parts.push(`${quiet.length} row${quiet.length === 1 ? '' : 's'} without a tracked state appeared`);
+  return `Action ‘${effect.name}’ at ${seconds(effect.atMs)} s (${effect.trusted ? 'trusted input' : 'scripted, untrusted event'}): ${parts.length ? parts.join('; ') : 'no tracked row appeared or changed'}.`;
+}
+
+/** One line per interval instead of one per comparison. */
+export function comparisonDigest(report) {
+  const byInterval = new Map();
+  for (const c of report.comparisons ?? []) {
+    const entry = byInterval.get(c.interval) ?? {};
+    const key = `${c.basis === 'READ_COMPLETION' ? 'read-completion' : 'interval-return'} ${c.result}${c.basis === 'INTERVAL_RETURN' && c.result === 'changed' && c.followUp?.firstBaselineMatch ? ' (later matched)' : ''}`;
+    entry[key] = (entry[key] ?? 0) + 1;
+    byInterval.set(c.interval, entry);
+  }
+  return [...byInterval].map(([index, entry]) => `Interval ${index} comparisons: ${Object.entries(entry).map(([key, n]) => `${n} ${key}`).join(', ')}.`);
 }
 
 const escape = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -122,5 +169,10 @@ export function renderObservationReport(report) {
   const sampling = report.sampling;
   const comparisons = (report.comparisons ?? []).map(c => `<p>Interval ${escape(c.interval)}: ${escape(c.summary)} ${c.completions ? `(${c.completions.successes} successful, ${c.completions.errors} failed read completions)` : `(${c.reads.calls} selected reads started in this interval)`} ${escape(comparisonFollowUpSummary(c))}</p>`).join('');
   const phases = Object.entries(sampling?.phases ?? {}).map(([name, s]) => `<tr><td>${escape(name)}</td><td>${s.meanMs}</td><td>${s.maxMs}</td></tr>`).join('');
-  return `<!doctype html><meta charset="utf-8"><title>Recovery Probe observation</title><style>body{font:16px system-ui;max-width:1000px;margin:40px auto;padding:20px}td,th{text-align:left;padding:8px}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style><h1>Fault-free observation</h1><p>Capture: ${escape(report.status)}. This is not a recovery or account-isolation verdict.</p><p>Recovery Probe ${escape(report.metadata?.recoveryProbeVersion ?? 'unknown')} · Node ${escape(report.metadata?.runtime?.node ?? 'unknown')} · Browser ${escape(report.metadata?.browserVersion ?? 'unknown')} · IPC hook ${escape(report.metadata?.ipcHook?.version ?? 'unknown / not applicable')}</p>${sampling ? `<p>Configured delay: ${sampling.requestedDelayMs} ms. Completed samples: ${sampling.completedSamples}. Mean sample duration: ${sampling.sampleDuration.meanMs ?? 'unavailable'} ms. Mean start-to-start cadence: ${sampling.startToStart.meanMs ?? 'unavailable'} ms (maximum ${sampling.startToStart.maxMs ?? 'unavailable'} ms).</p><p>${escape(sampling.note)}</p>` : ''}<p>Sampling detail: ${escape(report.detail ?? 'region (legacy)')}. Marker counts describe the configured content selector; generic region item counts are heuristics.</p>${phases ? `<table><thead><tr><th>Measured phase</th><th>Mean ms</th><th>Maximum ms</th></tr></thead><tbody>${phases}</tbody></table><p>Renderer read time is included in the UI round trip, not additional to it.</p>` : ''}<p>${escape(report.limitation ?? report.error)}</p><table><thead><tr><th>Interval</th><th>Reads started</th><th>Successes</th><th>Errors</th><th>First content sample bounds</th></tr></thead><tbody>${rows}</tbody></table>${report.findings.map(f => `<p>Interval ${f.interval}: ${escape(observationSummary(f))} <strong>${escape(f.code)}</strong> — ${escape(f.basis)}</p>`).join('')}${comparisons}<p>Comparisons concern sampled marker text and count, not ownership or freshness. A completion does not guarantee the UI has consumed its result.</p><p>Cleanup: ${escape(report.cleanup ?? 'unknown')}. The observation snapshot is from before cleanup; cleanupEvidence records the separate cleanup check when available.</p><details><summary>Evidence and coverage</summary><pre>${escape(JSON.stringify(report, null, 2))}</pre></details>`;
+  const effects = report.actionEffects ?? [];
+  const actionsHtml = effects.length ? `<h2>Actions</h2>${effects.map(e => `<p>${escape(actionSummary(e))}</p>`).join('')}` : '';
+  const rowsHtml = report.rows?.length ? `<h2>Tracked rows</h2><table><thead><tr><th>Row</th><th>First seen</th><th>State changes</th><th>Last state</th></tr></thead><tbody>${report.rows.map(r => `<tr><td>${escape(rowName(r.row))}</td><td>${seconds(r.firstSeen.fromMs)}–${seconds(r.firstSeen.toMs)} s as ${escape(r.firstSeen.state)}</td><td>${r.transitions.map(t => `${escape(t.from)} → ${escape(t.to)} at ${seconds(t.afterMs)}–${seconds(t.byMs)} s`).join('<br>') || 'none'}</td><td>${escape(r.lastState)}</td></tr>`).join('')}</tbody></table><p>Row keys are hashed unless an alias was configured. States outside the configured allowlist are recorded as “other”.</p>` : '';
+  const notes = (report.notes ?? []).map(n => `<p>Note: ${escape(n.note)}</p>`).join('');
+  const operatorHtml = report.operator ? `<p>Scripted steps: ${escape(report.operator.status)}${report.operator.error ? ` — ${escape(report.operator.error)}` : ''}.</p>` : '';
+  return `<!doctype html><meta charset="utf-8"><title>Recovery Probe observation</title><style>body{font:16px system-ui;max-width:1000px;margin:40px auto;padding:20px}td,th{text-align:left;padding:8px}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style><h1>Fault-free observation</h1><p>Capture: ${escape(report.status)}. This is not a recovery or account-isolation verdict.</p><p>Recovery Probe ${escape(report.metadata?.recoveryProbeVersion ?? 'unknown')} · Node ${escape(report.metadata?.runtime?.node ?? 'unknown')} · Browser ${escape(report.metadata?.browserVersion ?? 'unknown')} · IPC hook ${escape(report.metadata?.ipcHook?.version ?? 'unknown / not applicable')}</p>${sampling ? `<p>Configured delay: ${sampling.requestedDelayMs} ms. Completed samples: ${sampling.completedSamples}. Mean sample duration: ${sampling.sampleDuration.meanMs ?? 'unavailable'} ms. Mean start-to-start cadence: ${sampling.startToStart.meanMs ?? 'unavailable'} ms (maximum ${sampling.startToStart.maxMs ?? 'unavailable'} ms).</p><p>${escape(sampling.note)}</p>` : ''}<p>Sampling detail: ${escape(report.detail ?? 'region (legacy)')}. Marker counts describe the configured content selector; generic region item counts are heuristics.</p>${phases ? `<table><thead><tr><th>Measured phase</th><th>Mean ms</th><th>Maximum ms</th></tr></thead><tbody>${phases}</tbody></table><p>Renderer read time is included in the UI round trip, not additional to it.</p>` : ''}<p>${escape(report.limitation ?? report.error)}</p><table><thead><tr><th>Interval</th><th>Reads started</th><th>Successes</th><th>Errors</th><th>First content sample bounds</th></tr></thead><tbody>${rows}</tbody></table>${report.findings.map(f => `<p>Interval ${f.interval}: ${escape(observationSummary(f))} <strong>${escape(f.code)}</strong> — ${escape(f.basis)}</p>`).join('')}${operatorHtml}${actionsHtml}${rowsHtml}${notes}${comparisons}<p>Comparisons concern sampled marker text and count, not ownership or freshness. A completion does not guarantee the UI has consumed its result.</p><p>Cleanup: ${escape(report.cleanup ?? 'unknown')}. The observation snapshot is from before cleanup; cleanupEvidence records the separate cleanup check when available.</p><details><summary>Evidence and coverage</summary><pre>${escape(JSON.stringify(report, null, 2))}</pre></details>`;
 }

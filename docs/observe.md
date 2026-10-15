@@ -106,9 +106,91 @@ In 0.3.0, each retained comparison also has `followUp` evidence from later compl
 
 Tracking ends at the next operator interval or capture termination, including interruption. These are sampled comparisons, not a settling rule, continuous-visibility claim, identity assertion or recovery verdict. Read completions and later UI changes are not proof of causality. The existing 1000-comparison cap also bounds follow-up tracking.
 
+## Actions, tracked rows and delayed UI updates
+
+Available from **0.4.0-preview.1** (npm `next` tag; install that exact version). The development IPC hook must come from the same version.
+
+These options are opt-in and extend the same fault-free capture. They answer "how long after the user's action did the screen show the right state, and did data arrive before it?"
+
+```json
+{
+  "transport": "ipc",
+  "channel": "app:invoke",
+  "methods": ["queue.read"],
+  "dataEvents": { "channel": "app:event", "methods": ["queue.changed"] },
+  "regionSelector": "#queue",
+  "contentSelector": { "css": "button.item-action", "text": "Move up" },
+  "rows": {
+    "selector": "li[data-item]",
+    "key": ".item-name",
+    "state": { "css": "button.item-action", "role": "button" },
+    "states": ["Pause", "Move up", "Resume"],
+    "aliases": { "second": "Exact name of the second item" }
+  },
+  "actions": [{ "name": "start", "selector": { "role": "button", "name": "Start" } }],
+  "lagThresholdMs": 2000,
+  "minUnchangedReads": 2,
+  "observationMs": 45000
+}
+```
+
+### Selectors
+
+`contentSelector`, `rows.selector`, `rows.key`, `rows.state` and action selectors accept a CSS string or `{ "css", "role", "name", "text" }`. `role` matches an explicit `role` attribute or the element's implicit role (button, link, row, cell, listitem, heading and similar). `name` matches the accessible name approximated as `aria-label`, `aria-labelledby` text, visible text, `title` or `alt`. `text` matches the element's normalized visible text exactly. `name` requires `role`. These literal values stay in the private `scenario.json`; the report never copies them.
+
+### Actions
+
+`actions` records clicks on configured elements during the capture: the configured action name, the time, and whether the browser marked the event as real user input (`trusted`). No other event data is stored. Each report action lists the tracked rows that appeared or changed afterwards, relative to the action (`actionEffects`). Times come from the page and observer wall clocks on the same machine.
+
+### Tracked rows
+
+`rows` follows each visible row in the region. The row key text is hashed (`key:` plus 16 hex characters) unless it exactly matches a configured alias, so the report can say "row ‘second’" without storing its text. The state element's text is recorded only if it is in the `states` allowlist; other text becomes `other`, and a missing state element becomes `none`. Row identity is only as stable as the key text you select: choose a name, not a progress value.
+
+### Shared IPC channels and data events
+
+When one IPC channel carries many kinds of calls (for example an SDK bridge), counting every call makes read evidence meaningless. Give the development hook a `classify(channel, args)` function that returns a short method label (`/^[\w.:/-]{1,100}$/`); the hook counts calls per label and never stores arguments. A classifier error or invalid label counts as `unclassified` and never affects the real call. Then select the read methods with `methods`.
+
+Main-to-renderer pushes can be observed as data-change events. List their channels in the hook's `pushChannels`, optionally with `classifyPush(channel, args)`, and select them with `dataEvents`. The hook wraps `send` on the target window's WebContents only while an observation lease is active, counts sends and their times, never stores payloads, and removes the wrapper at the end of the lease. Fault plans never observe pushes.
+
+```js
+installIpcProbe(ipcMain, {
+  enabled: true, channels: ['app:invoke'], sender: () => mainWindow?.webContents,
+  classify: (_channel, [payload]) => methodNameOf(payload),       // your app-specific, development-only code
+  pushChannels: ['app:event'], classifyPush: (_channel, [payload]) => eventNameOf(payload),
+});
+```
+
+### `DELAYED_UI_UPDATE`
+
+Reported when a tracked row kept an allowlisted state across at least `minUnchangedReads` completed selected reads and for at least `lagThresholdMs`, and then changed to another allowlisted state without a data event in the sampled change window. With `dataEvents` configured, the last data event must also be at least `lagThresholdMs` older than the change (basis `NO_DATA_EVENT_BEFORE_UI_CHANGE`). Without data events the basis is `UNCHANGED_ACROSS_READS`, because a later read could have carried the change. Confidence is medium only when data events are configured and the persisted state began within `lagThresholdMs` of a recorded action, the typical shape of optimistic UI state that outlives the real state; everything else is a low-confidence lead. A state driven by reads you did not select (for example per-item status calls) can also produce a low-confidence lead. The finding records the row, both states, how long the earlier state persisted, the completed reads and data events while it persisted, and the time since the last related action.
+
+This is a lead, not a verdict. Read contents are never recorded, so the tool cannot prove that the data said the new state earlier. Typical causes are optimistic UI state that outlives the real state, timers, or render paths that ignore fresh data. Changes are only evaluated between consecutive samples of a visible row.
+
+### Busy targets
+
+If the selected target completes more than two reads per sample on average, per-completion comparisons cannot attribute UI changes. They are omitted and the report adds a `READ_COMPLETION_COMPARISONS_OMITTED` note; select `methods` to narrow the target. The terminal prints one comparison line per interval instead of one per comparison.
+
+### Scripted steps (`--steps`)
+
+`observe --config FILE --steps steps.json` runs an explicit operator script during the capture. Steps act on the app, so use them only with a test account and data you may change.
+
+```json
+[
+  { "click": { "role": "button", "name": "Start A" } },
+  { "wait": 1000 },
+  { "mark": true },
+  { "click": { "role": "button", "name": "Start B" }, "name": "start-second" },
+  { "waitFor": "li[data-item]", "timeoutMs": 5000 },
+  { "navigate": "#/queue" },
+  { "wait": 12000 }
+]
+```
+
+Each step has exactly one of `mark` (start a new interval and wait for it), `navigate` (same-document `#fragment` only; a document load would reset the state under observation), `click` (exactly one visible match, real input events through Playwright), `waitFor` (first visible match) or `wait` (milliseconds). `name` and `timeoutMs` are optional. Steps start once the capture is observing, run in order, and stop when the capture ends. A failed or unfinished script is reported in `operator` and adds the `OPERATOR_STEPS_INCOMPLETE` coverage gap. The validated steps are saved as a private `steps.json` next to the report. Without `--steps`, observation still never acts.
+
 ## Interpretation
 
-Local `report.json` and `report.html` contain interval read counts, starts/completions, first-content sample bounds, and a change-only sampled timeline. `scenario.json` records the selected scope. No screenshots, response bodies or raw UI values are saved. Region text and repeated values are hashed; hashes are **not anonymization**, particularly for predictable text. Treat reports and selectors as private evidence.
+Local `report.json` and `report.html` contain interval read counts, starts/completions, first-content sample bounds, and a change-only sampled timeline. `scenario.json` records the selected scope. No screenshots, response bodies, IPC arguments, push payloads or raw UI values are saved; tracked row keys are hashed and row states are kept only when allowlisted. Region text and repeated values are hashed; hashes are **not anonymization**, particularly for predictable text. Treat reports and selectors as private evidence.
 
 `CONTENT_BEFORE_READ` means the configured content marker was sampled as visible with **no observed completion during that interval**. Its basis distinguishes zero observed starts from an outstanding read. This is an observation requiring interpretation, not a defect verdict. It may include content already present at the interval's first sample; that is recorded explicitly. A read begun in a previous interval is represented by `pendingAtStart`.
 

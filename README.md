@@ -45,6 +45,7 @@ Content comparisons preserve the first observed result and summarize later sampl
 | Compare an Electron screen under IPC faults | `recovery-probe ipc --discover --config FILE` | [IPC setup and discovery](docs/ipc.md) |
 | Test a refresh after content has already loaded | `recovery-probe refresh --config FILE --json` | [Refresh experiments](docs/refresh.md) |
 | Observe cached content without a reload | `recovery-probe observe --config FILE` | [Observation](docs/observe.md) |
+| Time row states after a user action, with optional scripted steps | `recovery-probe observe --config FILE [--steps FILE]` | [Actions, rows and delayed UI updates](docs/observe.md#actions-tracked-rows-and-delayed-ui-updates) |
 | Run a repeatable synthetic recovery check in CI | `npm run test:ci-example` (source checkout) | [CI example](docs/ci.md) |
 | Add an explicit recovery assertion to a test | `withFault` or `createFaultFetch` | Examples below |
 | Propose and verify a source change | Opt-in repair workflow | [Repair setup and limits](docs/repair.md) |

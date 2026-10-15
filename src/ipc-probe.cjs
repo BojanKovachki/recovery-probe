@@ -2,24 +2,34 @@
 const { version } = require('../package.json');
 
 const installed = new WeakSet();
+const MAX_LABELS = 200;
+// Labels are developer-chosen method names, never argument values.
+const label = value => typeof value === 'string' && /^[\w.:/-]{1,100}$/.test(value) ? value : null;
+const readStats = () => ({ calls: 0, successes: 0, errors: 0, pending: 0, firstReadAt: null, lastReadAt: null, firstCompletedAt: null, lastCompletedAt: null, lastSuccessAt: null });
 
 // No Electron import: use its public registration API, supplied by the development app.
-exports.installIpcProbe = function installIpcProbe(ipcMain, { channels, sender, enabled = false } = {}) {
+exports.installIpcProbe = function installIpcProbe(ipcMain, { channels, sender, enabled = false, classify, pushChannels = [], classifyPush } = {}) {
   if (enabled !== true) throw new Error('IPC probe requires explicit development-only enablement');
   if (!Array.isArray(channels) || !channels.length || channels.some(c => typeof c !== 'string' || !c.trim()) || new Set(channels).size !== channels.length) throw new Error('Provide unique, explicitly allowed read channels');
   if (typeof sender !== 'function' || typeof ipcMain?.handle !== 'function') throw new Error('Provide ipcMain and a sender function returning the target WebContents');
+  if (classify !== undefined && typeof classify !== 'function') throw new Error('classify must be a function returning a method label');
+  if (classifyPush !== undefined && typeof classifyPush !== 'function') throw new Error('classifyPush must be a function returning an event label');
+  if (!Array.isArray(pushChannels) || pushChannels.some(c => typeof c !== 'string' || !c.trim()) || new Set(pushChannels).size !== pushChannels.length) throw new Error('pushChannels must be unique channel names');
   if (installed.has(ipcMain)) throw new Error('IPC probe already installed; restart the development app to reinstall');
   const allowed = new Set(channels);
+  const allowedPushes = new Set(pushChannels);
   const registered = new Set();
   const original = ipcMain.handle;
   let active = true;
   let state = null;
   let timer;
+  let wrappedSend = null;
   const seenIds = new Set();
+  const capabilities = () => ({ maxFaultCount: 10, observation: true, readTimestamps: true, methods: Boolean(classify), pushes: allowedPushes.size > 0 });
   const identify = challenge => {
     const contents = sender();
     if (!contents || contents.isDestroyed()) throw new Error('Target WebContents is not available');
-    const identity = { version, runtime: { node: process.versions.node, electron: process.versions.electron ?? null, chrome: process.versions.chrome ?? null }, senderId: contents.id, pageUrl: contents.getURL(), registered: [...registered], capabilities: { maxFaultCount: 10, observation: true, readTimestamps: true } };
+    const identity = { version, runtime: { node: process.versions.node, electron: process.versions.electron ?? null, chrome: process.versions.chrome ?? null }, senderId: contents.id, pageUrl: contents.getURL(), registered: [...registered], pushChannels: [...allowedPushes], capabilities: capabilities() };
     if (challenge === undefined) return identity;
     if (typeof challenge !== 'string' || !/^[a-f0-9-]{36}$/.test(challenge)) throw new Error('Invalid window challenge');
     return contents.executeJavaScript(`globalThis.__recoveryProbeWindowNonce === ${JSON.stringify(challenge)}`).then(matches => {
@@ -31,7 +41,37 @@ exports.installIpcProbe = function installIpcProbe(ipcMain, { channels, sender, 
     const contents = sender();
     return contents && !contents.isDestroyed() && event?.sender === contents && contents.mainFrame && event.senderFrame === contents.mainFrame;
   };
-  const disarm = () => { clearTimeout(timer); if (state) { state.armed = null; state.observingUntil = null; } };
+  // A classifier failure or an unexpected label must never affect the real call.
+  const classifyCall = (fn, channel, args, table) => {
+    if (!fn) return null;
+    let name;
+    try { name = label(fn(channel, args)) ?? 'unclassified'; } catch { name = 'unclassified'; }
+    return table[name] || Object.keys(table).length < MAX_LABELS ? name : '(other)';
+  };
+  const unwrapSend = () => {
+    if (!wrappedSend) return;
+    const { contents, wrapper } = wrappedSend;
+    // Only remove our own instance property; the prototype method stays untouched.
+    if (!contents.isDestroyed?.() && Object.hasOwn(contents, 'send') && contents.send === wrapper) delete contents.send;
+    wrappedSend = null;
+  };
+  const wrapSend = (contents, current) => {
+    if (!allowedPushes.size || typeof contents?.send !== 'function') return;
+    const send = contents.send;
+    const wrapper = function (channel, ...args) {
+      if (state === current && current.observingUntil && Date.now() < current.observingUntil && allowedPushes.has(channel)) {
+        const at = Date.now();
+        const row = current.pushes[channel];
+        row.count++; row.firstAt ??= at; row.lastAt = at;
+        const name = classifyCall(classifyPush, channel, args, row.methods);
+        if (name) { const m = row.methods[name] ??= { count: 0, firstAt: null, lastAt: null }; m.count++; m.firstAt ??= at; m.lastAt = at; }
+      }
+      return Reflect.apply(send, this, [channel, ...args]);
+    };
+    Object.defineProperty(contents, 'send', { value: wrapper, configurable: true, writable: true });
+    wrappedSend = { contents, wrapper };
+  };
+  const disarm = () => { clearTimeout(timer); unwrapSend(); if (state) { state.armed = null; state.observingUntil = null; } };
   const snapshot = () => {
     if ((state?.armed && Date.now() >= state.armed.expiresAt) || (state?.observingUntil && Date.now() >= state.observingUntil)) disarm();
     return state ? JSON.parse(JSON.stringify({ ...state, capturedAt: Date.now() })) : null;
@@ -52,8 +92,13 @@ exports.installIpcProbe = function installIpcProbe(ipcMain, { channels, sender, 
     if (state && Object.values(state.channels).some(c => c.pending)) throw new Error('Previous real calls are still pending; wait before beginning another run');
     const identity = identify();
     disarm(); seenIds.add(id);
-    state = { id, channel, senderId: identity.senderId, startedAt: Date.now(), observation, observingUntil: observation ? Date.now() + ttlMs : null, injected: 0, injectedAt: null, successfulAfterFault: 0, armed: fault ? { fault, remaining: times, expiresAt: Date.now() + ttlMs } : null, channels: Object.create(null) };
-    for (const name of watched) state.channels[name] = { calls: 0, realCalls: 0, successes: 0, errors: 0, pending: 0, maxDurationMs: 0, firstReadAt: null, lastReadAt: null, firstCompletedAt: null, lastCompletedAt: null, lastSuccessAt: null };
+    state = { id, channel, senderId: identity.senderId, startedAt: Date.now(), observation, observingUntil: observation ? Date.now() + ttlMs : null, injected: 0, injectedAt: null, successfulAfterFault: 0, armed: fault ? { fault, remaining: times, expiresAt: Date.now() + ttlMs } : null, channels: Object.create(null), pushes: Object.create(null) };
+    for (const name of watched) state.channels[name] = { ...readStats(), realCalls: 0, maxDurationMs: 0, ...(classify ? { methods: Object.create(null) } : {}) };
+    // Pushes are observation evidence only; they are never counted during fault plans.
+    if (observation) {
+      for (const name of allowedPushes) state.pushes[name] = { count: 0, firstAt: null, lastAt: null, methods: Object.create(null) };
+      wrapSend(sender(), state);
+    }
     if (fault || observation) { timer = setTimeout(disarm, ttlMs); timer.unref?.(); }
     return snapshot();
   };
@@ -67,6 +112,9 @@ exports.installIpcProbe = function installIpcProbe(ipcMain, { channels, sender, 
       if (!row) return Reflect.apply(real, this, [event, ...args]);
       row.calls++;
       row.firstReadAt ??= Date.now(); row.lastReadAt = Date.now();
+      const name = row.methods ? classifyCall(classify, channel, args, row.methods) : null;
+      const method = name ? row.methods[name] ??= readStats() : null;
+      if (method) { method.calls++; method.firstReadAt ??= row.lastReadAt; method.lastReadAt = row.lastReadAt; }
       if (current.armed && Date.now() >= current.armed.expiresAt) disarm();
       if (channel === current.channel && current.armed) {
         const fault = current.armed.fault;
@@ -75,15 +123,18 @@ exports.installIpcProbe = function installIpcProbe(ipcMain, { channels, sender, 
         return fault === 'null-result' ? Promise.resolve(null) : Promise.reject(new Error('Recovery Probe: injected IPC rejection'));
       }
       row.realCalls++; row.pending++;
+      if (method) method.pending++;
       const started = Date.now();
       const afterFault = current.injected > 0;
       const finish = success => {
         const completed = Date.now();
-        row.firstCompletedAt ??= completed; row.lastCompletedAt = completed;
-        if (success) row.lastSuccessAt = completed;
-        row.pending--; row.maxDurationMs = Math.max(row.maxDurationMs, Date.now() - started);
-        if (success) { row.successes++; if (afterFault && channel === current.channel) current.successfulAfterFault++; }
-        else row.errors++;
+        for (const stats of method ? [row, method] : [row]) {
+          stats.firstCompletedAt ??= completed; stats.lastCompletedAt = completed;
+          if (success) { stats.lastSuccessAt = completed; stats.successes++; } else stats.errors++;
+          stats.pending--;
+        }
+        row.maxDurationMs = Math.max(row.maxDurationMs, Date.now() - started);
+        if (success && afterFault && channel === current.channel) current.successfulAfterFault++;
       };
       let result;
       try { result = Reflect.apply(real, this, [event, ...args]); }

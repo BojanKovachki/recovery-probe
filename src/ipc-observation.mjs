@@ -5,10 +5,16 @@ const hash = value => createHash('sha256').update(value).digest('hex');
 export function readRegion(selector) {
   const readStarted = performance.now();
   const observation = typeof selector === 'object' && selector !== null ? selector : null;
-  const finish = value => observation ? { ...value, rendererReadMs: performance.now() - readStarted } : value;
+  // Observation may use the capture's in-page kit for text/role selectors, rows and actions.
+  const kit = observation ? globalThis.__recoveryProbeObserve : undefined;
+  if (observation?.kitToken && kit?.token !== observation.kitToken) throw new Error('OBSERVER_KIT_MISSING: the page was replaced or another observation owns it');
+  const select = (root, spec) => kit ? kit.select(root, spec) : [...root.querySelectorAll(spec)];
+  const normalize = value => String(value ?? '').replace(/\s+/g, ' ').trim();
+  const actions = () => observation?.kitToken ? kit.drainActions() : undefined;
+  const finish = value => observation ? { ...value, actions: actions(), rendererReadMs: performance.now() - readStarted } : value;
   if (observation) {
     selector = observation.regionSelector;
-    document.querySelector(observation.contentSelector); // Validate even when the region is absent.
+    select(document, observation.contentSelector); // Validate even when the region is absent.
   }
   const roots = selector ? document.querySelectorAll(selector) : null;
   if (observation && roots?.length === 0) return finish({ presence: 'absent', contentCount: 0, visible: document.visibilityState === 'visible', online: navigator.onLine });
@@ -24,20 +30,30 @@ export function readRegion(selector) {
     return visibility.get(e);
   };
   if (observation && !visible(root)) return finish({ presence: 'hidden', contentCount: 0, visible: document.visibilityState === 'visible', online: navigator.onLine });
-  let content;
+  let content, rows;
   if (observation) {
-    const matches = root.querySelectorAll(observation.contentSelector);
+    const matches = select(root, observation.contentSelector);
     const texts = [];
     let remaining = 200000, truncated = matches.length > 1000;
     for (const e of [...matches].slice(0, 1000)) {
       if (!visible(e)) continue;
-      const text = (e.innerText ?? '').replace(/\s+/g, ' ').trim();
+      const text = normalize(e.innerText);
       if (text.length > remaining) truncated = true;
       texts.push(text.slice(0, remaining)); remaining = Math.max(0, remaining - text.length);
     }
     content = { texts, truncated };
+    // Row key and state text are returned transiently; Node hashes keys and keeps only allowlisted states.
+    if (observation.rows) {
+      const r = observation.rows;
+      const elements = select(root, r.selector).filter(visible);
+      rows = { truncated: elements.length > 500, items: elements.slice(0, 500).map(element => {
+        const keyElement = r.key ? select(element, r.key).find(visible) : element;
+        const stateElement = select(element, r.state).find(visible);
+        return { key: keyElement ? normalize(keyElement.innerText).slice(0, 500) : '', state: stateElement ? normalize(stateElement.innerText).slice(0, 100) : null };
+      }) };
+    }
     if (observation.detail === 'content') return finish({ presence: 'visible', contentCount: texts.length,
-      content, truncated, visible: document.visibilityState === 'visible', online: navigator.onLine });
+      content, rows, truncated, visible: document.visibilityState === 'visible', online: navigator.onLine });
   }
   const nodes = [...root.querySelectorAll('*')].filter(visible).slice(0, 5000);
   const count = s => [...root.querySelectorAll(s)].filter(visible).length;
@@ -81,7 +97,7 @@ export function readRegion(selector) {
     }
   }
   return finish({ text, structure, groups, distributions,
-    ...(observation ? { presence: 'visible', contentCount: content.texts.length, content } : {}),
+    ...(observation ? { presence: 'visible', contentCount: content.texts.length, content, rows } : {}),
     region: selector ? 'selected' : root === document.body ? 'body' : 'main',
     truncated: root.querySelectorAll('*').length > 5000 || Boolean(content?.truncated),
     visible: document.visibilityState === 'visible', online: navigator.onLine,
@@ -94,7 +110,7 @@ export function readRegion(selector) {
   });
 }
 export function summarizeRegion(raw) {
-  const { text, distributions = {}, content, rendererReadMs: _timing, ...summary } = raw;
+  const { text, distributions = {}, content, rows: _rows, actions: _actions, rendererReadMs: _timing, ...summary } = raw;
   if (content) summary.content = { basis: 'ordered-visible-marker-text', count: content.texts.length,
     textLength: content.texts.reduce((sum, value) => sum + value.length, 0),
     textFingerprint: hash(JSON.stringify(content.texts)), truncated: content.truncated };
