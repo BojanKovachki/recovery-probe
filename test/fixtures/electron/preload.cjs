@@ -1,2 +1,4 @@
-const { contextBridge } = require('electron');
-contextBridge.exposeInMainWorld('recoveryProbeFixture', { kind: 'electron-preload' });
+const { contextBridge } = require('electron')
+contextBridge.exposeInMainWorld('recoveryProbeFixture', {
+  kind: 'electron-preload',
+})

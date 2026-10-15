@@ -1,10 +1,10 @@
-import { test } from 'node:test';
-import assert from 'node:assert/strict';
-import { createServer } from 'node:http';
-import { chromium } from 'playwright';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { discoverHttp } from '../src/http-discover.mjs';
-import { checkDesktop } from '../src/desktop.mjs';
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { createServer } from 'node:http'
+import { chromium } from 'playwright'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { discoverHttp } from '../src/http-discover.mjs'
+import { checkDesktop } from '../src/desktop.mjs'
 
 function fixture(options) {
   return `<!doctype html><meta charset="utf-8"><main><h1>Catalog</h1><div id="loading" role="progressbar">…</div><section id="content"></section></main><script>
@@ -27,57 +27,233 @@ function fixture(options) {
   };
   function load(){if(o.style==='promise'){request().then(success).catch(failure);return;} (async()=>{try{success(await request())}catch{failure()}})()}
   fetch('/api/telemetry',{method:'POST'});if(o.family==='repeated')request().catch(()=>{});load();
-  </script>`;
+  </script>`
 }
-test('structural HTTP fixture matrix: three fetch styles, negative controls and repeated faults', { timeout: 240000 }, async () => {
-  let options; let loads=0;
-  const server = createServer((req, res) => {
-    res.setHeader('Cache-Control','no-store');
-    if(req.url==='/api/telemetry'){res.writeHead(204);res.end();return;}
-    if(req.url==='/api/read'){res.setHeader('Content-Type','application/json');setTimeout(()=>res.end('{"name":"data"}'),options.delay??10);return;}
-    if(req.url!=='/'){res.writeHead(404);res.end();return;}
-    res.setHeader('Content-Type','text/html');loads++;res.end(fixture({...options,renderDelay:options.lateControl&&loads===5?900:0}).replace('</main>',(options.unstable&&loads===(options.unstableAt??5)?'<aside>changed control</aside>':'')+'</main>'));
-  });
-  await new Promise(r=>server.listen(0,'127.0.0.1',r));
-  const base=`http://127.0.0.1:${server.address().port}`;
-  const browser=await chromium.launch();const page=await browser.newPage();
-  const metrics=[];
-  try {
-    for(const style of ['async','promise','xhr']) for(const family of ['grid','translated','icon-empty','explicit-error','legitimate-empty','delayed-content','backoff','distribution','repeated','virtualized']) {
-      options={style,family,retries: family==='backoff'?3:family==='delayed-content'?1:0, delay:family==='delayed-content'?250:10,language:style==='xhr'?'icon':'de'};
-      await page.goto(base);
-      const config={endpoint:base+'/api/read',faults:['http-error'],times:family==='backoff'?3:1,repeats:1,settleMs:200,baselineTimeoutMs:1200,recoveryTimeoutMs:1600};
-      const report=await discoverHttp(page,config);
-      assert.equal(report.error,undefined,JSON.stringify({family,style,error:report.error,stopped:report.stoppedObservation}));
-      assert.equal(report.finalReset,'healthy');
-      const finding=report.findings[0]; const expectedBug=['grid','translated','icon-empty','virtualized'].includes(family);
-      const detected=finding.kind==='suspected-defect';
-      metrics.push({family,style,knownBugs:expectedBug?1:0,detected:expectedBug&&detected?1:0,misses:expectedBug&&!detected?1:0,falsePositives:!expectedBug&&detected?1:0,classification:finding.classification});
-      assert.equal(detected,expectedBug,JSON.stringify({family,style,finding}));
-      assert.ok(report.coverage.some(c=>c.method==='POST'&&!c.supported));
-      if(family==='distribution') assert.ok(report.results[0].observation.distributionChanges.length > 0);
-      if(family==='repeated') assert.ok(report.baselines[0].repeatedReads.some(r=>r.code==='REPEATED_READS'));
-      if(family==='grid') assert.equal(report.results[0].observation.after.images,0);
+test(
+  'structural HTTP fixture matrix: three fetch styles, negative controls and repeated faults',
+  { timeout: 240000 },
+  async () => {
+    let options
+    let loads = 0
+    const server = createServer((req, res) => {
+      res.setHeader('Cache-Control', 'no-store')
+      if (req.url === '/api/telemetry') {
+        res.writeHead(204)
+        res.end()
+        return
+      }
+      if (req.url === '/api/read') {
+        res.setHeader('Content-Type', 'application/json')
+        setTimeout(() => res.end('{"name":"data"}'), options.delay ?? 10)
+        return
+      }
+      if (req.url !== '/') {
+        res.writeHead(404)
+        res.end()
+        return
+      }
+      res.setHeader('Content-Type', 'text/html')
+      loads++
+      res.end(
+        fixture({
+          ...options,
+          renderDelay: options.lateControl && loads === 5 ? 900 : 0,
+        }).replace(
+          '</main>',
+          (options.unstable && loads === (options.unstableAt ?? 5)
+            ? '<aside>changed control</aside>'
+            : '') + '</main>',
+        ),
+      )
+    })
+    await new Promise((r) => server.listen(0, '127.0.0.1', r))
+    const base = `http://127.0.0.1:${server.address().port}`
+    const browser = await chromium.launch()
+    const page = await browser.newPage()
+    const metrics = []
+    try {
+      for (const style of ['async', 'promise', 'xhr'])
+        for (const family of [
+          'grid',
+          'translated',
+          'icon-empty',
+          'explicit-error',
+          'legitimate-empty',
+          'delayed-content',
+          'backoff',
+          'distribution',
+          'repeated',
+          'virtualized',
+        ]) {
+          options = {
+            style,
+            family,
+            retries:
+              family === 'backoff' ? 3 : family === 'delayed-content' ? 1 : 0,
+            delay: family === 'delayed-content' ? 250 : 10,
+            language: style === 'xhr' ? 'icon' : 'de',
+          }
+          await page.goto(base)
+          const config = {
+            endpoint: base + '/api/read',
+            faults: ['http-error'],
+            times: family === 'backoff' ? 3 : 1,
+            repeats: 1,
+            settleMs: 200,
+            baselineTimeoutMs: 1200,
+            recoveryTimeoutMs: 1600,
+          }
+          const report = await discoverHttp(page, config)
+          assert.equal(
+            report.error,
+            undefined,
+            JSON.stringify({
+              family,
+              style,
+              error: report.error,
+              stopped: report.stoppedObservation,
+            }),
+          )
+          assert.equal(report.finalReset, 'healthy')
+          const finding = report.findings[0]
+          const expectedBug = [
+            'grid',
+            'translated',
+            'icon-empty',
+            'virtualized',
+          ].includes(family)
+          const detected = finding.kind === 'suspected-defect'
+          metrics.push({
+            family,
+            style,
+            knownBugs: expectedBug ? 1 : 0,
+            detected: expectedBug && detected ? 1 : 0,
+            misses: expectedBug && !detected ? 1 : 0,
+            falsePositives: !expectedBug && detected ? 1 : 0,
+            classification: finding.classification,
+          })
+          assert.equal(
+            detected,
+            expectedBug,
+            JSON.stringify({ family, style, finding }),
+          )
+          assert.ok(
+            report.coverage.some((c) => c.method === 'POST' && !c.supported),
+          )
+          if (family === 'distribution')
+            assert.ok(
+              report.results[0].observation.distributionChanges.length > 0,
+            )
+          if (family === 'repeated')
+            assert.ok(
+              report.baselines[0].repeatedReads.some(
+                (r) => r.code === 'REPEATED_READS',
+              ),
+            )
+          if (family === 'grid')
+            assert.equal(report.results[0].observation.after.images, 0)
+        }
+      await mkdir('artifacts', { recursive: true })
+      await writeFile(
+        'artifacts/discovery-fixture-metrics.json',
+        JSON.stringify(metrics, null, 2),
+      )
+      options = {
+        style: 'async',
+        family: 'list',
+        retries: 1,
+        lateControl: true,
+      }
+      loads = 0
+      await page.goto(base)
+      const delayed = await discoverHttp(page, {
+        endpoint: base + '/api/read',
+        faults: ['http-error'],
+        repeats: 1,
+        settleMs: 200,
+        baselineTimeoutMs: 3000,
+        recoveryTimeoutMs: 1600,
+      })
+      assert.equal(delayed.error, undefined, JSON.stringify(delayed))
+      assert.equal(
+        delayed.results[0].control.ui.fingerprint,
+        delayed.baselines[0].ui.fingerprint,
+      )
+      assert.equal(delayed.finalReset, 'healthy')
+      options = {
+        style: 'async',
+        family: 'list',
+        retries: 0,
+        unstable: true,
+        unstableAt: 9,
+      }
+      loads = 0
+      await page.goto(base)
+      const partial = await discoverHttp(page, {
+        endpoint: base + '/api/read',
+        faults: ['http-error'],
+        times: 1,
+        repeats: 3,
+        settleMs: 200,
+        baselineTimeoutMs: 1500,
+        recoveryTimeoutMs: 600,
+      })
+      assert.equal(partial.error, 'CONTROL_UNSTABLE')
+      assert.equal(partial.results.length, 2)
+      assert.equal(partial.findings[0].classification, 'INCOMPLETE_EXPERIMENT')
+      assert.equal(partial.findings[0].completedRuns, 2)
+      assert.equal(partial.findings[0].plannedRuns, 3)
+      assert.equal(partial.findings[0].repeatConfirmed, false)
+      assert.equal(
+        partial.findings[0].observedInterpretation.classification,
+        'SILENT_EMPTY',
+      )
+      assert.equal(partial.finalReset, 'healthy')
+      options = { style: 'async', family: 'list', retries: 1, unstable: true }
+      loads = 0
+      await page.goto(base)
+      const unstable = await discoverHttp(page, {
+        endpoint: base + '/api/read',
+        faults: ['http-error'],
+        repeats: 1,
+        settleMs: 200,
+        baselineTimeoutMs: 1500,
+        recoveryTimeoutMs: 1600,
+      })
+      assert.equal(unstable.error, 'CONTROL_UNSTABLE')
+      assert.equal(unstable.failedControl.reasons.fingerprintChanged, true)
+      assert.equal(unstable.failedControl.ready, false)
+      assert.ok(unstable.failedControl.elapsedMs >= 1500)
+      assert.ok(unstable.failedControl.timeline.length)
+      // The explicit verifier must require ALL requested faults, and exclude every
+      // injected HTTP-200 malformed body from later-success counts.
+      options = { style: 'async', family: 'list', retries: 1 }
+      await page.goto(base)
+      const config = {
+        pageUrl: base,
+        endpoint: base + '/api/read',
+        readySelector: 'li:first-child',
+        recovery: 'automatic',
+        times: 2,
+        timeoutMs: 800,
+        faults: ['invalid-json'],
+      }
+      const exhausted = await checkDesktop(page, config)
+      assert.equal(exhausted.results[0].applied, 2)
+      assert.equal(exhausted.results[0].successfulResponsesAfterFault, 0)
+      assert.equal(exhausted.results[0].code, 'RECOVERY_NOT_OBSERVED')
+      const unused = await checkDesktop(page, { ...config, times: 3 })
+      assert.equal(unused.results[0].code, 'FAULT_NOT_TRIGGERED')
+      assert.equal(unused.results[0].outcome, 'inconclusive')
+      await mkdir('artifacts', { recursive: true })
+      await writeFile(
+        'artifacts/discovery-fixture-metrics.json',
+        JSON.stringify(metrics, null, 2),
+      )
+      console.log('DISCOVERY_MATRIX ' + JSON.stringify(metrics))
+    } finally {
+      await browser.close()
+      await new Promise((r) => server.close(r))
     }
-    await mkdir('artifacts',{recursive:true});await writeFile('artifacts/discovery-fixture-metrics.json',JSON.stringify(metrics,null,2));
-    options={style:'async',family:'list',retries:1,lateControl:true};loads=0;await page.goto(base);
-    const delayed=await discoverHttp(page,{endpoint:base+'/api/read',faults:['http-error'],repeats:1,settleMs:200,baselineTimeoutMs:3000,recoveryTimeoutMs:1600});
-    assert.equal(delayed.error,undefined,JSON.stringify(delayed));assert.equal(delayed.results[0].control.ui.fingerprint,delayed.baselines[0].ui.fingerprint);assert.equal(delayed.finalReset,'healthy');
-    options={style:'async',family:'list',retries:0,unstable:true,unstableAt:9};loads=0;await page.goto(base);
-    const partial=await discoverHttp(page,{endpoint:base+'/api/read',faults:['http-error'],times:1,repeats:3,settleMs:200,baselineTimeoutMs:1500,recoveryTimeoutMs:600});
-    assert.equal(partial.error,'CONTROL_UNSTABLE');assert.equal(partial.results.length,2);assert.equal(partial.findings[0].classification,'INCOMPLETE_EXPERIMENT');assert.equal(partial.findings[0].completedRuns,2);assert.equal(partial.findings[0].plannedRuns,3);assert.equal(partial.findings[0].repeatConfirmed,false);assert.equal(partial.findings[0].observedInterpretation.classification,'SILENT_EMPTY');assert.equal(partial.finalReset,'healthy');
-    options={style:'async',family:'list',retries:1,unstable:true};loads=0;await page.goto(base);
-    const unstable=await discoverHttp(page,{endpoint:base+'/api/read',faults:['http-error'],repeats:1,settleMs:200,baselineTimeoutMs:1500,recoveryTimeoutMs:1600});
-    assert.equal(unstable.error,'CONTROL_UNSTABLE');assert.equal(unstable.failedControl.reasons.fingerprintChanged,true);assert.equal(unstable.failedControl.ready,false);assert.ok(unstable.failedControl.elapsedMs>=1500);assert.ok(unstable.failedControl.timeline.length);
-    // The explicit verifier must require ALL requested faults, and exclude every
-    // injected HTTP-200 malformed body from later-success counts.
-    options={style:'async',family:'list',retries:1};await page.goto(base);
-    const config={pageUrl:base,endpoint:base+'/api/read',readySelector:'li:first-child',recovery:'automatic',times:2,timeoutMs:800,faults:['invalid-json']};
-    const exhausted=await checkDesktop(page,config);
-    assert.equal(exhausted.results[0].applied,2);assert.equal(exhausted.results[0].successfulResponsesAfterFault,0);assert.equal(exhausted.results[0].code,'RECOVERY_NOT_OBSERVED');
-    const unused=await checkDesktop(page,{...config,times:3});
-    assert.equal(unused.results[0].code,'FAULT_NOT_TRIGGERED');assert.equal(unused.results[0].outcome,'inconclusive');
-    await mkdir('artifacts',{recursive:true});await writeFile('artifacts/discovery-fixture-metrics.json',JSON.stringify(metrics,null,2));
-    console.log('DISCOVERY_MATRIX '+JSON.stringify(metrics));
-  } finally {await browser.close();await new Promise(r=>server.close(r));}
-});
+  },
+)

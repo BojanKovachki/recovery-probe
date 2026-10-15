@@ -1,5 +1,5 @@
-import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { createServer } from 'node:http'
+import { readFile } from 'node:fs/promises'
 
 function app(fixed, automatic = false, stale = false) {
   return `<!doctype html><html lang="en"><meta charset="utf-8"><title>Recovery Probe fixture</title>
@@ -21,37 +21,47 @@ const controller = createProfileController(() => fetch('/api/profile'), {
 });
 retry.addEventListener('click', () => controller.load());
 controller.load();
-</script></html>`;
+</script></html>`
 }
 
 export async function startDemoServer() {
-  const controllerSource = await readFile(new URL('./profile-controller.mjs', import.meta.url), 'utf8');
+  const controllerSource = await readFile(
+    new URL('./profile-controller.mjs', import.meta.url),
+    'utf8',
+  )
   const server = createServer((request, response) => {
-    const path = new URL(request.url, 'http://127.0.0.1').pathname;
-    response.setHeader('Cache-Control', 'no-store');
+    const path = new URL(request.url, 'http://127.0.0.1').pathname
+    response.setHeader('Cache-Control', 'no-store')
     if (path === '/api/profile') {
-      response.writeHead(200, { 'Content-Type': 'application/json' });
-      response.end(JSON.stringify({ name: 'Synthetic Example', method: request.method }));
+      response.writeHead(200, { 'Content-Type': 'application/json' })
+      response.end(
+        JSON.stringify({ name: 'Synthetic Example', method: request.method }),
+      )
     } else if (path === '/profile-controller.mjs') {
-      response.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8' });
-      response.end(controllerSource);
+      response.writeHead(200, {
+        'Content-Type': 'text/javascript; charset=utf-8',
+      })
+      response.end(controllerSource)
     } else if (['/broken', '/fixed', '/automatic', '/stale'].includes(path)) {
-      response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      response.end(app(path !== '/broken', path === '/automatic', path === '/stale'));
+      response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+      response.end(
+        app(path !== '/broken', path === '/automatic', path === '/stale'),
+      )
     } else {
-      response.writeHead(404);
-      response.end('Not found');
+      response.writeHead(404)
+      response.end('Not found')
     }
-  });
+  })
   await new Promise((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', resolve);
-  });
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', resolve)
+  })
   return {
     url: `http://127.0.0.1:${server.address().port}`,
-    close: () => new Promise((resolve, reject) => {
-      server.close(error => error ? reject(error) : resolve());
-      server.closeAllConnections();
-    }),
-  };
+    close: () =>
+      new Promise((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()))
+        server.closeAllConnections()
+      }),
+  }
 }

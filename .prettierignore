@@ -1,0 +1,10 @@
+# Code and JSON are formatted; prose, markup and generated files are left as written.
+node_modules/
+artifacts/
+.recovery-probe/
+package-lock.json
+*.md
+*.html
+*.svg
+*.yml
+*.yaml
