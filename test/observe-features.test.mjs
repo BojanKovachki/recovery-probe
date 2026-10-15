@@ -102,7 +102,19 @@ test('the row tracker reports a state that outlived completed reads and changed 
   assert.equal(finding.confidence, 'medium');
   assert.equal(finding.unchangedReadCompletions, 7 - 0);
   assert.deepEqual(finding.afterAction.changedAfterActionMs, [2950, 3050]);
-  assert.match(observationSummary(finding), /^Row ‘second’ stayed Pause for 2\.9 s across 7 completed selected reads, then changed to Move up; no data event arrived in the change window \(the last one was 2\.8 s earlier\)\. The change came 3\.0–3\.1 s after action ‘start’\.$/);
+  assert.equal(finding.previousStateStartedAfterActionMs, 100);
+  assert.match(observationSummary(finding), /^Row ‘second’ stayed Pause for 2\.9 s across 7 completed selected reads, then changed to Move up; no data event arrived in the change window \(the last one was 2\.8 s earlier\)\. The change came 3\.0–3\.1 s after action ‘start’; the earlier state started right after it\.$/);
+});
+
+test('a stale state that did not begin right after an action is only a low-confidence lead', () => {
+  const t = rowTracker(trackerConfig);
+  t.addActions([{ name: 'start', atMs: 0 }]);
+  // The row first shows Move up, later switches to Pause on its own, then back after many reads.
+  for (let i = 1; i <= 60; i++) t.add(sample(i, i < 20 ? 'Move up' : i < 60 ? 'Pause' : 'Move up', Math.floor(i / 4), { count: 1, lastAtMs: 120 }));
+  const late = t.snapshot().findings.find(f => f.from === 'Pause');
+  assert.equal(late.confidence, 'low');
+  assert.equal(late.previousStateStartedAfterActionMs, null);
+  assert.match(observationSummary(late), /the earlier state did not start right after an action\.$/);
 });
 
 test('the row tracker stays quiet when a data event explains the change, reads did not complete, or the row was not visible', () => {
@@ -132,8 +144,9 @@ test('action effects link rows that appeared or changed after an action', () => 
       { row: 'key:0123456789abcdef', firstSeen: { fromMs: 100, toMs: 150, state: 'Pause', afterAction: null }, transitions: [{ from: 'Pause', to: 'Move up', afterMs: 1200, byMs: 1300, afterAction: { name: 'start', atMs: 1000 } }] },
     ],
   };
+  report.rows.push({ row: 'key:fedcba9876543210', firstSeen: { fromMs: 1500, toMs: 1550, state: 'none', afterAction: { name: 'start', atMs: 1000 } }, transitions: [] });
   const [effect] = actionEffects(report);
-  assert.equal(actionSummary(effect), 'Action ‘start’ at 1.0 s (trusted input): row ‘second’ appeared 0.5–0.6 s later as Pause, then Pause → Move up 2.9–3.1 s after the action; row 01234567 changed Pause → Move up 0.2–0.3 s after the action.');
+  assert.equal(actionSummary(effect), 'Action ‘start’ at 1.0 s (trusted input): row ‘second’ appeared 0.5–0.6 s later as Pause, then Pause → Move up 2.9–3.1 s after the action; row 01234567 changed Pause → Move up 0.2–0.3 s after the action; 1 row without a tracked state appeared.');
 });
 
 test('busy targets omit per-completion comparisons and the terminal digest groups comparisons', async () => {

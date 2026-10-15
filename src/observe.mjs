@@ -198,10 +198,13 @@ export function rowTracker(c) {
           const sinceDataMs = s.data?.lastAtMs == null ? null : transition.afterMs - s.data.lastAtMs;
           const dataQuiet = s.data === null || sinceDataMs === null || sinceDataMs >= c.lagThresholdMs;
           if (persistedMs >= c.lagThresholdMs && unchangedReads >= c.minUnchangedReads && noDataInWindow && dataQuiet) {
-            const finding = { code: 'DELAYED_UI_UPDATE', kind: 'observation', confidence: s.data ? 'medium' : 'low',
+            // A stale state that began right after a user action (for example an optimistic label) is the strongest lead.
+            const stateAction = lastActionBefore(first.toMs);
+            const startedAfterActionMs = stateAction && first.fromMs - stateAction.atMs <= c.lagThresholdMs ? Math.max(0, first.fromMs - stateAction.atMs) : null;
+            const finding = { code: 'DELAYED_UI_UPDATE', kind: 'observation', confidence: s.data && startedAfterActionMs !== null ? 'medium' : 'low',
               basis: s.data ? 'NO_DATA_EVENT_BEFORE_UI_CHANGE' : 'UNCHANGED_ACROSS_READS', interval: s.interval, row,
               from: transition.from, to: state, changedAfterMs: transition.afterMs, changedByMs: transition.byMs,
-              previousStateSinceMs: first.fromMs, persistedMs, unchangedReadCompletions: unchangedReads,
+              previousStateSinceMs: first.fromMs, previousStateStartedAfterActionMs: startedAfterActionMs, persistedMs, unchangedReadCompletions: unchangedReads,
               dataEventsWhilePersisted: s.data ? last.data.count - first.data.count : null, sinceLastDataEventMs: sinceDataMs,
               afterAction: transition.afterAction ? { ...transition.afterAction, changedAfterActionMs: [transition.afterMs - transition.afterAction.atMs, transition.byMs - transition.afterAction.atMs] } : null,
               note: 'Row state persisted across completed selected reads and then changed without a data event in the sampled window. Read contents are not recorded, so this needs review against the application logic; it is not a defect verdict.' };

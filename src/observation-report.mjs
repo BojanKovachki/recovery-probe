@@ -119,7 +119,7 @@ export function observationSummary(finding) {
     const data = finding.basis === 'NO_DATA_EVENT_BEFORE_UI_CHANGE'
       ? `; no data event arrived in the change window${finding.sinceLastDataEventMs === null ? '' : ` (the last one was ${seconds(finding.sinceLastDataEventMs)} s earlier)`}`
       : '; data events were not observed for this target';
-    const action = finding.afterAction ? ` The change came ${range(finding.afterAction.changedAfterActionMs)} after action ‘${finding.afterAction.name}’.` : '';
+    const action = finding.afterAction ? ` The change came ${range(finding.afterAction.changedAfterActionMs)} after action ‘${finding.afterAction.name}’${finding.previousStateStartedAfterActionMs == null ? '; the earlier state did not start right after an action' : '; the earlier state started right after it'}.` : '';
     return `${rowName(finding.row)[0].toUpperCase()}${rowName(finding.row).slice(1)} stayed ${finding.from} for ${seconds(finding.persistedMs)} s across ${finding.unchangedReadCompletions} completed selected reads, then changed to ${finding.to}${data}.${action}`;
   }
   if (finding.basis === 'NO_READ_OBSERVED_IN_INTERVAL') return 'Content was visible without a new selected read in this interval.';
@@ -143,8 +143,11 @@ export function actionEffects(report) {
 }
 
 export function actionSummary(effect) {
-  const parts = effect.appeared.map(a => `${rowName(a.row)} appeared ${range(a.appearedAfterMs)} later as ${a.state}${a.changes.map(c => `, then ${c.from} → ${c.to} ${range(c.afterActionMs)} after the action`).join('')}`);
+  // Rows without a tracked state that merely appeared (for example after navigating) are counted, not listed.
+  const quiet = effect.appeared.filter(a => ['none', 'other'].includes(a.state) && !a.changes.length);
+  const parts = effect.appeared.filter(a => !quiet.includes(a)).map(a => `${rowName(a.row)} appeared ${range(a.appearedAfterMs)} later as ${a.state}${a.changes.map(c => `, then ${c.from} → ${c.to} ${range(c.afterActionMs)} after the action`).join('')}`);
   parts.push(...effect.changed.map(c => `${rowName(c.row)} changed ${c.from} → ${c.to} ${range(c.afterActionMs)} after the action`));
+  if (quiet.length) parts.push(`${quiet.length} row${quiet.length === 1 ? '' : 's'} without a tracked state appeared`);
   return `Action ‘${effect.name}’ at ${seconds(effect.atMs)} s (${effect.trusted ? 'trusted input' : 'scripted, untrusted event'}): ${parts.length ? parts.join('; ') : 'no tracked row appeared or changed'}.`;
 }
 
