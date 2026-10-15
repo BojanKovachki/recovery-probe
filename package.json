@@ -1,8 +1,8 @@
 {
   "name": "recovery-probe",
-  "version": "0.4.0-preview.3",
+  "version": "0.4.0-preview.4",
   "type": "module",
-  "description": "Test whether web and Electron desktop apps show the right data: recovery after failed reads, cached content, and screens that lag behind their data.",
+  "description": "Test whether web and Electron desktop apps show the right data.",
   "license": "MIT",
   "author": "Bojan Kovachki",
   "homepage": "https://github.com/BojanKovachki/recovery-probe#readme",
@@ -58,7 +58,9 @@
     "docs/ipc.md",
     "docs/refresh.md",
     "docs/observe.md",
-    "docs/ci.md"
+    "docs/ci.md",
+    "docs/api.md",
+    "docs/runner.md"
   ],
   "sideEffects": false,
   "engines": {
