@@ -1,87 +1,55 @@
 # Recovery Probe
 
-**Test whether web and desktop apps show the right data: recovery after failed reads, cached content, and screens that lag behind their data.**
+**Test whether web and desktop apps show the right data.**
 
-Recovery Probe works in two ways. It injects bounded faults into data reads, compares healthy and faulted screens, and records whether content survives or returns. It also observes reads and the screen without any fault, timing what the user sees after an action against the data the app has already received. It helps developers and coding agents reproduce problems such as disappearing lists, stuck loading states, missing retries, content served from a cache and row states that stay stale after fresh data arrives. Installing the package does not add recovery behavior to your application.
+Apps can show the wrong data without any error: a list that disappears after one failed read, a cached screen that never picks up a change, or a row whose state lags behind data the app already received. Recovery Probe reproduces these cases on demand. It injects bounded faults into data reads and compares the screen with a healthy run, or it watches reads and the screen without any fault. Each run writes a local report that separates what it measured from what it suspects.
+
+Installing the package does not add recovery behavior to your application.
 
 [![CI](https://github.com/BojanKovachki/recovery-probe/actions/workflows/validate.yml/badge.svg)](https://github.com/BojanKovachki/recovery-probe/actions/workflows/validate.yml)
 [![npm](https://img.shields.io/npm/v/recovery-probe.svg)](https://www.npmjs.com/package/recovery-probe)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## Supported applications
+## See it work
 
-| Application path | What can be tested | Setup |
-| --- | --- | --- |
-| Web apps in Chromium-based browsers | Renderer GET fetch/XHR failures, UI recovery and structural content changes | Launch a test browser or attach to an authorized development browser |
-| Electron desktop apps using renderer HTTP | The same request and UI checks | Attach through a loopback debugging endpoint |
-| Electron desktop apps using IPC reads | Renderer behavior after selected IPC rejections or null results | Add a development-only handler-registration hook and enable local inspection |
-| JavaScript code using fetch | Recovery logic around an explicitly supplied fetch wrapper | Import `recovery-probe/fetch`; Playwright is not required |
-| Web and Electron apps, without faults | Selected reads, cached content and tracked row states after user actions, including delayed UI updates | Attach as above; IPC observation uses the same development hook |
-
-Desktop support currently means Electron, not arbitrary native applications. IPC faults do not exercise native/Rust networking, HTTP status handling or token refresh. An unsupported data path is inconclusive, never a successful recovery check.
-
-## Install
-
-**0.3.0** is the stable release target on npm's `latest` channel. The commands below pin the version for reproducible reports. Prereleases use `next` and are opt-in.
-
-```bash
-mkdir recovery-probe-tools && cd recovery-probe-tools
-npm view recovery-probe@0.3.0 version
-npm install --save-dev --save-exact recovery-probe@0.3.0 playwright@1.62.1
-npx recovery-probe --version
-```
-
-If the version check reports that the version is unavailable, npm publication is still pending; use the [source installation](CONTRIBUTING.md#install-an-unpublished-source-preview). A GitHub merge alone does not publish the package. Use Node.js 22 or newer. A separate tools folder keeps the tester out of your application's production dependencies. Browser/desktop commands require Playwright; attached targets use their existing browser runtime. The guided web flow downloads Chromium when needed. See [CHANGELOG.md](CHANGELOG.md) for version history.
-
-For the 0.4 observation preview, install `recovery-probe@0.4.0-preview.3` (the `next` channel) with the same Playwright version. Preview.3 restores an app's own `webContents.send` wrapper after an observation and updates the project description; preview.2 added formatting, lint and implementation type checks; the action/row observation features were introduced in preview.1.
-
-## Choose a workflow
-
-**New in 0.3.0:** guided setup, HTTP/IPC discovery, refresh experiments and [fault-free observation](docs/observe.md) extend the original recovery helpers. Observation records selected reads and content while you navigate without reloading or clearing caches. Lightweight sampling, phase timings and separate cleanup evidence make capture cost and scope explicit. Use `"detail": "region"` for full DOM diagnostics.
-
-Content comparisons preserve the first observed result and summarize later samples: a temporary difference can subsequently match the baseline, or diverge again. These are observations, not ownership, freshness or stability verdicts. See the guide for updating the development IPC hook before capturing cached state; see the changelog for upgrading from 0.2.0.
-
-| Goal | Entry point | Guide |
-| --- | --- | --- |
-| Set up a first request-recovery check interactively | `recovery-probe start web URL` or `start desktop` | [Guided start](docs/start.md) |
-| Discover and test renderer reads in an existing browser or Electron window | `recovery-probe desktop --cdp URL` | [Attachment and HTTP discovery](docs/desktop.md) |
-| Compare an Electron screen under IPC faults | `recovery-probe ipc --discover --config FILE` | [IPC setup and discovery](docs/ipc.md) |
-| Test a refresh after content has already loaded | `recovery-probe refresh --config FILE --json` | [Refresh experiments](docs/refresh.md) |
-| Observe cached content without a reload | `recovery-probe observe --config FILE` | [Observation](docs/observe.md) |
-| Time row states after a user action, with optional scripted steps | `recovery-probe observe --config FILE [--steps FILE]` | [Actions, rows and delayed UI updates](docs/observe.md#actions-tracked-rows-and-delayed-ui-updates) |
-| Run a repeatable synthetic recovery check in CI | `npm run test:ci-example` (source checkout) | [CI example](docs/ci.md) |
-| Add an explicit recovery assertion to a test | `withFault` or `createFaultFetch` | Examples below |
-| Propose and verify a source change | Opt-in repair workflow | [Repair setup and limits](docs/repair.md) |
-
-`desktop` is also the current command name for attaching to an existing Chromium-based web browser. Use only an authorized test session, with debugging endpoints on loopback. Keep the target window visible and uncovered.
-
-Guided setup asks you to choose a request and loaded content that proves success; later runs reuse the saved scenario. Structural discovery compares healthy and faulted screens without requiring a hand-written content selector, but still needs a selected read target and a valid baseline. Neither workflow infers your product's intended recovery policy.
-
-HTTP and IPC structural discovery calibrate three healthy reloads for the full `baselineTimeoutMs` window before injecting faults (45 seconds with the default 15-second window). All three stable end states must agree. This avoids treating a briefly stable loading shell as the healthy screen, accepts legitimate empty regions, and keeps an unsuccessful calibration inconclusive. Later controls may finish early once they match the calibrated baseline. Content arriving after the window remains outside the evidence.
-
-**Session-isolation boundary:** recovery/discovery/refresh workflows reload the renderer to establish controls. That clears in-memory caches and can hide state carried between sessions. Those modes cannot prove account isolation; content preservation within one session is not an ownership check. The new observation workflow collects evidence without resetting that state, but does not infer identities or data ownership.
-
-## Refresh experiments
-
-Refresh mode tests an **already populated screen** using an explicitly configured synthetic window event, such as `online`. It first checks the event without a fault, then injects the next selected read failure and observes the screen without reloading. An optional second event tests whether another refresh repairs the screen.
-
-```bash
-npx recovery-probe refresh --config ./refresh.json --out ./refresh-run1 --json
-```
-
-This dispatches an event; it does not disconnect the network, change `navigator.onLine`, simulate sleep/resume or expire authentication. Spontaneous recovery and recovery after the second tool event are reported separately. See the [configuration, results and cleanup contract](docs/refresh.md).
-
-## Reports and coding agents
-
-Reports separate measured facts—fault counts, successful reads, timings and UI changes—from suspected defects. A `CONTENT_LOSS` finding needs review. An unconsumed fault, unstable control or unsupported path is inconclusive. All non-recovery observations are limited to the configured time window.
-
-Agents can run saved scenarios, inspect JSON evidence, propose changes and rerun the same experiment. Recovery Probe supplies repeatable experiments and evidence; it is not a general bug detector or production self-healing system. The optional AI repair workflow requires selected local source files, launch/test commands and your own model credentials. It produces a reviewable candidate, not a guaranteed fix.
-
-Reports remain local. Scenarios, endpoints, channels, selected text and authentication files may contain private information; do not publish them blindly. Tests and discovery do not call an AI service.
+The package includes a deliberately broken app and a corrected one. Both pass the normal loading check; only the corrected one recovers from all three faults.
 
 ![Recovery Probe catches a broken retry flow and verifies the corrected flow](docs/demo.svg)
 
-## Use in a Playwright test
+```bash
+mkdir recovery-probe-tools && cd recovery-probe-tools
+npm install --save-dev --save-exact recovery-probe@0.3.0 playwright@1.62.1
+npx playwright install chromium
+npx recovery-probe --demo
+```
+
+`--demo` exits successfully only when it observes that contrast: the happy path passes, the broken recovery is caught, and the corrected flow passes. Add `--json` to print the full report or `--out report.json` to save it.
+
+## Test your own app
+
+| Goal | Start with | Guide |
+| --- | --- | --- |
+| Set up a first recovery check interactively | `recovery-probe start web URL` or `start desktop` | [Guided start](docs/start.md) |
+| Discover and test the reads behind a screen in a browser or Electron window | `recovery-probe desktop --cdp URL` | [Attachment and HTTP discovery](docs/desktop.md) |
+| Compare an Electron screen under IPC faults | `recovery-probe ipc --discover --config FILE` | [IPC setup and discovery](docs/ipc.md) |
+| Test a refresh after content has already loaded | `recovery-probe refresh --config FILE --json` | [Refresh experiments](docs/refresh.md) |
+| Watch cached content and row states after user actions, without faults | `recovery-probe observe --config FILE [--steps FILE]` | [Observation](docs/observe.md) |
+| Run a repeatable recovery check in CI | `npm run test:ci-example` (source checkout) | [CI example](docs/ci.md) |
+| Assert recovery inside your own tests | `withFault` or `createFaultFetch` | [API](docs/api.md) |
+| Propose and verify a source change | Opt-in repair workflow | [Repair setup and limits](docs/repair.md) |
+
+`desktop` also attaches to an existing Chromium-based web browser.
+
+**Where it works:**
+
+- **Web apps** in Chromium-based browsers: launch a test browser or attach to an authorized development one.
+- **Electron apps that read over HTTP** in the renderer: attach through a loopback debugging endpoint.
+- **Electron apps that read over IPC**: add a development-only hook to the main process.
+- **JavaScript code that takes a fetch function**: use `recovery-probe/fetch`, without Playwright.
+
+Desktop support means Electron, not arbitrary native applications. IPC faults do not exercise native networking, HTTP status handling or token refresh. An unsupported data path is inconclusive, never a successful recovery check.
+
+## Add a recovery check to a Playwright test
 
 Use `withFault` inside an existing Playwright test. The callback contains the real user action and the application-specific recovery assertion.
 
@@ -105,154 +73,37 @@ test('profile recovers after a transient 503', async ({ page }) => {
 });
 ```
 
-If the endpoint does not match, Recovery Probe throws `FAULT_NOT_TRIGGERED` instead of allowing the test to pass silently. If the fault is applied but the recovery assertion fails, it throws `RECOVERY_ASSERTION_FAILED` and retains the original assertion error as `cause`.
+If no request matches, `withFault` throws `FAULT_NOT_TRIGGERED` instead of letting the test pass silently. Code that takes a fetch function can use `createFaultFetch` instead. See the [API reference](docs/api.md) and the [JSON-configured runner](docs/runner.md).
 
-## Run the demonstration
+## Install
 
-The repository includes deliberately broken and corrected applications. Both pass their normal loading check; only the corrected application recovers from all three faults.
+**0.3.0** is the stable release on npm's `latest` channel, and the commands above pin it for reproducible reports. The 0.4 observation preview is `recovery-probe@0.4.0-preview.4` on the `next` channel; install it with the same Playwright version.
 
-```bash
-npm install
-npx playwright install chromium
-npx recovery-probe --demo
-```
+Use Node.js 22 or newer. A separate tools folder keeps the tester out of your application's production dependencies. Browser and desktop commands need Playwright; attached targets use their existing browser runtime. If a version is not on npm yet, use the [source installation](CONTRIBUTING.md#install-an-unpublished-source-preview): a GitHub merge alone does not publish the package. See [CHANGELOG.md](CHANGELOG.md) for version history.
 
-The command prints a concise comparison:
+## Reports, agents and privacy
 
-```text
-broken synthetic fixture
-  PASS         Normal connection (OK)
-  CAUGHT       HTTP 503 once (RECOVERY_ASSERTION_FAILED, injected 1)
-  CAUGHT       Interrupted request once (RECOVERY_ASSERTION_FAILED, injected 1)
-  CAUGHT       Malformed JSON once (RECOVERY_ASSERTION_FAILED, injected 1)
+Reports separate measured facts, such as fault counts, successful reads, timings and UI changes, from suspected defects. A `CONTENT_LOSS` finding needs review. An unconsumed fault, an unstable control or an unsupported path is inconclusive. Observation findings such as `DELAYED_UI_UPDATE` are leads to check against the application logic, not verdicts.
 
-fixed synthetic fixture
-  PASS         Normal connection (OK)
-  PASS         HTTP 503 once (OK, injected 1)
-  PASS         Interrupted request once (OK, injected 1)
-  PASS         Malformed JSON once (OK, injected 1)
-```
+Coding agents can run saved scenarios, read the JSON evidence, propose a change and rerun the same experiment. Recovery Probe supplies repeatable experiments and evidence; it is not a general bug detector or a production self-healing system.
 
-`--demo` exits successfully only when it observes the expected contrast: the happy path passes, the broken recovery is caught, and the corrected flow passes. Add `--json` to print the full report or `--out report.json` to save it.
+Reports stay local, and Recovery Probe sends no telemetry. Scenarios, endpoints, channels, selected text, screenshots, login state and command logs may be private, so do not publish them blindly. Request and response bodies and headers are not collected, and observation never records read contents.
 
-## Library HTTP faults
-
-| Kind | Injected behavior |
-| --- | --- |
-| `http-error` | Fulfils the matched request with an HTTP error status; defaults to `503`. |
-| `connection-failure` | Aborts the matched Playwright request with `connectionfailed`, or throws from the fetch adapter. |
-| `invalid-json` | Returns status `200` with a deliberately malformed JSON body. |
-
-Faults are bounded by `count` (default `1`, maximum `20`). The count is reserved synchronously, so concurrent matching requests cannot over-inject.
-
-## Fetch-only tests
-
-The lightweight `recovery-probe/fetch` entry point has no runtime dependencies and does not require Playwright. It matches one exact absolute URL, including its query string, and never patches global `fetch`.
-
-```js
-import { createFaultFetch } from 'recovery-probe/fetch';
-
-const probe = createFaultFetch(fetch, {
-  url: 'http://127.0.0.1:3000/api/profile',
-  kind: 'connection-failure',
-});
-
-await exerciseApplication(probe.fetch);
-probe.assertApplied();
-```
-
-`exerciseApplication` represents your own test adapter or application controller. Calling `assertApplied()` is essential: it proves that every requested fault was consumed.
-
-## Original JSON-configured runner
-
-The CLI supports pages that automatically load GET data, expose a visible Retry button after failure, and show a ready element after recovery.
-
-```json
-{
-  "name": "Profile recovery",
-  "url": "http://127.0.0.1:3000/profile",
-  "requestPattern": "**/api/profile",
-  "readySelector": "[data-testid=profile-ready]",
-  "retrySelector": "[data-testid=profile-retry]",
-  "timeoutMs": 3000
-}
-```
-
-```bash
-npx recovery-probe --config recovery-probe.json --out artifacts/profile-recovery.json
-```
-
-The runner first checks the normal baseline in a fresh browser context. If that baseline fails, fault comparisons are skipped and reported as inconclusive. Each fault then receives its own fresh context with service workers blocked so Playwright can intercept the request.
-
-Exit codes:
-
-- `0`: every configured check passed, or the controlled demo observed its expected broken-versus-fixed result.
-- `1`: a recovery check failed, was inconclusive, or was skipped.
-- `2`: invalid arguments, configuration, or environment setup.
-
-## Original runner result semantics
-
-| Code | Meaning |
-| --- | --- |
-| `OK` | The configured assertion completed and the expected fault count was observed. |
-| `RECOVERY_ASSERTION_FAILED` | The fault occurred, but the recovery assertion did not pass. |
-| `FAULT_NOT_TRIGGERED` | The requested fault count was not observed. Check the route, method, cache, and service worker. |
-| `BASELINE_FAILED` | The ordinary flow failed, so the runner could not make a useful fault comparison. |
-| `INJECTION_ERROR` | Playwright could not apply or clean up the route reliably. |
-
-A passing result proves the configured recovery behavior for that test. It is not a certification of overall application resilience.
-
-## API
-
-### `withFault(page, options, exercise)`
-
-Installs one temporary Playwright route, runs `exercise`, verifies the requested fault count, and removes only that route handler.
-
-```ts
-interface FaultOptions {
-  match: string | RegExp;
-  kind: 'http-error' | 'connection-failure' | 'invalid-json';
-  status?: number;
-  count?: number;
-  method?: string;
-}
-```
-
-Register the fault after your own route mocks. The helper uses `route.fallback()` for requests it does not inject, allowing earlier handlers to continue processing them.
-
-### `createFaultFetch(baseFetch, options)`
-
-Creates an isolated fetch wrapper for one exact URL and method. It returns `{ fetch, summary, assertApplied }` and leaves the supplied fetch function unchanged.
-
-### `probeRecovery(browser, config)`
-
-Runs the baseline and the three default recovery checks used by the JSON CLI. For custom interactions or stronger assertions, prefer `withFault` inside your own test.
+Tests and discovery do not call an AI service. Only the opt-in repair workflow, with `--allow-source-upload`, sends the selected source files and bounded observations to your configured OpenAI model; login state and command logs are not part of that upload. It sets `store: false`, which is not a promise of zero provider retention, so review your employer's policy and the provider's data terms first. A repair is a reviewable candidate, not a guaranteed fix.
 
 ## Scope
 
-Recovery Probe focuses on deterministic request-level recovery checks and on fault-free observation of whether the screen reflects the reads it received. It does not simulate whole-device offline states, WebSocket interruptions, token expiry, browser sleep, slow-network profiles, or duplicate-submission safety. Observation findings such as `DELAYED_UI_UPDATE` are leads that need review against the application logic, not verdicts: read contents are never recorded.
+Recovery Probe checks request-level recovery deterministically and observes whether the screen reflects the reads it received. It does not simulate whole-device offline states, WebSocket interruptions, token expiry, browser sleep, slow networks or duplicate submissions.
 
-Playwright already provides the routing primitives used here. Recovery Probe adds bounded recipes, fault-occurrence verification, cleanup, consistent result codes, a fetch adapter, and a runnable broken-versus-fixed example. If a few direct `page.route()` calls are clearer for your test, use them; this package is most useful when teams want the recovery pattern to be repeatable.
+Structural discovery compares healthy and faulted screens without a hand-written content selector, but it needs a selected read and a stable healthy baseline. No workflow infers your product's intended recovery policy.
 
-The original assertion-based runner requires explicit selectors and endpoint matching; structural discovery and refresh modes use healthy-screen comparisons instead. It does not discover an application's recovery policy automatically. Request/response bodies and headers are not collected by the checker. Preview reports include endpoint origin/path, selectors, expected text and configuration; optional screenshots, login state and command logs may be sensitive. Do not commit or share these blindly.
+The recovery, discovery and refresh workflows reload the renderer to establish controls. That clears in-memory caches, so those modes cannot prove account isolation. Observation keeps that state, but it does not infer identities or data ownership.
 
-Recovery Probe sends no telemetry. Tests/discovery do not call an AI service. Only explicit repair generation with `--allow-source-upload` sends the selected source contents and bounded observations to the configured OpenAI model. Login state and command logs are not part of that upload bundle. `store: false` is set on the API request; this is not a promise of zero provider retention. Review employer policy and provider data terms first.
+Attach only to authorized test sessions, keep debugging endpoints on loopback, and keep the target window visible and uncovered.
 
 ## Development
 
-```bash
-npm ci
-npm test                 # fetch/core tests
-npm run test:package     # isolated tarball install + TypeScript + CLI checks
-npx playwright install chromium
-npm run test:browser     # real-browser integration tests
-npm run test:repair      # safety, authenticated portal, before/after pipeline
-# After installing the optional Electron test runtime:
-npm run test:repair:electron
-npm run demo:browser
-```
-
-CI runs package checks on Node.js 22 and 24, Chromium integration, and real Electron checks. Repair integration tests use a **controlled mock model response** but real apps, fault injection, source changes and reruns. They validate orchestration, not live AI diagnosis quality. See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks and test suites, and [SECURITY.md](SECURITY.md) for reporting security issues. CI runs package checks on Node.js 22 and 24, Chromium integration, and real Electron checks.
 
 ## License
 
