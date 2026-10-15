@@ -3,14 +3,8 @@ import { readFile, mkdir, writeFile, mkdtemp } from 'node:fs/promises'
 import { resolve, join } from 'node:path'
 import { discoverIpc, discoveryConfig } from '../src/ipc-discover.mjs'
 import { checkIpc } from '../src/ipc-check.mjs'
-const escape = (value) =>
-  String(value).replace(
-    /[&<>"']/g,
-    (c) =>
-      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[
-        c
-      ],
-  )
+import { renderTemplate } from '../src/report-template.mjs'
+
 export async function ipcMain(args) {
   if (!args.length || args.includes('--help')) {
     console.log(`Recovery Probe IPC preview
@@ -71,7 +65,14 @@ No HTTP/Rust transport faults or AI calls. See docs/ipc.md for installation and 
     JSON.stringify(report, null, 2),
     { mode: 0o600 },
   )
-  const html = `<!doctype html><meta charset="utf-8"><title>Recovery Probe IPC report</title><style>body{max-width:1000px;margin:40px auto;font:16px system-ui;padding:20px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f5f7;padding:20px}</style><h1>${report.ok ? 'Selected IPC experiments completed without findings requiring review' : 'IPC recovery needs investigation'}</h1><p>${escape(report.limitation)}</p><p>Final reload: ${escape(report.finalReset)}. Cleanup cannot turn an earlier failure into a pass.</p><pre>${escape(JSON.stringify(report, null, 2))}</pre>`
+  const html = renderTemplate('ipc', {
+    heading: report.ok
+      ? 'Selected IPC experiments completed without findings requiring review'
+      : 'IPC recovery needs investigation',
+    limitation: report.limitation,
+    finalReset: report.finalReset,
+    evidence: JSON.stringify(report, null, 2),
+  })
   await writeFile(join(directory, 'report.html'), html, { mode: 0o600 })
   if (options.discover) {
     await writeDiscoveryReport(directory, report, config)

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Recovery Probe discovery</title>
+    <style>
+      body {
+        font: 16px system-ui;
+        max-width: 1100px;
+        margin: 40px auto;
+        padding: 20px;
+      }
+      td,
+      th {
+        padding: 10px;
+        border-bottom: 1px solid #ddd;
+        text-align: left;
+      }
+      pre {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Recovery Probe discovery</h1>
+    <p>{{limitation}}</p>
+    <table>
+      <tr>
+        <th>Experiment</th>
+        <th>Interpretation</th>
+        <th>Kind</th>
+        <th>Confidence</th>
+        <th>Runs</th>
+        <th>Partial observation</th>
+      </tr>
+      {{{experiments}}}
+    </table>
+    <h2>Run summary</h2>
+    <pre>{{summary}}</pre>
+    <details>
+      <summary>Observations and bounded timelines</summary>
+      <pre>{{evidence}}</pre>
+    </details>
+  </body>
+</html>

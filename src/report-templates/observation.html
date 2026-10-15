@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Recovery Probe observation</title>
+    <style>
+      body {
+        font: 16px system-ui;
+        max-width: 1000px;
+        margin: 40px auto;
+        padding: 20px;
+      }
+      td,
+      th {
+        text-align: left;
+        padding: 8px;
+      }
+      pre {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Fault-free observation</h1>
+    <p>
+      Capture: {{status}}. This is not a recovery or account-isolation verdict.
+    </p>
+    <p>
+      Recovery Probe {{version}} · Node {{node}} · Browser {{browser}} · IPC
+      hook {{ipcHook}}
+    </p>
+    {{{sampling}}}
+    <p>
+      Sampling detail: {{detail}}. Marker counts describe the configured
+      content selector; generic region item counts are heuristics.
+    </p>
+    {{{phases}}}
+    <p>{{limitation}}</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Interval</th>
+          <th>Reads started</th>
+          <th>Successes</th>
+          <th>Errors</th>
+          <th>First content sample bounds</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{{intervals}}}
+      </tbody>
+    </table>
+    {{{findings}}}
+    {{{operator}}}
+    {{{actions}}}
+    {{{trackedRows}}}
+    {{{notes}}}
+    {{{comparisons}}}
+    <p>
+      Comparisons concern sampled marker text and count, not ownership or
+      freshness. A completion does not guarantee the UI has consumed its
+      result.
+    </p>
+    <p>
+      Cleanup: {{cleanup}}. The observation snapshot is from before cleanup;
+      cleanupEvidence records the separate cleanup check when available.
+    </p>
+    <details>
+      <summary>Evidence and coverage</summary>
+      <pre>{{evidence}}</pre>
+    </details>
+  </body>
+</html>

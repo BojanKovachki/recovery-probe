@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Recovery Probe — {{target}} report</title>
+    <style>
+      body {
+        font: 16px/1.6 system-ui, sans-serif;
+        background: #f6f7f9;
+        color: #17212f;
+        margin: 0;
+        padding: 40px;
+      }
+      main {
+        max-width: 1100px;
+        margin: auto;
+      }
+      h1 {
+        font-size: 32px;
+        letter-spacing: -1px;
+      }
+      code {
+        overflow-wrap: anywhere;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: white;
+        font-size: 14px;
+      }
+      th,
+      td {
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+        padding: 12px;
+      }
+      section {
+        background: white;
+        padding: 20px;
+        margin: 24px 0;
+        border-radius: 10px;
+      }
+      .pass {
+        color: #087443;
+      }
+      .fail {
+        color: #b3261e;
+      }
+      .inconclusive,
+      .skipped {
+        color: #755300;
+      }
+      img {
+        max-width: 100%;
+        border: 1px solid #ddd;
+      }
+      figcaption {
+        font-weight: 600;
+      }
+      small {
+        color: #536174;
+      }
+      .scroll {
+        overflow: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p>RECOVERY PROBE · {{targetLabel}} PREVIEW</p>
+      <h1>{{heading}}</h1>
+      <p><code>GET {{endpoint}}</code></p>
+      <p>
+        Recovery: <strong>{{recovery}}</strong> · Deadline: {{timeoutMs}} ms ·
+        {{generatedAt}}
+      </p>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Injected fault</th>
+              <th>Outcome</th>
+              <th>Result</th>
+              <th>Injected</th>
+              <th>Later successful responses</th>
+              <th>Retry clicked</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{{results}}}
+          </tbody>
+        </table>
+      </div>
+      <section>
+        <h2>How to read this</h2>
+        <p>
+          <strong>PASS:</strong> the fault occurred, the configured action
+          completed, a later matching request succeeded, and the selected
+          healthy UI marker appeared. <strong>FAIL:</strong> after the fault
+          and action, recovery was not observed by the deadline. Investigate
+          the app and the chosen assertion. <strong>INCONCLUSIVE:</strong>
+          setup, baseline, interception or the recovery action could not be
+          verified; this is not a confirmed app bug.
+        </p>
+        <p>
+          Final reload reset: <strong>{{finalReset}}</strong>. A reload that
+          rescues a stuck page does not turn the original failed recovery check
+          into a pass.
+        </p>
+        <p>{{limitation}}</p>
+      </section>
+      <section>
+        <h2>Reproduce and investigate</h2>
+        <p>
+          From this output directory, run <code>node reproduce.mjs</code>
+          {{reproduceWhere}}. See <code>scenario.json</code> and
+          <code>fix-brief.md</code>.
+        </p>
+        <p>
+          No source patch was applied. No data was uploaded. Review local
+          artifacts before sharing them.
+        </p>
+      </section>
+      {{{screenshots}}}
+      <small>
+        HTTP status success and a visible marker do not certify response
+        semantics. Choose a marker that only appears when this endpoint's data
+        has actually loaded; configure readyText/busySelector for a stronger
+        assertion.
+      </small>
+    </main>
+  </body>
+</html>
