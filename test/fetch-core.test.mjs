@@ -114,6 +114,22 @@ test('Request inputs and explicit method overrides are preserved', async () => {
   p.assertApplied()
 })
 
+test('relative and malformed URLs reach the supplied fetch untouched', async () => {
+  const calls = []
+  const base = async (...args) => {
+    calls.push(args)
+    return new Response('passed through')
+  }
+  const p = createFaultFetch(base, { url: endpoint, kind: 'http-error' })
+  const init = { method: 'GET' }
+  assert.equal((await p.fetch('/api/profile', init)).status, 200)
+  assert.equal((await p.fetch('not a url')).status, 200)
+  assert.equal(calls[0][0], '/api/profile')
+  assert.equal(calls[0][1], init)
+  assert.deepEqual(calls[1], ['not a url', undefined])
+  assert.equal(p.summary().matchingRequests, 0)
+})
+
 test('already aborted requests keep cancellation semantics and do not consume a fault', async () => {
   const p = createFaultFetch(fetch, { url: endpoint, kind: 'http-error' })
   const controller = new AbortController()
