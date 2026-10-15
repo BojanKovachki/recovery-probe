@@ -66,6 +66,10 @@ export async function windowVisibility(page, control) {
     await session?.detach().catch(() => {})
   }
 }
+/**
+ * @param {any} page
+ * @param {{ restoreWindow?: boolean, control?: any, announce?: (message: string) => void }} [options]
+ */
 export async function prepareVisibility(
   page,
   { restoreWindow = false, control, announce = console.log } = {},

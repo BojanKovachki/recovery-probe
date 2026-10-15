@@ -103,6 +103,12 @@ export function refreshConfig(input) {
 
 // Both transports supply begin/snapshot/disarm/stop. No reload occurs between
 // the faulted refresh and its spontaneous/optional second-trigger observations.
+/**
+ * @param {any} page
+ * @param {any} input
+ * @param {any} adapter
+ * @param {{ signal?: AbortSignal }} [options]
+ */
 export async function runRefresh(page, input, adapter, { signal } = {}) {
   const c = refreshConfig(input),
     target = c.transport === 'http' ? c.endpoint : c.channel

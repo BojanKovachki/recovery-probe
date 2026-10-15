@@ -95,6 +95,11 @@ function abortable(promise, signal) {
 }
 
 /** Runs steps in order. Clicks require exactly one visible match and use real input events. */
+/**
+ * @param {any} page Playwright page
+ * @param {Record<string, any>[]} steps Validated steps
+ * @param {{ mark: () => Promise<number | null>, signal: AbortSignal, elapsed: () => number, log?: (result: Record<string, any>) => void }} options
+ */
 export async function runSteps(
   page,
   steps,
@@ -102,6 +107,7 @@ export async function runSteps(
 ) {
   const results = []
   for (const [index, step] of steps.entries()) {
+    /** @type {Record<string, any>} */
     const result = {
       index,
       kind: step.kind,

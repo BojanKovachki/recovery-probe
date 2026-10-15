@@ -1,5 +1,9 @@
 import { performance } from 'node:perf_hooks'
 import { pageIdentity } from './desktop.mjs'
+/**
+ * @param {any} page Playwright page
+ * @param {{ endpoint: string, requiredEndpoints?: string[], fault?: 'http-error' | 'connection-failure' | 'invalid-json', times?: number }} options
+ */
 export async function observeHttp(
   page,
   { endpoint, requiredEndpoints = [], fault, times = 1 },

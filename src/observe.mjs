@@ -570,6 +570,22 @@ async function boundedUiRead(action, signal, timeoutMs = 5000) {
  * An optional `operator` function may act on the app (for example explicit --steps); it
  * receives `mark()` to open a new interval and its outcome is reported separately.
  */
+/**
+ * @typedef {object} ObservationHooks
+ * @property {AbortSignal} [signal]
+ * @property {() => boolean} [takeMarker] Returns true to open a new operator interval.
+ * @property {() => unknown} [onReady]
+ * @property {(index: number) => unknown} [onInterval]
+ * @property {(event: Record<string, any>) => unknown} [onSample]
+ * @property {(context: { mark: () => Promise<number | null>, signal: AbortSignal, elapsed: () => number }) => unknown} [operator]
+ */
+
+/**
+ * @param {any} page Playwright page
+ * @param {Record<string, any>} input Observation config
+ * @param {any} adapter HTTP or IPC observation adapter
+ * @param {ObservationHooks} [hooks]
+ */
 export async function runObservation(
   page,
   input,
@@ -588,6 +604,7 @@ export async function runObservation(
   const metrics = samplingMetrics(c.sampleMs)
   const comparisons = contentComparisons()
   const tracker = c.rows ? rowTracker(c) : null
+  /** @type {Record<string, any>} */
   const report = {
     schemaVersion: 1,
     metadata: observationMetadata(),
@@ -631,6 +648,7 @@ export async function runObservation(
     pageErrors = 0,
     newDocument = false,
     operatorRun
+  /** @type {{ resolve?: (index: number | null) => void }[]} */
   const markerRequests = []
   const operatorAbort = new AbortController()
   const errors = () => {

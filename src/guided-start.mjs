@@ -82,22 +82,24 @@ async function launchWeb(options, io) {
       dirname(require.resolve('playwright/package.json')),
       'cli.js',
     )
-    await new Promise((resolve, reject) => {
-      const child = spawn(process.execPath, [cli, 'install', 'chromium'], {
-        stdio: 'inherit',
-        shell: false,
-      })
-      child.once('error', reject)
-      child.once('exit', (code) =>
-        code === 0
-          ? resolve()
-          : reject(
-              new Error(
-                'Chromium installation failed. Run npx playwright install chromium, then retry.',
+    await /** @type {Promise<void>} */ (
+      new Promise((resolve, reject) => {
+        const child = spawn(process.execPath, [cli, 'install', 'chromium'], {
+          stdio: 'inherit',
+          shell: false,
+        })
+        child.once('error', reject)
+        child.once('exit', (code) =>
+          code === 0
+            ? resolve()
+            : reject(
+                new Error(
+                  'Chromium installation failed. Run npx playwright install chromium, then retry.',
+                ),
               ),
-            ),
-      )
-    })
+        )
+      })
+    )
   }
   return playwright.chromium.launch({ headless: Boolean(options.headless) })
 }

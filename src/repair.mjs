@@ -167,6 +167,11 @@ async function portOpen(url) {
 }
 
 /** Only run the target started in this checkout, not an already-running company app. */
+/**
+ * @param {any} config
+ * @param {string} workspace
+ * @param {{ logPath?: string }} [options]
+ */
 export async function observeRepairTarget(config, workspace, { logPath } = {}) {
   const url = new URL(
     config.target === 'web' ? config.scenario.pageUrl : config.scenario.cdp,
@@ -406,6 +411,10 @@ export async function prepareRepair(
   return { reproduced, before, bundle, state }
 }
 
+/**
+ * @param {string} directory
+ * @param {{ allowSourceUpload?: boolean, apiKey?: string, fetchImpl?: typeof fetch }} [options]
+ */
 export async function generateRepair(
   directory,
   { allowSourceUpload = false, apiKey, fetchImpl } = {},

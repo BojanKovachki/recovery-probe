@@ -52,16 +52,20 @@ export async function startDemoServer() {
       response.end('Not found')
     }
   })
-  await new Promise((resolve, reject) => {
-    server.once('error', reject)
-    server.listen(0, '127.0.0.1', resolve)
-  })
+  await /** @type {Promise<void>} */ (
+    new Promise((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+  )
   return {
-    url: `http://127.0.0.1:${server.address().port}`,
+    url: `http://127.0.0.1:${/** @type {import('node:net').AddressInfo} */ (server.address()).port}`,
     close: () =>
-      new Promise((resolve, reject) => {
-        server.close((error) => (error ? reject(error) : resolve()))
-        server.closeAllConnections()
-      }),
+      /** @type {Promise<void>} */ (
+        new Promise((resolve, reject) => {
+          server.close((error) => (error ? reject(error) : resolve()))
+          server.closeAllConnections()
+        })
+      ),
   }
 }
