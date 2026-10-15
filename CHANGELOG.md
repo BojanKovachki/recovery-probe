@@ -4,7 +4,7 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
-## Unreleased
+## 0.4.0-preview.1 (2026-10-15)
 
 - Record configured user actions during observation (name, time, real-input flag) and report the tracked rows that appeared or changed after each action.
 - Track rows with hashed keys or configured aliases and allowlisted state labels. Add the `DELAYED_UI_UPDATE` observation: a row state that persisted across completed selected reads and then changed without a data event in the sampled window.
