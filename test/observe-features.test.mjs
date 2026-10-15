@@ -123,6 +123,80 @@ test('push observation is scoped to the lease and target window, preserves sends
   )
 })
 
+test('ending an observation restores a send wrapper the app installed earlier and leaves later wrappers alone', () => {
+  const pushes = {
+    pushChannels: ['fixture:emit'],
+    classifyPush: (_channel, [payload]) => payload.event,
+  }
+  // The app wrapped send on the window before the observation, for example for tracing.
+  const earlier = hookFixture(pushes)
+  const traced = []
+  const appWrapper = function (channel, ...args) {
+    traced.push(channel)
+    return earlier.proto.send.call(this, channel, ...args)
+  }
+  earlier.sender.send = appWrapper
+  earlier.probe.begin({
+    id: 'earlier',
+    channel: 'fixture:invoke',
+    observation: true,
+  })
+  assert.notEqual(earlier.sender.send, appWrapper)
+  earlier.sender.send('fixture:emit', { event: 'queueChanged' })
+  assert.deepEqual(
+    traced,
+    ['fixture:emit'],
+    'the app wrapper still runs during the lease',
+  )
+  assert.equal(earlier.probe.snapshot().pushes['fixture:emit'].count, 1)
+  earlier.probe.reset('earlier')
+  assert.equal(
+    earlier.sender.send,
+    appWrapper,
+    'the app wrapper is restored, not deleted',
+  )
+  earlier.sender.send('fixture:emit', { event: 'after' })
+  assert.deepEqual(traced, ['fixture:emit', 'fixture:emit'])
+  assert.equal(earlier.sent.length, 2)
+
+  // Disposing the hook during a lease restores the app wrapper the same way.
+  const disposed = hookFixture(pushes)
+  disposed.sender.send = appWrapper
+  disposed.probe.begin({
+    id: 'dispose',
+    channel: 'fixture:invoke',
+    observation: true,
+  })
+  disposed.probe.dispose()
+  assert.equal(disposed.sender.send, appWrapper)
+
+  // A wrapper installed after ours is not removed; ours stays underneath as a pass-through.
+  const later = hookFixture(pushes)
+  later.probe.begin({
+    id: 'later',
+    channel: 'fixture:invoke',
+    observation: true,
+  })
+  const ours = later.sender.send
+  const laterWrapper = function (channel, ...args) {
+    return ours.call(this, channel, ...args)
+  }
+  later.sender.send = laterWrapper
+  later.probe.reset('later')
+  assert.equal(later.sender.send, laterWrapper)
+  later.sender.send('fixture:emit', { event: 'queueChanged' })
+  assert.equal(
+    later.sent.length,
+    1,
+    'sends still reach the original method once',
+  )
+  assert.equal(
+    later.probe.snapshot().pushes['fixture:emit'].count,
+    0,
+    'nothing is counted after the lease',
+  )
+})
+
 test('the observer requires hook capabilities for methods and data events before starting a plan', async () => {
   const base = {
     transport: 'ipc',

@@ -128,18 +128,23 @@ exports.installIpcProbe = function installIpcProbe(
   }
   const unwrapSend = () => {
     if (!wrappedSend) return
-    const { contents, wrapper } = wrappedSend
-    // Only remove our own instance property; the prototype method stays untouched.
+    const { contents, wrapper, previous } = wrappedSend
+    // Undo only our own change: restore an instance-level send that existed before the
+    // lease (for example an app's tracing wrapper), or remove ours to expose the prototype
+    // method again. A wrapper installed after ours stays; ours then only passes calls through.
     if (
       !contents.isDestroyed?.() &&
       Object.hasOwn(contents, 'send') &&
       contents.send === wrapper
-    )
-      delete contents.send
+    ) {
+      if (previous) Object.defineProperty(contents, 'send', previous)
+      else delete contents.send
+    }
     wrappedSend = null
   }
   const wrapSend = (contents, current) => {
     if (!allowedPushes.size || typeof contents?.send !== 'function') return
+    const previous = Object.getOwnPropertyDescriptor(contents, 'send')
     const send = contents.send
     const wrapper = function (channel, ...args) {
       if (
@@ -172,7 +177,7 @@ exports.installIpcProbe = function installIpcProbe(
       configurable: true,
       writable: true,
     })
-    wrappedSend = { contents, wrapper }
+    wrappedSend = { contents, wrapper, previous }
   }
   const disarm = () => {
     clearTimeout(timer)
