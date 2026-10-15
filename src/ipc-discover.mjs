@@ -255,7 +255,7 @@ export async function discoverIpc(input) {
                 fault && ready ? detectedAt - snapshot.injectedAt : null,
               timingNote: `Sampled recovery with ${settleMs}ms UI stability; bounded observation starts at first observed injection.`,
               repeatedReads: Object.entries(snapshot.channels)
-                .filter(([name, row]) => row.realCalls > 1)
+                .filter(([, row]) => row.realCalls > 1)
                 .map(([channel, row]) => ({
                   code: 'REPEATED_READS',
                   channel,

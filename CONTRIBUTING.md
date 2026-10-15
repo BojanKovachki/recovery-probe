@@ -14,13 +14,14 @@ Thanks for helping make recovery checks easier to trust.
 ```bash
 npm ci
 npm run format:check
+npm run lint
 npm test
 npm run test:package
 npx playwright install chromium
 npm run test:browser
 ```
 
-Code and JSON are formatted with Prettier (`npm run format`); CI fails on unformatted files. Markdown, HTML fixtures and workflow files are left as written. `.gitattributes` keeps LF line endings on every platform so local checks match CI.
+Code and JSON are formatted with Prettier (`npm run format`) and linted with ESLint (`npm run lint`); CI fails on either. Functions passed to `page.evaluate` run in the browser: keep them self-contained, and list new in-page modules in `eslint.config.mjs` so they get browser globals. Markdown, HTML fixtures and workflow files are left as written. `.gitattributes` keeps LF line endings on every platform so local checks match CI. The repository-wide reformat is listed in `.git-blame-ignore-revs`; run `git config blame.ignoreRevsFile .git-blame-ignore-revs` to skip it in local blame.
 
 ## Install an unpublished source preview
 

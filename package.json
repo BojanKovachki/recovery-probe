@@ -73,7 +73,11 @@
     }
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
     "@types/node": "24.13.6",
+    "eslint": "10.12.0",
+    "eslint-config-prettier": "10.1.8",
+    "globals": "17.13.0",
     "playwright": "1.62.1",
     "prettier": "3.9.10",
     "typescript": "7.0.2"
@@ -105,6 +109,7 @@
   "scripts": {
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "lint": "eslint .",
     "test": "npm run test:core",
     "test:core": "node --test test/fetch-core.test.mjs",
     "test:browser": "node --test test/recovery.integration.test.mjs test/discovery.integration.test.mjs test/discovery-calibration.integration.test.mjs test/attach.integration.test.mjs test/refresh.integration.test.mjs test/observe.integration.test.mjs test/observe-queue.integration.test.mjs",
