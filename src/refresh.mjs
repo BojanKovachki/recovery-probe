@@ -157,7 +157,7 @@ export async function runRefresh(page, input, adapter, { signal } = {}) {
     let last,
       previous,
       stableSince = start
-    do {
+    while (true) {
       if (!ignoreAbort) checkAbort()
       last = await sample()
       const signature = JSON.stringify(last.ui)
@@ -185,7 +185,7 @@ export async function runRefresh(page, input, adapter, { signal } = {}) {
           ready: Boolean(fullWindow && predicate?.(last, stable)),
         }
       await sleep(50)
-    } while (true)
+    }
   }
   const settled = (s) => Object.values(s.channels).every((r) => r.pending === 0)
   const healthy = (value, stable, expected) =>

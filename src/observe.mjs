@@ -630,8 +630,8 @@ export async function runObservation(
   let attempted = false,
     pageErrors = 0,
     newDocument = false,
-    operatorRun,
-    markerRequests = []
+    operatorRun
+  const markerRequests = []
   const operatorAbort = new AbortController()
   const errors = () => {
     pageErrors++

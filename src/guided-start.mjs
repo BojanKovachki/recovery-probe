@@ -15,6 +15,7 @@ import { pickMarker } from './pick-marker.mjs'
 const require = createRequire(import.meta.url)
 const safeLabel = (text) =>
   String(text)
+    // eslint-disable-next-line no-control-regex -- strips terminal control characters from untrusted text
     .replace(/[\x00-\x1f\x7f-\x9f]/g, ' ')
     .slice(0, 240)
 
@@ -238,6 +239,7 @@ export async function runStart(options, io, dependencies = {}) {
       } catch (error) {
         throw new Error(
           `Cannot attach to Electron at ${cdp}. Start its development build with --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 (or use --cdp for your port). The flags must reach Electron, not only its frontend server. ${error.message}`,
+          { cause: error },
         )
       }
       const pages = desktopPages(browser)

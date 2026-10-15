@@ -17,6 +17,7 @@ export async function resetIpcAndConfirm(control, id) {
   } catch (error) {
     throw new Error(
       `IPC cleanup unverified: cannot read back state (${error.message}). Stop the test app; a fault may remain armed until its TTL expires.`,
+      { cause: error },
     )
   }
   if (

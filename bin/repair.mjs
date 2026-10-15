@@ -51,7 +51,7 @@ See docs/repair.md for complete web and Electron examples and Windows commands.`
     throw new Error(
       '--auto-verify requires --config, --allow-execution and --allow-source-upload',
     )
-  let directory = resolve(
+  const directory = resolve(
     options.generate ??
       options.verify ??
       options.out ??
