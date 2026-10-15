@@ -1,8 +1,8 @@
 # Recovery Probe
 
-**Test how web and desktop applications recover when data reads fail—during loading and refresh.**
+**Test whether web and desktop apps show the right data: recovery after failed reads, cached content, and screens that lag behind their data.**
 
-Recovery Probe injects bounded faults, compares healthy and faulted screens, and records whether content survives or returns. It helps developers and coding agents reproduce recovery problems such as disappearing lists, stuck loading states and missing retries. Installing the package does not add recovery behavior to your application.
+Recovery Probe works in two ways. It injects bounded faults into data reads, compares healthy and faulted screens, and records whether content survives or returns. It also observes reads and the screen without any fault, timing what the user sees after an action against the data the app has already received. It helps developers and coding agents reproduce problems such as disappearing lists, stuck loading states, missing retries, content served from a cache and row states that stay stale after fresh data arrives. Installing the package does not add recovery behavior to your application.
 
 [![CI](https://github.com/BojanKovachki/recovery-probe/actions/workflows/validate.yml/badge.svg)](https://github.com/BojanKovachki/recovery-probe/actions/workflows/validate.yml)
 [![npm](https://img.shields.io/npm/v/recovery-probe.svg)](https://www.npmjs.com/package/recovery-probe)
@@ -16,6 +16,7 @@ Recovery Probe injects bounded faults, compares healthy and faulted screens, and
 | Electron desktop apps using renderer HTTP | The same request and UI checks | Attach through a loopback debugging endpoint |
 | Electron desktop apps using IPC reads | Renderer behavior after selected IPC rejections or null results | Add a development-only handler-registration hook and enable local inspection |
 | JavaScript code using fetch | Recovery logic around an explicitly supplied fetch wrapper | Import `recovery-probe/fetch`; Playwright is not required |
+| Web and Electron apps, without faults | Selected reads, cached content and tracked row states after user actions, including delayed UI updates | Attach as above; IPC observation uses the same development hook |
 
 Desktop support currently means Electron, not arbitrary native applications. IPC faults do not exercise native/Rust networking, HTTP status handling or token refresh. An unsupported data path is inconclusive, never a successful recovery check.
 
@@ -32,7 +33,7 @@ npx recovery-probe --version
 
 If the version check reports that the version is unavailable, npm publication is still pending; use the [source installation](CONTRIBUTING.md#install-an-unpublished-source-preview). A GitHub merge alone does not publish the package. Use Node.js 22 or newer. A separate tools folder keeps the tester out of your application's production dependencies. Browser/desktop commands require Playwright; attached targets use their existing browser runtime. The guided web flow downloads Chromium when needed. See [CHANGELOG.md](CHANGELOG.md) for version history.
 
-For the 0.4 observation preview, install `recovery-probe@0.4.0-preview.2` (the `next` channel) with the same Playwright version. Preview.2 adds formatting, lint and implementation type checks; the action/row observation features were introduced in preview.1.
+For the 0.4 observation preview, install `recovery-probe@0.4.0-preview.3` (the `next` channel) with the same Playwright version. Preview.3 restores an app's own `webContents.send` wrapper after an observation and updates the project description; preview.2 added formatting, lint and implementation type checks; the action/row observation features were introduced in preview.1.
 
 ## Choose a workflow
 
@@ -229,7 +230,7 @@ Runs the baseline and the three default recovery checks used by the JSON CLI. Fo
 
 ## Scope
 
-Recovery Probe deliberately focuses on deterministic request-level recovery checks. It does not simulate whole-device offline states, WebSocket interruptions, token expiry, browser sleep, slow-network profiles, or duplicate-submission safety.
+Recovery Probe focuses on deterministic request-level recovery checks and on fault-free observation of whether the screen reflects the reads it received. It does not simulate whole-device offline states, WebSocket interruptions, token expiry, browser sleep, slow-network profiles, or duplicate-submission safety. Observation findings such as `DELAYED_UI_UPDATE` are leads that need review against the application logic, not verdicts: read contents are never recorded.
 
 Playwright already provides the routing primitives used here. Recovery Probe adds bounded recipes, fault-occurrence verification, cleanup, consistent result codes, a fetch adapter, and a runnable broken-versus-fixed example. If a few direct `page.route()` calls are clearer for your test, use them; this package is most useful when teams want the recovery pattern to be repeatable.
 

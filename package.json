@@ -1,8 +1,8 @@
 {
   "name": "recovery-probe",
-  "version": "0.4.0-preview.2",
+  "version": "0.4.0-preview.3",
   "type": "module",
-  "description": "Test recovery from failed reads in web and Electron desktop apps, during loading and refresh.",
+  "description": "Test whether web and Electron desktop apps show the right data: recovery after failed reads, cached content, and screens that lag behind their data.",
   "license": "MIT",
   "author": "Bojan Kovachki",
   "homepage": "https://github.com/BojanKovachki/recovery-probe#readme",
@@ -104,7 +104,10 @@
     "fetch",
     "electron",
     "ipc",
-    "refresh"
+    "refresh",
+    "observation",
+    "ui-state",
+    "cache"
   ],
   "scripts": {
     "format": "prettier --write .",

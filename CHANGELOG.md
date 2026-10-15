@@ -4,6 +4,11 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.4.0-preview.3 (2026-10-15)
+
+- Restore an existing instance-level `webContents.send` (for example an app's tracing wrapper) when an observation ends or the hook is disposed, instead of deleting it. Previously that wrapper was lost and later pushes bypassed it. A wrapper installed after the observation began is left in place.
+- Broaden the project description: recovery after failed reads, cached content, and screens that lag behind their data. Observation and `DELAYED_UI_UPDATE` remain fault-free leads, not verdicts.
+
 ## 0.4.0-preview.2 (2026-10-15)
 
 - Apply consistent Prettier formatting and add formatting, ESLint and JavaScript type checks to CI.
