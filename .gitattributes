@@ -1,0 +1,5 @@
+# Keep LF in working trees on every platform so formatting checks match CI.
+* text=auto eol=lf
+*.svg text eol=lf
+*.png binary
+*.tgz binary

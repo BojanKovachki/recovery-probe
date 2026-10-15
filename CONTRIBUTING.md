@@ -13,11 +13,14 @@ Thanks for helping make recovery checks easier to trust.
 
 ```bash
 npm ci
+npm run format:check
 npm test
 npm run test:package
 npx playwright install chromium
 npm run test:browser
 ```
+
+Code and JSON are formatted with Prettier (`npm run format`); CI fails on unformatted files. Markdown, HTML fixtures and workflow files are left as written. `.gitattributes` keeps LF line endings on every platform so local checks match CI.
 
 ## Install an unpublished source preview
 
