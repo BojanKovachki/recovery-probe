@@ -8,7 +8,7 @@ export interface ObservationMetadata {
   recoveryProbeVersion: string
   runtime: { node: string }
   browserVersion: string | null
-  ipcHook: { version?: string; [key: string]: unknown } | null
+  ipcHook: { version?: string | null; [key: string]: unknown } | null
 }
 
 export interface ReadCounts {
@@ -31,14 +31,30 @@ export interface ObservationSample {
   fromMs: number
   toMs: number
   ui: {
-    presence: string
+    presence?: string
     visible: boolean
-    contentCount: number
+    contentCount?: number
     content?: ContentSummary | null
   }
   reads: ReadCounts & { pendingAtStart: number }
   before: ReadCounts
   after: ReadCounts
+}
+
+/** A sample as recorded in the change-only timeline. */
+export interface TimelineEvent extends ObservationSample {
+  rows?: SummarizedRows
+  lastReadAgeMs: number | null
+  lastCompletionAgeMs: number | null
+  dataEvents?: number
+  lastDataEventAgeMs?: number | null
+  pageErrors: number
+}
+
+/** Row keys are hashed or aliased; states are allowlisted labels, 'none' or 'other'. */
+export interface SummarizedRows {
+  truncated: boolean
+  items: { row: string; state: string }[]
 }
 
 export type ComparisonResult = 'unavailable' | 'unchanged' | 'changed'
@@ -48,7 +64,7 @@ interface ContentEvidence {
   interval: number
   fromMs: number
   toMs: number
-  presence: string
+  presence?: string
   visible: boolean
   content: ContentSummary | null
 }
@@ -104,7 +120,7 @@ export type SamplingTimings = Partial<
   Record<(typeof samplingPhases)[number], number>
 >
 
-interface ActionRef {
+export interface ActionRef {
   name: string
   atMs: number
 }
@@ -114,21 +130,25 @@ export interface ObservedAction extends ActionRef {
   interval: number
 }
 
+export interface RowTransition {
+  from: string
+  to: string
+  interval?: number
+  afterMs: number
+  byMs: number
+  afterAction?: ActionRef | null
+}
+
 export interface TrackedRow {
   row: string
   firstSeen: {
+    interval?: number
     fromMs: number
     toMs: number
     state: string
     afterAction?: ActionRef | null
   }
-  transitions: {
-    from: string
-    to: string
-    afterMs: number
-    byMs: number
-    afterAction?: ActionRef | null
-  }[]
+  transitions: RowTransition[]
   lastState: string
 }
 
@@ -149,29 +169,57 @@ export interface ActionEffect extends ObservedAction {
 
 export interface ObservationFinding {
   code: string
+  kind?: string
   basis: string
   interval: number
+  summary?: string
+  note?: string
 }
 
 export interface DelayedUiUpdateFinding extends ObservationFinding {
   code: 'DELAYED_UI_UPDATE'
+  confidence: 'medium' | 'low'
   row: string
   from: string
   to: string
+  changedAfterMs: number
+  changedByMs: number
+  previousStateSinceMs: number
+  previousStateStartedAfterActionMs: number | null
   persistedMs: number
   unchangedReadCompletions: number
+  dataEventsWhilePersisted: number | null
   sinceLastDataEventMs: number | null
-  previousStateStartedAfterActionMs: number | null
-  afterAction: { name: string; changedAfterActionMs: [number, number] } | null
+  afterAction: (ActionRef & { changedAfterActionMs: [number, number] }) | null
+}
+
+export interface ContentBeforeReadFinding extends ObservationFinding {
+  code: 'CONTENT_BEFORE_READ'
+  fromMs: number
+  toMs: number
+  reads: ObservationSample['reads']
+  lastReadAgeMs: number | null
+  lastCompletionAgeMs: number | null
 }
 
 export interface ObservationInterval {
   index: number
   startMs: number
-  reads?: { calls: number; successes: number; errors: number }
-  firstContent?: { fromMs: number; toMs: number; [key: string]: unknown } | null
+  endMs?: number
+  startCounts?: ReadCounts
+  startChannelCounts?: ReadCounts
+  startDataEvents?: number
+  firstContent?: {
+    fromMs: number
+    toMs: number
+    [key: string]: unknown
+  } | null
+  samples: number
   /** Codes of the findings raised in this interval. */
   findings: string[]
+  reads?: ObservationSample['reads']
+  channelReads?: ObservationSample['reads']
+  dataEvents?: number
 }
 
 export interface ObservationNote {
@@ -180,23 +228,56 @@ export interface ObservationNote {
   [key: string]: unknown
 }
 
-/** The fields of an observation report that the written report uses. */
-export interface ObservationReport {
+export interface ObservationOperator {
   status: string
+  error?: string
+  steps?: unknown[]
+}
+
+/** An observation report. Optional fields may be missing from older or failed captures. */
+export interface ObservationReport {
+  schemaVersion?: number
   metadata?: ObservationMetadata
-  sampling?: SamplingSnapshot | null
+  mode?: string
+  transport?: string
+  target?: string
+  targetMethods?: string[]
+  generatedAt?: string
+  status: string
+  captureComplete?: boolean
+  observationMs?: number
+  sampleMs?: number
   detail?: string
+  startedAt?: number
+  elapsedMs?: number
+  samples?: number
+  sampling?: SamplingSnapshot | null
   limitation?: string
   error?: string
   intervals: ObservationInterval[]
   findings: ObservationFinding[]
   comparisons?: ContentComparison[]
+  timeline?: TimelineEvent[]
   actions?: ObservedAction[]
   actionEffects?: ActionEffect[]
   rows?: TrackedRow[] | null
   notes?: ObservationNote[]
-  operator?: { status: string; error?: string } | null
+  operator?: ObservationOperator | null
+  injected?: number
+  reloads?: number
   cleanup?: string
+  cleanupEvidence?: Record<string, unknown> | null
+  cleanupError?: string
+  /** Set by the CLI when closing the browser connection failed. */
+  disconnectError?: string
+  coverage?: {
+    historyBeforeCapture: string
+    pendingBeforeCapture: string
+    scope: string
+    gaps: string[]
+  }
+  snapshot?: unknown
+  snapshotStage?: string
 }
 
 export function observationMetadata(): ObservationMetadata {
@@ -377,7 +458,7 @@ export function contentComparisons() {
           f.firstBaselineMatch = evidence
         f.summary = comparisonFollowUpSummary(comparison)
       }
-      if (event.ui.visible && event.ui.contentCount > 0) {
+      if (event.ui.visible && (event.ui.contentCount ?? 0) > 0) {
         if (returnBaseline && !comparedReturn)
           results.push(
             contentComparison('INTERVAL_RETURN', returnBaseline, event),

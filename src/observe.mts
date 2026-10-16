@@ -1,27 +1,98 @@
+import type { Page } from 'playwright'
 import {
   observationMetadata,
   samplingMetrics,
   observationSummary,
   contentComparisons,
   actionEffects,
+  type ContentBeforeReadFinding,
+  type DelayedUiUpdateFinding,
+  type ObservationInterval,
+  type ObservationMetadata,
+  type ObservationOperator,
+  type ObservationReport,
+  type ObservedAction,
+  type ReadCounts,
+  type RowTransition,
+  type SummarizedRows,
+  type TimelineEvent,
+  type TrackedRow,
 } from './observation-report.mjs'
 import { performance } from 'node:perf_hooks'
 import { randomUUID, createHash } from 'node:crypto'
-import { readRegion, summarizeRegion } from './ipc-observation.mjs'
+import {
+  readRegion,
+  summarizeRegion,
+  type ObservationReadInput,
+  type RegionRead,
+} from './ipc-observation.mjs'
 import { observeHttp } from './http-observer.mjs'
 import {
   selectorSpec,
   installObserverKit,
   removeObserverKit,
+  type ObservedActionConfig,
+  type SelectorSpec,
 } from './observation-kit.mjs'
+import type { IpcInspector } from './ipc-inspector.mjs'
+import type { IpcPushStats, IpcReadStats } from './ipc-probe.cjs'
 
 const LABEL = /^[\w.:/-]{1,100}$/
 const NAME = /^[\w.-]{1,40}$/
 
-export function observationConfig(input) {
+export interface RowsConfig {
+  selector: SelectorSpec
+  key?: SelectorSpec
+  state: SelectorSpec
+  states: string[]
+  aliases: Record<string, string>
+}
+
+export interface ObservationConfig {
+  transport: 'http' | 'ipc'
+  cdp: string
+  inspector: string
+  page?: number
+  pageUrl?: string
+  channel?: string
+  methods?: string[]
+  dataEvents?: { channel: string; methods?: string[] }
+  endpoint?: string
+  regionSelector: string
+  contentSelector: SelectorSpec
+  rows?: RowsConfig
+  actions?: ObservedActionConfig[]
+  lagThresholdMs: number
+  minUnchangedReads: number
+  detail: 'content' | 'region'
+  observationMs: number
+  sampleMs: number
+}
+
+type ReadRow = IpcReadStats & { methods?: Record<string, IpcReadStats> }
+
+/** Read counters from the HTTP observer or the IPC development hook. */
+export interface ReadSnapshot {
+  startedAt: number
+  capturedAt: number
+  channels: Record<string, ReadRow>
+  pushes?: Record<
+    string,
+    IpcPushStats & { methods?: Record<string, IpcPushStats> }
+  >
+}
+
+export interface ObservationAdapter {
+  start(): Promise<void>
+  snapshot(): ReadSnapshot | Promise<ReadSnapshot>
+  stop(): Promise<Record<string, unknown> | undefined>
+  metadata?(): ObservationMetadata['ipcHook']
+}
+
+export function observationConfig(input: unknown): ObservationConfig {
   if (!input || typeof input !== 'object' || Array.isArray(input))
     throw Error('Observation config must be an object')
-  const c = {
+  const c: Record<string, unknown> = {
     transport: undefined,
     cdp: 'http://127.0.0.1:9222',
     inspector: 'http://127.0.0.1:9229',
@@ -44,11 +115,11 @@ export function observationConfig(input) {
   for (const key of Object.keys(input)) {
     if (!Object.hasOwn(c, key))
       throw Error(`Unsupported observation option: ${key}`)
-    c[key] = input[key]
+    c[key] = (input as Record<string, unknown>)[key]
   }
-  if (!['http', 'ipc'].includes(c.transport))
+  if (!['http', 'ipc'].includes(c.transport as string))
     throw Error('transport must be http or ipc')
-  if (!['content', 'region'].includes(c.detail))
+  if (!['content', 'region'].includes(c.detail as string))
     throw Error('detail must be content or region')
   if (typeof c.regionSelector !== 'string' || !c.regionSelector.trim())
     throw Error('regionSelector must be an explicit CSS selector')
@@ -58,14 +129,23 @@ export function observationConfig(input) {
     ['sampleMs', 50, 1000],
     ['lagThresholdMs', 500, 60000],
     ['minUnchangedReads', 1, 20],
-  ]) {
-    if (!Number.isInteger(c[key]) || c[key] < low || c[key] > high)
+  ] as const) {
+    const value = c[key]
+    if (
+      typeof value !== 'number' ||
+      !Number.isInteger(value) ||
+      value < low ||
+      value > high
+    )
       throw Error(`${key} must be ${low}–${high}`)
   }
-  if (c.page !== undefined && (!Number.isInteger(c.page) || c.page < 0))
+  if (
+    c.page !== undefined &&
+    (typeof c.page !== 'number' || !Number.isInteger(c.page) || c.page < 0)
+  )
     throw Error('page must be a non-negative integer')
   for (const key of ['cdp', 'inspector']) {
-    const url = new URL(c[key])
+    const url = new URL(c[key] as string)
     if (
       !['http:', 'ws:'].includes(url.protocol) ||
       !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname) ||
@@ -80,7 +160,7 @@ export function observationConfig(input) {
   if (c.actions !== undefined) {
     if (!Array.isArray(c.actions) || !c.actions.length || c.actions.length > 20)
       throw Error('actions must list 1–20 { name, selector } entries')
-    c.actions = c.actions.map((a, i) => {
+    const actions: ObservedActionConfig[] = c.actions.map((a, i) => {
       if (
         !a ||
         typeof a !== 'object' ||
@@ -94,11 +174,12 @@ export function observationConfig(input) {
         selector: selectorSpec(a.selector, `actions[${i}].selector`),
       }
     })
-    if (new Set(c.actions.map((a) => a.name)).size !== c.actions.length)
+    c.actions = actions
+    if (new Set(actions.map((a) => a.name)).size !== actions.length)
       throw Error('action names must be unique')
   }
   if (c.transport === 'http') {
-    const url = new URL(c.endpoint)
+    const url = new URL(c.endpoint as string)
     if (
       !['http:', 'https:'].includes(url.protocol) ||
       url.username ||
@@ -131,23 +212,24 @@ export function observationConfig(input) {
       if (
         !d ||
         typeof d !== 'object' ||
-        Object.keys(d).some((k) => !['channel', 'methods'].includes(k)) ||
-        typeof d.channel !== 'string' ||
-        !d.channel.trim()
+        Object.keys(d).some((k) => !['channel', 'methods'].includes(k))
       )
         throw Error('dataEvents must be { channel, methods? }')
+      const events = d as { channel?: unknown; methods?: unknown }
+      if (typeof events.channel !== 'string' || !events.channel.trim())
+        throw Error('dataEvents must be { channel, methods? }')
       c.dataEvents = {
-        channel: d.channel,
-        ...(d.methods === undefined
+        channel: events.channel,
+        ...(events.methods === undefined
           ? {}
-          : { methods: labels(d.methods, 'dataEvents.methods') }),
+          : { methods: labels(events.methods, 'dataEvents.methods') }),
       }
     }
   }
-  return c
+  return c as unknown as ObservationConfig
 }
 
-function labels(value, key) {
+function labels(value: unknown, key: string): string[] {
   if (
     !Array.isArray(value) ||
     !value.length ||
@@ -159,9 +241,10 @@ function labels(value, key) {
   return [...value]
 }
 
-function rowsConfig(r) {
-  if (!r || typeof r !== 'object' || Array.isArray(r))
+function rowsConfig(input: unknown): RowsConfig {
+  if (!input || typeof input !== 'object' || Array.isArray(input))
     throw Error('rows must be { selector, key?, state, states, aliases? }')
+  const r = input as Record<string, unknown>
   for (const k of Object.keys(r))
     if (!['selector', 'key', 'state', 'states', 'aliases'].includes(k))
       throw Error(`Unsupported rows property: ${k}`)
@@ -198,11 +281,11 @@ function rowsConfig(r) {
     ...(r.key === undefined ? {} : { key: selectorSpec(r.key, 'rows.key') }),
     state: selectorSpec(r.state, 'rows.state'),
     states: [...states],
-    aliases: { ...aliases },
+    aliases: { ...(aliases as Record<string, string>) },
   }
 }
 
-const zero = {
+const zero: IpcReadStats = {
   calls: 0,
   successes: 0,
   errors: 0,
@@ -214,29 +297,36 @@ const zero = {
   lastSuccessAt: null,
 }
 // The selected read: a whole channel/endpoint, or only the configured method labels on a shared channel.
-function selectedReads(snapshot, c) {
-  const row = snapshot.channels[c.transport === 'ipc' ? c.channel : c.endpoint]
+function selectedReads(
+  snapshot: ReadSnapshot,
+  c: ObservationConfig,
+): IpcReadStats | undefined {
+  const row =
+    snapshot.channels[(c.transport === 'ipc' ? c.channel : c.endpoint)!]
   if (!c.methods || !row) return row
   const total = { ...zero }
   for (const name of c.methods) {
     const m = row.methods?.[name]
     if (!m) continue
-    for (const k of ['calls', 'successes', 'errors', 'pending'])
+    for (const k of ['calls', 'successes', 'errors', 'pending'] as const)
       total[k] += m[k]
-    for (const k of ['lastReadAt', 'lastCompletedAt', 'lastSuccessAt'])
+    for (const k of ['lastReadAt', 'lastCompletedAt', 'lastSuccessAt'] as const)
       total[k] = Math.max(total[k] ?? 0, m[k] ?? 0) || null
-    for (const k of ['firstReadAt', 'firstCompletedAt'])
+    for (const k of ['firstReadAt', 'firstCompletedAt'] as const)
       total[k] = m[k] === null ? total[k] : Math.min(total[k] ?? Infinity, m[k])
   }
   return total
 }
-function dataEvents(snapshot, c) {
+function dataEvents(
+  snapshot: ReadSnapshot,
+  c: ObservationConfig,
+): { count: number; lastAt: number | null } | null {
   if (!c.dataEvents) return null
   const p = snapshot.pushes?.[c.dataEvents.channel]
   if (!p) return { count: 0, lastAt: null }
   if (!c.dataEvents.methods) return { count: p.count, lastAt: p.lastAt }
   let count = 0,
-    lastAt = null
+    lastAt: number | null = null
   for (const name of c.dataEvents.methods) {
     const m = p.methods?.[name]
     if (m) {
@@ -247,9 +337,13 @@ function dataEvents(snapshot, c) {
   return { count, lastAt }
 }
 
-export function ipcObservationAdapter(control, config, senderId) {
-  let id,
-    metadata = null
+export function ipcObservationAdapter(
+  control: IpcInspector,
+  config: ObservationConfig,
+  senderId: number,
+): ObservationAdapter {
+  let id: string | undefined,
+    metadata: ObservationMetadata['ipcHook'] = null
   return {
     metadata: () => metadata,
     async start() {
@@ -295,7 +389,7 @@ export function ipcObservationAdapter(control, config, senderId) {
       id = randomUUID() // A lost begin reply still requires scoped cleanup.
       await control.call('begin', {
         id,
-        channel: config.channel,
+        channel: config.channel!,
         observation: true,
         ttlMs: config.observationMs + 5000,
       })
@@ -317,11 +411,11 @@ export function ipcObservationAdapter(control, config, senderId) {
     async stop() {
       if (!id) return
       // reset(id) cannot clear another client's plan, even after an uncertain reply.
-      let resetError
+      let resetError: Error | undefined
       try {
         await control.call('reset', id)
       } catch (error) {
-        resetError = error
+        resetError = error as Error
       }
       const s = await control.call('snapshot')
       if (!s || s.id !== id || s.observingUntil || s.armed || s.injected !== 0)
@@ -341,14 +435,17 @@ export function ipcObservationAdapter(control, config, senderId) {
   }
 }
 
-export function httpObservationAdapter(page, config) {
-  let observer
+export function httpObservationAdapter(
+  page: Page,
+  config: ObservationConfig,
+): ObservationAdapter {
+  let observer: Awaited<ReturnType<typeof observeHttp>> | undefined
   return {
     async start() {
-      observer = await observeHttp(page, { endpoint: config.endpoint })
+      observer = await observeHttp(page, { endpoint: config.endpoint! })
     },
     snapshot() {
-      return observer.snapshot()
+      return observer!.snapshot()
     },
     async stop() {
       await observer?.stop()
@@ -357,35 +454,38 @@ export function httpObservationAdapter(page, config) {
   }
 }
 
-const counts = (row) => ({
+const counts = (row: IpcReadStats): ReadCounts => ({
   calls: row.calls,
   successes: row.successes,
   errors: row.errors,
   pending: row.pending,
 })
-const delta = (row, base) => ({
+const delta = (row: IpcReadStats, base: ReadCounts) => ({
   calls: row.calls - base.calls,
   successes: row.successes - base.successes,
   errors: row.errors - base.errors,
   pending: row.pending,
   pendingAtStart: base.pending,
 })
-const age = (snapshot, at) =>
+const age = (snapshot: ReadSnapshot, at: number | null) =>
   at === null ? null : Math.max(0, snapshot.capturedAt - at)
-const completedOf = (row) => row.successes + row.errors
-const rowKeyHash = (text) =>
+const completedOf = (row: ReadCounts) => row.successes + row.errors
+const rowKeyHash = (text: string) =>
   createHash('sha256').update(text).digest('hex').slice(0, 16)
 
 // Row keys are hashed; only allowlisted state labels and configured aliases are kept.
-export function summarizeRows(raw, r) {
+export function summarizeRows(
+  raw: RegionRead['rows'],
+  r: RowsConfig,
+): SummarizedRows | null {
   if (!raw) return null
   const aliasOf = new Map(
-    Object.entries(r.aliases).map(([alias, text]) => [
+    Object.entries(r.aliases).map(([alias, text]): [string, string] => [
       text.replace(/\s+/g, ' ').trim(),
       alias,
     ]),
   )
-  const seen = new Map()
+  const seen = new Map<string, number>()
   const items = raw.items.map(({ key, state }) => {
     let id = aliasOf.get(key) ?? `key:${rowKeyHash(key)}`
     const n = (seen.get(id) ?? 0) + 1
@@ -400,23 +500,42 @@ export function summarizeRows(raw, r) {
   return { truncated: raw.truncated, items }
 }
 
+/** One sample as the row tracker sees it. */
+export interface RowSample {
+  index: number
+  interval: number
+  fromMs: number
+  toMs: number
+  rows: SummarizedRows | null
+  completed: number
+  data: { count: number; lastAtMs: number | null } | null
+}
+
 /**
  * Tracks allowlisted row states across samples. A state that survived several completed
  * selected reads and then changed with no data event to explain it is reported as
  * DELAYED_UI_UPDATE: an observation that needs review, not a defect verdict.
  */
-export function rowTracker(c) {
-  const rows = new Map(),
-    findings = [],
-    actions = []
-  const tracked = (state) => c.rows.states.includes(state)
-  const lastActionBefore = (ms) =>
+export function rowTracker(c: ObservationConfig) {
+  const rows = new Map<
+    string,
+    {
+      row: string
+      firstSeen: TrackedRow['firstSeen']
+      transitions: RowTransition[]
+      current: { state: string; first: RowSample; last: RowSample }
+    }
+  >()
+  const findings: DelayedUiUpdateFinding[] = [],
+    actions: ObservedAction[] = []
+  const tracked = (state: string) => c.rows!.states.includes(state)
+  const lastActionBefore = (ms: number) =>
     actions.filter((a) => a.atMs <= ms).at(-1) ?? null
   return {
-    addActions(list) {
+    addActions(list: ObservedAction[]) {
       actions.push(...list)
     },
-    add(s) {
+    add(s: RowSample) {
       for (const { row, state } of s.rows?.items ?? []) {
         const entry = rows.get(row)
         if (!entry) {
@@ -440,7 +559,7 @@ export function rowTracker(c) {
           entry.current.last = s
           continue
         }
-        const transition = {
+        const transition: RowTransition = {
           from: entry.current.state,
           to: state,
           interval: s.interval,
@@ -460,7 +579,7 @@ export function rowTracker(c) {
           const unchangedReads = last.completed - first.completed
           const persistedMs = last.toMs - first.fromMs
           const noDataInWindow =
-            s.data === null || s.data.count === last.data.count
+            s.data === null || s.data.count === last.data!.count
           const sinceDataMs =
             s.data?.lastAtMs == null
               ? null
@@ -481,7 +600,7 @@ export function rowTracker(c) {
               stateAction && first.fromMs - stateAction.atMs <= c.lagThresholdMs
                 ? Math.max(0, first.fromMs - stateAction.atMs)
                 : null
-            const finding = {
+            const finding: DelayedUiUpdateFinding = {
               code: 'DELAYED_UI_UPDATE',
               kind: 'observation',
               confidence:
@@ -500,7 +619,7 @@ export function rowTracker(c) {
               persistedMs,
               unchangedReadCompletions: unchangedReads,
               dataEventsWhilePersisted: s.data
-                ? last.data.count - first.data.count
+                ? last.data!.count - first.data!.count
                 : null,
               sinceLastDataEventMs: sinceDataMs,
               afterAction: transition.afterAction
@@ -521,7 +640,7 @@ export function rowTracker(c) {
         entry.current = { state, first: s, last: s }
       }
     },
-    snapshot() {
+    snapshot(): { rows: TrackedRow[]; findings: DelayedUiUpdateFinding[] } {
       return {
         rows: [...rows.values()].map(
           ({ row, firstSeen, transitions, current }) => ({
@@ -537,15 +656,20 @@ export function rowTracker(c) {
   }
 }
 
-async function boundedUiRead(action, signal, timeoutMs = 5000) {
-  let timer, cancel
+async function boundedUiRead<T>(
+  action: () => T | Promise<T>,
+  signal: AbortSignal | undefined,
+  timeoutMs = 5000,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined,
+    cancel: (() => void) | undefined
   try {
     return await Promise.race([
       Promise.resolve().then(() => {
         if (signal?.aborted) throw Error('CAPTURE_INTERRUPTED')
         return action()
       }),
-      new Promise((_, reject) => {
+      new Promise<never>((_, reject) => {
         timer = setTimeout(
           () =>
             reject(
@@ -561,35 +685,41 @@ async function boundedUiRead(action, signal, timeoutMs = 5000) {
     ])
   } finally {
     clearTimeout(timer)
-    signal?.removeEventListener('abort', cancel)
+    if (cancel) signal?.removeEventListener('abort', cancel)
   }
 }
+
+export interface ObservationHooks {
+  signal?: AbortSignal
+  /** Returns true to open a new operator interval. */
+  takeMarker?: () => boolean
+  onReady?: () => unknown
+  onInterval?: (index: number) => unknown
+  onSample?: (event: TimelineEvent) => unknown
+  operator?: (context: {
+    mark: () => Promise<number | null>
+    signal: AbortSignal
+    elapsed: () => number
+  }) => unknown
+}
+
+type CaptureReport = ObservationReport &
+  Required<
+    Pick<
+      ObservationReport,
+      'metadata' | 'comparisons' | 'timeline' | 'notes' | 'coverage'
+    >
+  >
 
 /**
  * Observe only. No reload, navigation, routing, focus changes or final UI reset.
  * An optional `operator` function may act on the app (for example explicit --steps); it
  * receives `mark()` to open a new interval and its outcome is reported separately.
  */
-/**
- * @typedef {object} ObservationHooks
- * @property {AbortSignal} [signal]
- * @property {() => boolean} [takeMarker] Returns true to open a new operator interval.
- * @property {() => unknown} [onReady]
- * @property {(index: number) => unknown} [onInterval]
- * @property {(event: Record<string, any>) => unknown} [onSample]
- * @property {(context: { mark: () => Promise<number | null>, signal: AbortSignal, elapsed: () => number }) => unknown} [operator]
- */
-
-/**
- * @param {any} page Playwright page
- * @param {Record<string, any>} input Observation config
- * @param {any} adapter HTTP or IPC observation adapter
- * @param {ObservationHooks} [hooks]
- */
 export async function runObservation(
-  page,
-  input,
-  adapter,
+  page: Page,
+  input: unknown,
+  adapter: ObservationAdapter,
   {
     signal,
     takeMarker = () => false,
@@ -597,15 +727,14 @@ export async function runObservation(
     onInterval = () => {},
     onSample = () => {},
     operator,
-  } = {},
-) {
+  }: ObservationHooks = {},
+): Promise<ObservationReport> {
   const c = observationConfig(input)
-  const target = c.transport === 'ipc' ? c.channel : c.endpoint
+  const target = (c.transport === 'ipc' ? c.channel : c.endpoint)!
   const metrics = samplingMetrics(c.sampleMs)
   const comparisons = contentComparisons()
   const tracker = c.rows ? rowTracker(c) : null
-  /** @type {import('./observation-report.mjs').ObservationReport & Record<string, any>} */
-  const report = {
+  const report: CaptureReport = {
     schemaVersion: 1,
     metadata: observationMetadata(),
     mode: 'fault-free observation',
@@ -637,20 +766,19 @@ export async function runObservation(
     limitation:
       'Observations are not recovery passes or account-isolation verdicts. Cache reuse may be legitimate. Intervals start at capture or an operator marker, not at a proven mount or identity change. HTTP success means a completed 2xx response, not valid JSON or UI correctness. UI changes between samples can be missed. Only hashes, structural counts, allowlisted row states, configured action names and read metadata are stored; hashes are not anonymization.',
   }
-  /** @type {(import('./observation-report.mjs').ObservationInterval & Record<string, any>) | undefined} */
-  let interval
-  let lastSnapshot,
-    started,
-    startedEpoch,
-    previousSignature,
+  // Opened before the sampling loop; finally only closes it if it was opened.
+  let interval!: ObservationInterval
+  let lastSnapshot: ReadSnapshot | undefined,
+    started: number | undefined,
+    startedEpoch: number | undefined,
+    previousSignature: string | undefined,
     samples = 0,
-    kitToken
+    kitToken: string | undefined
   let attempted = false,
     pageErrors = 0,
     newDocument = false,
-    operatorRun
-  /** @type {{ resolve?: (index: number | null) => void }[]} */
-  const markerRequests = []
+    operatorRun: Promise<ObservationOperator> | undefined
+  const markerRequests: { resolve?: (index: number | null) => void }[] = []
   const operatorAbort = new AbortController()
   const errors = () => {
     pageErrors++
@@ -659,19 +787,19 @@ export async function runObservation(
   const documentLoaded = () => {
     newDocument = true
   }
-  const elapsed = () => Math.round(performance.now() - started)
-  const channelRow = (s) => s.channels[target]
-  const openInterval = (s) => {
+  const elapsed = () => Math.round(performance.now() - started!)
+  const channelRow = (s: ReadSnapshot) => s.channels[target]
+  const openInterval = (s: ReadSnapshot) => {
     const row = selectedReads(s, c)
     interval = {
       index: report.intervals.length + 1,
       startMs: elapsed(),
-      startCounts: counts(row),
+      startCounts: counts(row!),
       firstContent: null,
       samples: 0,
       findings: [],
       ...(c.methods ? { startChannelCounts: counts(channelRow(s)) } : {}),
-      ...(c.dataEvents ? { startDataEvents: dataEvents(s, c).count } : {}),
+      ...(c.dataEvents ? { startDataEvents: dataEvents(s, c)!.count } : {}),
     }
     report.intervals.push(interval)
     previousSignature = undefined
@@ -679,19 +807,22 @@ export async function runObservation(
   const closeInterval = () => {
     if (!interval || !lastSnapshot) return
     interval.endMs = elapsed()
-    interval.reads = delta(selectedReads(lastSnapshot, c), interval.startCounts)
+    interval.reads = delta(
+      selectedReads(lastSnapshot, c)!,
+      interval.startCounts!,
+    )
     if (c.methods)
       interval.channelReads = delta(
         channelRow(lastSnapshot),
-        interval.startChannelCounts,
+        interval.startChannelCounts!,
       )
     if (c.dataEvents)
       interval.dataEvents =
-        dataEvents(lastSnapshot, c).count - interval.startDataEvents
+        dataEvents(lastSnapshot, c)!.count - interval.startDataEvents!
     delete interval.startChannelCounts
     delete interval.startDataEvents
   }
-  const gap = (code) => {
+  const gap = (code: string) => {
     if (!report.coverage.gaps.includes(code)) report.coverage.gaps.push(code)
   }
   const takeAnyMarker = () => {
@@ -700,7 +831,7 @@ export async function runObservation(
   }
   try {
     kitToken = randomUUID()
-    const readInput = {
+    const readInput: ObservationReadInput = {
       regionSelector: c.regionSelector,
       contentSelector: c.contentSelector,
       detail: c.detail,
@@ -723,10 +854,11 @@ export async function runObservation(
         ? [c.rows.selector, ...(c.rows.key ? [c.rows.key] : []), c.rows.state]
         : []),
     ]
+    const token = kitToken
     await boundedUiRead(
       () =>
         page.evaluate(installObserverKit, {
-          token: kitToken,
+          token,
           actions: c.actions ?? [],
           validate,
         }),
@@ -745,15 +877,17 @@ export async function runObservation(
     await onReady()
     if (operator) {
       const mark = () =>
-        new Promise((resolve) => markerRequests.push({ resolve }))
+        new Promise<number | null>((resolve) =>
+          markerRequests.push({ resolve }),
+        )
       operatorRun = Promise.resolve()
         .then(() => operator({ mark, signal: operatorAbort.signal, elapsed }))
         .then(
-          (steps) => ({
+          (steps): ObservationOperator => ({
             status: 'complete',
             ...(Array.isArray(steps) ? { steps } : {}),
           }),
-          (error) => ({
+          (error): ObservationOperator => ({
             status: operatorAbort.signal.aborted ? 'stopped' : 'failed',
             error: error.message,
             ...(Array.isArray(error.results) ? { steps: error.results } : {}),
@@ -793,7 +927,8 @@ export async function runObservation(
         signal,
       )
       const summarizeStart = performance.now()
-      const ui = raw.presence === 'visible' ? summarizeRegion(raw) : raw
+      // A read without text or content (an absent or hidden region) summarizes to itself.
+      const ui = summarizeRegion(raw)
       const rows = c.rows ? summarizeRows(rawRows, c.rows) : null
       const afterStart = performance.now()
       const after = await adapter.snapshot()
@@ -809,22 +944,22 @@ export async function runObservation(
       if (!ui.visible) gap('HIDDEN_DOCUMENT')
       if (ui.truncated) gap('TRUNCATED_REGION')
       if (rows?.truncated) gap('TRUNCATED_ROWS')
-      const readCounts = delta(row, interval.startCounts)
+      const readCounts = delta(row, interval.startCounts!)
       const data = dataEvents(after, c)
-      const event = {
+      const event: TimelineEvent = {
         interval: interval.index,
         fromMs: sampleStart,
         toMs: elapsed(),
         ui,
         ...(rows ? { rows } : {}),
         reads: readCounts,
-        before: counts(selectedReads(before, c)),
+        before: counts(selectedReads(before, c)!),
         after: counts(row),
         lastReadAgeMs: age(after, row.lastReadAt),
         lastCompletionAgeMs: age(after, row.lastCompletedAt),
         ...(data
           ? {
-              dataEvents: data.count - interval.startDataEvents,
+              dataEvents: data.count - interval.startDataEvents!,
               lastDataEventAgeMs: age(after, data.lastAt),
             }
           : {}),
@@ -832,11 +967,11 @@ export async function runObservation(
       }
       if (rawActions?.length && report.actions) {
         for (const a of rawActions) {
-          const atMs = a.at - startedEpoch
+          const atMs = a.at - startedEpoch!
           const owner =
             [...report.intervals].reverse().find((i) => i.startMs <= atMs) ??
             report.intervals[0]
-          const action = {
+          const action: ObservedAction = {
             name: a.name,
             atMs,
             trusted: a.trusted,
@@ -856,10 +991,10 @@ export async function runObservation(
         completed: completedOf(row),
         data: data && {
           count: data.count,
-          lastAtMs: data.lastAt === null ? null : data.lastAt - startedEpoch,
+          lastAtMs: data.lastAt === null ? null : data.lastAt - startedEpoch!,
         },
       })
-      if (ui.visible && ui.contentCount > 0 && !interval.firstContent) {
+      if (ui.visible && (ui.contentCount ?? 0) > 0 && !interval.firstContent) {
         interval.firstContent = {
           fromMs: sampleStart,
           toMs: event.toMs,
@@ -871,11 +1006,11 @@ export async function runObservation(
       }
       if (
         ui.visible &&
-        ui.contentCount > 0 &&
+        (ui.contentCount ?? 0) > 0 &&
         readCounts.successes + readCounts.errors === 0 &&
         !interval.findings.includes('CONTENT_BEFORE_READ')
       ) {
-        const finding = {
+        const finding: ContentBeforeReadFinding = {
           code: 'CONTENT_BEFORE_READ',
           kind: 'observation',
           interval: interval.index,
@@ -931,23 +1066,23 @@ export async function runObservation(
           resolve,
           Math.min(
             c.sampleMs,
-            Math.max(0, c.observationMs - (performance.now() - started)),
+            Math.max(0, c.observationMs - (performance.now() - started!)),
           ),
         ),
       )
     }
   } catch (error) {
     report.status = signal?.aborted ? 'interrupted' : 'incomplete'
-    if (!signal?.aborted) report.error = error.message
+    if (!signal?.aborted) report.error = (error as Error).message
   } finally {
     operatorAbort.abort()
     for (const pending of markerRequests) pending.resolve?.(null)
     if (operatorRun) {
-      let timer
+      let timer: ReturnType<typeof setTimeout> | undefined
       // An operator that ignores the stop signal must not hold cleanup hostage.
-      report.operator = await Promise.race([
+      const outcome = await Promise.race([
         operatorRun,
-        new Promise((resolve) => {
+        new Promise<ObservationOperator>((resolve) => {
           timer = setTimeout(
             () =>
               resolve({
@@ -958,9 +1093,9 @@ export async function runObservation(
           )
         }),
       ])
+      report.operator = outcome
       clearTimeout(timer)
-      if (report.operator.status !== 'complete')
-        gap('OPERATOR_STEPS_INCOMPLETE')
+      if (outcome.status !== 'complete') gap('OPERATOR_STEPS_INCOMPLETE')
     }
     if (interval) closeInterval()
     report.elapsedMs = started === undefined ? 0 : elapsed()
@@ -972,9 +1107,10 @@ export async function runObservation(
     page.off('domcontentloaded', documentLoaded)
     // Bounded: a replaced or unresponsive document must not delay owned IPC cleanup.
     if (kitToken) {
+      const token = kitToken
       try {
         await boundedUiRead(
-          () => page.evaluate(removeObserverKit, kitToken),
+          () => page.evaluate(removeObserverKit, token),
           undefined,
           1000,
         )
@@ -988,7 +1124,7 @@ export async function runObservation(
         report.cleanup = 'complete'
       } catch (error) {
         report.cleanup = 'unverified'
-        report.cleanupError = error.message
+        report.cleanupError = (error as Error).message
         report.status = 'incomplete'
       }
     }
