@@ -1,14 +1,13 @@
-interface Interpretation {
-  classification: string
-  kind?: string
-  [key: string]: unknown
-}
+import type {
+  DiscoveryFinding,
+  DiscoveryInterpretation,
+} from './discovery-report.mjs'
 
 interface DiscoveryRun {
   fault: string
   times: number
-  interpretation?: Interpretation
-  assessment?: Interpretation
+  interpretation?: DiscoveryInterpretation
+  assessment?: DiscoveryInterpretation
 }
 
 // A stable intermediate screen is not a healthy control once a baseline exists.
@@ -26,7 +25,7 @@ export function matchesHealthyControl(
 export function retainPartialFindings(
   report: {
     results: DiscoveryRun[]
-    findings: { id: string; [key: string]: unknown }[]
+    findings: DiscoveryFinding[]
     error?: string
   },
   plannedRuns: number,

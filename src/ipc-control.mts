@@ -1,6 +1,13 @@
 import type { IpcInspector } from './ipc-inspector.mjs'
 import type { IpcSnapshot } from './ipc-probe.cjs'
 
+export type IpcFault = NonNullable<IpcSnapshot['armed']>['fault']
+
+declare global {
+  /** The temporary renderer challenge that the hook's identify checks. */
+  var __recoveryProbeWindowNonce: string | undefined
+}
+
 /** A failed reply does not mean a mutation failed to execute. Never retry begin.
  * Reset its exact ID and independently read back state, even if reset's reply fails.
  * Do not use an unscoped reset: that could disarm another client's newer run.

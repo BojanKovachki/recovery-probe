@@ -4,6 +4,10 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.5.0-preview.7 (2026-10-16)
+
+- The IPC check and IPC discovery (`recovery-probe ipc` and `ipc --discover`) are written in TypeScript. Their reports are unchanged.
+
 ## 0.5.0-preview.6 (2026-10-16)
 
 - The IPC development hook (`recovery-probe/ipc`) is written in TypeScript and still ships as the CommonJS file `dist/ipc-probe.cjs`. Its declarations are generated from the source and match the previous ones; `ProbeWebContents` gains the optional `getOwnerBrowserWindow` that the window controls use.

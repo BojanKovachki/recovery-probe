@@ -52,8 +52,9 @@ No HTTP/Rust transport faults or AI calls. See docs/ipc.md for installation and 
     directory = await mkdtemp(join(parent, 'ipc-'))
   }
   await writeFile(join(directory, '.gitignore'), '*\n', { mode: 0o600 })
-  const discovery = options.discover ? await discoverIpc(config) : null
-  const report = discovery ?? (await checkIpc(config))
+  const report = options.discover
+    ? await discoverIpc(config)
+    : await checkIpc(config)
   await writeFile(
     join(directory, 'scenario.json'),
     JSON.stringify(config, null, 2),
@@ -73,9 +74,9 @@ No HTTP/Rust transport faults or AI calls. See docs/ipc.md for installation and 
     evidence: JSON.stringify(report, null, 2),
   })
   await writeFile(join(directory, 'report.html'), html, { mode: 0o600 })
-  if (discovery) {
-    await writeDiscoveryReport(directory, discovery, config)
-    for (const finding of discovery.findings)
+  if ('findings' in report) {
+    await writeDiscoveryReport(directory, report, config)
+    for (const finding of report.findings)
       console.log(
         `${finding.kind.toUpperCase()}: ${finding.id} — ${finding.classification}; runs=${finding.confirmations}${finding.partial ? `/${finding.plannedRuns} partial; observed=${finding.observedInterpretation.classification}` : ''}`,
       )
