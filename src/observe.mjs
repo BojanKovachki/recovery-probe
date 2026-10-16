@@ -604,7 +604,7 @@ export async function runObservation(
   const metrics = samplingMetrics(c.sampleMs)
   const comparisons = contentComparisons()
   const tracker = c.rows ? rowTracker(c) : null
-  /** @type {Record<string, any>} */
+  /** @type {import('./observation-report.mjs').ObservationReport & Record<string, any>} */
   const report = {
     schemaVersion: 1,
     metadata: observationMetadata(),
@@ -637,7 +637,7 @@ export async function runObservation(
     limitation:
       'Observations are not recovery passes or account-isolation verdicts. Cache reuse may be legitimate. Intervals start at capture or an operator marker, not at a proven mount or identity change. HTTP success means a completed 2xx response, not valid JSON or UI correctness. UI changes between samples can be missed. Only hashes, structural counts, allowlisted row states, configured action names and read metadata are stored; hashes are not anonymization.',
   }
-  /** @type {Record<string, any> | undefined} */
+  /** @type {(import('./observation-report.mjs').ObservationInterval & Record<string, any>) | undefined} */
   let interval
   let lastSnapshot,
     started,
