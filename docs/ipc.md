@@ -187,3 +187,42 @@ This does not discover missing dependencies, fix application state carry-over or
 Calibration observes three full `baselineTimeoutMs` windows before injection: 45 seconds with the default 15-second window. It does not prefer a nonempty screen or a larger item count. A legitimately empty selected region is valid after successful target/dependency reads and a stable end state. Delayed content within the window is included in the baseline. `readiness.calibrationComplete` becomes true only when all three healthy end states agree; their bounded timelines remain in the report.
 
 Unstable or unfinished calibration stops fault experiments. Cleanup still removes faults and attempts a healthy reload, but `finalReset` remains `not-verified` without a trusted baseline. Later controls and cleanup can finish early once they match that baseline. Known dependencies must still be configured; content arriving after the calibration window remains untested.
+
+## Action check (0.5.0-preview.8)
+
+`ipc --action` checks what the user sees after an action that writes, such as Send or Save. Add the write channel to the hook's `channels`, open the screen, then run:
+
+```json
+{
+  "channel": "contacts:invite",
+  "setup": [
+    { "waitFor": "[data-testid='add-contact']" },
+    { "click": "[data-testid='add-contact']" },
+    { "waitFor": "input[name='email']" },
+    { "fill": "input[name='email']", "value": "someone@example.invalid" }
+  ],
+  "action": { "role": "button", "name": "Add" }
+}
+```
+
+```sh
+npx recovery-probe ipc --action --config ./action.json
+```
+
+Each run reloads the screen, runs `setup` (start with a `waitFor`, because it begins right after the reload), clicks `action` and samples the screen for `observationMs` (default 6000). The hook answers every request on `channel` after `latencyMs` (default 400), so nothing is written:
+
+| Run | The hook answers with | Reported |
+|---|---|---|
+| success | an empty result, like a 204 | the reference for what success looks like |
+| failure | a rejection | `SILENT_FAILURE`, `FALSE_SUCCESS`, `UNCLEAR_FEEDBACK` or `FEEDBACK_SHOWN` |
+| double-click | a rejection | `DUPLICATE_SUBMIT` or `SINGLE_SUBMIT` |
+
+- **Silent failure:** the failed request leaves the screen as it was, without an error.
+- **False success:** after the failure, the user sees what a success shows.
+- **Feedback:** a recognised error appears, or a status or alert message (such as a toast) that differs from the one a success shows. Messages are compared by hash only.
+- **Uncaught error:** any run raises an uncaught error or rejection (`UNCAUGHT_ERROR`). A development error overlay, such as webpack's, counts as one and is removed so it doesn't hide the app.
+- **No request:** if the action never calls `channel`, the result is `NO_REQUEST`; check the channel, the setup steps and the app's input validation.
+
+The hook answers up to 10 requests per run; more than that reach the app's own handler and are reported as `REAL_REQUEST_SENT`. The plan is armed right before the click, so slow setup can't outlive it. `fill` values stay in your scenario file and are never written to the report.
+
+Simulated success is an empty result. An action whose success handling needs data from the response may treat it as a failure; review the success run before trusting the comparison. The check needs the 0.5.0-preview.8 hook, which adds `delayMs` to fault plans.

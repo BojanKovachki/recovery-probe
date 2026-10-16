@@ -2,6 +2,9 @@
 <h1>Library</h1><section id="grid"></section>
 <p id="spinner">Loading</p><p id="row" role="listitem" hidden></p><p id="empty" hidden>Empty</p>
 <p id="error" role="alert" hidden>Unable to load files. Try again.</p>
+<div id="invite" hidden><input id="email" aria-label="Email"><button id="send" type="button">Send</button></div>
+<p id="sent" hidden>Invitation sent</p><p id="send-error" role="alert" hidden>Could not send the invitation. Try again.</p>
+<p id="send-toast" role="status" hidden>We couldn't send the invitation.</p>
 <script>
 const mode = new URLSearchParams(location.search).get('mode');
 const gridMode = ['grid', 'delayed-control', 'delayed-baseline', 'unstable-baseline', 'empty-region'].includes(mode);
@@ -30,6 +33,30 @@ async function load() {
   } catch { if (mode === 'refresh') { row.hidden = true; empty.hidden = true; } else if (mode === 'honest') document.querySelector('#error').hidden = false; else if (!gridMode) empty.hidden = false; }
   finally { spinner.hidden = true; }
 }
-load();
+// Write forms for action checks: silent ignores failures, false-success never waits,
+// honest shows an error and disables Send while the request is in flight, and toast
+// shows a short-lived status message without error words.
+function invite() {
+  spinner.hidden = true;
+  const form = document.querySelector('#invite');
+  const send = document.querySelector('#send');
+  const sent = document.querySelector('#sent');
+  const sendError = document.querySelector('#send-error');
+  const done = () => { form.hidden = true; sent.hidden = false; };
+  form.hidden = false;
+  send.addEventListener('click', async () => {
+    const value = document.querySelector('#email').value;
+    if (mode === 'form-false-success') { fixtureApi.write(value).catch(() => {}); done(); return; }
+    if (mode === 'form-silent') { await fixtureApi.write(value); done(); return; }
+    send.disabled = true; sendError.hidden = true;
+    try { await fixtureApi.write(value); done(); }
+    catch {
+      if (mode !== 'form-toast') sendError.hidden = false;
+      else { const toast = document.querySelector('#send-toast'); toast.hidden = false; setTimeout(() => { toast.hidden = true; }, 600); }
+    }
+    finally { send.disabled = false; }
+  });
+}
+if (mode?.startsWith('form-')) invite(); else load();
 if (mode === 'refresh' || mode === 'refresh-retry') window.addEventListener('online', () => load());
 </script>

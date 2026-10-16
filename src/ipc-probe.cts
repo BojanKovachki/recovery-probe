@@ -47,6 +47,8 @@ export interface IpcSnapshot {
     fault: 'rejection' | 'null-result'
     remaining: number
     expiresAt: number
+    /** Injected results settle after this many milliseconds, like a slow request. */
+    delayMs: number
   } | null
   channels: Record<
     string,
@@ -75,6 +77,7 @@ export interface IpcIdentity {
     readTimestamps: true
     methods: boolean
     pushes: boolean
+    faultDelay: true
   }
 }
 export interface IpcProbe {
@@ -88,8 +91,12 @@ export interface IpcProbe {
       times?: number
       ttlMs?: number
     } & (
-      | { observation: true; fault?: never }
-      | { observation?: false; fault?: 'rejection' | 'null-result' }
+      | { observation: true; fault?: never; delayMs?: never }
+      | {
+          observation?: false
+          fault?: 'rejection' | 'null-result'
+          delayMs?: number
+        }
     ),
   ): IpcSnapshot
   snapshot(): IpcSnapshot | null
@@ -196,6 +203,7 @@ export function installIpcProbe(
     readTimestamps: true as const,
     methods: Boolean(classify),
     pushes: allowedPushes.size > 0,
+    faultDelay: true as const,
   })
   const identify = ((
     challenge?: unknown,
@@ -343,6 +351,7 @@ export function installIpcProbe(
     observation = false,
     times = 1,
     ttlMs = 30000,
+    delayMs = 0,
   }: Record<string, unknown> = {}): IpcSnapshot => {
     if (!active) throw new Error('IPC probe is disposed')
     if (typeof id !== 'string' || !id || id.length > 100 || seenIds.has(id))
@@ -373,6 +382,14 @@ export function installIpcProbe(
       times > 10
     )
       throw new Error('times must be 1–10')
+    if (
+      typeof delayMs !== 'number' ||
+      !Number.isInteger(delayMs) ||
+      delayMs < 0 ||
+      delayMs > 10000 ||
+      (delayMs > 0 && fault === undefined)
+    )
+      throw new Error('delayMs must be 0–10000 and needs a fault')
     if (
       typeof ttlMs !== 'number' ||
       !Number.isInteger(ttlMs) ||
@@ -405,6 +422,7 @@ export function installIpcProbe(
             fault: fault as 'rejection' | 'null-result',
             remaining: times,
             expiresAt: Date.now() + ttlMs,
+            delayMs,
           }
         : null,
       channels: Object.create(null),
@@ -469,14 +487,20 @@ export function installIpcProbe(
       }
       if (current.armed && Date.now() >= current.armed.expiresAt) disarm()
       if (channel === current.channel && current.armed) {
-        const fault = current.armed.fault
+        const { fault, delayMs } = current.armed
         current.armed.remaining--
         if (!current.armed.remaining) disarm()
         current.injected++
         current.injectedAt ??= Date.now()
-        return fault === 'null-result'
-          ? Promise.resolve(null)
-          : Promise.reject(new Error('Recovery Probe: injected IPC rejection'))
+        const settle = () =>
+          fault === 'null-result'
+            ? Promise.resolve(null)
+            : Promise.reject(
+                new Error('Recovery Probe: injected IPC rejection'),
+              )
+        return delayMs
+          ? new Promise((resolve) => setTimeout(resolve, delayMs)).then(settle)
+          : settle()
       }
       row.realCalls++
       row.pending++
