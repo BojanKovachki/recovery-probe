@@ -4,6 +4,17 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.4.0 (2026-10-16)
+
+The first stable release since 0.3.0. It contains 0.4.0-preview.1 to preview.5; their entries below have the details.
+
+- **Observation:** record configured user actions and tracked row states. `DELAYED_UI_UPDATE` reports a row state that lags behind data the app already received. `observe --steps` runs explicit navigations, clicks and waits during a capture. The development IPC hook can count calls per method on shared channels and treat main-to-renderer pushes as data events.
+- **Fixes:** `createFaultFetch` passes relative URLs through untouched. The IPC hook restores an app's own `webContents.send` wrapper after an observation. On Windows, repair proposals apply with Git's default line endings, and symlink sources are rejected.
+- **Reports and checks:** HTML reports come from template files. CI checks formatting, lint and JavaScript types, and runs the repair pipeline on Windows.
+- **Documentation:** a shorter README that leads with the demo, plus separate guides for the library API and the JSON-configured runner.
+
+Upgrading from 0.3.0 needs no configuration or API changes. Restart a development app that loads the IPC hook, so the hook and the CLI come from the same version.
+
 ## 0.4.0-preview.5 (2026-10-16)
 
 - Repair on Windows: the isolated checkout now holds the committed bytes instead of the CRLF line endings Git for Windows writes by default. A multi-line proposal with LF line breaks previously failed with "find text must match exactly once". `eol` rules in `.gitattributes` still apply.

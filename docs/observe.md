@@ -1,9 +1,9 @@
 # Observe reads without resetting the app
 
-Available in **0.3.0**. Install the exact version and verify the CLI:
+Available since **0.3.0**. Install an exact version and verify the CLI:
 
 ```bash
-npm install --save-dev --save-exact recovery-probe@0.3.0 playwright@1.62.1
+npm install --save-dev --save-exact recovery-probe@0.4.0 playwright@1.62.1
 npx recovery-probe --version
 ```
 
@@ -97,7 +97,7 @@ The browser tests include unchanged content after a failed refresh, changed cont
 
 ### Later samples after a comparison
 
-In 0.3.0, each retained comparison also has `followUp` evidence from later completed samples in the **same operator interval**. The original `result`, `before` and `after` remain unchanged. Follow-up compares with the original `before` baseline, not the first return sample:
+Since 0.3.0, each retained comparison also has `followUp` evidence from later completed samples in the **same operator interval**. The original `result`, `before` and `after` remain unchanged. Follow-up compares with the original `before` baseline, not the first return sample:
 
 - `samples`, `comparableSamples` and `unavailableSamples` count later samples, including unchanged samples omitted from the timeline.
 - `firstBaselineMatch` records the first later sample matching the baseline, or null. It records an observation, not an exact transition time.
@@ -108,7 +108,7 @@ Tracking ends at the next operator interval or capture termination, including in
 
 ## Actions, tracked rows and delayed UI updates
 
-Available from **0.4.0-preview.1**. The current preview target is **0.4.0-preview.5** on npm `next`; install it explicitly with `npm install --save-dev --save-exact recovery-probe@0.4.0-preview.5 playwright@1.62.1`. The development IPC hook must come from the same version.
+Available since **0.4.0**. The development IPC hook must come from the same version as the CLI; restart the app after upgrading.
 
 These options are opt-in and extend the same fault-free capture. They answer "how long after the user's action did the screen show the right state, and did data arrive before it?"
 
@@ -206,7 +206,7 @@ A document reload/navigation ends capture as incomplete because the renderer sta
 
 ## Supported inspector API
 
-Advanced scripts can use `recovery-probe/ipc-inspector` after installing 0.3.0, without importing private `src/` paths:
+Advanced scripts can use `recovery-probe/ipc-inspector`, available since 0.3.0, without importing private `src/` paths:
 
 ```js
 import { randomUUID } from 'node:crypto';

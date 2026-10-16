@@ -38,8 +38,8 @@ Install the exact version in a separate tester folder:
 mkdir recovery-probe-desktop-test
 cd recovery-probe-desktop-test
 npm init -y
-npm view recovery-probe@0.3.0 version
-npm install --save-dev --save-exact recovery-probe@0.3.0 playwright@1.62.1
+npm view recovery-probe@0.4.0 version
+npm install --save-dev --save-exact recovery-probe@0.4.0 playwright@1.62.1
 npx recovery-probe desktop --list
 ```
 
