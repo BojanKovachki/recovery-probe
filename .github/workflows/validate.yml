@@ -68,8 +68,12 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Verify guided setup choices and argument handling
         run: node --test test/guided-start.test.mjs
-      - name: Verify publishing lifecycle without uploading
-        run: npm publish --dry-run --access public
+      # npm publish --dry-run can reject a version already on npm, including
+      # the tag-triggered run after a successful release. Keep these checks local.
+      - name: Verify publication checks
+        run: npm run prepublishOnly
+      - name: Verify package contents without uploading
+        run: npm pack --dry-run
 
   windows-repair:
     name: Windows repair pipeline
