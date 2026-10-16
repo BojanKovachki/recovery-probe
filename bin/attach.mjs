@@ -40,6 +40,7 @@ export async function attachMain(args) {
   const browser = await connectDesktop(config.cdp)
   try {
     const page = selectDesktopPage(browser, config)
+    /** @type {Record<string, any>} */
     let report
     if (options.discover) {
       report = await discoverHttp(page, config)

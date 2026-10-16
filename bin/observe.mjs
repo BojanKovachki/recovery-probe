@@ -76,9 +76,11 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
   const stop = () => abort.abort()
   process.on('SIGINT', stop)
   process.on('SIGTERM', stop)
+  /** @type {Awaited<ReturnType<typeof connectIpcInspector>> | undefined} */
+  let control
+  /** @type {import('node:readline').Interface | undefined} */
+  let input
   let browser,
-    control,
-    input,
     report,
     pendingMarkers = 0,
     browserVersion = null

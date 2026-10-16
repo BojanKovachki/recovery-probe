@@ -145,6 +145,7 @@ export function contentComparisons() {
   const completed = (counts) => counts.successes + counts.errors
   return {
     add(event) {
+      /** @type {Array<ReturnType<typeof contentComparison> & { followUp?: any }>} */
       const results = []
       if (interval !== event.interval) {
         interval = event.interval

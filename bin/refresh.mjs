@@ -45,7 +45,9 @@ export async function refreshMain(args) {
   const onSignal = () => abort.abort()
   process.on('SIGINT', onSignal)
   process.on('SIGTERM', onSignal)
-  let browser, control, visibility, report
+  let browser, control, visibility
+  /** @type {Record<string, any> | undefined} */
+  let report
   try {
     browser = await connectDesktop(c.cdp)
     let page, adapter

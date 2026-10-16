@@ -130,6 +130,7 @@ async function main() {
   const { chromium } = await import('playwright')
   const browser = await chromium.launch({ headless: true })
   let server
+  /** @type {Record<string, any>} */
   let report
   try {
     const apps = []
