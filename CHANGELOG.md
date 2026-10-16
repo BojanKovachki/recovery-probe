@@ -4,6 +4,12 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.4.0-preview.5 (2026-10-16)
+
+- Repair on Windows: the isolated checkout now holds the committed bytes instead of the CRLF line endings Git for Windows writes by default. A multi-line proposal with LF line breaks previously failed with "find text must match exactly once". `eol` rules in `.gitattributes` still apply.
+- Repair on Windows: a committed symlink selected as a source is rejected again. Without symlink rights, Git for Windows checks it out as a plain file, which passed the old check; sources are now checked against the index.
+- CI runs the repair pipeline on Windows.
+
 ## 0.4.0-preview.4 (2026-10-15)
 
 - `createFaultFetch` passes relative URLs, such as `fetch('/api/x')`, to the supplied fetch untouched. Previously they threw `Invalid URL`.

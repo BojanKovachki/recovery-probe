@@ -75,7 +75,7 @@ These `web`/`desktop` checks never call an AI provider. Read their local reports
 
 ## Configure a repair run
 
-The repair runner must launch a **separate build from its own checkout**, not attach to the existing app. Stop whatever is using the configured test port. Commit or stash all changes, including untracked files, in the source repository first. Ignored `.env` files, dependencies and local credentials are not copied into the checkout. Use a disposable dev environment with nonproduction settings. Your configured setup commands must prepare whatever that build needs; secret environment variables are not inherited automatically.
+The repair runner must launch a **separate build from its own checkout**, not attach to the existing app. Stop whatever is using the configured test port. Commit or stash all changes, including untracked files, in the source repository first. Ignored `.env` files, dependencies and local credentials are not copied into the checkout. The checkout holds the committed bytes: Git line-ending conversion is off there, so on Windows its files keep LF line endings where your working tree has CRLF. `eol` rules in `.gitattributes` still apply. Use a disposable dev environment with nonproduction settings. Your configured setup commands must prepare whatever that build needs; secret environment variables are not inherited automatically.
 
 Create `portal-repair.json` in the tools folder, outside the app repository:
 

@@ -108,7 +108,7 @@ Tracking ends at the next operator interval or capture termination, including in
 
 ## Actions, tracked rows and delayed UI updates
 
-Available from **0.4.0-preview.1**. The current preview target is **0.4.0-preview.4** on npm `next`; install it explicitly with `npm install --save-dev --save-exact recovery-probe@0.4.0-preview.4 playwright@1.62.1`. The development IPC hook must come from the same version.
+Available from **0.4.0-preview.1**. The current preview target is **0.4.0-preview.5** on npm `next`; install it explicitly with `npm install --save-dev --save-exact recovery-probe@0.4.0-preview.5 playwright@1.62.1`. The development IPC hook must come from the same version.
 
 These options are opt-in and extend the same fault-free capture. They answer "how long after the user's action did the screen show the right state, and did data arrive before it?"
 

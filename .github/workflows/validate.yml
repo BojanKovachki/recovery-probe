@@ -71,6 +71,25 @@ jobs:
       - name: Verify publishing lifecycle without uploading
         run: npm publish --dry-run --access public
 
+  windows-repair:
+    name: Windows repair pipeline
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install browser
+        run: npx playwright install chromium
+      - name: Verify the isolated repair pipeline with Git for Windows defaults (mock model)
+        run: npm run test:repair
+
   browser:
     name: Browser integration
     runs-on: ubuntu-latest
