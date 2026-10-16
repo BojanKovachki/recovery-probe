@@ -4,6 +4,10 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.5.0-preview.5 (2026-10-16)
+
+- The IPC control modules and `recovery-probe/ipc-inspector` are written in TypeScript. The inspector's declarations are now generated from its source and match the previous ones.
+
 ## 0.5.0-preview.4 (2026-10-16)
 
 - `observe` is written in TypeScript, and the observation report has a complete schema type. Captures and reports are unchanged.
