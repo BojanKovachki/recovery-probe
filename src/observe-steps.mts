@@ -1,16 +1,33 @@
 import type { Locator, Page } from 'playwright'
 import { selectorSpec, type SelectorSpec } from './observation-kit.mjs'
 
-// Opt-in scripted operator for `observe --steps`. Steps act on the app (same-document
-// navigation, clicks, waits and interval marks); observation itself never acts.
+// Opt-in scripted operator for `observe --steps` and `ipc --action`. Steps act on the
+// app (same-document navigation, clicks, typing, key presses, waits and interval marks);
+// observation itself never acts. Typed values are never written to reports.
 const NAME = /^[\w.-]{1,40}$/
-const KINDS = ['mark', 'navigate', 'click', 'waitFor', 'wait'] as const
+const KEY = /^[A-Za-z0-9+]{1,40}$/
+const KINDS = [
+  'mark',
+  'navigate',
+  'click',
+  'fill',
+  'press',
+  'waitFor',
+  'wait',
+] as const
+// The extra property a kind needs besides its selector.
+const ARGUMENTS: Partial<Record<(typeof KINDS)[number], string>> = {
+  fill: 'value',
+  press: 'key',
+}
 
 export type ObservationStep = { name?: string } & (
   | { kind: 'mark' }
   | { kind: 'navigate'; target: string }
   | { kind: 'wait'; ms: number }
   | { kind: 'click' | 'waitFor'; target: SelectorSpec; timeoutMs: number }
+  | { kind: 'fill'; target: SelectorSpec; value: string; timeoutMs: number }
+  | { kind: 'press'; target: SelectorSpec; key: string; timeoutMs: number }
 )
 
 export interface StepResult {
@@ -39,7 +56,7 @@ export function observationSteps(input: unknown): ObservationStep[] {
       throw Error(`steps[${i}] needs exactly one of ${KINDS.join(', ')}`)
     const [kind] = kinds
     for (const key of Object.keys(step))
-      if (![kind, 'name', 'timeoutMs'].includes(key))
+      if (![kind, 'name', 'timeoutMs', ARGUMENTS[kind]].includes(key))
         throw Error(`Unsupported steps[${i}] property: ${key}`)
     if (
       step.name !== undefined &&
@@ -78,12 +95,20 @@ export function observationSteps(input: unknown): ObservationStep[] {
         throw Error(`steps[${i}].wait must be 0–60000 ms`)
       return { kind, ms: step.wait, ...named }
     }
-    return {
-      kind,
-      target: selectorSpec(step[kind], `steps[${i}].${kind}`),
-      timeoutMs,
-      ...named,
+    const target = selectorSpec(step[kind], `steps[${i}].${kind}`)
+    if (kind === 'fill') {
+      if (typeof step.value !== 'string' || step.value.length > 1000)
+        throw Error(`steps[${i}].value must be text up to 1000 characters`)
+      return { kind, target, value: step.value, timeoutMs, ...named }
     }
+    if (kind === 'press') {
+      if (typeof step.key !== 'string' || !KEY.test(step.key))
+        throw Error(
+          `steps[${i}].key must be a key name such as Enter or Control+A`,
+        )
+      return { kind, target, key: step.key, timeoutMs, ...named }
+    }
+    return { kind, target, timeoutMs, ...named }
   })
 }
 
@@ -129,7 +154,7 @@ function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   })
 }
 
-/** Runs steps in order. Clicks require exactly one visible match and use real input events. */
+/** Runs steps in order. Clicks, typing and key presses require exactly one visible match and use real input events. */
 export async function runSteps(
   page: Page,
   steps: ObservationStep[],
@@ -184,7 +209,14 @@ export async function runSteps(
           throw Error(
             `STEP_TARGET_NOT_UNIQUE: expected exactly one visible match, found ${count}`,
           )
-        await abortable(target.click({ timeout: step.timeoutMs }), signal)
+        await abortable(
+          step.kind === 'fill'
+            ? target.fill(step.value, { timeout: step.timeoutMs })
+            : step.kind === 'press'
+              ? target.press(step.key, { timeout: step.timeoutMs })
+              : target.click({ timeout: step.timeoutMs }),
+          signal,
+        )
       }
       result.status = 'done'
     } catch (error) {

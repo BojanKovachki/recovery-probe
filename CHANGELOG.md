@@ -4,6 +4,13 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.5.0-preview.8 (2026-10-16)
+
+- **`ipc --action`** checks what the user sees after an action that writes. It runs scripted setup steps, clicks the action while the hook answers its write channel, and compares a simulated success, a simulated failure and a double-click. It reports `SILENT_FAILURE`, `FALSE_SUCCESS`, `UNCLEAR_FEEDBACK`, `UNCAUGHT_ERROR` and `DUPLICATE_SUBMIT`. Nothing is written. See docs/ipc.md.
+- Steps gain `fill` and `press`, also available to `observe --steps`. Typed values are never written to reports.
+- The IPC hook can delay injected results with `delayMs` to simulate request time; `identify` reports this as `capabilities.faultDelay`.
+- Discovery waits for the app's pending calls before each run, so its cleanup no longer fails when an app retry is still in flight.
+
 ## 0.5.0-preview.7 (2026-10-16)
 
 - The IPC check and IPC discovery (`recovery-probe ipc` and `ipc --discover`) are written in TypeScript. Their reports are unchanged.
