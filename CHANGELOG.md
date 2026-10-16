@@ -4,6 +4,15 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.5.0-preview.1 (2026-10-16)
+
+The first step of moving the package to TypeScript.
+
+- The package is compiled into `dist/` and published from there. Package exports are unchanged, but `require.resolve('recovery-probe/ipc')` now returns a path ending in `dist/ipc-probe.cjs`. If you stored the old `src/ipc-probe.cjs` path in `RECOVERY_PROBE_IPC_MODULE`, run the command again after upgrading.
+- `createFaultFetch` is written in TypeScript with strict checks, and its declarations are generated from the source. Its return type is exported as `FaultFetch`.
+- TypeScript files are linted with typescript-eslint, so TypeScript is pinned to 6.0, the newest version typescript-eslint supports.
+- A source checkout builds `dist/` during `npm ci`; test, demo and type-check scripts build first.
+
 ## 0.4.0 (2026-10-16)
 
 The first stable release since 0.3.0. It contains 0.4.0-preview.1 to preview.5; their entries below have the details.
