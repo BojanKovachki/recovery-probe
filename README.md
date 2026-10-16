@@ -77,7 +77,7 @@ If no request matches, `withFault` throws `FAULT_NOT_TRIGGERED` instead of letti
 
 ## Install
 
-**0.3.0** is the stable release on npm's `latest` channel, and the commands above pin it for reproducible reports. The 0.4 observation preview is `recovery-probe@0.4.0-preview.4` on the `next` channel; install it with the same Playwright version.
+**0.3.0** is the stable release on npm's `latest` channel, and the commands above pin it for reproducible reports. The 0.4 observation preview is `recovery-probe@0.4.0-preview.5` on the `next` channel; install it with the same Playwright version.
 
 Use Node.js 22 or newer. A separate tools folder keeps the tester out of your application's production dependencies. Browser and desktop commands need Playwright; attached targets use their existing browser runtime. If a version is not on npm yet, use the [source installation](CONTRIBUTING.md#install-an-unpublished-source-preview): a GitHub merge alone does not publish the package. See [CHANGELOG.md](CHANGELOG.md) for version history.
 
