@@ -1,17 +1,39 @@
-import { selectorSpec } from './observation-kit.mjs'
+import type { Locator, Page } from 'playwright'
+import { selectorSpec, type SelectorSpec } from './observation-kit.mjs'
 
 // Opt-in scripted operator for `observe --steps`. Steps act on the app (same-document
 // navigation, clicks, waits and interval marks); observation itself never acts.
 const NAME = /^[\w.-]{1,40}$/
-const KINDS = ['mark', 'navigate', 'click', 'waitFor', 'wait']
+const KINDS = ['mark', 'navigate', 'click', 'waitFor', 'wait'] as const
 
-export function observationSteps(input) {
-  const steps = Array.isArray(input) ? input : input?.steps
+export type ObservationStep = { name?: string } & (
+  | { kind: 'mark' }
+  | { kind: 'navigate'; target: string }
+  | { kind: 'wait'; ms: number }
+  | { kind: 'click' | 'waitFor'; target: SelectorSpec; timeoutMs: number }
+)
+
+export interface StepResult {
+  index: number
+  kind: ObservationStep['kind']
+  name?: string
+  startedMs: number
+  interval?: number | null
+  status?: 'done' | 'failed'
+  error?: string
+  endedMs?: number
+}
+
+export function observationSteps(input: unknown): ObservationStep[] {
+  const steps = Array.isArray(input)
+    ? input
+    : (input as { steps?: unknown } | null | undefined)?.steps
   if (!Array.isArray(steps) || !steps.length || steps.length > 50)
     throw Error('steps must list 1–50 steps')
-  return steps.map((step, i) => {
-    if (!step || typeof step !== 'object' || Array.isArray(step))
+  return steps.map((value: unknown, i): ObservationStep => {
+    if (!value || typeof value !== 'object' || Array.isArray(value))
       throw Error(`steps[${i}] must be an object`)
+    const step = value as Record<string, unknown>
     const kinds = KINDS.filter((k) => Object.hasOwn(step, k))
     if (kinds.length !== 1)
       throw Error(`steps[${i}] needs exactly one of ${KINDS.join(', ')}`)
@@ -25,9 +47,14 @@ export function observationSteps(input) {
     )
       throw Error(`steps[${i}].name must match ${NAME}`)
     const timeoutMs = step.timeoutMs ?? (kind === 'waitFor' ? 15000 : 10000)
-    if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 60000)
+    if (
+      typeof timeoutMs !== 'number' ||
+      !Number.isInteger(timeoutMs) ||
+      timeoutMs < 100 ||
+      timeoutMs > 60000
+    )
       throw Error(`steps[${i}].timeoutMs must be 100–60000`)
-    const named = step.name ? { name: step.name } : {}
+    const named = typeof step.name === 'string' ? { name: step.name } : {}
     if (kind === 'mark') {
       if (step.mark !== true) throw Error(`steps[${i}].mark must be true`)
       return { kind, ...named }
@@ -42,7 +69,12 @@ export function observationSteps(input) {
       return { kind, target: step.navigate, ...named }
     }
     if (kind === 'wait') {
-      if (!Number.isInteger(step.wait) || step.wait < 0 || step.wait > 60000)
+      if (
+        typeof step.wait !== 'number' ||
+        !Number.isInteger(step.wait) ||
+        step.wait < 0 ||
+        step.wait > 60000
+      )
         throw Error(`steps[${i}].wait must be 0–60000 ms`)
       return { kind, ms: step.wait, ...named }
     }
@@ -55,17 +87,20 @@ export function observationSteps(input) {
   })
 }
 
-const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-export function locate(page, spec) {
+const escapeRegExp = (value: string) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+export function locate(page: Page, spec: SelectorSpec): Locator {
   if (typeof spec === 'string') return page.locator(spec)
   let locator = spec.css ? page.locator(spec.css) : null
   if (spec.role) {
     const byRole = page.getByRole(
-      spec.role,
+      spec.role as Parameters<Page['getByRole']>[0],
       spec.name === undefined ? {} : { name: spec.name, exact: true },
     )
     locator = locator ? locator.and(byRole) : byRole
   }
+  // Validated selectors always have css or role.
+  if (!locator) throw Error('A selector needs css or role')
   if (spec.text !== undefined)
     locator = locator.filter({
       hasText: new RegExp(`^\\s*${escapeRegExp(spec.text)}\\s*$`),
@@ -73,7 +108,7 @@ export function locate(page, spec) {
   return locator
 }
 
-function abortable(promise, signal) {
+function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   return new Promise((resolve, reject) => {
     if (signal.aborted) {
       reject(Error('STEPS_STOPPED'))
@@ -95,20 +130,24 @@ function abortable(promise, signal) {
 }
 
 /** Runs steps in order. Clicks require exactly one visible match and use real input events. */
-/**
- * @param {any} page Playwright page
- * @param {Record<string, any>[]} steps Validated steps
- * @param {{ mark: () => Promise<number | null>, signal: AbortSignal, elapsed: () => number, log?: (result: Record<string, any>) => void }} options
- */
 export async function runSteps(
-  page,
-  steps,
-  { mark, signal, elapsed, log = () => {} },
-) {
-  const results = []
+  page: Page,
+  steps: ObservationStep[],
+  {
+    mark,
+    signal,
+    elapsed,
+    log = () => {},
+  }: {
+    mark: () => Promise<number | null>
+    signal: AbortSignal
+    elapsed: () => number
+    log?: (result: StepResult) => void
+  },
+): Promise<StepResult[]> {
+  const results: StepResult[] = []
   for (const [index, step] of steps.entries()) {
-    /** @type {Record<string, any>} */
-    const result = {
+    const result: StepResult = {
       index,
       kind: step.kind,
       ...(step.name ? { name: step.name } : {}),
@@ -150,7 +189,9 @@ export async function runSteps(
       result.status = 'done'
     } catch (error) {
       result.status = 'failed'
-      result.error = String(error.message).split('\n')[0].slice(0, 300)
+      result.error = String((error as Error).message)
+        .split('\n')[0]
+        .slice(0, 300)
       throw Object.assign(
         Error(`Step ${index} (${step.kind}) failed: ${result.error}`),
         { results },

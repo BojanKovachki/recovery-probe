@@ -4,6 +4,10 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.5.0-preview.3 (2026-10-16)
+
+- The observation helpers are written in TypeScript: the in-page observation kit, scripted steps, the region reader and the HTTP observer. Their results are unchanged.
+
 ## 0.5.0-preview.2 (2026-10-16)
 
 - The report modules are written in TypeScript: the HTML template renderer and the desktop, discovery and observation reports. The reports they write are byte-identical to before.

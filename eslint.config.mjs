@@ -9,9 +9,9 @@ const typeScriptFiles = ['**/*.{ts,mts,cts}']
 
 const inPageModules = [
   'src/ipc-check.mjs',
-  'src/ipc-observation.mjs',
-  'src/observation-kit.mjs',
-  'src/observe-steps.mjs',
+  'src/ipc-observation.mts',
+  'src/observation-kit.mts',
+  'src/observe-steps.mts',
   'src/pick-marker.mjs',
   'src/refresh.mjs',
   'src/visibility.mjs',
