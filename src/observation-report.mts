@@ -1,8 +1,205 @@
 import { createRequire } from 'node:module'
 import { escapeHtml, renderTemplate } from './report-template.mjs'
-const { version } = createRequire(import.meta.url)('../package.json')
+const { version } = createRequire(import.meta.url)('../package.json') as {
+  version: string
+}
 
-export function observationMetadata() {
+export interface ObservationMetadata {
+  recoveryProbeVersion: string
+  runtime: { node: string }
+  browserVersion: string | null
+  ipcHook: { version?: string; [key: string]: unknown } | null
+}
+
+export interface ReadCounts {
+  calls: number
+  successes: number
+  errors: number
+  pending: number
+}
+
+export interface ContentSummary {
+  count: number
+  textFingerprint: string
+  truncated: boolean
+  [key: string]: unknown
+}
+
+/** One completed sample, as the content comparison tracker receives it. */
+export interface ObservationSample {
+  interval: number
+  fromMs: number
+  toMs: number
+  ui: {
+    presence: string
+    visible: boolean
+    contentCount: number
+    content?: ContentSummary | null
+  }
+  reads: ReadCounts & { pendingAtStart: number }
+  before: ReadCounts
+  after: ReadCounts
+}
+
+export type ComparisonResult = 'unavailable' | 'unchanged' | 'changed'
+export type ComparisonBasis = 'READ_COMPLETION' | 'INTERVAL_RETURN'
+
+interface ContentEvidence {
+  interval: number
+  fromMs: number
+  toMs: number
+  presence: string
+  visible: boolean
+  content: ContentSummary | null
+}
+
+export interface ComparisonFollowUp {
+  samples: number
+  comparableSamples: number
+  unavailableSamples: number
+  firstBaselineMatch: ContentEvidence | null
+  latest: (ContentEvidence & { result: ComparisonResult }) | null
+  summary: string
+}
+
+export interface ContentComparison {
+  kind: 'observation'
+  basis: ComparisonBasis
+  interval: number
+  result: ComparisonResult
+  before: ContentEvidence
+  after: ContentEvidence
+  completions?: { successes: number; errors: number }
+  reads?: ObservationSample['reads']
+  summary: string
+  note: string
+  followUp?: ComparisonFollowUp
+}
+
+interface PhaseStats {
+  count: number
+  meanMs: number | null
+  minMs: number | null
+  maxMs: number | null
+}
+
+export interface SamplingSnapshot {
+  requestedDelayMs: number
+  completedSamples: number
+  sampleDuration: PhaseStats
+  startToStart: PhaseStats
+  phases: Record<string, PhaseStats>
+  note: string
+}
+
+const samplingPhases = [
+  'beforeSnapshotMs',
+  'uiRoundTripMs',
+  'rendererReadMs',
+  'summarizeMs',
+  'afterSnapshotMs',
+] as const
+
+export type SamplingTimings = Partial<
+  Record<(typeof samplingPhases)[number], number>
+>
+
+interface ActionRef {
+  name: string
+  atMs: number
+}
+
+export interface ObservedAction extends ActionRef {
+  trusted: boolean
+  interval: number
+}
+
+export interface TrackedRow {
+  row: string
+  firstSeen: {
+    fromMs: number
+    toMs: number
+    state: string
+    afterAction?: ActionRef | null
+  }
+  transitions: {
+    from: string
+    to: string
+    afterMs: number
+    byMs: number
+    afterAction?: ActionRef | null
+  }[]
+  lastState: string
+}
+
+export interface ActionEffect extends ObservedAction {
+  appeared: {
+    row: string
+    state: string
+    appearedAfterMs: [number, number]
+    changes: { from: string; to: string; afterActionMs: [number, number] }[]
+  }[]
+  changed: {
+    row: string
+    from: string
+    to: string
+    afterActionMs: [number, number]
+  }[]
+}
+
+export interface ObservationFinding {
+  code: string
+  basis: string
+  interval: number
+}
+
+export interface DelayedUiUpdateFinding extends ObservationFinding {
+  code: 'DELAYED_UI_UPDATE'
+  row: string
+  from: string
+  to: string
+  persistedMs: number
+  unchangedReadCompletions: number
+  sinceLastDataEventMs: number | null
+  previousStateStartedAfterActionMs: number | null
+  afterAction: { name: string; changedAfterActionMs: [number, number] } | null
+}
+
+export interface ObservationInterval {
+  index: number
+  startMs: number
+  reads?: { calls: number; successes: number; errors: number }
+  firstContent?: { fromMs: number; toMs: number; [key: string]: unknown } | null
+  /** Codes of the findings raised in this interval. */
+  findings: string[]
+}
+
+export interface ObservationNote {
+  code?: string
+  note: string
+  [key: string]: unknown
+}
+
+/** The fields of an observation report that the written report uses. */
+export interface ObservationReport {
+  status: string
+  metadata?: ObservationMetadata
+  sampling?: SamplingSnapshot | null
+  detail?: string
+  limitation?: string
+  error?: string
+  intervals: ObservationInterval[]
+  findings: ObservationFinding[]
+  comparisons?: ContentComparison[]
+  actions?: ObservedAction[]
+  actionEffects?: ActionEffect[]
+  rows?: TrackedRow[] | null
+  notes?: ObservationNote[]
+  operator?: { status: string; error?: string } | null
+  cleanup?: string
+}
+
+export function observationMetadata(): ObservationMetadata {
   return {
     recoveryProbeVersion: version,
     runtime: { node: process.versions.node },
@@ -12,8 +209,8 @@ export function observationMetadata() {
 }
 
 // Aggregate every completed sample, including samples omitted from the change-only timeline.
-export function samplingMetrics(requestedDelayMs) {
-  let previous,
+export function samplingMetrics(requestedDelayMs: number) {
+  let previous: number | undefined,
     count = 0,
     sum = 0,
     min = Infinity,
@@ -22,9 +219,12 @@ export function samplingMetrics(requestedDelayMs) {
     gapSum = 0,
     gapMin = Infinity,
     gapMax = 0
-  const phases = {}
+  const phases: Record<
+    string,
+    { count: number; sum: number; min: number; max: number }
+  > = {}
   return {
-    add(fromMs, toMs, timings = {}) {
+    add(fromMs: number, toMs: number, timings: SamplingTimings = {}) {
       const duration = toMs - fromMs
       count++
       sum += duration
@@ -38,15 +238,10 @@ export function samplingMetrics(requestedDelayMs) {
         gapMax = Math.max(gapMax, gap)
       }
       previous = fromMs
-      for (const key of [
-        'beforeSnapshotMs',
-        'uiRoundTripMs',
-        'rendererReadMs',
-        'summarizeMs',
-        'afterSnapshotMs',
-      ]) {
+      for (const key of samplingPhases) {
         const value = timings[key]
-        if (!Number.isFinite(value) || value < 0) continue
+        if (value === undefined || !Number.isFinite(value) || value < 0)
+          continue
         const p = (phases[key] ??= { count: 0, sum: 0, min: Infinity, max: 0 })
         p.count++
         p.sum += value
@@ -54,9 +249,14 @@ export function samplingMetrics(requestedDelayMs) {
         p.max = Math.max(p.max, value)
       }
     },
-    snapshot() {
-      const round = (n) => Math.round(n * 100) / 100
-      const stats = (n, total, low, high) => ({
+    snapshot(): SamplingSnapshot {
+      const round = (n: number) => Math.round(n * 100) / 100
+      const stats = (
+        n: number,
+        total: number,
+        low: number,
+        high: number,
+      ): PhaseStats => ({
         count: n,
         meanMs: n ? round(total / n) : null,
         minMs: n ? round(low) : null,
@@ -80,7 +280,7 @@ export function samplingMetrics(requestedDelayMs) {
 }
 
 // Compare samples only; these summaries cannot establish ownership or freshness.
-const contentEvidence = (e) => ({
+const contentEvidence = (e: ObservationSample): ContentEvidence => ({
   interval: e.interval,
   fromMs: e.fromMs,
   toMs: e.toMs,
@@ -88,7 +288,10 @@ const contentEvidence = (e) => ({
   visible: e.ui.visible,
   content: e.ui.content ?? null,
 })
-function compareContent(before, after) {
+function compareContent(
+  before: ContentEvidence,
+  after: ContentEvidence,
+): ComparisonResult {
   const a = before.content,
     b = after.content
   const comparable =
@@ -100,7 +303,11 @@ function compareContent(before, after) {
       : 'changed'
 }
 
-export function contentComparison(basis, before, after) {
+export function contentComparison(
+  basis: ComparisonBasis,
+  before: ObservationSample,
+  after: ObservationSample,
+): ContentComparison {
   const result = compareContent(contentEvidence(before), contentEvidence(after))
   return {
     kind: 'observation',
@@ -122,10 +329,13 @@ export function contentComparison(basis, before, after) {
   }
 }
 
-export function comparisonFollowUpSummary(comparison) {
+export function comparisonFollowUpSummary(comparison: {
+  result?: ComparisonResult
+  followUp?: ComparisonFollowUp
+}): string {
   const f = comparison.followUp
   if (!f) return '' // Reports from older versions have no follow-up evidence.
-  if (!f.samples) return 'No later sample in this interval.'
+  if (!f.samples || !f.latest) return 'No later sample in this interval.'
   const matched = f.firstBaselineMatch
   const prefix =
     comparison.result === 'changed' && matched
@@ -134,19 +344,20 @@ export function comparisonFollowUpSummary(comparison) {
   return `${prefix}Latest follow-up sample (${f.latest.fromMs}–${f.latest.toMs} ms from capture start): ${f.latest.result} against the baseline. ${f.comparableSamples} comparable, ${f.unavailableSamples} unavailable later samples. These samples do not establish continuous visibility or stability.`
 }
 
+type TrackedComparison = ContentComparison & { followUp: ComparisonFollowUp }
+
 export function contentComparisons() {
-  let interval,
-    anchor,
-    lastContent,
-    returnBaseline,
+  let interval: number | undefined,
+    anchor: ObservationSample | undefined,
+    lastContent: ObservationSample | undefined,
+    returnBaseline: ObservationSample | undefined,
     comparedReturn = false
-  let active = [],
+  let active: TrackedComparison[] = [],
     retained = 0
-  const completed = (counts) => counts.successes + counts.errors
+  const completed = (counts: ReadCounts) => counts.successes + counts.errors
   return {
-    add(event) {
-      /** @type {Array<ReturnType<typeof contentComparison> & { followUp?: any }>} */
-      const results = []
+    add(event: ObservationSample): ContentComparison[] {
+      const results: ContentComparison[] = []
       if (interval !== event.interval) {
         interval = event.interval
         anchor = undefined
@@ -185,33 +396,39 @@ export function contentComparisons() {
       for (const comparison of results) {
         // Match the report's global comparison cap; do not retain discarded evidence.
         if (retained >= 1000) break
-        comparison.followUp = {
-          samples: 0,
-          comparableSamples: 0,
-          unavailableSamples: 0,
-          firstBaselineMatch: null,
-          latest: null,
-          summary: 'No later sample in this interval.',
-        }
+        const tracked: TrackedComparison = Object.assign(comparison, {
+          followUp: {
+            samples: 0,
+            comparableSamples: 0,
+            unavailableSamples: 0,
+            firstBaselineMatch: null,
+            latest: null,
+            summary: 'No later sample in this interval.',
+          },
+        })
         retained++
-        active.push(comparison)
+        active.push(tracked)
       }
       return results
     },
   }
 }
 
-const seconds = (ms) => (Math.round(ms / 100) / 10).toFixed(1)
-const range = ([low, high]) => {
+const seconds = (ms: number) => (Math.round(ms / 100) / 10).toFixed(1)
+const range = ([low, high]: readonly [number, number]) => {
   const a = seconds(Math.max(0, low)),
     b = seconds(high)
   return a === b ? `about ${a} s` : `${a}–${b} s`
 }
-const rowName = (row) =>
+const rowName = (row: string) =>
   row.startsWith('key:') ? `row ${row.slice(4, 12)}` : `row ‘${row}’`
 
-export function observationSummary(finding) {
-  if (finding.code === 'DELAYED_UI_UPDATE') {
+const isDelayedUiUpdate = (
+  finding: ObservationFinding,
+): finding is DelayedUiUpdateFinding => finding.code === 'DELAYED_UI_UPDATE'
+
+export function observationSummary(finding: ObservationFinding): string {
+  if (isDelayedUiUpdate(finding)) {
     const data =
       finding.basis === 'NO_DATA_EVENT_BEFORE_UI_CHANGE'
         ? `; no data event arrived in the change window${finding.sinceLastDataEventMs === null ? '' : ` (the last one was ${seconds(finding.sinceLastDataEventMs)} s earlier)`}`
@@ -229,10 +446,13 @@ export function observationSummary(finding) {
 }
 
 /** Rows that appeared or changed after each configured action, relative to the action time. */
-export function actionEffects(report) {
+export function actionEffects(report: {
+  actions?: ObservedAction[] | null
+  rows?: TrackedRow[] | null
+}): ActionEffect[] {
   const actions = report.actions ?? []
-  const same = (ref, action) =>
-    ref && ref.name === action.name && ref.atMs === action.atMs
+  const same = (ref: ActionRef | null | undefined, action: ObservedAction) =>
+    ref != null && ref.name === action.name && ref.atMs === action.atMs
   return actions.map((action) => {
     const appeared = (report.rows ?? [])
       .filter((r) => same(r.firstSeen.afterAction, action))
@@ -242,13 +462,16 @@ export function actionEffects(report) {
         appearedAfterMs: [
           r.firstSeen.fromMs - action.atMs,
           r.firstSeen.toMs - action.atMs,
-        ],
+        ] as [number, number],
         changes: r.transitions
           .filter((t) => same(t.afterAction, action))
           .map((t) => ({
             from: t.from,
             to: t.to,
-            afterActionMs: [t.afterMs - action.atMs, t.byMs - action.atMs],
+            afterActionMs: [t.afterMs - action.atMs, t.byMs - action.atMs] as [
+              number,
+              number,
+            ],
           })),
       }))
     const changed = (report.rows ?? [])
@@ -260,14 +483,17 @@ export function actionEffects(report) {
             row: r.row,
             from: t.from,
             to: t.to,
-            afterActionMs: [t.afterMs - action.atMs, t.byMs - action.atMs],
+            afterActionMs: [t.afterMs - action.atMs, t.byMs - action.atMs] as [
+              number,
+              number,
+            ],
           })),
       )
     return { ...action, appeared, changed }
   })
 }
 
-export function actionSummary(effect) {
+export function actionSummary(effect: ActionEffect): string {
   // Rows without a tracked state that merely appeared (for example after navigating) are counted, not listed.
   const quiet = effect.appeared.filter(
     (a) => ['none', 'other'].includes(a.state) && !a.changes.length,
@@ -292,8 +518,10 @@ export function actionSummary(effect) {
 }
 
 /** One line per interval instead of one per comparison. */
-export function comparisonDigest(report) {
-  const byInterval = new Map()
+export function comparisonDigest(report: {
+  comparisons?: ContentComparison[]
+}): string[] {
+  const byInterval = new Map<number, Record<string, number>>()
   for (const c of report.comparisons ?? []) {
     const entry = byInterval.get(c.interval) ?? {}
     const key = `${c.basis === 'READ_COMPLETION' ? 'read-completion' : 'interval-return'} ${c.result}${c.basis === 'INTERVAL_RETURN' && c.result === 'changed' && c.followUp?.firstBaselineMatch ? ' (later matched)' : ''}`
@@ -308,7 +536,7 @@ export function comparisonDigest(report) {
   )
 }
 
-const trackedRowHtml = (r) => {
+const trackedRowHtml = (r: TrackedRow) => {
   const changes = r.transitions
     .map(
       (t) =>
@@ -318,7 +546,7 @@ const trackedRowHtml = (r) => {
   return `<tr><td>${escapeHtml(rowName(r.row))}</td><td>${seconds(r.firstSeen.fromMs)}–${seconds(r.firstSeen.toMs)} s as ${escapeHtml(r.firstSeen.state)}</td><td>${changes || 'none'}</td><td>${escapeHtml(r.lastState)}</td></tr>`
 }
 
-export function renderObservationReport(report) {
+export function renderObservationReport(report: ObservationReport): string {
   const intervals = report.intervals
     .map(
       (i) =>
@@ -329,7 +557,7 @@ export function renderObservationReport(report) {
   const comparisons = (report.comparisons ?? [])
     .map(
       (c) =>
-        `<p>Interval ${escapeHtml(c.interval)}: ${escapeHtml(c.summary)} ${c.completions ? `(${c.completions.successes} successful, ${c.completions.errors} failed read completions)` : `(${c.reads.calls} selected reads started in this interval)`} ${escapeHtml(comparisonFollowUpSummary(c))}</p>`,
+        `<p>Interval ${escapeHtml(c.interval)}: ${escapeHtml(c.summary)} ${c.completions ? `(${c.completions.successes} successful, ${c.completions.errors} failed read completions)` : `(${c.reads?.calls} selected reads started in this interval)`} ${escapeHtml(comparisonFollowUpSummary(c))}</p>`,
     )
     .join('')
   const phaseRows = Object.entries(sampling?.phases ?? {})

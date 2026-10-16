@@ -2,7 +2,36 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { escapeHtml, renderTemplate } from './report-template.mjs'
 
-export async function writeDiscoveryReport(directory, report, config) {
+interface DiscoveryFinding {
+  id: string
+  classification: string
+  kind: string
+  confidence?: string
+  partial?: boolean
+  completedRuns?: number
+  plannedRuns?: number
+  confirmations?: number
+  observedInterpretation?: { classification?: string }
+}
+
+/** The fields of an HTTP or IPC discovery report that the written report uses. */
+export interface DiscoveryReport {
+  findings: DiscoveryFinding[]
+  limitation: string
+  error?: string
+  cleanupError?: string
+  finalReset?: string
+  window?: unknown
+  coverage?: unknown
+  readiness?: unknown
+  failedControl?: { reasons: unknown; diff: unknown } | null
+}
+
+export async function writeDiscoveryReport(
+  directory: string,
+  report: DiscoveryReport,
+  config: unknown,
+): Promise<void> {
   await writeFile(join(directory, '.gitignore'), '*\n', { mode: 0o600 })
   await writeFile(
     join(directory, 'scenario.json'),

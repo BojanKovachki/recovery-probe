@@ -1,8 +1,12 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { resolve, join } from 'node:path'
+import type { DesktopReport } from './desktop.mjs'
 import { escapeHtml, renderTemplate } from './report-template.mjs'
 
-export function desktopReportHtml(report, target = 'desktop') {
+export function desktopReportHtml(
+  report: DesktopReport,
+  target: 'desktop' | 'web' = 'desktop',
+): string {
   const results = report.results
     .map(
       (row) =>
@@ -36,7 +40,11 @@ export function desktopReportHtml(report, target = 'desktop') {
     screenshots,
   })
 }
-export async function writeDesktopReport(directory, report, config) {
+export async function writeDesktopReport(
+  directory: string,
+  report: DesktopReport,
+  config: { target?: string },
+): Promise<string> {
   const dir = resolve(directory)
   await mkdir(dir, { recursive: true, mode: 0o700 })
   const failures = report.results

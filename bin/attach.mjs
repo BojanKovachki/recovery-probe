@@ -43,17 +43,20 @@ export async function attachMain(args) {
     /** @type {Record<string, any>} */
     let report
     if (options.discover) {
-      report = await discoverHttp(page, config)
-      await writeDiscoveryReport(directory, report, config)
+      const discovery = await discoverHttp(page, config)
+      await writeDiscoveryReport(directory, discovery, config)
+      report = discovery
     } else {
       const visibility = await prepareVisibility(page, config)
+      let check
       try {
-        report = await checkDesktop(page, config)
-        report.mode = 'attached browser recovery'
+        check = await checkDesktop(page, config)
+        check.mode = 'attached browser recovery'
       } finally {
         await visibility.revert()
       }
-      await writeDesktopReport(directory, report, config)
+      await writeDesktopReport(directory, check, config)
+      report = check
     }
     for (const f of report.findings ?? report.results)
       console.log(
