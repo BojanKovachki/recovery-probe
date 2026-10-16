@@ -1,5 +1,21 @@
+interface Interpretation {
+  classification: string
+  kind?: string
+  [key: string]: unknown
+}
+
+interface DiscoveryRun {
+  fault: string
+  times: number
+  interpretation?: Interpretation
+  assessment?: Interpretation
+}
+
 // A stable intermediate screen is not a healthy control once a baseline exists.
-export function matchesHealthyControl(ui, expectedFingerprint) {
+export function matchesHealthyControl(
+  ui: { fingerprint?: string },
+  expectedFingerprint: string | undefined,
+): boolean {
   return (
     expectedFingerprint === undefined || ui.fingerprint === expectedFingerprint
   )
@@ -7,17 +23,24 @@ export function matchesHealthyControl(ui, expectedFingerprint) {
 
 // Keep completed runs visible when a later control aborts an experiment.
 // Partial evidence must not inherit a confirmed defect/healthy verdict.
-export function retainPartialFindings(report, plannedRuns) {
-  const groups = new Map()
+export function retainPartialFindings(
+  report: {
+    results: DiscoveryRun[]
+    findings: { id: string; [key: string]: unknown }[]
+    error?: string
+  },
+  plannedRuns: number,
+): void {
+  const groups = new Map<string, DiscoveryRun[]>()
   for (const run of report.results) {
     const id = `${run.fault}-${run.times}`
     if (!groups.has(id)) groups.set(id, [])
-    groups.get(id).push(run)
+    groups.get(id)!.push(run)
   }
   for (const [id, runs] of groups) {
     if (report.findings.some((finding) => finding.id === id)) continue
     const interpretations = runs.map(
-      (run) => run.interpretation ?? run.assessment,
+      (run) => (run.interpretation ?? run.assessment)!,
     )
     const consistent = interpretations.every(
       (value) => value.classification === interpretations[0].classification,

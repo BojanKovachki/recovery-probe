@@ -1,22 +1,28 @@
+import type { IpcInspector } from './ipc-inspector.mjs'
+import type { IpcSnapshot } from './ipc-probe.cjs'
+
 /** A failed reply does not mean a mutation failed to execute. Never retry begin.
  * Reset its exact ID and independently read back state, even if reset's reply fails.
  * Do not use an unscoped reset: that could disarm another client's newer run.
  */
-export async function resetIpcAndConfirm(control, id) {
+export async function resetIpcAndConfirm(
+  control: IpcInspector,
+  id: string,
+): Promise<IpcSnapshot | null> {
   if (typeof id !== 'string' || !id)
     throw new Error('A run ID is required for scoped cleanup')
-  let resetError
+  let resetError: Error | undefined
   try {
     await control.call('reset', id)
   } catch (error) {
-    resetError = error
+    resetError = error as Error
   }
-  let snapshot
+  let snapshot: IpcSnapshot | null
   try {
     snapshot = await control.call('snapshot')
   } catch (error) {
     throw new Error(
-      `IPC cleanup unverified: cannot read back state (${error.message}). Stop the test app; a fault may remain armed until its TTL expires.`,
+      `IPC cleanup unverified: cannot read back state (${(error as Error).message}). Stop the test app; a fault may remain armed until its TTL expires.`,
       { cause: error },
     )
   }
