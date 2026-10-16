@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+import type { Page } from 'playwright'
 import type { IpcInspector } from './ipc-inspector.mjs'
 import type { IpcSnapshot } from './ipc-probe.cjs'
 
@@ -42,4 +44,50 @@ export async function resetIpcAndConfirm(
     )
   }
   return snapshot
+}
+
+/** The hook refuses a new plan while the previous plan's real calls are pending. */
+export async function waitForSettledCalls(
+  control: IpcInspector,
+  timeoutMs: number,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (true) {
+    const snapshot = await control.call('snapshot')
+    if (
+      !snapshot?.channels ||
+      !Object.values(snapshot.channels).some((row) => row.pending)
+    )
+      return
+    if (Date.now() >= deadline) throw new Error('IPC_PREVIOUS_CALLS_PENDING')
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+}
+
+/** Confirms both debugger ports reach the same renderer, not merely two apps
+ * showing the same URL. Removes the temporary challenge afterwards.
+ */
+export async function confirmSameWindow(
+  page: Page,
+  control: IpcInspector,
+): Promise<void> {
+  const challenge = randomUUID()
+  await page.evaluate((value) => {
+    if (Object.hasOwn(globalThis, '__recoveryProbeWindowNonce'))
+      throw new Error(
+        'Window already has a probe challenge; reload before retrying',
+      )
+    Object.defineProperty(globalThis, '__recoveryProbeWindowNonce', {
+      value,
+      configurable: true,
+    })
+  }, challenge)
+  try {
+    await control.call('identify', challenge)
+  } finally {
+    await page.evaluate((value) => {
+      if (globalThis.__recoveryProbeWindowNonce === value)
+        delete globalThis.__recoveryProbeWindowNonce
+    }, challenge)
+  }
 }

@@ -8,7 +8,11 @@ import type { Browser, Page } from 'playwright'
 import { connectDesktop, desktopPages } from './desktop.mjs'
 import type { DiscoveryFinding } from './discovery-report.mjs'
 import { connectIpcInspector } from './ipc-inspector.mjs'
-import { resetIpcAndConfirm } from './ipc-control.mjs'
+import {
+  confirmSameWindow,
+  resetIpcAndConfirm,
+  waitForSettledCalls,
+} from './ipc-control.mjs'
 import type { IpcFault } from './ipc-control.mjs'
 import type { IpcSnapshot } from './ipc-probe.cjs'
 import { prepareVisibility, windowVisibility } from './visibility.mjs'
@@ -244,23 +248,7 @@ export async function discoverIpc(
     if (pages.length !== 1)
       throw new Error('Keep one matching target window open')
     const page = pages[0]
-    const nonce = randomUUID()
-    await page.evaluate((value) => {
-      if (Object.hasOwn(globalThis, '__recoveryProbeWindowNonce'))
-        throw new Error('Existing window challenge')
-      Object.defineProperty(globalThis, '__recoveryProbeWindowNonce', {
-        value,
-        configurable: true,
-      })
-    }, nonce)
-    try {
-      await control.call('identify', nonce)
-    } finally {
-      await page.evaluate((value) => {
-        if (globalThis.__recoveryProbeWindowNonce === value)
-          delete globalThis.__recoveryProbeWindowNonce
-      }, nonce)
-    }
+    await confirmSameWindow(page, control)
     visibility = await prepareVisibility(page, {
       restoreWindow: config.restoreWindow,
       control,
@@ -300,6 +288,8 @@ export async function discoverIpc(
       expectedFingerprint?: string,
       calibrate = false,
     ): Promise<DiscoveryPhase> => {
+      // An app retry can still be in flight after a faulted run.
+      await waitForSettledCalls(control, config.baselineTimeoutMs)
       runId = randomUUID()
       const id = runId
       const started = performance.now()

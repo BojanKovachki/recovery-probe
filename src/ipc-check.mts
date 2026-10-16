@@ -3,7 +3,7 @@ import type { Browser, Page } from 'playwright'
 import { connectDesktop, desktopPages } from './desktop.mjs'
 import { connectIpcInspector } from './ipc-inspector.mjs'
 import type { IpcInspector } from './ipc-inspector.mjs'
-import { resetIpcAndConfirm } from './ipc-control.mjs'
+import { confirmSameWindow, resetIpcAndConfirm } from './ipc-control.mjs'
 import type { IpcFault } from './ipc-control.mjs'
 import type { IpcSnapshot } from './ipc-probe.cjs'
 
@@ -150,27 +150,7 @@ export async function checkIpc(
         'Keep exactly one matching target window open on the intended screen',
       )
     const page = pages[0]
-    // Confirm both debugger ports belong to the same actual renderer, not merely
-    // two apps displaying the same URL. Remove the temporary challenge afterward.
-    const challenge = randomUUID()
-    await page.evaluate((value) => {
-      if (Object.hasOwn(globalThis, '__recoveryProbeWindowNonce'))
-        throw new Error(
-          'Window already has a probe challenge; reload before retrying',
-        )
-      Object.defineProperty(globalThis, '__recoveryProbeWindowNonce', {
-        value,
-        configurable: true,
-      })
-    }, challenge)
-    try {
-      await control.call('identify', challenge)
-    } finally {
-      await page.evaluate((value) => {
-        if (globalThis.__recoveryProbeWindowNonce === value)
-          delete globalThis.__recoveryProbeWindowNonce
-      }, challenge)
-    }
+    await confirmSameWindow(page, control)
     await page.bringToFront()
     if ((await ui(page, config)).blocked)
       throw new Error('Target must be visible and online')
