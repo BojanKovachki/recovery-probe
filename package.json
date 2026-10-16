@@ -1,6 +1,6 @@
 {
   "name": "recovery-probe",
-  "version": "0.5.0-preview.1",
+  "version": "0.5.0-preview.2",
   "type": "module",
   "description": "Test whether web and Electron desktop apps show the right data.",
   "license": "MIT",
