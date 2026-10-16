@@ -1,12 +1,120 @@
-'use strict'
-const { version } = require('../package.json')
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- package.json is outside the source root, so it is read at runtime.
+const { version } = require('../package.json') as { version: string }
 
-const installed = new WeakSet()
+export interface ProbeWebContents {
+  id: number
+  mainFrame: unknown
+  isDestroyed(): boolean
+  getURL(): string
+  executeJavaScript(code: string): Promise<unknown>
+  send?(channel: string, ...args: unknown[]): void
+  /** Used for the opt-in window minimize/restore controls. */
+  getOwnerBrowserWindow?(): {
+    isDestroyed(): boolean
+    isMinimized(): boolean
+    minimize(): void
+    restore(): void
+  } | null
+}
+export interface IpcReadStats {
+  calls: number
+  successes: number
+  errors: number
+  pending: number
+  firstReadAt: number | null
+  lastReadAt: number | null
+  firstCompletedAt: number | null
+  lastCompletedAt: number | null
+  lastSuccessAt: number | null
+}
+export interface IpcPushStats {
+  count: number
+  firstAt: number | null
+  lastAt: number | null
+}
+export interface IpcSnapshot {
+  id: string
+  channel: string
+  senderId: number
+  injected: number
+  startedAt: number
+  capturedAt: number
+  observation: boolean
+  observingUntil: number | null
+  injectedAt: number | null
+  successfulAfterFault: number
+  armed: {
+    fault: 'rejection' | 'null-result'
+    remaining: number
+    expiresAt: number
+  } | null
+  channels: Record<
+    string,
+    IpcReadStats & {
+      realCalls: number
+      maxDurationMs: number
+      methods?: Record<string, IpcReadStats>
+    }
+  >
+  /** Present for observation plans when push channels are configured. Counts and times only; no payloads. */
+  pushes: Record<
+    string,
+    IpcPushStats & { methods: Record<string, IpcPushStats> }
+  >
+}
+export interface IpcIdentity {
+  version: string
+  runtime: { node: string; electron: string | null; chrome: string | null }
+  senderId: number
+  pageUrl: string
+  registered: string[]
+  pushChannels: string[]
+  capabilities: {
+    maxFaultCount: number
+    observation: true
+    readTimestamps: true
+    methods: boolean
+    pushes: boolean
+  }
+}
+export interface IpcProbe {
+  identify(): IpcIdentity
+  identify(challenge: string): Promise<IpcIdentity>
+  begin(
+    options: {
+      id: string
+      channel: string
+      requiredChannels?: string[]
+      times?: number
+      ttlMs?: number
+    } & (
+      | { observation: true; fault?: never }
+      | { observation?: false; fault?: 'rejection' | 'null-result' }
+    ),
+  ): IpcSnapshot
+  snapshot(): IpcSnapshot | null
+  windowState(): { minimized: boolean }
+  setWindowMinimized(minimized: boolean): { minimized: boolean }
+  reset(id?: string): IpcSnapshot | null
+  dispose(): void
+}
+
+type ProbeState = Omit<IpcSnapshot, 'capturedAt'>
+type Classifier = (
+  channel: string,
+  args: unknown[],
+) => string | null | undefined
+interface InvokeEvent {
+  sender?: ProbeWebContents
+  senderFrame?: unknown
+}
+
+const installed = new WeakSet<object>()
 const MAX_LABELS = 200
 // Labels are developer-chosen method names, never argument values.
-const label = (value) =>
+const label = (value: unknown) =>
   typeof value === 'string' && /^[\w.:/-]{1,100}$/.test(value) ? value : null
-const readStats = () => ({
+const readStats = (): IpcReadStats => ({
   calls: 0,
   successes: 0,
   errors: 0,
@@ -19,17 +127,29 @@ const readStats = () => ({
 })
 
 // No Electron import: use its public registration API, supplied by the development app.
-exports.installIpcProbe = function installIpcProbe(
-  ipcMain,
-  {
+export function installIpcProbe(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Electron's listener takes and returns untyped IPC values.
+  ipcMain: { handle(channel: string, listener: (...args: any[]) => any): void },
+  options: {
+    enabled: boolean
+    channels: string[]
+    sender: () => ProbeWebContents | undefined | null
+    /** Development-only: returns a method label (/^[\w.:/-]{1,100}$/) for a call. Arguments are never stored. */
+    classify?: Classifier
+    /** Main-to-renderer channels whose sends to the target window are counted during observation. */
+    pushChannels?: string[]
+    /** Development-only: returns an event label for a push. Payloads are never stored. */
+    classifyPush?: Classifier
+  },
+): IpcProbe {
+  const {
     channels,
     sender,
     enabled = false,
     classify,
     pushChannels = [],
     classifyPush,
-  } = {},
-) {
+  }: Partial<typeof options> = options === undefined ? {} : options
   if (enabled !== true)
     throw new Error('IPC probe requires explicit development-only enablement')
   if (
@@ -59,25 +179,31 @@ exports.installIpcProbe = function installIpcProbe(
     )
   const allowed = new Set(channels)
   const allowedPushes = new Set(pushChannels)
-  const registered = new Set()
+  const registered = new Set<string>()
   const original = ipcMain.handle
   let active = true
-  let state = null
-  let timer
-  let wrappedSend = null
-  const seenIds = new Set()
+  let state: ProbeState | null = null
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let wrappedSend: {
+    contents: ProbeWebContents
+    wrapper: NonNullable<ProbeWebContents['send']>
+    previous: PropertyDescriptor | undefined
+  } | null = null
+  const seenIds = new Set<string>()
   const capabilities = () => ({
     maxFaultCount: 10,
-    observation: true,
-    readTimestamps: true,
+    observation: true as const,
+    readTimestamps: true as const,
     methods: Boolean(classify),
     pushes: allowedPushes.size > 0,
   })
-  const identify = (challenge) => {
+  const identify = ((
+    challenge?: unknown,
+  ): IpcIdentity | Promise<IpcIdentity> => {
     const contents = sender()
     if (!contents || contents.isDestroyed())
       throw new Error('Target WebContents is not available')
-    const identity = {
+    const identity: IpcIdentity = {
       version,
       runtime: {
         node: process.versions.node,
@@ -102,8 +228,8 @@ exports.installIpcProbe = function installIpcProbe(
           throw new Error('CDP window does not match the main-process target')
         return identity
       })
-  }
-  const matches = (event) => {
+  }) as { (): IpcIdentity; (challenge: unknown): Promise<IpcIdentity> }
+  const matches = (event: InvokeEvent | undefined) => {
     const contents = sender()
     return (
       contents &&
@@ -114,9 +240,14 @@ exports.installIpcProbe = function installIpcProbe(
     )
   }
   // A classifier failure or an unexpected label must never affect the real call.
-  const classifyCall = (fn, channel, args, table) => {
+  const classifyCall = (
+    fn: Classifier | undefined,
+    channel: string,
+    args: unknown[],
+    table: Record<string, unknown>,
+  ) => {
     if (!fn) return null
-    let name
+    let name: string
     try {
       name = label(fn(channel, args)) ?? 'unclassified'
     } catch {
@@ -142,11 +273,18 @@ exports.installIpcProbe = function installIpcProbe(
     }
     wrappedSend = null
   }
-  const wrapSend = (contents, current) => {
+  const wrapSend = (
+    contents: ProbeWebContents | undefined | null,
+    current: ProbeState,
+  ) => {
     if (!allowedPushes.size || typeof contents?.send !== 'function') return
     const previous = Object.getOwnPropertyDescriptor(contents, 'send')
     const send = contents.send
-    const wrapper = function (channel, ...args) {
+    const wrapper = function (
+      this: unknown,
+      channel: string,
+      ...args: unknown[]
+    ) {
       if (
         state === current &&
         current.observingUntil &&
@@ -187,7 +325,7 @@ exports.installIpcProbe = function installIpcProbe(
       state.observingUntil = null
     }
   }
-  const snapshot = () => {
+  const snapshot = (): IpcSnapshot | null => {
     if (
       (state?.armed && Date.now() >= state.armed.expiresAt) ||
       (state?.observingUntil && Date.now() >= state.observingUntil)
@@ -205,7 +343,7 @@ exports.installIpcProbe = function installIpcProbe(
     observation = false,
     times = 1,
     ttlMs = 30000,
-  } = {}) => {
+  }: Record<string, unknown> = {}): IpcSnapshot => {
     if (!active) throw new Error('IPC probe is disposed')
     if (typeof id !== 'string' || !id || id.length > 100 || seenIds.has(id))
       throw new Error('Use a new non-empty run ID')
@@ -213,21 +351,30 @@ exports.installIpcProbe = function installIpcProbe(
       throw new Error('Restart the dev app after 10000 probe runs')
     if (!Array.isArray(requiredChannels))
       throw new Error('requiredChannels must be an array')
-    const watched = [...new Set([channel, ...requiredChannels])]
+    const watched = [...new Set([channel, ...requiredChannels])] as string[]
     if (watched.some((c) => !allowed.has(c) || !registered.has(c)))
       throw new Error(
         'All watched channels must be allowed and registered after installing the probe',
       )
-    if (fault !== undefined && !['rejection', 'null-result'].includes(fault))
+    if (
+      fault !== undefined &&
+      !['rejection', 'null-result'].includes(fault as string)
+    )
       throw new Error('Supported IPC faults: rejection, null-result')
     if (
       typeof observation !== 'boolean' ||
       (observation && fault !== undefined)
     )
       throw new Error('Observation must be fault-free')
-    if (!Number.isInteger(times) || times < 1 || times > 10)
+    if (
+      typeof times !== 'number' ||
+      !Number.isInteger(times) ||
+      times < 1 ||
+      times > 10
+    )
       throw new Error('times must be 1–10')
     if (
+      typeof ttlMs !== 'number' ||
       !Number.isInteger(ttlMs) ||
       ttlMs < 100 ||
       ttlMs > (observation ? 125000 : 60000)
@@ -245,7 +392,7 @@ exports.installIpcProbe = function installIpcProbe(
     seenIds.add(id)
     state = {
       id,
-      channel,
+      channel: channel as string,
       senderId: identity.senderId,
       startedAt: Date.now(),
       observation,
@@ -254,7 +401,11 @@ exports.installIpcProbe = function installIpcProbe(
       injectedAt: null,
       successfulAfterFault: 0,
       armed: fault
-        ? { fault, remaining: times, expiresAt: Date.now() + ttlMs }
+        ? {
+            fault: fault as 'rejection' | 'null-result',
+            remaining: times,
+            expiresAt: Date.now() + ttlMs,
+          }
         : null,
       channels: Object.create(null),
       pushes: Object.create(null),
@@ -281,14 +432,18 @@ exports.installIpcProbe = function installIpcProbe(
       timer = setTimeout(disarm, ttlMs)
       timer.unref?.()
     }
-    return snapshot()
+    return snapshot()!
   }
-  function handle(channel, real) {
+  function handle(this: unknown, channel: string, real: unknown) {
     if (!allowed.has(channel))
       return Reflect.apply(original, this, [channel, real])
     if (typeof real !== 'function')
       return Reflect.apply(original, this, [channel, real])
-    function dispatch(event, ...args) {
+    const dispatch = function (
+      this: unknown,
+      event: InvokeEvent,
+      ...args: unknown[]
+    ) {
       if (state?.observingUntil && Date.now() >= state.observingUntil) disarm()
       const current = state
       const row =
@@ -296,17 +451,17 @@ exports.installIpcProbe = function installIpcProbe(
         current &&
         (!current.observation || current.observingUntil) &&
         matches(event) &&
-        event.sender.id === current.senderId
+        event.sender!.id === current.senderId
           ? current.channels[channel]
           : null
-      if (!row) return Reflect.apply(real, this, [event, ...args])
+      if (!current || !row) return Reflect.apply(real, this, [event, ...args])
       row.calls++
       row.firstReadAt ??= Date.now()
       row.lastReadAt = Date.now()
       const name = row.methods
         ? classifyCall(classify, channel, args, row.methods)
         : null
-      const method = name ? (row.methods[name] ??= readStats()) : null
+      const method = name ? (row.methods![name] ??= readStats()) : null
       if (method) {
         method.calls++
         method.firstReadAt ??= row.lastReadAt
@@ -328,7 +483,7 @@ exports.installIpcProbe = function installIpcProbe(
       if (method) method.pending++
       const started = Date.now()
       const afterFault = current.injected > 0
-      const finish = (success) => {
+      const finish = (success: boolean) => {
         const completed = Date.now()
         for (const stats of method ? [row, method] : [row]) {
           stats.firstCompletedAt ??= completed
@@ -343,7 +498,7 @@ exports.installIpcProbe = function installIpcProbe(
         if (success && afterFault && channel === current.channel)
           current.successfulAfterFault++
       }
-      let result
+      let result: unknown
       try {
         result = Reflect.apply(real, this, [event, ...args])
       } catch (error) {
@@ -373,7 +528,7 @@ exports.installIpcProbe = function installIpcProbe(
         throw new Error('Window control unavailable')
       return { minimized: window.isMinimized() }
     },
-    setWindowMinimized(minimized) {
+    setWindowMinimized(minimized: boolean) {
       if (typeof minimized !== 'boolean')
         throw new Error('Expected boolean window state')
       const window = sender()?.getOwnerBrowserWindow?.()
@@ -383,7 +538,7 @@ exports.installIpcProbe = function installIpcProbe(
       else window.restore()
       return { minimized: window.isMinimized() }
     },
-    reset(id) {
+    reset(id?: string) {
       if (id !== undefined && state && id !== state.id)
         throw new Error('Stale run ID')
       disarm()
