@@ -1,8 +1,68 @@
 import { createHash } from 'node:crypto'
-const hash = (value) => createHash('sha256').update(value).digest('hex')
+import type { RecordedAction, SelectorSpec } from './observation-kit.mjs'
+const hash = (value: string) => createHash('sha256').update(value).digest('hex')
+
+/** What an observation reads; a plain region selector reads the region alone. */
+export interface ObservationReadInput {
+  regionSelector?: string | null
+  contentSelector: SelectorSpec
+  detail?: string
+  kitToken?: string
+  rows?: { selector: SelectorSpec; key?: SelectorSpec; state: SelectorSpec }
+}
+
+type Distributions = Record<string, Record<string, Record<string, number>>>
+
+/** A region as read in the page. Raw text never leaves Node: summarizeRegion hashes it. */
+export interface RegionRead {
+  presence?: 'absent' | 'hidden' | 'visible'
+  contentCount?: number
+  content?: { texts: string[]; truncated: boolean }
+  rows?: {
+    truncated: boolean
+    items: { key: string; state: string | null }[]
+  }
+  truncated?: boolean
+  visible: boolean
+  online: boolean
+  text?: string
+  structure?: Record<string, number>
+  groups?: Record<string, number>
+  distributions?: Distributions
+  region?: 'selected' | 'body' | 'main'
+  items?: number
+  images?: number
+  links?: number
+  buttons?: number
+  loading?: boolean
+  empty?: boolean
+  error?: boolean
+  retry?: boolean
+  actions?: RecordedAction[]
+  rendererReadMs?: number
+}
+
+export interface RegionSummary extends Omit<
+  RegionRead,
+  'text' | 'content' | 'rows' | 'actions' | 'rendererReadMs'
+> {
+  content?: {
+    basis: 'ordered-visible-marker-text'
+    count: number
+    textLength: number
+    textFingerprint: string
+    truncated: boolean
+  }
+  textLength?: number
+  textFingerprint?: string
+  structuralFingerprint?: string
+  fingerprint?: string
+}
 
 // Runs in the page. Neither raw text nor attribute values are persisted.
-export function readRegion(selector) {
+export function readRegion(
+  selector: string | ObservationReadInput | null | undefined,
+): RegionRead {
   const readStarted = performance.now()
   const observation =
     typeof selector === 'object' && selector !== null ? selector : null
@@ -12,14 +72,15 @@ export function readRegion(selector) {
     throw new Error(
       'OBSERVER_KIT_MISSING: the page was replaced or another observation owns it',
     )
-  const select = (root, spec) =>
-    kit ? kit.select(root, spec) : [...root.querySelectorAll(spec)]
-  const normalize = (value) =>
+  const select = (root: ParentNode, spec: SelectorSpec): Element[] =>
+    kit ? kit.select(root, spec) : [...root.querySelectorAll(spec as string)]
+  const normalize = (value: unknown) =>
     String(value ?? '')
       .replace(/\s+/g, ' ')
       .trim()
-  const actions = () => (observation?.kitToken ? kit.drainActions() : undefined)
-  const finish = (value) =>
+  const actions = () =>
+    observation?.kitToken ? kit?.drainActions() : undefined
+  const finish = (value: RegionRead): RegionRead =>
     observation
       ? {
           ...value,
@@ -27,11 +88,14 @@ export function readRegion(selector) {
           rendererReadMs: performance.now() - readStarted,
         }
       : value
+  let regionSelector = typeof selector === 'string' ? selector : null
   if (observation) {
-    selector = observation.regionSelector
+    regionSelector = observation.regionSelector ?? null
     select(document, observation.contentSelector) // Validate even when the region is absent.
   }
-  const roots = selector ? document.querySelectorAll(selector) : null
+  const roots = regionSelector
+    ? document.querySelectorAll(regionSelector)
+    : null
   if (observation && roots?.length === 0)
     return finish({
       presence: 'absent',
@@ -41,11 +105,12 @@ export function readRegion(selector) {
     })
   if (roots && roots.length !== 1)
     throw new Error('regionSelector must identify one region')
-  const root =
-    roots?.[0] ?? document.querySelector('main, [role="main"]') ?? document.body
+  const root = (roots?.[0] ??
+    document.querySelector('main, [role="main"]') ??
+    document.body) as HTMLElement
   // Cache only within this synchronous read: no DOM references survive a sample.
-  const visibility = new WeakMap()
-  const visible = (e) => {
+  const visibility = new WeakMap<Element, boolean>()
+  const visible = (e: Element): boolean => {
     if (!visibility.has(e)) {
       const style = getComputedStyle(e)
       visibility.set(
@@ -57,7 +122,7 @@ export function readRegion(selector) {
         ),
       )
     }
-    return visibility.get(e)
+    return visibility.get(e) as boolean
   }
   if (observation && !visible(root))
     return finish({
@@ -66,15 +131,15 @@ export function readRegion(selector) {
       visible: document.visibilityState === 'visible',
       online: navigator.onLine,
     })
-  let content, rows
+  let content: RegionRead['content'], rows: RegionRead['rows']
   if (observation) {
     const matches = select(root, observation.contentSelector)
-    const texts = []
+    const texts: string[] = []
     let remaining = 200000,
       truncated = matches.length > 1000
     for (const e of [...matches].slice(0, 1000)) {
       if (!visible(e)) continue
-      const text = normalize(e.innerText)
+      const text = normalize((e as HTMLElement).innerText)
       if (text.length > remaining) truncated = true
       texts.push(text.slice(0, remaining))
       remaining = Math.max(0, remaining - text.length)
@@ -93,10 +158,10 @@ export function readRegion(selector) {
           const stateElement = select(element, r.state).find(visible)
           return {
             key: keyElement
-              ? normalize(keyElement.innerText).slice(0, 500)
+              ? normalize((keyElement as HTMLElement).innerText).slice(0, 500)
               : '',
             state: stateElement
-              ? normalize(stateElement.innerText).slice(0, 100)
+              ? normalize((stateElement as HTMLElement).innerText).slice(0, 100)
               : null,
           }
         }),
@@ -114,29 +179,30 @@ export function readRegion(selector) {
       })
   }
   const nodes = [...root.querySelectorAll('*')].filter(visible).slice(0, 5000)
-  const count = (s) => [...root.querySelectorAll(s)].filter(visible).length
+  const count = (s: string) =>
+    [...root.querySelectorAll(s)].filter(visible).length
   const text = (root.innerText ?? '').replace(/\s+/g, ' ').trim()
-  const tag = (e) => e.tagName.toLowerCase()
-  const shape = (e) =>
+  const tag = (e: Element) => e.tagName.toLowerCase()
+  const shape = (e: Element) =>
     [tag(e), ...[...e.children].filter(visible).slice(0, 20).map(tag)].join('/')
-  const path = (e) => {
-    const parts = []
+  const path = (e: Element) => {
+    const parts: number[] = []
     while (e !== root && e.parentElement) {
       parts.unshift([...e.parentElement.children].indexOf(e))
       e = e.parentElement
     }
     return parts.join('/')
   }
-  const groups = {},
-    distributions = {},
-    structure = {}
+  const groups: Record<string, number> = {},
+    distributions: Distributions = {},
+    structure: Record<string, number> = {}
   for (const e of nodes) structure[tag(e)] = (structure[tag(e)] ?? 0) + 1
   // Match repeated structural families at stable parent positions. No app classes,
   // endpoint names, visible strings or framework knowledge are used as selectors.
   for (const parent of [root, ...nodes]) {
     if (Object.keys(groups).length >= 100) break
     if (parent.closest('nav, header, footer')) continue
-    const families = new Map()
+    const families = new Map<string, Element[]>()
     for (const child of [...parent.children].filter(visible)) {
       if (['script', 'style', 'option'].includes(tag(child))) continue
       const key = shape(child)
@@ -149,13 +215,15 @@ export function readRegion(selector) {
       const key = `${path(parent)}:${shapeKey}`
       groups[key] = children.length
       // Column/value shifts are facts, not claims about roles or permissions.
-      const values = {}
+      const values: Record<string, Record<string, number>> = {}
       children.slice(0, 200).forEach((child) => {
         const cells = [...child.children].filter(visible)
         ;(cells.length ? cells : [child])
           .slice(0, 20)
           .forEach((cell, index) => {
-            const value = (cell.innerText ?? '').replace(/\s+/g, ' ').trim()
+            const value = ((cell as HTMLElement).innerText ?? '')
+              .replace(/\s+/g, ' ')
+              .trim()
             if (!value) return
             const bucket = (values[index] ??= Object.create(null))
             bucket[value] = (bucket[value] ?? 0) + 1
@@ -171,13 +239,17 @@ export function readRegion(selector) {
     distributions,
     ...(observation
       ? {
-          presence: 'visible',
-          contentCount: content.texts.length,
+          presence: 'visible' as const,
+          contentCount: content?.texts.length,
           content,
           rows,
         }
       : {}),
-    region: selector ? 'selected' : root === document.body ? 'body' : 'main',
+    region: regionSelector
+      ? 'selected'
+      : root === document.body
+        ? 'body'
+        : 'main',
     truncated:
       root.querySelectorAll('*').length > 5000 || Boolean(content?.truncated),
     visible: document.visibilityState === 'visible',
@@ -204,12 +276,12 @@ export function readRegion(selector) {
       (e) =>
         visible(e) &&
         /\b(retry|try again|erneut versuchen|wiederholen)\b/i.test(
-          e.innerText || e.getAttribute('aria-label') || '',
+          (e as HTMLElement).innerText || e.getAttribute('aria-label') || '',
         ),
     ),
   })
 }
-export function summarizeRegion(raw) {
+export function summarizeRegion(raw: RegionRead): RegionSummary {
   const {
     text,
     distributions = {},
@@ -219,49 +291,56 @@ export function summarizeRegion(raw) {
     rendererReadMs: _timing,
     ...summary
   } = raw
+  const result: RegionSummary = summary
   if (content)
-    summary.content = {
+    result.content = {
       basis: 'ordered-visible-marker-text',
       count: content.texts.length,
       textLength: content.texts.reduce((sum, value) => sum + value.length, 0),
       textFingerprint: hash(JSON.stringify(content.texts)),
       truncated: content.truncated,
     }
-  if (text === undefined) return summary
-  const values = {}
+  if (text === undefined) return result
+  const values: Distributions = {}
   for (const [family, columns] of Object.entries(distributions)) {
     values[family] = {}
     for (const [column, distribution] of Object.entries(columns)) {
       values[family][column] = Object.fromEntries(
         Object.entries(distribution)
-          .map(([value, count]) => [hash(value), count])
+          .map(([value, count]) => [hash(value), count] as const)
           .sort(),
       )
     }
   }
   const structuralFingerprint = hash(
-    JSON.stringify({ structure: summary.structure, groups: summary.groups }),
+    JSON.stringify({ structure: result.structure, groups: result.groups }),
   )
   return {
-    ...summary,
+    ...result,
     distributions: values,
     textLength: text.length,
     textFingerprint: hash(text),
     structuralFingerprint,
     fingerprint: hash(
-      JSON.stringify([text, summary.structure, summary.groups, values]),
+      JSON.stringify([text, result.structure, result.groups, values]),
     ),
   }
 }
-export function compareRegions(before, after) {
+export function compareRegions(before: RegionSummary, after: RegionSummary) {
   const lostFamilies = Object.entries(before.groups ?? {})
     .filter(([key, count]) => count >= 2 && !after.groups?.[key])
     .map(([family, count]) => ({ family, before: count, after: 0 }))
-  const distributionChanges = []
+  const distributionChanges: {
+    family: string
+    column: string
+    before: Record<string, number>
+    after: Record<string, number>
+  }[] = []
   for (const [family, columns] of Object.entries(before.distributions ?? {})) {
-    if (!after.distributions?.[family]) continue
+    const afterColumns = after.distributions?.[family]
+    if (!afterColumns) continue
     for (const [column, values] of Object.entries(columns)) {
-      const next = after.distributions[family][column] ?? {}
+      const next = afterColumns[column] ?? {}
       if (JSON.stringify(values) !== JSON.stringify(next))
         distributionChanges.push({
           family,
@@ -299,8 +378,8 @@ export function compareRegions(before, after) {
       lostFamilies.length > 0 &&
       before.structuralFingerprint !== after.structuralFingerprint,
     contentLoss:
-      (before.items > 0 && after.items === 0) ||
-      (before.images > 0 && after.images === 0) ||
+      ((before.items ?? 0) > 0 && after.items === 0) ||
+      ((before.images ?? 0) > 0 && after.images === 0) ||
       lostFamilies.length > 0,
   }
 }
@@ -311,8 +390,19 @@ export function classifyObservation({
   expected,
   recovered,
   newErrors = 0,
+}: {
+  baseline: RegionSummary
+  final: RegionSummary
+  injected: number
+  expected: number
+  recovered: boolean
+  newErrors?: number
 }) {
-  const result = (classification, kind, confidence = 'medium') => ({
+  const result = (
+    classification: string,
+    kind: string,
+    confidence = 'medium',
+  ) => ({
     classification,
     kind,
     confidence,
@@ -324,7 +414,7 @@ export function classifyObservation({
   if (final.error || final.retry)
     return result('ERROR_OR_RETRY_SHOWN', 'observation')
   if (final.loading) return result('LOADING_AT_DEADLINE', 'decision-needed')
-  if (!baseline.empty && baseline.textLength > 0 && final.empty)
+  if (!baseline.empty && (baseline.textLength ?? 0) > 0 && final.empty)
     return result('SILENT_EMPTY', 'suspected-defect')
   if (compareRegions(baseline, final).contentLoss)
     return result('CONTENT_LOSS', 'suspected-defect')

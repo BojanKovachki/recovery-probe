@@ -2,10 +2,39 @@
 // reloading; removed at the end. Records only configured action names, times and
 // whether the browser marked the click as a real user input.
 
-const SELECTOR_KEYS = ['css', 'role', 'name', 'text']
+/** A CSS selector, or an element matched by CSS and/or ARIA role, name and text. */
+export type SelectorSpec =
+  string | { css?: string; role?: string; name?: string; text?: string }
+
+export interface ObservedActionConfig {
+  name: string
+  selector: SelectorSpec
+}
+
+export interface RecordedAction {
+  name: string
+  at: number
+  trusted: boolean
+}
+
+export interface ObserverKit {
+  token: string
+  select(root: ParentNode, spec: SelectorSpec): Element[]
+  normalize(value: unknown): string
+  lastPolledAt(): number
+  drainActions(): RecordedAction[]
+  stop(): void
+}
+
+declare global {
+  // The in-page kit for the capture that owns this page.
+  var __recoveryProbeObserve: ObserverKit | undefined
+}
+
+const SELECTOR_KEYS: readonly string[] = ['css', 'role', 'name', 'text']
 
 /** Node-side validation of a CSS string or { css, role, name, text } selector. */
-export function selectorSpec(value, key) {
+export function selectorSpec(value: unknown, key: string): SelectorSpec {
   if (typeof value === 'string') {
     if (!value.trim()) throw Error(`${key} must be a non-empty CSS selector`)
     return value
@@ -14,37 +43,45 @@ export function selectorSpec(value, key) {
     throw Error(
       `${key} must be a CSS selector string or { css, role, name, text }`,
     )
-  for (const property of Object.keys(value))
+  const spec = value as Record<string, unknown>
+  for (const property of Object.keys(spec))
     if (!SELECTOR_KEYS.includes(property))
       throw Error(`Unsupported ${key} property: ${property}`)
-  if (value.css === undefined && value.role === undefined)
+  if (spec.css === undefined && spec.role === undefined)
     throw Error(`${key} needs css or role`)
   if (
-    value.css !== undefined &&
-    (typeof value.css !== 'string' || !value.css.trim())
+    spec.css !== undefined &&
+    (typeof spec.css !== 'string' || !spec.css.trim())
   )
     throw Error(`${key}.css must be a non-empty CSS selector`)
   if (
-    value.role !== undefined &&
-    (typeof value.role !== 'string' || !/^[a-z]{2,30}$/.test(value.role))
+    spec.role !== undefined &&
+    (typeof spec.role !== 'string' || !/^[a-z]{2,30}$/.test(spec.role))
   )
     throw Error(`${key}.role must be an ARIA role name`)
   for (const property of ['name', 'text']) {
+    const text = spec[property]
     if (
-      value[property] !== undefined &&
-      (typeof value[property] !== 'string' ||
-        !value[property].trim() ||
-        value[property].length > 200)
+      text !== undefined &&
+      (typeof text !== 'string' || !text.trim() || text.length > 200)
     )
       throw Error(`${key}.${property} must be 1–200 characters`)
   }
-  if (value.name !== undefined && value.role === undefined)
+  if (spec.name !== undefined && spec.role === undefined)
     throw Error(`${key}.name requires role`)
-  return { ...value }
+  return { ...spec } as SelectorSpec
 }
 
 // Runs in the page. Self-contained: page.evaluate serializes this function.
-export function installObserverKit({ token, actions, validate = [] }) {
+export function installObserverKit({
+  token,
+  actions,
+  validate = [],
+}: {
+  token: string
+  actions: ObservedActionConfig[]
+  validate?: SelectorSpec[]
+}): boolean {
   const existing = globalThis.__recoveryProbeObserve
   if (existing) {
     if (existing.token === token) return true
@@ -55,11 +92,11 @@ export function installObserverKit({ token, actions, validate = [] }) {
       )
     existing.stop()
   }
-  const normalize = (value) =>
+  const normalize = (value: unknown) =>
     String(value ?? '')
       .replace(/\s+/g, ' ')
       .trim()
-  const implicitRole = (e) => {
+  const implicitRole = (e: Element) => {
     const tag = e.tagName.toLowerCase()
     if (tag === 'button') return 'button'
     if (tag === 'a' && e.hasAttribute('href')) return 'link'
@@ -69,27 +106,29 @@ export function installObserverKit({ token, actions, validate = [] }) {
       return type === 'checkbox' || type === 'radio' ? type : 'textbox'
     }
     return (
-      {
-        tr: 'row',
-        td: 'cell',
-        th: 'columnheader',
-        li: 'listitem',
-        ul: 'list',
-        ol: 'list',
-        table: 'table',
-        img: 'img',
-        textarea: 'textbox',
-        select: 'combobox',
-        nav: 'navigation',
-        main: 'main',
-        dialog: 'dialog',
-      }[tag] ?? (/^h[1-6]$/.test(tag) ? 'heading' : null)
+      (
+        {
+          tr: 'row',
+          td: 'cell',
+          th: 'columnheader',
+          li: 'listitem',
+          ul: 'list',
+          ol: 'list',
+          table: 'table',
+          img: 'img',
+          textarea: 'textbox',
+          select: 'combobox',
+          nav: 'navigation',
+          main: 'main',
+          dialog: 'dialog',
+        } as Record<string, string>
+      )[tag] ?? (/^h[1-6]$/.test(tag) ? 'heading' : null)
     )
   }
-  const roleOf = (e) =>
+  const roleOf = (e: Element) =>
     normalize(e.getAttribute('role')).split(' ')[0] || implicitRole(e)
   // Approximation of the accessible name: aria-label, aria-labelledby, visible text, title/alt.
-  const nameOf = (e) => {
+  const nameOf = (e: Element) => {
     const labelledBy = normalize(e.getAttribute('aria-labelledby'))
     const byIds = labelledBy
       ? labelledBy
@@ -100,30 +139,31 @@ export function installObserverKit({ token, actions, validate = [] }) {
     return normalize(
       e.getAttribute('aria-label') ||
         byIds ||
-        e.innerText ||
+        (e as HTMLElement).innerText ||
         e.getAttribute('title') ||
         e.getAttribute('alt') ||
         '',
     )
   }
-  const matches = (e, spec) => {
+  const matches = (e: Element, spec: SelectorSpec) => {
     if (typeof spec === 'string') return e.matches(spec)
     return (
       (!spec.css || e.matches(spec.css)) &&
       (!spec.role || roleOf(e) === spec.role) &&
       (spec.name === undefined || nameOf(e) === spec.name) &&
-      (spec.text === undefined || normalize(e.innerText) === spec.text)
+      (spec.text === undefined ||
+        normalize((e as HTMLElement).innerText) === spec.text)
     )
   }
-  const select = (root, spec) =>
+  const select = (root: ParentNode, spec: SelectorSpec) =>
     typeof spec === 'string'
       ? [...root.querySelectorAll(spec)]
       : [...root.querySelectorAll(spec.css ?? '*')].filter((e) =>
           matches(e, spec),
         )
-  const closest = (element, spec) => {
+  const closest = (element: Element, spec: SelectorSpec) => {
     for (
-      let node = element;
+      let node: Element | null = element;
       node && node.nodeType === 1;
       node = node.parentElement
     )
@@ -133,9 +173,9 @@ export function installObserverKit({ token, actions, validate = [] }) {
   // Validate every selector now, so a CSS error surfaces before the capture starts.
   for (const spec of [...validate, ...actions.map((action) => action.selector)])
     select(document, spec)
-  const buffer = []
+  const buffer: RecordedAction[] = []
   let polledAt = Date.now()
-  const onClick = (event) => {
+  const onClick = (event: MouseEvent) => {
     const target = event.target instanceof Element ? event.target : null
     if (!target) return
     for (const action of actions) {
@@ -167,7 +207,7 @@ export function installObserverKit({ token, actions, validate = [] }) {
 }
 
 // Runs in the page.
-export function removeObserverKit(token) {
+export function removeObserverKit(token: string): boolean {
   const kit = globalThis.__recoveryProbeObserve
   if (!kit || kit.token !== token) return false
   kit.stop()

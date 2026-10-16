@@ -1,14 +1,43 @@
 import { performance } from 'node:perf_hooks'
+import type { Page, Request, Route } from 'playwright'
 import { pageIdentity } from './desktop.mjs'
-/**
- * @param {any} page Playwright page
- * @param {{ endpoint: string, requiredEndpoints?: string[], fault?: 'http-error' | 'connection-failure' | 'invalid-json', times?: number }} options
- */
+import type { FaultKind } from './fetch-fault.mjs'
+
+/** Read counters for one endpoint, in the same shape as an IPC channel row. */
+export interface ReadChannelStats {
+  calls: number
+  realCalls: number
+  successes: number
+  errors: number
+  pending: number
+  maxDurationMs: number
+  firstReadAt: number | null
+  lastReadAt: number | null
+  firstCompletedAt: number | null
+  lastCompletedAt: number | null
+  lastSuccessAt: number | null
+}
+
+export interface HttpObserverOptions {
+  endpoint: string
+  requiredEndpoints?: string[]
+  fault?: FaultKind
+  times?: number
+}
+
+interface RequestMeta {
+  row: ReadChannelStats
+  start: number
+  injected: boolean
+  afterFault: boolean
+  target: boolean
+}
+
 export async function observeHttp(
-  page,
-  { endpoint, requiredEndpoints = [], fault, times = 1 },
+  page: Page,
+  { endpoint, requiredEndpoints = [], fault, times = 1 }: HttpObserverOptions,
 ) {
-  const channels = Object.fromEntries(
+  const channels: Record<string, ReadChannelStats> = Object.fromEntries(
     [endpoint, ...requiredEndpoints].map((e) => [
       e,
       {
@@ -27,17 +56,26 @@ export async function observeHttp(
     ]),
   )
   const startedAt = Date.now()
-  const requests = new Map(),
-    coverage = new Map(),
-    operations = new Set()
+  const requests = new Map<Request, RequestMeta>(),
+    coverage = new Map<
+      string,
+      {
+        method: string
+        endpoint: string
+        supported: boolean
+        tested: boolean
+        reason: string | undefined
+      }
+    >(),
+    operations = new Set<Promise<unknown>>()
   let reserved = 0,
     applied = 0,
-    injectedAt = null,
+    injectedAt: number | null = null,
     successfulAfterFault = 0,
     active = true,
     injectionError = false
   let routed = Boolean(fault)
-  const mainRead = (r) => {
+  const mainRead = (r: Request) => {
     try {
       return (
         r.frame() === page.mainFrame() &&
@@ -47,7 +85,7 @@ export async function observeHttp(
       return false
     }
   }
-  const request = (r) => {
+  const request = (r: Request) => {
     if (!mainRead(r)) return
     const url = pageIdentity(r.url())
     if (coverage.size < 100)
@@ -78,7 +116,7 @@ export async function observeHttp(
       target: url === endpoint,
     })
   }
-  const finish = async (r, failed) => {
+  const finish = async (r: Request, failed: boolean) => {
     const meta = requests.get(r)
     if (!meta) return
     requests.delete(r)
@@ -98,18 +136,18 @@ export async function observeHttp(
       if (meta.target && meta.afterFault) successfulAfterFault++
     } else meta.row.errors++
   }
-  const finished = (r) => {
+  const finished = (r: Request) => {
     const p = finish(r, false)
     operations.add(p)
     p.finally(() => operations.delete(p))
   }
-  const failed = (r) => {
+  const failed = (r: Request) => {
     const p = finish(r, true)
     operations.add(p)
     p.finally(() => operations.delete(p))
   }
-  const match = (url) => pageIdentity(url.href) === endpoint
-  const handler = async (route) => {
+  const match = (url: URL) => pageIdentity(url.href) === endpoint
+  const handler = async (route: Route) => {
     const r = route.request()
     if (!active || reserved >= times || !mainRead(r) || r.method() !== 'GET')
       return route.fallback()
