@@ -6,14 +6,14 @@ import {
   connectDesktop,
   selectDesktopPage,
   desktopPages,
-} from '../src/desktop.mjs'
-import { connectIpcInspector } from '../src/ipc-inspector.mjs'
+} from '../dist/desktop.mjs'
+import { connectIpcInspector } from '../dist/ipc-inspector.mjs'
 import {
   observationConfig,
   runObservation,
   httpObservationAdapter,
   ipcObservationAdapter,
-} from '../src/observe.mjs'
+} from '../dist/observe.mjs'
 import {
   observationMetadata,
   samplingMetrics,
@@ -21,8 +21,8 @@ import {
   renderObservationReport,
   actionSummary,
   comparisonDigest,
-} from '../src/observation-report.mjs'
-import { observationSteps, runSteps } from '../src/observe-steps.mjs'
+} from '../dist/observation-report.mjs'
+import { observationSteps, runSteps } from '../dist/observe-steps.mjs'
 
 export async function observeMain(args) {
   if (!args.length || args.includes('--help')) {

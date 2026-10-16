@@ -1,6 +1,6 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
 const path = require('node:path')
-const { installIpcProbe } = require('../../../src/ipc-probe.cjs')
+const { installIpcProbe } = require('../../../dist/ipc-probe.cjs')
 let window
 globalThis.__recoveryProbeIpc = installIpcProbe(ipcMain, {
   enabled: true,

@@ -15,7 +15,7 @@ import {
   connectDesktop,
   discoverDesktop,
   selectDesktopPage,
-} from '../src/desktop.mjs'
+} from '../dist/desktop.mjs'
 const exec = promisify(execFile)
 let app
 let browser
@@ -280,8 +280,8 @@ test(
   'guided Electron setup picks content and reuses saved setup without a window index',
   { timeout: 20000 },
   async () => {
-    const { runStart } = await import('../src/guided-start.mjs')
-    const { pickMarker } = await import('../src/pick-marker.mjs')
+    const { runStart } = await import('../dist/guided-start.mjs')
+    const { pickMarker } = await import('../dist/pick-marker.mjs')
     await page.goto(`${server.url}/fixed`)
     const dir = await mkdtemp(join(tmpdir(), 'guided-electron-'))
     const answers = ['', '1', '2', '', '5'] // ready, confirm marker, retry, default Retry label, deadline

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import { probeRecovery } from '../src/index.mjs'
+import { probeRecovery } from '../dist/index.mjs'
 import { startDemoServer } from '../examples/demo-server.mjs'
 
 const { version } = JSON.parse(

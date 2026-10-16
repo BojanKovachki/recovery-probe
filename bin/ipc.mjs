@@ -1,9 +1,9 @@
-import { writeDiscoveryReport } from '../src/discovery-report.mjs'
+import { writeDiscoveryReport } from '../dist/discovery-report.mjs'
 import { readFile, mkdir, writeFile, mkdtemp } from 'node:fs/promises'
 import { resolve, join } from 'node:path'
-import { discoverIpc, discoveryConfig } from '../src/ipc-discover.mjs'
-import { checkIpc } from '../src/ipc-check.mjs'
-import { renderTemplate } from '../src/report-template.mjs'
+import { discoverIpc, discoveryConfig } from '../dist/ipc-discover.mjs'
+import { checkIpc } from '../dist/ipc-check.mjs'
+import { renderTemplate } from '../dist/report-template.mjs'
 
 export async function ipcMain(args) {
   if (!args.length || args.includes('--help')) {

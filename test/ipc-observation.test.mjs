@@ -3,8 +3,8 @@ import assert from 'node:assert/strict'
 import {
   classifyObservation,
   summarizeRegion,
-} from '../src/ipc-observation.mjs'
-import { discoveryConfig } from '../src/ipc-discover.mjs'
+} from '../dist/ipc-observation.mjs'
+import { discoveryConfig } from '../dist/ipc-discover.mjs'
 const baseline = { textLength: 20, empty: false }
 const assess = (overrides) =>
   classifyObservation({
@@ -47,7 +47,7 @@ test('UI summaries omit raw text and discovery validates bounds without asking f
   )
 })
 test('structural loss and value shifts remain separate from semantic interpretation', async () => {
-  const { compareRegions } = await import('../src/ipc-observation.mjs')
+  const { compareRegions } = await import('../dist/ipc-observation.mjs')
   const before = summarizeRegion({
     text: 'Heading',
     images: 13,

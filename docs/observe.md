@@ -206,7 +206,7 @@ A document reload/navigation ends capture as incomplete because the renderer sta
 
 ## Supported inspector API
 
-Advanced scripts can use `recovery-probe/ipc-inspector`, available since 0.3.0, without importing private `src/` paths:
+Advanced scripts can use `recovery-probe/ipc-inspector`, available since 0.3.0, without importing internal file paths:
 
 ```js
 import { randomUUID } from 'node:crypto';

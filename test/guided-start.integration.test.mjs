@@ -8,8 +8,8 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
-import { runStart } from '../src/guided-start.mjs'
-import { pickMarker } from '../src/pick-marker.mjs'
+import { runStart } from '../dist/guided-start.mjs'
+import { pickMarker } from '../dist/pick-marker.mjs'
 const exec = promisify(execFile)
 const cli = fileURLToPath(new URL('../bin/recovery-probe.mjs', import.meta.url))
 

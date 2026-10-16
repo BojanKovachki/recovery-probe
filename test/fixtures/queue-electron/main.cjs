@@ -1,6 +1,6 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
 const path = require('node:path')
-const { installIpcProbe } = require('../../../src/ipc-probe.cjs')
+const { installIpcProbe } = require('../../../dist/ipc-probe.cjs')
 let window
 const jobs = []
 // One shared, multiplexed channel (like an SDK bridge) plus a main-to-renderer push channel.

@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { chromium } from 'playwright'
-import { discoverHttp } from '../src/http-discover.mjs'
+import { discoverHttp } from '../dist/http-discover.mjs'
 
 async function withFixture(mode, exercise) {
   let loads = 0

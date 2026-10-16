@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { refreshConfig } from '../src/refresh.mjs'
-import { ipcRefreshAdapter } from '../src/refresh-adapters.mjs'
+import { refreshConfig } from '../dist/refresh.mjs'
+import { ipcRefreshAdapter } from '../dist/refresh-adapters.mjs'
 test('refresh configuration requires explicit event and compatible read/fault scope', () => {
   const c = {
     transport: 'ipc',

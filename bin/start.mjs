@@ -1,5 +1,5 @@
 import { createInterface } from 'node:readline/promises'
-import { parseStartArgs, runStart } from '../src/guided-start.mjs'
+import { parseStartArgs, runStart } from '../dist/guided-start.mjs'
 
 export async function startMain(args) {
   if (!args.length || args.includes('--help')) {

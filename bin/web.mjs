@@ -2,8 +2,8 @@ import { attachMain } from './attach.mjs'
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { resolve, dirname, join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
-import { openWeb, checkWeb, discoverWeb } from '../src/web.mjs'
-import { writeDesktopReport } from '../src/desktop-report.mjs'
+import { openWeb, checkWeb, discoverWeb } from '../dist/web.mjs'
+import { writeDesktopReport } from '../dist/desktop-report.mjs'
 
 export async function webMain(args) {
   if (args.includes('--attach') && !args.includes('--help')) {

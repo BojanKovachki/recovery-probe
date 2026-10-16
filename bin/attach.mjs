@@ -1,11 +1,11 @@
 import { readFile, mkdir } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import { connectDesktop, selectDesktopPage } from '../src/desktop.mjs'
-import { discoverHttp, httpDiscoveryConfig } from '../src/http-discover.mjs'
-import { writeDiscoveryReport } from '../src/discovery-report.mjs'
-import { prepareVisibility } from '../src/visibility.mjs'
-import { checkDesktop } from '../src/desktop.mjs'
-import { writeDesktopReport } from '../src/desktop-report.mjs'
+import { connectDesktop, selectDesktopPage } from '../dist/desktop.mjs'
+import { discoverHttp, httpDiscoveryConfig } from '../dist/http-discover.mjs'
+import { writeDiscoveryReport } from '../dist/discovery-report.mjs'
+import { prepareVisibility } from '../dist/visibility.mjs'
+import { checkDesktop } from '../dist/desktop.mjs'
+import { writeDesktopReport } from '../dist/desktop-report.mjs'
 export async function attachMain(args) {
   const options = {}
   for (let i = 0; i < args.length; i++) {

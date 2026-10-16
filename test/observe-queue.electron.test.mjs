@@ -8,8 +8,8 @@ import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { freePort } from './repair-fixture.mjs'
-import { connectDesktop, desktopPages } from '../src/desktop.mjs'
-import { connectIpcInspector } from '../src/ipc-inspector.mjs'
+import { connectDesktop, desktopPages } from '../dist/desktop.mjs'
+import { connectIpcInspector } from '../dist/ipc-inspector.mjs'
 const require = createRequire(import.meta.url)
 
 // A host that sets ELECTRON_RUN_AS_NODE (some editors do) would start Electron as plain Node.

@@ -1,9 +1,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readdirSync, readFileSync } from 'node:fs'
-import { escapeHtml, renderTemplate } from '../src/report-template.mjs'
+import { escapeHtml, renderTemplate } from '../dist/report-template.mjs'
 
-const templates = new URL('../src/report-templates/', import.meta.url)
+const templates = new URL('../dist/report-templates/', import.meta.url)
 
 test('text slots are escaped and markup slots are inserted as built', () => {
   const ipc = renderTemplate('ipc', {

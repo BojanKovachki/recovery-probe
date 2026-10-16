@@ -1,20 +1,20 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { installIpcProbe } from '../src/ipc-probe.cjs'
+import { installIpcProbe } from '../dist/ipc-probe.cjs'
 import {
   observationConfig,
   ipcObservationAdapter,
   runObservation,
   summarizeRows,
   rowTracker,
-} from '../src/observe.mjs'
+} from '../dist/observe.mjs'
 import {
   observationSummary,
   actionEffects,
   actionSummary,
   comparisonDigest,
-} from '../src/observation-report.mjs'
-import { selectorSpec } from '../src/observation-kit.mjs'
+} from '../dist/observation-report.mjs'
+import { selectorSpec } from '../dist/observation-kit.mjs'
 
 function hookFixture(options = {}) {
   const handlers = new Map(),

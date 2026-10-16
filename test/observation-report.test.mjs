@@ -7,7 +7,7 @@ import {
   renderObservationReport,
   contentComparisons,
   comparisonFollowUpSummary,
-} from '../src/observation-report.mjs'
+} from '../dist/observation-report.mjs'
 import { createRequire } from 'node:module'
 
 test('sampling measures actual durations and start cadence, including unchanged samples', () => {
