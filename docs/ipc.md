@@ -12,8 +12,8 @@ Node 22+ is required for the CLI. Electron 29's bundled Node can load the small 
 
 ```bash
 mkdir -p recovery-probe-tools && cd recovery-probe-tools
-npm view recovery-probe@0.3.0 version
-npm install --save-dev --save-exact recovery-probe@0.3.0 playwright@1.62.1
+npm view recovery-probe@0.4.0 version
+npm install --save-dev --save-exact recovery-probe@0.4.0 playwright@1.62.1
 node -p "require.resolve('recovery-probe/ipc')"
 ```
 
@@ -116,7 +116,7 @@ Exit codes: 0 all checks plus cleanup passed; 1 an observed recovery failure; 2 
 
 ## Inspector reliability and uncertain replies
 
-Preview.5 evaluates synchronous controls without `awaitPromise`. Window identification uses a retained remote Promise followed by `Runtime.awaitPromise`, then releases its object group. This avoids the observed Electron main-process `Promise was collected` failure for implicit awaiting of plain values.
+The inspector evaluates synchronous controls without `awaitPromise`. Window identification uses a retained remote Promise followed by `Runtime.awaitPromise`, then releases its object group. This avoids the observed Electron main-process `Promise was collected` failure for implicit awaiting of plain values.
 
 A failed `begin` reply does not prove that arming failed. The checker records the ID before sending, attempts reset by that ID even on protocol errors, and independently reads back `armed: null`. It never retries begin or uses an unscoped reset to clear another run. If the inspector is unavailable or a plan remains armed, cleanup is unverified: stop the test app rather than continue. The hook's TTL remains a fallback, not a claim that cleanup succeeded. A protocol failure produces no application recovery verdict.
 

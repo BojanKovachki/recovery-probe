@@ -1,6 +1,6 @@
 # Guided start
 
-This workflow is included in 0.3.0. See the [README](../README.md) for installation and supported application paths.
+This workflow is available since 0.3.0. See the [README](../README.md) for installation and supported application paths.
 
 Start your app using its normal development command. Recovery Probe does not need its repository or production dependencies. Node 22+ is required. Use a development/test account and backend: a locally running app can still call remote services.
 
@@ -10,8 +10,8 @@ Install the exact npm version after confirming availability:
 
 ```bash
 mkdir recovery-probe-tools && cd recovery-probe-tools
-npm view recovery-probe@0.3.0 version
-npm install --save-dev --save-exact recovery-probe@0.3.0 playwright@1.62.1
+npm view recovery-probe@0.4.0 version
+npm install --save-dev --save-exact recovery-probe@0.4.0 playwright@1.62.1
 npx recovery-probe start web http://localhost:3000
 ```
 
