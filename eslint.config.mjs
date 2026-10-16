@@ -8,7 +8,7 @@ import tseslint from 'typescript-eslint'
 const typeScriptFiles = ['**/*.{ts,mts,cts}']
 
 const inPageModules = [
-  'src/ipc-check.mjs',
+  'src/ipc-check.mts',
   'src/ipc-observation.mts',
   'src/observation-kit.mts',
   'src/observe-steps.mts',

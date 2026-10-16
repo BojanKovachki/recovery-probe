@@ -2,16 +2,30 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { escapeHtml, renderTemplate } from './report-template.mjs'
 
-interface DiscoveryFinding {
+export interface DiscoveryInterpretation {
+  classification: string
+  kind?: string
+  [key: string]: unknown
+}
+
+/** An experiment's verdict, or the partial evidence kept when it was interrupted. */
+export interface DiscoveryFinding {
   id: string
+  fault: string
+  times: number
   classification: string
   kind: string
   confidence?: string
-  partial?: boolean
+  confirmations: number
+  repeatConfirmed: boolean
+  advice: string
+  observationMs?: number
+  verification?: string
+  partial?: true
   completedRuns?: number
   plannedRuns?: number
-  confirmations?: number
-  observedInterpretation?: { classification?: string }
+  observedInterpretation?: DiscoveryInterpretation
+  stoppedReason?: string
 }
 
 /** The fields of an HTTP or IPC discovery report that the written report uses. */

@@ -1,11 +1,55 @@
 import { randomUUID } from 'node:crypto'
+import type { Browser, Page } from 'playwright'
 import { connectDesktop, desktopPages } from './desktop.mjs'
 import { connectIpcInspector } from './ipc-inspector.mjs'
+import type { IpcInspector } from './ipc-inspector.mjs'
 import { resetIpcAndConfirm } from './ipc-control.mjs'
+import type { IpcFault } from './ipc-control.mjs'
+import type { IpcSnapshot } from './ipc-probe.cjs'
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-export function validateIpcConfig(input) {
-  const c = {
+export interface IpcCheckConfig {
+  cdp: string
+  inspector: string
+  channel: string
+  readySelector: string
+  readyText: string
+  busySelector?: string
+  requiredChannels: string[]
+  faults: IpcFault[]
+  baselineTimeoutMs: number
+  retryDelayMs: number
+  renderMarginMs: number
+}
+
+export type IpcCheckInput = Partial<IpcCheckConfig> &
+  Pick<IpcCheckConfig, 'channel' | 'readySelector' | 'readyText'>
+
+interface IpcPhaseResult {
+  outcome: 'pass' | 'fail' | 'inconclusive'
+  code: string
+  snapshot: IpcSnapshot
+}
+
+export interface IpcCheckReport {
+  schemaVersion: 1
+  mode: string
+  generatedAt: string
+  channel: string
+  baseline?: IpcPhaseResult
+  baselineReadMs?: number
+  deadlineMs?: number
+  results: (IpcPhaseResult & { fault: IpcFault })[]
+  cleanup?: IpcPhaseResult
+  finalReset: 'not-run' | 'healthy' | 'not-verified'
+  ok: boolean
+  error?: string
+  cleanupError?: string
+  limitation: string
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+export function validateIpcConfig(input: IpcCheckInput): IpcCheckConfig {
+  const c: IpcCheckConfig = {
     cdp: 'http://127.0.0.1:9222',
     inspector: 'http://127.0.0.1:9229',
     requiredChannels: [],
@@ -15,7 +59,7 @@ export function validateIpcConfig(input) {
     renderMarginMs: 1000,
     ...input,
   }
-  for (const name of ['channel', 'readySelector', 'readyText'])
+  for (const name of ['channel', 'readySelector', 'readyText'] as const)
     if (typeof c[name] !== 'string' || !c[name].trim())
       throw new Error(`${name} is required; use known fixture content`)
   if (
@@ -36,7 +80,11 @@ export function validateIpcConfig(input) {
     c.faults.some((f) => !['rejection', 'null-result'].includes(f))
   )
     throw new Error('Use unique rejection/null-result faults')
-  for (const name of ['baselineTimeoutMs', 'retryDelayMs', 'renderMarginMs'])
+  for (const name of [
+    'baselineTimeoutMs',
+    'retryDelayMs',
+    'renderMarginMs',
+  ] as const)
     if (
       !Number.isInteger(c[name]) ||
       c[name] < (name === 'baselineTimeoutMs' ? 200 : 0) ||
@@ -45,7 +93,7 @@ export function validateIpcConfig(input) {
       throw new Error(`Invalid ${name}`)
   return c
 }
-async function ui(page, config) {
+async function ui(page: Page, config: IpcCheckConfig) {
   const environment = await page.evaluate(() => ({
     visible: document.visibilityState === 'visible',
     online: navigator.onLine,
@@ -66,14 +114,16 @@ async function ui(page, config) {
   }
 }
 export async function checkIpc(
-  input,
-  { connectControl = connectIpcInspector } = {},
-) {
+  input: IpcCheckInput,
+  {
+    connectControl = connectIpcInspector,
+  }: { connectControl?: (endpoint: string) => Promise<IpcInspector> } = {},
+): Promise<IpcCheckReport> {
   const config = validateIpcConfig(input)
   const control = await connectControl(config.inspector)
-  let browser
-  let runId
-  const report = {
+  let browser: Browser | undefined
+  let runId: string | undefined
+  const report: IpcCheckReport = {
     schemaVersion: 1,
     mode: 'IPC renderer recovery',
     generatedAt: new Date().toISOString(),
@@ -127,11 +177,13 @@ export async function checkIpc(
     // Validate selectors before arming anything.
     await page.locator(config.readySelector).count()
     if (config.busySelector) await page.locator(config.busySelector).count()
-    const phase = async (fault, deadlineMs) => {
+    const phase = async (
+      fault: IpcFault | undefined,
+      deadlineMs: number,
+    ): Promise<IpcPhaseResult> => {
       const phaseId = randomUUID()
       // Record intent before sending: begin may execute even if its reply is lost.
       runId = phaseId
-      let snapshot
       const started = Date.now()
       try {
         await control.call('begin', {
@@ -147,7 +199,7 @@ export async function checkIpc(
         })
         await page.bringToFront()
         while (true) {
-          snapshot = await control.call('snapshot')
+          const snapshot = await control.call('snapshot')
           if (snapshot?.id !== runId || snapshot.senderId !== identity.senderId)
             throw new Error('Probe run or target changed')
           if (page.url() !== identity.pageUrl)
@@ -244,7 +296,7 @@ export async function checkIpc(
         }
       }
     } catch (error) {
-      report.error = error.message
+      report.error = (error as Error).message
     } finally {
       // Only reload after disarm has been independently verified.
       try {
@@ -254,7 +306,7 @@ export async function checkIpc(
           report.cleanup.outcome === 'pass' ? 'healthy' : 'not-verified'
       } catch (error) {
         report.finalReset = 'not-verified'
-        report.cleanupError = error.message
+        report.cleanupError = (error as Error).message
       }
     }
     report.ok =
@@ -270,7 +322,7 @@ export async function checkIpc(
     } catch (error) {
       report.ok = false
       report.finalReset = 'not-verified'
-      report.cleanupError = error.message
+      report.cleanupError = (error as Error).message
     } finally {
       control.close()
       if (browser) await browser.close()

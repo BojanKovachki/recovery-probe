@@ -4,20 +4,138 @@ import {
 } from './discovery-control.mjs'
 import { randomUUID } from 'node:crypto'
 import { performance } from 'node:perf_hooks'
+import type { Browser, Page } from 'playwright'
 import { connectDesktop, desktopPages } from './desktop.mjs'
+import type { DiscoveryFinding } from './discovery-report.mjs'
 import { connectIpcInspector } from './ipc-inspector.mjs'
 import { resetIpcAndConfirm } from './ipc-control.mjs'
+import type { IpcFault } from './ipc-control.mjs'
+import type { IpcSnapshot } from './ipc-probe.cjs'
 import { prepareVisibility, windowVisibility } from './visibility.mjs'
+import type { WindowVisibility } from './visibility.mjs'
 import {
   readRegion,
   summarizeRegion,
   classifyObservation,
   compareRegions,
 } from './ipc-observation.mjs'
+import type { RegionSummary } from './ipc-observation.mjs'
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-export function discoveryConfig(input) {
-  const c = {
+export interface IpcDiscoveryConfig {
+  cdp: string
+  inspector: string
+  channel: string
+  requiredChannels: string[]
+  observationMs: number
+  baselineTimeoutMs: number
+  repeats: number
+  settleMs: number
+  regionSelector?: string
+  restoreWindow: boolean
+}
+
+export type IpcDiscoveryInput = Partial<IpcDiscoveryConfig> &
+  Pick<IpcDiscoveryConfig, 'channel'>
+
+interface DiscoveryEvent {
+  elapsedMs: number
+  injected: number
+  channels: IpcSnapshot['channels']
+  ui: RegionSummary
+  uncaughtErrors: number
+}
+
+interface DiscoveryPhase {
+  elapsedMs: number
+  fault: IpcFault | 'healthy'
+  times: number
+  ready: boolean
+  ui: RegionSummary
+  snapshot: IpcSnapshot
+  timeline: DiscoveryEvent[]
+  newErrors: number
+  recoveryDetectedAt: number | null
+  recoveryMs: number | null
+  timingNote: string
+  repeatedReads: {
+    code: 'REPEATED_READS'
+    channel: string
+    count: number
+    redundant: 'not-established'
+  }[]
+}
+
+type Assessment = ReturnType<typeof classifyObservation>
+
+interface DiscoveryRun extends DiscoveryPhase {
+  control: { ui: RegionSummary; snapshot: IpcSnapshot }
+  assessment: Assessment
+  observation: ReturnType<typeof compareRegions> & {
+    injected: number
+    channels: IpcSnapshot['channels']
+    recoveryMs: number | null
+    repeatedReads: DiscoveryPhase['repeatedReads']
+  }
+  interpretation: Assessment
+}
+
+type PreparedVisibility = Awaited<ReturnType<typeof prepareVisibility>>
+
+export interface IpcDiscoveryReport {
+  schemaVersion: 2
+  mode: string
+  channel: string
+  generatedAt: string
+  baselines: DiscoveryPhase[]
+  results: DiscoveryRun[]
+  findings: DiscoveryFinding[]
+  finalReset: 'healthy' | 'not-verified'
+  ok: boolean
+  readiness: {
+    strategy: string
+    calibrationRuns: number
+    calibrationWindowMs: number
+    calibrationComplete: boolean
+    relevantChannels: string[]
+    settleMs: number
+    note: string
+  }
+  limitation: string
+  window?: {
+    initial: WindowVisibility
+    restoration?: Awaited<ReturnType<PreparedVisibility['revert']>>
+  }
+  coverage?: {
+    watchedChannels: string[]
+    unobservedRegisteredChannels: string[]
+    gaps: string[]
+  }
+  environment?: WindowVisibility & { online: boolean; ui: RegionSummary }
+  stoppedObservation?: {
+    reason: string
+    fault: IpcFault | 'healthy'
+    times: number
+    snapshot: IpcSnapshot | null | undefined
+    ui: RegionSummary | undefined
+    timeline: DiscoveryEvent[]
+  }
+  failedControl?: DiscoveryPhase & {
+    reasons: {
+      notReady: boolean
+      newErrors: number
+      fingerprintChanged: boolean
+    }
+    diff: ReturnType<typeof compareRegions>
+  }
+  cleanup?: DiscoveryPhase
+  error?: string
+  cleanupError?: string
+  windowRestoreError?: string
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+export function discoveryConfig(input: IpcDiscoveryInput): IpcDiscoveryConfig {
+  const c: Record<string, unknown> = {
     cdp: 'http://127.0.0.1:9222',
     inspector: 'http://127.0.0.1:9229',
     channel: undefined,
@@ -30,7 +148,8 @@ export function discoveryConfig(input) {
     restoreWindow: false,
   }
   for (const key of Object.keys(c))
-    if (Object.hasOwn(input, key)) c[key] = input[key]
+    if (Object.hasOwn(input, key))
+      c[key] = (input as Record<string, unknown>)[key]
   if (typeof c.channel !== 'string' || !c.channel.trim())
     throw new Error('channel is required (an explicitly allowed read channel)')
   if (
@@ -42,11 +161,26 @@ export function discoveryConfig(input) {
   )
     throw new Error('Invalid requiredChannels')
   for (const key of ['observationMs', 'baselineTimeoutMs'])
-    if (!Number.isInteger(c[key]) || c[key] < 500 || c[key] > 30000)
+    if (
+      typeof c[key] !== 'number' ||
+      !Number.isInteger(c[key]) ||
+      c[key] < 500 ||
+      c[key] > 30000
+    )
       throw new Error(`${key} must be 500–30000`)
-  if (!Number.isInteger(c.repeats) || c.repeats < 1 || c.repeats > 3)
+  if (
+    typeof c.repeats !== 'number' ||
+    !Number.isInteger(c.repeats) ||
+    c.repeats < 1 ||
+    c.repeats > 3
+  )
     throw new Error('repeats must be 1–3')
-  if (!Number.isInteger(c.settleMs) || c.settleMs < 200 || c.settleMs > 5000)
+  if (
+    typeof c.settleMs !== 'number' ||
+    !Number.isInteger(c.settleMs) ||
+    c.settleMs < 200 ||
+    c.settleMs > 5000
+  )
     throw new Error('settleMs must be 200–5000')
   if (
     c.regionSelector !== undefined &&
@@ -55,11 +189,13 @@ export function discoveryConfig(input) {
     throw new Error('Invalid regionSelector')
   if (typeof c.restoreWindow !== 'boolean')
     throw new Error('restoreWindow must be boolean')
-  return c
+  return c as unknown as IpcDiscoveryConfig
 }
-export async function discoverIpc(input) {
+export async function discoverIpc(
+  input: IpcDiscoveryInput,
+): Promise<IpcDiscoveryReport> {
   const config = discoveryConfig(input)
-  const report = {
+  const report: IpcDiscoveryReport = {
     schemaVersion: 2,
     mode: 'experimental IPC discovery',
     channel: config.channel,
@@ -82,14 +218,18 @@ export async function discoverIpc(input) {
       'One explicitly allowed IPC read on the current screen. Synthetic renderer-boundary faults only. Structural changes and language hints produce leads, not proven product defects. No source repair, automatic navigation, HTTP/Rust coverage or uploads. UI text and repeated values are compared transiently; only hashes, structural shapes and counts are saved.',
   }
   const control = await connectIpcInspector(config.inspector)
-  let browser, page, runId, identity, visibility, trustedFingerprint
+  let browser: Browser | undefined,
+    watchedPage: Page | undefined,
+    runId: string | undefined,
+    visibility: PreparedVisibility | undefined,
+    trustedFingerprint: string | undefined
   const settleMs = config.settleMs
   let errorCount = 0
   const onError = () => {
     errorCount++
   }
   try {
-    identity = await control.call('identify')
+    const identity = await control.call('identify')
     if (!(identity.capabilities?.maxFaultCount >= 2))
       throw new Error(
         'Restart the app with the preview.6 or newer hook; repeated faults are unsupported by the loaded hook',
@@ -103,7 +243,7 @@ export async function discoverIpc(input) {
     )
     if (pages.length !== 1)
       throw new Error('Keep one matching target window open')
-    page = pages[0]
+    const page = pages[0]
     const nonce = randomUUID()
     await page.evaluate((value) => {
       if (Object.hasOwn(globalThis, '__recoveryProbeWindowNonce'))
@@ -137,6 +277,7 @@ export async function discoverIpc(input) {
       ],
     }
     page.on('pageerror', onError)
+    watchedPage = page
     const observe = async () => {
       const summary = summarizeRegion(
         await page.evaluate(readRegion, config.regionSelector),
@@ -154,22 +295,22 @@ export async function discoverIpc(input) {
     }
     await observe()
     const phase = async (
-      fault,
+      fault: IpcFault | undefined,
       times = 1,
-      expectedFingerprint,
+      expectedFingerprint?: string,
       calibrate = false,
-    ) => {
+    ): Promise<DiscoveryPhase> => {
       runId = randomUUID()
       const id = runId
       const started = performance.now()
       const initialErrors = errorCount
-      const timeline = []
+      const timeline: DiscoveryEvent[] = []
       let stableSince = performance.now(),
-        previous,
-        snapshot,
-        summary,
-        firstInjectionObserved,
-        previousEvent
+        previous: string | undefined,
+        snapshot: IpcSnapshot | null | undefined,
+        summary: RegionSummary | undefined,
+        firstInjectionObserved: number | undefined,
+        previousEvent: string | undefined
       try {
         await control.call('begin', {
           id,
@@ -196,7 +337,7 @@ export async function discoverIpc(input) {
           }
           const target = snapshot.channels[config.channel]
           const dependencies = config.requiredChannels.map(
-            (ch) => snapshot.channels[ch],
+            (ch) => snapshot!.channels[ch],
           )
           if (dependencies.some((row) => row.errors))
             throw new Error('DEPENDENCY_FAILED')
@@ -252,7 +393,7 @@ export async function discoverIpc(input) {
               newErrors: errorCount - initialErrors,
               recoveryDetectedAt: fault && ready ? detectedAt : null,
               recoveryMs:
-                fault && ready ? detectedAt - snapshot.injectedAt : null,
+                fault && ready ? detectedAt - snapshot.injectedAt! : null,
               timingNote: `Sampled recovery with ${settleMs}ms UI stability; bounded observation starts at first observed injection.`,
               repeatedReads: Object.entries(snapshot.channels)
                 .filter(([, row]) => row.realCalls > 1)
@@ -268,7 +409,7 @@ export async function discoverIpc(input) {
         }
       } catch (error) {
         report.stoppedObservation ??= {
-          reason: error.message,
+          reason: (error as Error).message,
           fault: fault ?? 'healthy',
           times,
           snapshot,
@@ -301,8 +442,8 @@ export async function discoverIpc(input) {
         { fault: 'rejection', times: 1 },
         { fault: 'rejection', times: 2 },
         { fault: 'null-result', times: 1 },
-      ]) {
-        const runs = []
+      ] as const) {
+        const runs: DiscoveryRun[] = []
         for (let i = 0; i < config.repeats; i++) {
           // A healthy control before every faulted run also clears the previous state.
           const healthy = await phase(undefined, 1, trustedFingerprint)
@@ -323,24 +464,28 @@ export async function discoverIpc(input) {
             }
             throw new Error('CONTROL_UNSTABLE')
           }
-          const run = await phase(experiment.fault, experiment.times)
-          run.control = { ui: healthy.ui, snapshot: healthy.snapshot }
-          run.assessment = classifyObservation({
+          const result = await phase(experiment.fault, experiment.times)
+          const assessment = classifyObservation({
             baseline: healthy.ui,
-            final: run.ui,
-            injected: run.snapshot.injected,
+            final: result.ui,
+            injected: result.snapshot.injected,
             expected: experiment.times,
-            recovered: run.ready,
-            newErrors: run.newErrors,
+            recovered: result.ready,
+            newErrors: result.newErrors,
           })
-          run.observation = {
-            ...compareRegions(healthy.ui, run.ui),
-            injected: run.snapshot.injected,
-            channels: run.snapshot.channels,
-            recoveryMs: run.recoveryMs,
-            repeatedReads: run.repeatedReads,
+          const run: DiscoveryRun = {
+            ...result,
+            control: { ui: healthy.ui, snapshot: healthy.snapshot },
+            assessment,
+            observation: {
+              ...compareRegions(healthy.ui, result.ui),
+              injected: result.snapshot.injected,
+              channels: result.snapshot.channels,
+              recoveryMs: result.recoveryMs,
+              repeatedReads: result.repeatedReads,
+            },
+            interpretation: assessment,
           }
-          run.interpretation = run.assessment
           runs.push(run)
           report.results.push(run)
         }
@@ -367,7 +512,7 @@ export async function discoverIpc(input) {
         })
       }
     } catch (error) {
-      report.error = error.message
+      report.error = (error as Error).message
     } finally {
       try {
         if (runId) await resetIpcAndConfirm(control, runId)
@@ -381,7 +526,7 @@ export async function discoverIpc(input) {
             ? 'healthy'
             : 'not-verified'
       } catch (error) {
-        report.cleanupError = error.message
+        report.cleanupError = (error as Error).message
       }
     }
     report.ok =
@@ -389,22 +534,22 @@ export async function discoverIpc(input) {
       report.finalReset === 'healthy' &&
       report.findings.every((f) => f.kind === 'observation')
   } catch (error) {
-    report.error = error.message
+    report.error = (error as Error).message
   } finally {
     try {
       if (runId) await resetIpcAndConfirm(control, runId)
     } catch (error) {
       report.ok = false
       report.finalReset = 'not-verified'
-      report.cleanupError = error.message
+      report.cleanupError = (error as Error).message
     }
     try {
-      if (visibility) report.window.restoration = await visibility.revert()
+      if (visibility) report.window!.restoration = await visibility.revert()
     } catch (error) {
       report.ok = false
-      report.windowRestoreError = error.message
+      report.windowRestoreError = (error as Error).message
     }
-    page?.off('pageerror', onError)
+    watchedPage?.off('pageerror', onError)
     control.close()
     if (browser) await browser.close()
   }
