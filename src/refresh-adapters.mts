@@ -1,10 +1,17 @@
 import { randomUUID } from 'node:crypto'
+import type { Page } from 'playwright'
 import { observeHttp } from './http-observer.mjs'
 import { resetIpcAndConfirm } from './ipc-control.mjs'
-export function httpRefreshAdapter(page, config) {
-  let current
+import type { FaultKind } from './fetch-fault.mjs'
+import type { IpcInspector } from './ipc-inspector.mjs'
+
+export function httpRefreshAdapter(
+  page: Page,
+  config: { endpoint: string; requiredEndpoints?: string[] },
+) {
+  let current: Awaited<ReturnType<typeof observeHttp>> | undefined
   return {
-    async begin(fault = {}) {
+    async begin(fault: { fault?: FaultKind; times?: number } = {}) {
       if (current) await current.stop()
       current = await observeHttp(page, {
         endpoint: config.endpoint,
@@ -24,15 +31,29 @@ export function httpRefreshAdapter(page, config) {
     },
   }
 }
-export function ipcRefreshAdapter(control, config, senderId) {
-  let id
+export function ipcRefreshAdapter(
+  control: IpcInspector,
+  config: {
+    channel: string
+    requiredChannels?: string[]
+    baselineTimeoutMs?: number
+  },
+  senderId: number,
+) {
+  let id: string | undefined
   const disarm = async () => {
     if (id) return resetIpcAndConfirm(control, id)
     if ((await control.call('snapshot'))?.armed)
       throw Error('IPC_OTHER_PLAN_ARMED: not owned by this experiment')
   }
   return {
-    async begin(fault = {}) {
+    async begin(
+      fault: {
+        fault?: 'rejection' | 'null-result'
+        times?: number
+        ttlMs?: number
+      } = {},
+    ) {
       if (id) await resetIpcAndConfirm(control, id)
       const deadline = Date.now() + (config.baselineTimeoutMs ?? 15000)
       // Do not retry a mutating begin after an uncertain reply. Wait using

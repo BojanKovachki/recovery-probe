@@ -14,7 +14,7 @@ const inPageModules = [
   'src/observe-steps.mts',
   'src/pick-marker.mjs',
   'src/refresh.mjs',
-  'src/visibility.mjs',
+  'src/visibility.mts',
 ]
 
 export default [
