@@ -4,7 +4,7 @@ import { readFile, writeFile, rm, symlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { prepareRepair, generateRepair, verifyRepair } from '../src/repair.mjs'
+import { prepareRepair, generateRepair, verifyRepair } from '../dist/repair.mjs'
 import { fixture, mockProvider, fixtureProposal } from './repair-fixture.mjs'
 const exec = promisify(execFile)
 

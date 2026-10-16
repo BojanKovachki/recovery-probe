@@ -1,6 +1,6 @@
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { createFaultFetch } from '../src/index.mjs'
+import { createFaultFetch } from '../dist/index.mjs'
 import { startDemoServer } from '../examples/demo-server.mjs'
 import { runCoreDemo } from '../examples/core-demo.mjs'
 

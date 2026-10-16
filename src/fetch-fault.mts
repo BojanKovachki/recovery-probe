@@ -1,7 +1,34 @@
-const kinds = new Set(['http-error', 'connection-failure', 'invalid-json'])
+export type FaultKind = 'http-error' | 'connection-failure' | 'invalid-json'
+
+export interface FetchFaultOptions {
+  url: string
+  kind: FaultKind
+  status?: number
+  count?: number
+  method?: string
+}
+
+export interface FetchFaultStats {
+  kind: FaultKind
+  requested: number
+  applied: number
+  matchingRequests: number
+}
+
+export interface FaultFetch {
+  fetch: typeof fetch
+  summary(): FetchFaultStats
+  assertApplied(): FetchFaultStats
+}
+
+const kinds = new Set<unknown>([
+  'http-error',
+  'connection-failure',
+  'invalid-json',
+])
 
 // A relative or malformed URL cannot be the absolute target, so it is never matched.
-const absoluteHref = (value) => {
+const absoluteHref = (value: string | URL): string | null => {
   try {
     return new URL(value).href
   } catch {
@@ -10,7 +37,10 @@ const absoluteHref = (value) => {
 }
 
 /** Fault-injected fetch for an exact, absolute URL. Each instance is isolated. */
-export function createFaultFetch(baseFetch, options) {
+export function createFaultFetch(
+  baseFetch: typeof fetch,
+  options: FetchFaultOptions,
+): FaultFetch {
   if (typeof baseFetch !== 'function')
     throw new TypeError('baseFetch must be a function')
   if (typeof options?.url !== 'string')
@@ -41,7 +71,7 @@ export function createFaultFetch(baseFetch, options) {
   }
   let applied = 0
   let matchingRequests = 0
-  const summary = () => ({
+  const summary = (): FetchFaultStats => ({
     kind: options.kind,
     requested: count,
     applied,
@@ -52,12 +82,10 @@ export function createFaultFetch(baseFetch, options) {
     summary,
     assertApplied() {
       if (applied !== count) {
-        const error = new Error(
-          `Expected ${count} fault(s); observed ${applied}.`,
+        throw Object.assign(
+          new Error(`Expected ${count} fault(s); observed ${applied}.`),
+          { code: 'FAULT_NOT_TRIGGERED', stats: summary() },
         )
-        error.code = 'FAULT_NOT_TRIGGERED'
-        error.stats = summary()
-        throw error
       }
       return summary()
     },

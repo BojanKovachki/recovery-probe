@@ -6,3 +6,4 @@ test-results/
 BUSINESS.md
 
 .recovery-probe/
+dist/

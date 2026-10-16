@@ -7,9 +7,9 @@ import {
   observationConfig,
   runObservation,
   httpObservationAdapter,
-} from '../src/observe.mjs'
-import { observationSteps, runSteps } from '../src/observe-steps.mjs'
-import { actionSummary } from '../src/observation-report.mjs'
+} from '../dist/observe.mjs'
+import { observationSteps, runSteps } from '../dist/observe-steps.mjs'
+import { actionSummary } from '../dist/observation-report.mjs'
 
 let browser,
   server,

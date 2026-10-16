@@ -1,5 +1,5 @@
 import { createInterface } from 'node:readline/promises'
-import { parseStartArgs, runStart } from '../src/guided-start.mjs'
+import { parseStartArgs, runStart } from '../dist/guided-start.mjs'
 
 export async function startMain(args) {
   if (!args.length || args.includes('--help')) {
@@ -16,6 +16,7 @@ Local checks only: no source upload or AI repair. Native/Rust/IPC traffic is not
     return
   }
   const options = parseStartArgs(args)
+  /** @type {import('node:readline/promises').Interface | undefined} */
   let terminal
   const io = {
     interactive: Boolean(process.stdin.isTTY),

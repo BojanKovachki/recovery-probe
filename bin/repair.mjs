@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { resolve, dirname } from 'node:path'
-import { prepareRepair, generateRepair, verifyRepair } from '../src/repair.mjs'
+import { prepareRepair, generateRepair, verifyRepair } from '../dist/repair.mjs'
 
 export async function repairMain(args) {
   if (!args.length || args.includes('--help')) {

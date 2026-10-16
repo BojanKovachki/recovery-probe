@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { execFile } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { promisify } from 'node:util'
-import { prepareRepair, generateRepair, verifyRepair } from '../src/repair.mjs'
+import { prepareRepair, generateRepair, verifyRepair } from '../dist/repair.mjs'
 import { fixture, freePort, mockProvider } from './repair-fixture.mjs'
 const exec = promisify(execFile)
 const require = createRequire(import.meta.url)

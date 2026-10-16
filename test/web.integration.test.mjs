@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
-import { checkWeb, discoverWeb } from '../src/web.mjs'
+import { checkWeb, discoverWeb } from '../dist/web.mjs'
 const exec = promisify(execFile)
 
 test(

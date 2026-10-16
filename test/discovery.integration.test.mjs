@@ -3,8 +3,8 @@ import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { chromium } from 'playwright'
 import { mkdir, writeFile } from 'node:fs/promises'
-import { discoverHttp } from '../src/http-discover.mjs'
-import { checkDesktop } from '../src/desktop.mjs'
+import { discoverHttp } from '../dist/http-discover.mjs'
+import { checkDesktop } from '../dist/desktop.mjs'
 
 function fixture(options) {
   return `<!doctype html><meta charset="utf-8"><main><h1>Catalog</h1><div id="loading" role="progressbar">…</div><section id="content"></section></main><script>

@@ -27,11 +27,13 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build
+        run: npm run build
       - name: Check formatting
         run: npm run format:check
       - name: Lint
         run: npm run lint
-      - name: Type-check JavaScript
+      - name: Type-check
         run: npm run typecheck
       - name: Verify guided setup choices and argument handling
         run: node --test test/guided-start.test.mjs
@@ -66,6 +68,8 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build
+        run: npm run build
       - name: Verify guided setup choices and argument handling
         run: node --test test/guided-start.test.mjs
       # npm publish --dry-run can reject a version already on npm, including
@@ -89,6 +93,8 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build
+        run: npm run build
       - name: Install browser
         run: npx playwright install chromium
       - name: Verify the isolated repair pipeline with Git for Windows defaults (mock model)
@@ -108,6 +114,8 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build
+        run: npm run build
       - name: Install browser
         run: npx playwright install --with-deps chromium
       - name: Run controlled fetch demonstration
@@ -152,6 +160,8 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build
+        run: npm run build
       - name: Install Electron test runtime
         run: npm install --no-save --package-lock=false --no-audit --no-fund electron@${{ matrix.electron }}
       - name: Test discovery, recovery checks and CLI in real Electron

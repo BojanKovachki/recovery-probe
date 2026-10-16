@@ -5,15 +5,15 @@ import {
   connectDesktop,
   selectDesktopPage,
   desktopPages,
-} from '../src/desktop.mjs'
-import { connectIpcInspector } from '../src/ipc-inspector.mjs'
-import { prepareVisibility } from '../src/visibility.mjs'
-import { refreshConfig, runRefresh } from '../src/refresh.mjs'
+} from '../dist/desktop.mjs'
+import { connectIpcInspector } from '../dist/ipc-inspector.mjs'
+import { prepareVisibility } from '../dist/visibility.mjs'
+import { refreshConfig, runRefresh } from '../dist/refresh.mjs'
 import {
   httpRefreshAdapter,
   ipcRefreshAdapter,
-} from '../src/refresh-adapters.mjs'
-import { escapeHtml, renderTemplate } from '../src/report-template.mjs'
+} from '../dist/refresh-adapters.mjs'
+import { escapeHtml, renderTemplate } from '../dist/report-template.mjs'
 
 export async function refreshMain(args) {
   if (args.includes('--help')) {
@@ -45,7 +45,9 @@ export async function refreshMain(args) {
   const onSignal = () => abort.abort()
   process.on('SIGINT', onSignal)
   process.on('SIGTERM', onSignal)
-  let browser, control, visibility, report
+  let browser, control, visibility
+  /** @type {Record<string, any> | undefined} */
+  let report
   try {
     browser = await connectDesktop(c.cdp)
     let page, adapter

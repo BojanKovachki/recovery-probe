@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import { createFaultFetch, defaultFaults } from '../src/index.mjs'
+import { createFaultFetch, defaultFaults } from '../dist/index.mjs'
 import { startDemoServer } from './demo-server.mjs'
 import { createProfileController } from './profile-controller.mjs'
 

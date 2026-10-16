@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { chromium } from 'playwright'
-import { probeRecovery, withFault } from '../src/index.mjs'
+import { probeRecovery, withFault } from '../dist/index.mjs'
 import { startDemoServer } from '../examples/demo-server.mjs'
 
 let browser

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { prepareVisibility, windowVisibility } from '../src/visibility.mjs'
+import { prepareVisibility, windowVisibility } from '../dist/visibility.mjs'
 function fixture(unsupported = false) {
   let state = 'minimized'
   const page = {

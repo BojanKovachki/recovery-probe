@@ -1,6 +1,6 @@
 import { performance } from 'node:perf_hooks'
 import { chromium } from 'playwright'
-import { readRegion, summarizeRegion } from '../src/ipc-observation.mjs'
+import { readRegion, summarizeRegion } from '../dist/ipc-observation.mjs'
 import { observationTable } from '../test/fixtures/observation-table.mjs'
 
 // Diagnostic, not a timing gate: host load and browser versions affect results.

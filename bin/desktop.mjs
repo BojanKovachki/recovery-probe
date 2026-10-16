@@ -8,8 +8,8 @@ import {
   discoverDesktop,
   checkDesktop,
   validateDesktopConfig,
-} from '../src/desktop.mjs'
-import { writeDesktopReport } from '../src/desktop-report.mjs'
+} from '../dist/desktop.mjs'
+import { writeDesktopReport } from '../dist/desktop-report.mjs'
 
 export async function desktopMain(args) {
   if (!args.length || args.includes('--help')) {

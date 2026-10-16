@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { installIpcProbe } from '../src/ipc-probe.cjs'
-import { validateIpcConfig } from '../src/ipc-check.mjs'
+import { installIpcProbe } from '../dist/ipc-probe.cjs'
+import { validateIpcConfig } from '../dist/ipc-check.mjs'
 function fixture(real) {
   const handlers = new Map()
   const ipc = {

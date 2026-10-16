@@ -1,9 +1,12 @@
 import js from '@eslint/js'
 import prettier from 'eslint-config-prettier/flat'
 import globals from 'globals'
+import tseslint from 'typescript-eslint'
 
 // Functions in these modules are serialized with page.evaluate and run in the browser,
 // so they use browser globals. Keep those functions self-contained: no imports or closures.
+const typeScriptFiles = ['**/*.{ts,mts,cts}']
+
 const inPageModules = [
   'src/ipc-check.mjs',
   'src/ipc-observation.mjs',
@@ -15,8 +18,21 @@ const inPageModules = [
 ]
 
 export default [
-  { ignores: ['node_modules/', 'artifacts/', '.recovery-probe/'] },
+  {
+    ignores: [
+      'node_modules/',
+      'artifacts/',
+      '.recovery-probe/',
+      'dist/',
+      // Hand-written declarations for JavaScript modules; generated ones replace them.
+      'src/**/*.d.{ts,mts,cts}',
+    ],
+  },
   js.configs.recommended,
+  ...tseslint.configs.recommended.map((config) => ({
+    ...config,
+    files: typeScriptFiles,
+  })),
   {
     files: ['**/*.{js,mjs}'],
     languageOptions: {
@@ -54,6 +70,22 @@ export default [
       eqeqeq: ['error', 'always', { null: 'ignore' }],
       'prefer-const': 'error',
       'no-var': 'error',
+    },
+  },
+  {
+    files: typeScriptFiles,
+    languageOptions: { globals: globals.node },
+    rules: {
+      // The TypeScript rule understands type-only uses; the base rule does not.
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          ignoreRestSiblings: true,
+        },
+      ],
     },
   },
   prettier,

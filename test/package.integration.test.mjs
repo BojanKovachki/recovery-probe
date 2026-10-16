@@ -66,7 +66,9 @@ test(
       assert.equal(packed.name, 'recovery-probe')
       assert.equal(packed.version, version)
       for (const path of [
-        'src/observation-report.mjs',
+        'dist/observation-report.mjs',
+        'dist/report-templates/observation.html',
+        'dist/ipc-probe.cjs',
         'docs/ci.md',
         'examples/ci/run.mjs',
         'examples/ci/verify.mjs',
@@ -77,14 +79,16 @@ test(
           path,
         )
       assert.ok(
-        packed.files.some((file) => file.path === 'src/fetch-fault.d.mts'),
+        packed.files.some((file) => file.path === 'dist/fetch-fault.d.mts'),
+        'the declaration generated from the TypeScript source',
       )
       assert.ok(packed.files.some((file) => file.path === 'CHANGELOG.md'))
       assert.ok(
         packed.files.every(
           (file) =>
             !file.path.startsWith('test/') &&
-            !file.path.startsWith('artifacts/'),
+            !file.path.startsWith('artifacts/') &&
+            !file.path.startsWith('src/'),
         ),
       )
       await npm(['install', join(temp, packed.filename)], consumer)

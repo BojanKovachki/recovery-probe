@@ -4,8 +4,8 @@ import {
   observationConfig,
   ipcObservationAdapter,
   runObservation,
-} from '../src/observe.mjs'
-import { installIpcProbe } from '../src/ipc-probe.cjs'
+} from '../dist/observe.mjs'
+import { installIpcProbe } from '../dist/ipc-probe.cjs'
 
 function fixture() {
   let listener, complete
