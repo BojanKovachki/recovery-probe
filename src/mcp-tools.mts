@@ -10,6 +10,7 @@ import {
 } from './net-fault.mjs'
 import type { McpTool } from './mcp-server.mjs'
 import { scanForSuspects } from './suspects.mjs'
+import { compareReports } from './compare.mjs'
 
 const FAULTS = ['http-error', 'connection-failure', 'invalid-json']
 const MAX_OUTPUT = 50_000
@@ -20,6 +21,7 @@ export const MCP_INSTRUCTIONS = `Recovery Probe shows what an app does when a da
 - A passing check covers only the configured read and screen marker; it is not proof that the app is resilient.
 - FAULT_NOT_TRIGGERED, BASELINE_FAILED and other inconclusive codes are not passes. Fix the setup and run again.
 - Findings such as LOCAL_FILES_REMOVED or DELAYED_UI_UPDATE, and suspects from find_suspects, are leads to investigate, not verdicts.
+- Before you say a change fixed something, compare reports of the same check from before and after it with compare_reports, and quote its verdict. A run that stopped early is never evidence of a fix.
 - Use development or test apps and accounts only: checks reload pages and fail their reads.`
 
 const text = (args: Record<string, unknown>, key: string, required = true) => {
@@ -465,11 +467,64 @@ const findSuspectsTool: McpTool = {
   },
 }
 
+const reportPaths = (args: Record<string, unknown>, key: string) => {
+  const paths = args[key]
+  if (
+    !Array.isArray(paths) ||
+    !paths.length ||
+    paths.some((path) => typeof path !== 'string' || !path.trim())
+  )
+    throw new Error(`${key} must be a non-empty list of report paths`)
+  return paths as string[]
+}
+
+const compareReportsTool: McpTool = {
+  name: 'compare_reports',
+  title: 'Compare reports from before and after a change',
+  description:
+    'Compares reports of the same check from before and after a change, such as main and a branch, and returns a verdict (IMPROVED, PARTLY_IMPROVED, REGRESSED, MIXED, UNCHANGED, INCONCLUSIVE or NOT_COMPARABLE), what happened to each problem, and a Markdown block for a pull request. A problem counts as gone only when a complete run after the change checked it, so a run that stopped early is never a fix. Give several reports per side for repeated runs.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      before: {
+        type: 'array',
+        items: { type: 'string' },
+        minItems: 1,
+        description:
+          'Reports from before the change: report.json files or their folders.',
+      },
+      after: {
+        type: 'array',
+        items: { type: 'string' },
+        minItems: 1,
+        description: 'Reports of the same check from after the change.',
+      },
+      beforeLabel: {
+        type: 'string',
+        description: 'Name for the before side, such as main.',
+      },
+      afterLabel: {
+        type: 'string',
+        description: 'Name for the after side, such as the branch.',
+      },
+    },
+    required: ['before', 'after'],
+    additionalProperties: false,
+  },
+  annotations: { readOnlyHint: true, openWorldHint: false },
+  run: (args) =>
+    compareReports(reportPaths(args, 'before'), reportPaths(args, 'after'), {
+      before: text(args, 'beforeLabel', false),
+      after: text(args, 'afterLabel', false),
+    }),
+}
+
 export const recoveryProbeTools: McpTool[] = [
   findPageReads,
   checkReadRecovery,
   ...networkTools,
   findSuspectsTool,
+  compareReportsTool,
   runCli,
 ]
 

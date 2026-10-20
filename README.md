@@ -4,7 +4,7 @@
 
 Apps can show the wrong data without any error: a list that disappears after one failed read, a cached screen that never picks up a change, or a row whose state lags behind data the app already received. Recovery Probe reproduces these cases on demand. It injects bounded faults into data reads and compares the screen with a healthy run, or it watches reads and the screen without any fault. Each run writes a local report that separates what it measured from what it suspects.
 
-Use it while you build, not only after. An AI coding agent can call it [over MCP](#use-it-from-an-ai-coding-agent) to see what the screen does when a read fails before it claims the code handles that. `recovery-probe suspects` reads the code a branch changed for error handling that turns a failed read into "no data", and names the read to fail to prove it.
+Use it while you build, not only after. An AI coding agent can call it [over MCP](#use-it-from-an-ai-coding-agent) to see what the screen does when a read fails before it claims the code handles that. `recovery-probe suspects` reads the code a branch changed for error handling that turns a failed read into "no data", and names the read to fail to prove it. `recovery-probe compare` turns the same check, run before and after a change, into evidence for the pull request.
 
 Installing the package does not add recovery behavior to your application.
 
@@ -38,6 +38,7 @@ npx recovery-probe --demo
 | Fail an SDK's or main process's own HTTPS connections | `recovery-probe net --rules FILE`, or network steps in `observe --network URL` | [Network faults](docs/net.md) |
 | Let an AI coding agent check what the screen does when a read fails | `recovery-probe mcp` | [AI coding agents (MCP)](docs/mcp.md) |
 | Find error handling that turns a failed read into "no data", before running anything | `recovery-probe suspects --changed-since main` | [Suspect scanner](docs/suspects.md) |
+| Show in a pull request that a change fixed what a check found | `recovery-probe compare --before DIR --after DIR --markdown` | [Before and after](docs/compare.md) |
 | See whether a failure made the app delete local content | `recovery-probe observe --config FILE --files DIR` | [Local files](docs/observe.md#local-files-050-preview11) |
 | Inspect an Android app's WebView (experimental) | `recovery-probe android --package NAME` | [Android WebViews](docs/android.md) |
 | Test a refresh after content has already loaded | `recovery-probe refresh --config FILE --json` | [Refresh experiments](docs/refresh.md) |
@@ -72,6 +73,7 @@ The agent can then:
 - fail one of them and see whether the screen recovers;
 - run a network fault proxy for an SDK or a main process;
 - find error handling in the changed code that can lose data;
+- compare the same check before and after its change;
 - run the other commands.
 
 A caught fault comes with a fix brief and a script to reproduce it. The server tells the agent to report outcomes as they are: a pass covers only what was checked, and an inconclusive run is never a pass. See [AI coding agents (MCP)](docs/mcp.md).

@@ -68,4 +68,15 @@ test('tells a page that recovers from one that does not', async () => {
     /Instructions for a coding agent/,
   )
   assert.equal(JSON.parse(await readFile(broken.report, 'utf8')).ok, false)
+
+  // The two reports read as a before and after: the failed read now recovers.
+  const comparison = await tool('compare_reports').run(
+    { before: [broken.report], after: [recovers.report] },
+    context,
+  )
+  assert.equal(comparison.verdict, 'IMPROVED')
+  assert.deepEqual(
+    comparison.changes.map(({ status, scope }) => [status, scope]),
+    [['GONE', 'http-error']],
+  )
 })

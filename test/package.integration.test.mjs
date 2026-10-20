@@ -335,6 +335,13 @@ void checkWeb(webConfig);
       )
       assert.match(suspectsHelp.stdout, /UNKNOWN_AS_EMPTY/)
       assert.ok(packed.files.some((file) => file.path === 'docs/suspects.md'))
+      const compareHelp = await exec(
+        process.execPath,
+        [cli, 'compare', '--help'],
+        { cwd: consumer, timeout: 10000 },
+      )
+      assert.match(compareHelp.stdout, /--before REPORT/)
+      assert.ok(packed.files.some((file) => file.path === 'docs/compare.md'))
       await writeFile(
         join(consumer, 'store.ts'),
         'export const rows = async () => (await load()) ?? []',

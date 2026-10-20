@@ -4,6 +4,14 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.5.0-preview.15 (2026-10-20)
+
+- **`recovery-probe compare`** compares reports of the same check from before and after a change and says what happened to each problem: gone, new, still there, or not checked to the end. A problem counts as gone only when a complete run after the change checked it, so a run that stopped early never reads as a fix.
+- Each side takes one or more reports, report folders or folders of runs, so repeated runs can be compared.
+- It returns a verdict: `IMPROVED`, `PARTLY_IMPROVED`, `REGRESSED`, `MIXED`, `UNCHANGED`, `INCONCLUSIVE` or `NOT_COMPARABLE`. It exits 1 only for a new suspected defect.
+- `--markdown` prints a block for the pull request. See docs/compare.md.
+- The MCP server adds `compare_reports`, and tells agents to compare reports before they say a change fixed something.
+
 ## 0.5.0-preview.14 (2026-10-20)
 
 - **`recovery-probe suspects`** (experimental) reads JavaScript and TypeScript sources for error handling that loses data:

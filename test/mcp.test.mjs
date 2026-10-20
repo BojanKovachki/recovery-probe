@@ -85,6 +85,7 @@ test('answers the MCP handshake and lists its tools', async () => {
         'network_fault_summary',
         'stop_network_faults',
         'find_suspects',
+        'compare_reports',
         'run_recovery_probe',
       ],
     )
@@ -179,6 +180,55 @@ test('finds suspects in the code the agent names', async () => {
     const invalid = await call(server, 'find_suspects', { paths: 'src' })
     assert.equal(invalid.isError, true)
     assert.match(invalid.content[0].text, /paths must be a list/)
+  } finally {
+    server.child.stdin.end()
+    await new Promise((resolve) => server.child.once('exit', resolve))
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('compares reports from before and after a change', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'recovery-probe-mcp-compare-'))
+  const server = startServer({ cwd: root })
+  const action = (findings) => ({
+    schemaVersion: 1,
+    mode: 'IPC action check',
+    channel: 'contacts:add',
+    findings,
+    ok: true,
+  })
+  try {
+    await writeFile(
+      join(root, 'before.json'),
+      JSON.stringify(
+        action([
+          { classification: 'SILENT_FAILURE', kind: 'suspected-defect' },
+        ]),
+      ),
+    )
+    await writeFile(
+      join(root, 'after.json'),
+      JSON.stringify(
+        action([{ classification: 'FEEDBACK_SHOWN', kind: 'observation' }]),
+      ),
+    )
+    const result = await call(server, 'compare_reports', {
+      before: ['before.json'],
+      after: ['after.json'],
+      afterLabel: 'branch',
+    })
+    assert.equal(result.isError, false)
+    const { verdict, changes, markdown } = result.structuredContent
+    assert.equal(verdict, 'IMPROVED')
+    assert.equal(changes[0].status, 'GONE')
+    assert.match(markdown, /SILENT_FAILURE/)
+    assert.match(markdown, /branch/)
+    const missing = await call(server, 'compare_reports', {
+      before: [],
+      after: ['after.json'],
+    })
+    assert.equal(missing.isError, true)
+    assert.match(missing.content[0].text, /before must be a non-empty list/)
   } finally {
     server.child.stdin.end()
     await new Promise((resolve) => server.child.once('exit', resolve))
