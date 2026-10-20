@@ -19,6 +19,7 @@ Usage:
   recovery-probe refresh --help
   recovery-probe observe --help
   recovery-probe ipc --help
+  recovery-probe net --help
   recovery-probe desktop --help
   recovery-probe web --help
   recovery-probe repair --help
@@ -76,6 +77,10 @@ async function main() {
   if (args[0] === 'refresh') {
     const { refreshMain } = await import('./refresh.mjs')
     return refreshMain(args.slice(1))
+  }
+  if (args[0] === 'net') {
+    const { netMain } = await import('./net.mjs')
+    return netMain(args.slice(1))
   }
   if (args[0] === 'ipc') {
     const { ipcMain } = await import('./ipc.mjs')

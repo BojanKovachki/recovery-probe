@@ -4,6 +4,11 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.5.0-preview.9 (2026-10-20)
+
+- **`recovery-probe net`** fails an app's own HTTPS connections, for requests made outside the page by an SDK, a main process or a command-line tool. It runs a loopback proxy for the app's `HTTPS_PROXY` and refuses, resets, stalls or delays connections to the hosts you name, in time windows counted from the app's first connection. It can close open connections so clients have to reconnect. It sees only hosts and ports: HTTPS stays end to end. See docs/net.md.
+- `recovery-probe/net` exports the same proxy as `startNetworkFaultProxy`.
+
 ## 0.5.0-preview.8 (2026-10-16)
 
 - **`ipc --action`** checks what the user sees after an action that writes. It runs scripted setup steps, clicks the action while the hook answers its write channel, and compares a simulated success, a simulated failure and a double-click. It reports `SILENT_FAILURE`, `FALSE_SUCCESS`, `UNCLEAR_FEEDBACK`, `UNCAUGHT_ERROR` and `DUPLICATE_SUBMIT`. Nothing is written. See docs/ipc.md.
