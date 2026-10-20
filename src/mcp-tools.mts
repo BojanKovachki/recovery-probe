@@ -12,7 +12,7 @@ import type { McpTool } from './mcp-server.mjs'
 
 const FAULTS = ['http-error', 'connection-failure', 'invalid-json']
 const MAX_OUTPUT = 50_000
-const CLI_COMMANDS = ['observe', 'ipc', 'refresh', 'desktop', 'web']
+const CLI_COMMANDS = ['observe', 'ipc', 'refresh', 'desktop', 'web', 'android']
 
 export const MCP_INSTRUCTIONS = `Recovery Probe shows what an app does when a data read fails. Use it to check a claim about error handling before you make it, and quote its results as they are.
 - A passing check covers only the configured read and screen marker; it is not proof that the app is resilient.
@@ -332,7 +332,7 @@ const networkTools: McpTool[] = [
 const runCli: McpTool = {
   name: 'run_recovery_probe',
   title: 'Run a Recovery Probe command',
-  description: `Runs a Recovery Probe command that has no dedicated tool, such as observe (with --steps, --network or --files), ipc discovery, refresh, or desktop attachment, and returns its exit code and output. Commands: ${CLI_COMMANDS.join(', ')}. Pass --json where the command supports it. See the package docs for each command's configuration.`,
+  description: `Runs a Recovery Probe command that has no dedicated tool, such as observe (with --steps, --network or --files), ipc discovery, refresh, desktop attachment or android --list, and returns its exit code and output. Commands: ${CLI_COMMANDS.join(', ')}. Pass --json where the command supports it. See the package docs for each command's configuration.`,
   inputSchema: {
     type: 'object',
     properties: {
@@ -368,6 +368,11 @@ const runCli: McpTool = {
       throw new Error('args must be a non-empty list of strings')
     if (!CLI_COMMANDS.includes(argv[0]))
       throw new Error(`The command must be one of ${CLI_COMMANDS.join(', ')}`)
+    // A forward stays open until stopped; only listing is a bounded call.
+    if (argv[0] === 'android' && !argv.includes('--list'))
+      throw new Error(
+        'Only android --list can run here; run the forward in a terminal',
+      )
     const timeoutMs = integer(args, 'timeoutMs', [1000, 900000]) ?? 300000
     const cli = fileURLToPath(
       new URL('../bin/recovery-probe.mjs', import.meta.url),

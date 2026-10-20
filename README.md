@@ -38,6 +38,7 @@ npx recovery-probe --demo
 | Fail an SDK's or main process's own HTTPS connections | `recovery-probe net --rules FILE`, or network steps in `observe --network URL` | [Network faults](docs/net.md) |
 | Let an AI coding agent check what the screen does when a read fails | `recovery-probe mcp` | [AI coding agents (MCP)](docs/mcp.md) |
 | See whether a failure made the app delete local content | `recovery-probe observe --config FILE --files DIR` | [Local files](docs/observe.md#local-files-050-preview11) |
+| Inspect an Android app's WebView (experimental) | `recovery-probe android --package NAME` | [Android WebViews](docs/android.md) |
 | Test a refresh after content has already loaded | `recovery-probe refresh --config FILE --json` | [Refresh experiments](docs/refresh.md) |
 | Watch cached content and row states after user actions, without faults | `recovery-probe observe --config FILE [--steps FILE]` | [Observation](docs/observe.md) |
 | Run a repeatable recovery check in CI | `npm run test:ci-example` (source checkout) | [CI example](docs/ci.md) |
@@ -53,6 +54,7 @@ npx recovery-probe --demo
 - **Electron apps that read over IPC**: add a development-only hook to the main process.
 - **JavaScript code that takes a fetch function**: use `recovery-probe/fetch`, without Playwright.
 - **Native HTTPS clients that use `HTTPS_PROXY`**, such as an SDK in the main process: fail whole connections per host with `recovery-probe net`.
+- **Android WebViews** with WebView debugging enabled (experimental): `recovery-probe android` makes them inspectable like a desktop page.
 
 Desktop support means Electron, not arbitrary native applications. IPC faults do not exercise native networking, HTTP status handling or token refresh. Network faults reach native networking, but only whole connections: they cannot return an HTTP status inside HTTPS. An unsupported data path is inconclusive, never a successful recovery check.
 

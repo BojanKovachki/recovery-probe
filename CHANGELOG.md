@@ -4,6 +4,10 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.5.0-preview.13 (2026-10-20)
+
+- **`recovery-probe android`** (experimental) makes an Android app's WebView, or Chrome, inspectable like a desktop debugging endpoint. It finds the DevTools socket over adb, forwards a local port, checks that DevTools answers and removes the forward on exit. The printed URL works with `desktop --cdp` and as `cdp` in configs. See docs/android.md.
+
 ## 0.5.0-preview.12 (2026-10-20)
 
 - **`recovery-probe mcp`** serves Recovery Probe to AI coding agents as MCP tools over stdio:

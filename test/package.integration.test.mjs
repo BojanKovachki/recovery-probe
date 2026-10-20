@@ -82,7 +82,12 @@ test(
         packed.files.some((file) => file.path === 'dist/fetch-fault.d.mts'),
         'the declaration generated from the TypeScript source',
       )
-      for (const path of ['dist/net-fault.d.mts', 'docs/net.md'])
+      for (const path of [
+        'dist/net-fault.d.mts',
+        'docs/net.md',
+        'dist/android.mjs',
+        'docs/android.md',
+      ])
         assert.ok(
           packed.files.some((file) => file.path === path),
           path,

@@ -34,7 +34,7 @@ npx playwright install chromium
 | `find_page_reads` | Opens a page in headless Chromium and lists the JSON GET requests it makes while loading. |
 | `check_read_recovery` | Loads the page healthy, fails one GET endpoint with each fault kind, and checks that a data marker comes back by itself or after Retry. It returns an outcome per fault and a report folder with `fix-brief.md` and `reproduce.mjs`. |
 | `start_network_faults`, `set_network_faults`, `network_fault_summary`, `stop_network_faults` | Run a [network fault proxy](net.md) for the app's own HTTPS connections, such as an SDK, a main process or a test run started with the returned environment. |
-| `run_recovery_probe` | Runs `observe`, `ipc`, `refresh`, `desktop` or `web` with your arguments, for checks that need a configuration file. Examples are observation with network steps or `--files`, and IPC discovery in an Electron app. |
+| `run_recovery_probe` | Runs `observe`, `ipc`, `refresh`, `desktop`, `web` or `android --list` with your arguments, for checks that need a configuration file. Examples are observation with network steps or `--files`, and IPC discovery in an Electron app. |
 
 A typical loop for a screen that loads data:
 
