@@ -4,6 +4,7 @@ import {
   androidDevtoolsTargets,
   forwardAndroidDevtools,
 } from '../dist/android.mjs'
+import { startCdpBridge } from '../dist/cdp-bridge.mjs'
 import { untilStopped } from './until-stopped.mjs'
 
 const USAGE =
@@ -88,19 +89,22 @@ export async function androidMain(args) {
     )
 
   const [target] = matching
-  const forward = await forwardAndroidDevtools(run, target.socket, {
-    port: options.port,
-  })
+  const forward = await forwardAndroidDevtools(run, target.socket)
+  let bridge
   try {
-    console.log(`Android ${describe(target).trim()} on ${forward.cdp}
+    // Android keeps blank WebViews without a window that never answer DevTools; a
+    // client attaching to them all would wait forever, so the bridge hides them.
+    bridge = await startCdpBridge({ upstream: forward.cdp, port: options.port })
+    console.log(`Android ${describe(target).trim()} on ${bridge.url}
 
 Use it like a desktop debugging endpoint:
-  recovery-probe desktop --cdp ${forward.cdp} --list
-  "cdp": "${forward.cdp}" in an observe or desktop config
+  recovery-probe desktop --cdp ${bridge.url} --list
+  "cdp": "${bridge.url}" in an observe or desktop config
 
-Press Ctrl+C to remove the forward.`)
+Keep the app on screen while a check runs. Press Ctrl+C to remove the forward.`)
     await untilStopped(options.duration)
   } finally {
+    await bridge?.close()
     await forward.remove()
   }
 }

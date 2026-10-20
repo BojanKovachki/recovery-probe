@@ -131,7 +131,7 @@
     "lint": "eslint .",
     "typecheck": "npm run build --silent && tsc -p .",
     "test": "npm run test:core",
-    "test:core": "npm run build --silent && node --test test/fetch-core.test.mjs test/net-fault.test.mjs test/mcp.test.mjs test/android.test.mjs",
+    "test:core": "npm run build --silent && node --test test/fetch-core.test.mjs test/net-fault.test.mjs test/mcp.test.mjs test/android.test.mjs test/cdp-bridge.test.mjs",
     "test:browser": "npm run build --silent && node --test test/recovery.integration.test.mjs test/discovery.integration.test.mjs test/discovery-calibration.integration.test.mjs test/attach.integration.test.mjs test/refresh.integration.test.mjs test/observe.integration.test.mjs test/observe-queue.integration.test.mjs test/mcp.integration.test.mjs",
     "test:package": "npm run build --silent && node --test test/package.integration.test.mjs",
     "test:all": "npm run test:core && npm run test:package && npm run test:browser && npm run test:desktop && npm run test:repair && npm run test:guided && npm run test:ipc && npm run test:ci-example",
