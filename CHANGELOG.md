@@ -4,6 +4,10 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.5.0-preview.11 (2026-10-20)
+
+- **`observe --files DIR`** compares the files under a directory at each interval and reports `LOCAL_FILES_REMOVED` when an interval lost files, with counts and bytes in the report and the paths in a private `files.json`. It catches a failed read that made the app delete installed content, which the screen alone does not show. See docs/observe.md.
+
 ## 0.5.0-preview.10 (2026-10-20)
 
 - **Network steps** for `observe --steps`: with `--network URL`, a step can take hosts away from the app's own HTTPS connections through a running `recovery-probe net`, and `"restore"` brings them back. The capture always removes the faults at the end. The report records what each step faulted, adds `NETWORK_FAULT_NOT_TRIGGERED` or `NETWORK_FAULTS_NOT_RESTORED` coverage gaps, and labels the mode `observation with network faults`. See docs/observe.md.

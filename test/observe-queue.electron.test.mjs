@@ -4,7 +4,7 @@ import { createRequire } from 'node:module'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { fileURLToPath } from 'node:url'
-import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { freePort } from './repair-fixture.mjs'
@@ -27,7 +27,7 @@ async function stop(app) {
   await exit
 }
 
-async function launch(fixed) {
+async function launch(fixed, cacheDir) {
   const cdpPort = await freePort()
   let inspectorPort = await freePort()
   while (inspectorPort === cdpPort) inspectorPort = await freePort()
@@ -46,7 +46,11 @@ async function launch(fixed) {
     ],
     {
       stdio: ['ignore', 'ignore', 'pipe'],
-      env: { ...withoutRunAsNode(process.env), FIXTURE_FIXED: String(fixed) },
+      env: {
+        ...withoutRunAsNode(process.env),
+        FIXTURE_FIXED: String(fixed),
+        FIXTURE_CACHE_DIR: cacheDir,
+      },
     },
   )
   let stderr = ''
@@ -82,7 +86,14 @@ test(
     const dir = await mkdtemp(join(tmpdir(), 'observe-queue-electron-'))
     try {
       for (const fixed of [false, true]) {
-        const { app, browser, page, cdp, inspector } = await launch(fixed)
+        const cacheDir = join(dir, `cache-${fixed}`)
+        await mkdir(cacheDir)
+        await writeFile(join(cacheDir, 'job-a.cache'), 'a'.repeat(100))
+        await writeFile(join(cacheDir, 'job-b.cache'), 'b'.repeat(200))
+        const { app, browser, page, cdp, inspector } = await launch(
+          fixed,
+          cacheDir,
+        )
         let cli, control
         try {
           await page.locator('[data-start="job-b"]').waitFor()
@@ -144,6 +155,8 @@ test(
               stepsPath,
               '--out',
               out,
+              '--files',
+              cacheDir,
               '--json',
             ],
             { stdio: ['ignore', 'pipe', 'pipe'] },
@@ -207,6 +220,25 @@ test(
             assert.equal(delayed[0].afterAction.name, 'start')
           }
           assert.ok(!JSON.stringify(report).includes('synthetic-private-job'))
+          // Starting job B dropped its cache file during the second interval.
+          assert.deepEqual(
+            report.findings
+              .filter((f) => f.code === 'LOCAL_FILES_REMOVED')
+              .map(({ interval, summary }) => ({ interval, summary })),
+            [
+              {
+                interval: 2,
+                summary:
+                  '1 file(s) removed and 0 shrunk on disk (0.0 MB no longer there).',
+              },
+            ],
+          )
+          assert.ok(!JSON.stringify(report).includes('job-b.cache'))
+          assert.deepEqual(
+            JSON.parse(await readFile(join(out, 'files.json'), 'utf8'))
+              .intervals,
+            [{ interval: 2, removed: ['job-b.cache'], shrunk: [] }],
+          )
           control = await connectIpcInspector(inspector)
           const snapshot = await control.call('snapshot')
           assert.equal(snapshot.observingUntil, null)

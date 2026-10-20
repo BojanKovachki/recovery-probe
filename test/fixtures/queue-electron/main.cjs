@@ -15,6 +15,12 @@ globalThis.__recoveryProbeIpc = installIpcProbe(ipcMain, {
 ipcMain.handle('fixture:invoke', async (_event, payload) => {
   if (payload.method === 'noise') return 1
   if (payload.method === 'start') {
+    // An app that drops local content it should keep, for observe --files.
+    if (process.env.FIXTURE_CACHE_DIR && payload.id === 'job-b')
+      require('node:fs').rmSync(
+        path.join(process.env.FIXTURE_CACHE_DIR, 'job-b.cache'),
+        { force: true },
+      )
     if (!jobs.some((j) => j.id === payload.id))
       jobs.push({
         id: payload.id,

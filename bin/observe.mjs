@@ -1,4 +1,4 @@
-import { readFile, mkdir, writeFile, mkdtemp } from 'node:fs/promises'
+import { readFile, mkdir, writeFile, mkdtemp, stat } from 'node:fs/promises'
 import { resolve, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { createInterface } from 'node:readline'
@@ -26,9 +26,14 @@ import {
 import { observationSteps, runSteps } from '../dist/observe-steps.mjs'
 import { connectNetworkFaults } from '../dist/net-fault.mjs'
 import { networkSteps, applyNetworkEvidence } from '../dist/observe-network.mjs'
+import {
+  snapshotFiles,
+  fileEvidence,
+  applyFileEvidence,
+} from '../dist/file-evidence.mjs'
 
 const USAGE =
-  'observe --config FILE [--out NEW_DIRECTORY] [--json] [--interactive] [--steps FILE] [--network URL]'
+  'observe --config FILE [--out NEW_DIRECTORY] [--json] [--interactive] [--steps FILE] [--network URL] [--files DIR]'
 
 export async function observeMain(args) {
   if (!args.length || args.includes('--help')) {
@@ -46,6 +51,8 @@ Ctrl+C saves partial evidence. CONTENT_BEFORE_READ and DELAYED_UI_UPDATE are obs
 interval marks during the capture. Steps act on the app: use a test account.
 --network names a running recovery-probe net, so network steps can fail the app's
 own HTTPS connections; they are removed when the capture ends.
+--files compares a directory's files at each interval and reports files the app
+removed or shrank (LOCAL_FILES_REMOVED, a lead). Paths stay in a private files.json.
 IPC requires the observation-capable development hook. See docs/observe.md.`)
     return
   }
@@ -54,7 +61,9 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
     if (['--json', '--interactive'].includes(args[i]))
       options[args[i].slice(2)] = true
     else if (
-      ['--config', '--out', '--steps', '--network'].includes(args[i]) &&
+      ['--config', '--out', '--steps', '--network', '--files'].includes(
+        args[i],
+      ) &&
       args[i + 1] &&
       !args[i + 1].startsWith('--')
     )
@@ -70,6 +79,18 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
         network: Boolean(options.network),
       })
     : null
+  let filesDirectory
+  const fileSnapshots = []
+  if (options.files) {
+    filesDirectory = resolve(options.files)
+    if (!(await stat(filesDirectory).catch(() => null))?.isDirectory())
+      throw Error('--files must name an existing directory')
+  }
+  // Started without waiting: walking a large directory must not delay sampling.
+  const takeFileSnapshot = (interval) => {
+    if (filesDirectory)
+      fileSnapshots.push({ interval, snapshot: snapshotFiles(filesDirectory) })
+  }
   let network, networkEvidence
   if (options.network) {
     const networkControl = connectNetworkFaults(options.network)
@@ -149,6 +170,7 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
     report = await runObservation(page, config, adapter, {
       signal: abort.signal,
       onReady() {
+        takeFileSnapshot(1)
         if (process.stdin.isTTY || options.interactive) {
           input = createInterface({ input: process.stdin, terminal: false })
           input.on('line', () => {
@@ -167,7 +189,8 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
         pendingMarkers--
         return true
       },
-      onInterval() {
+      onInterval(index) {
+        takeFileSnapshot(index)
         console.error('New observation interval.')
       },
       ...(steps
@@ -201,6 +224,8 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
     }
     report.error = error.message
   } finally {
+    // Taken before the network is restored: the state the capture ended in.
+    if (fileSnapshots.length) takeFileSnapshot(0)
     if (network) networkEvidence = await network.finish()
     if (input) {
       input.close()
@@ -218,12 +243,35 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
     process.off('SIGTERM', stop)
   }
   if (networkEvidence) applyNetworkEvidence(report, networkEvidence)
+  let filePaths
+  if (fileSnapshots.length) {
+    const evidence = fileEvidence(
+      await Promise.all(
+        fileSnapshots.map(async ({ interval, snapshot }) => ({
+          interval,
+          snapshot: await snapshot,
+        })),
+      ),
+    )
+    applyFileEvidence(report, evidence)
+    filePaths = evidence.paths
+  }
   report.metadata.browserVersion = browserVersion
   await writeFile(
     join(directory, 'scenario.json'),
     JSON.stringify(config, null, 2),
     { mode: 0o600 },
   )
+  if (filePaths)
+    await writeFile(
+      join(directory, 'files.json'),
+      JSON.stringify(
+        { directory: filesDirectory, intervals: filePaths },
+        null,
+        2,
+      ),
+      { mode: 0o600 },
+    )
   if (steps)
     await writeFile(
       join(directory, 'steps.json'),
