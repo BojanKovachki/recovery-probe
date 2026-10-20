@@ -327,6 +327,25 @@ void checkWeb(webConfig);
       assert.equal(mcp.result.serverInfo.name, 'recovery-probe')
       assert.equal(mcp.result.serverInfo.version, version)
       assert.ok(packed.files.some((file) => file.path === 'docs/mcp.md'))
+      // The scanner is in the package; TypeScript stays the project's choice.
+      const suspectsHelp = await exec(
+        process.execPath,
+        [cli, 'suspects', '--help'],
+        { cwd: consumer, timeout: 10000 },
+      )
+      assert.match(suspectsHelp.stdout, /UNKNOWN_AS_EMPTY/)
+      assert.ok(packed.files.some((file) => file.path === 'docs/suspects.md'))
+      await writeFile(
+        join(consumer, 'store.ts'),
+        'export const rows = async () => (await load()) ?? []',
+      )
+      await assert.rejects(
+        exec(process.execPath, [cli, 'suspects'], {
+          cwd: consumer,
+          timeout: 10000,
+        }),
+        (error) => /npm install --save-dev typescript/.test(error.stderr),
+      )
       const desktopHelp = await exec(
         process.execPath,
         [cli, 'desktop', '--help'],

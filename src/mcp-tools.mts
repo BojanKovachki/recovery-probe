@@ -9,15 +9,17 @@ import {
   type NetworkFaultProxy,
 } from './net-fault.mjs'
 import type { McpTool } from './mcp-server.mjs'
+import { scanForSuspects } from './suspects.mjs'
 
 const FAULTS = ['http-error', 'connection-failure', 'invalid-json']
 const MAX_OUTPUT = 50_000
+const MAX_SUSPECTS = 200
 const CLI_COMMANDS = ['observe', 'ipc', 'refresh', 'desktop', 'web', 'android']
 
 export const MCP_INSTRUCTIONS = `Recovery Probe shows what an app does when a data read fails. Use it to check a claim about error handling before you make it, and quote its results as they are.
 - A passing check covers only the configured read and screen marker; it is not proof that the app is resilient.
 - FAULT_NOT_TRIGGERED, BASELINE_FAILED and other inconclusive codes are not passes. Fix the setup and run again.
-- Findings such as LOCAL_FILES_REMOVED or DELAYED_UI_UPDATE are leads to investigate, not verdicts.
+- Findings such as LOCAL_FILES_REMOVED or DELAYED_UI_UPDATE, and suspects from find_suspects, are leads to investigate, not verdicts.
 - Use development or test apps and accounts only: checks reload pages and fail their reads.`
 
 const text = (args: Record<string, unknown>, key: string, required = true) => {
@@ -407,10 +409,67 @@ const runCli: McpTool = {
   },
 }
 
+const findSuspectsTool: McpTool = {
+  name: 'find_suspects',
+  title: 'Find failure handling that can lose data',
+  description:
+    'Reads JavaScript and TypeScript sources, without running them, for two patterns: UNKNOWN_AS_EMPTY (a failed or unexpected read becomes an empty collection, so "unknown" looks like "none") and FAILURE_ONLY_LOGGED (a read stores its data when it succeeds, but its failure is only logged). Each suspect names the read to fail and the check that proves or dismisses it. Use changedSince "main" to scan only what a branch changed. Needs TypeScript in the project.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      paths: {
+        type: 'array',
+        items: { type: 'string' },
+        description:
+          'Files and directories to scan, relative to the working directory. Default: all of it.',
+      },
+      changedSince: {
+        type: 'string',
+        description:
+          'Git reference, such as main: scan only the files changed since it, uncommitted and untracked ones included.',
+      },
+      includeTests: {
+        type: 'boolean',
+        default: false,
+        description: 'Scan test files too.',
+      },
+    },
+    additionalProperties: false,
+  },
+  annotations: { readOnlyHint: true, openWorldHint: false },
+  async run(args) {
+    const paths = args.paths ?? []
+    if (
+      !Array.isArray(paths) ||
+      paths.some((path) => typeof path !== 'string' || !path.trim())
+    )
+      throw new Error('paths must be a list of non-empty strings')
+    if (
+      args.includeTests !== undefined &&
+      typeof args.includeTests !== 'boolean'
+    )
+      throw new Error('includeTests must be true or false')
+    const { scanned, suspects } = await scanForSuspects({
+      paths,
+      changedSince: text(args, 'changedSince', false),
+      includeTests: args.includeTests === true,
+    })
+    return {
+      scanned,
+      found: suspects.length,
+      suspects: suspects.slice(0, MAX_SUSPECTS),
+      ...(suspects.length > MAX_SUSPECTS
+        ? { omitted: suspects.length - MAX_SUSPECTS }
+        : {}),
+    }
+  },
+}
+
 export const recoveryProbeTools: McpTool[] = [
   findPageReads,
   checkReadRecovery,
   ...networkTools,
+  findSuspectsTool,
   runCli,
 ]
 

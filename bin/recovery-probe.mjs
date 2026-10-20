@@ -21,6 +21,7 @@ Usage:
   recovery-probe ipc --help
   recovery-probe net --help
   recovery-probe mcp --help
+  recovery-probe suspects --help
   recovery-probe android --help
   recovery-probe desktop --help
   recovery-probe web --help
@@ -79,6 +80,10 @@ async function main() {
   if (args[0] === 'refresh') {
     const { refreshMain } = await import('./refresh.mjs')
     return refreshMain(args.slice(1))
+  }
+  if (args[0] === 'suspects') {
+    const { suspectsMain } = await import('./suspects.mjs')
+    return suspectsMain(args.slice(1))
   }
   if (args[0] === 'mcp') {
     const { mcpMain } = await import('./mcp.mjs')

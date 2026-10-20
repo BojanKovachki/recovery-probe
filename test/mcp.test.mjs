@@ -2,6 +2,9 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { request } from 'node:http'
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
 import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
@@ -38,14 +41,14 @@ function client(input, output) {
 }
 
 /** Starts `recovery-probe mcp` as an agent would. */
-function startServer() {
+function startServer({ cwd } = {}) {
   const child = spawn(
     process.execPath,
     [
       fileURLToPath(new URL('../bin/recovery-probe.mjs', import.meta.url)),
       'mcp',
     ],
-    { stdio: ['pipe', 'pipe', 'inherit'] },
+    { cwd, stdio: ['pipe', 'pipe', 'inherit'] },
   )
   return { child, ...client(child.stdin, child.stdout) }
 }
@@ -81,6 +84,7 @@ test('answers the MCP handshake and lists its tools', async () => {
         'set_network_faults',
         'network_fault_summary',
         'stop_network_faults',
+        'find_suspects',
         'run_recovery_probe',
       ],
     )
@@ -151,6 +155,34 @@ test('runs a Recovery Probe command for the agent', async () => {
     assert.match(result.structuredContent.stdout, /recovery-probe observe/)
   } finally {
     server.child.stdin.end()
+  }
+})
+
+test('finds suspects in the code the agent names', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'recovery-probe-mcp-suspects-'))
+  const server = startServer({ cwd: root })
+  try {
+    await mkdir(join(root, 'src'))
+    await writeFile(
+      join(root, 'src', 'store.ts'),
+      'export const rows = async () => (await load()) ?? []\n',
+    )
+    await writeFile(join(root, 'src', 'view.ts'), 'export const a = 1\n')
+    const result = await call(server, 'find_suspects', { paths: ['src'] })
+    assert.equal(result.isError, false)
+    const { scanned, found, suspects } = result.structuredContent
+    assert.equal(scanned, 2)
+    assert.equal(found, 1)
+    assert.equal(suspects[0].file, 'src/store.ts')
+    assert.equal(suspects[0].pattern, 'UNKNOWN_AS_EMPTY')
+    assert.equal(suspects[0].read, 'load()')
+    const invalid = await call(server, 'find_suspects', { paths: 'src' })
+    assert.equal(invalid.isError, true)
+    assert.match(invalid.content[0].text, /paths must be a list/)
+  } finally {
+    server.child.stdin.end()
+    await new Promise((resolve) => server.child.once('exit', resolve))
+    await rm(root, { recursive: true, force: true })
   }
 })
 
