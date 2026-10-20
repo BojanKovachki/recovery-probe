@@ -210,6 +210,15 @@ With `--network URL`, steps can also take hosts away from the app's own HTTPS co
 
 The report's mode becomes `observation with network faults`, and `network` lists what each step's rules faulted. A rule that faulted no connection adds `NETWORK_FAULT_NOT_TRIGGERED`. Faults that could not be removed add `NETWORK_FAULTS_NOT_RESTORED`; stop `recovery-probe net` to restore the app's network.
 
+### Local files (0.5.0-preview.11)
+
+A failed read can cost more than a blank screen: an app that treats an unknown file list as an empty one deletes the content it has installed. `--files DIR` takes a snapshot of the regular files under a directory (their paths and sizes, never their contents) when the capture starts, at each new interval, and when it ends, and compares each interval's snapshots.
+
+- `files` in the report counts, per interval, the files removed, shrunk, added and grown, and the bytes the removed and shrunk files no longer hold.
+- An interval that lost files gets `LOCAL_FILES_REMOVED`. It is a lead, not a verdict: a legitimate update also removes files. Mark an interval around the step you suspect, such as a network fault, to see where the loss happened.
+- The removed and shrunk paths (up to 200 of each per interval) are kept only in a private `files.json` next to the report.
+- Snapshots are compared per interval: a file removed and restored within one interval is not seen. They stop at 50,000 files and do not follow symbolic links. A partial or unreadable snapshot adds the `FILE_SNAPSHOT_INCOMPLETE` coverage gap.
+
 ## Interpretation
 
 Local `report.json` and `report.html` contain interval read counts, starts/completions, first-content sample bounds, and a change-only sampled timeline. `scenario.json` records the selected scope. No screenshots, response bodies, IPC arguments, push payloads or raw UI values are saved; tracked row keys are hashed and row states are kept only when allowlisted. Region text and repeated values are hashed; hashes are **not anonymization**, particularly for predictable text. Treat reports and selectors as private evidence.

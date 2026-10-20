@@ -34,6 +34,7 @@ npx recovery-probe --demo
 | Compare an Electron screen under IPC faults | `recovery-probe ipc --discover --config FILE` | [IPC setup and discovery](docs/ipc.md) |
 | Check what users see when a save or send fails in Electron | `recovery-probe ipc --action --config FILE` | [IPC action check](docs/ipc.md#action-check-050-preview8) |
 | Fail an SDK's or main process's own HTTPS connections | `recovery-probe net --rules FILE`, or network steps in `observe --network URL` | [Network faults](docs/net.md) |
+| See whether a failure made the app delete local content | `recovery-probe observe --config FILE --files DIR` | [Local files](docs/observe.md#local-files-050-preview11) |
 | Test a refresh after content has already loaded | `recovery-probe refresh --config FILE --json` | [Refresh experiments](docs/refresh.md) |
 | Watch cached content and row states after user actions, without faults | `recovery-probe observe --config FILE [--steps FILE]` | [Observation](docs/observe.md) |
 | Run a repeatable recovery check in CI | `npm run test:ci-example` (source checkout) | [CI example](docs/ci.md) |

@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module'
 import { escapeHtml, renderTemplate } from './report-template.mjs'
 import type { NetworkRuleSummary } from './net-fault.mjs'
+import type { IntervalFileChanges } from './file-evidence.mjs'
 const { version } = createRequire(import.meta.url)('../package.json') as {
   version: string
 }
@@ -291,6 +292,8 @@ export interface ObservationReport {
   notes?: ObservationNote[]
   operator?: ObservationOperator | null
   network?: ObservationNetwork
+  /** What changed on disk in each interval, from `observe --files`. */
+  files?: { intervals: IntervalFileChanges[] }
   injected?: number
   reloads?: number
   cleanup?: string
@@ -547,6 +550,8 @@ export function observationSummary(finding: ObservationFinding): string {
       : ''
     return `${rowName(finding.row)[0].toUpperCase()}${rowName(finding.row).slice(1)} stayed ${finding.from} for ${seconds(finding.persistedMs)} s across ${finding.unchangedReadCompletions} completed selected reads, then changed to ${finding.to}${data}.${action}`
   }
+  if (finding.code === 'LOCAL_FILES_REMOVED' && finding.summary)
+    return finding.summary
   if (finding.basis === 'NO_READ_OBSERVED_IN_INTERVAL')
     return 'Content was visible without a new selected read in this interval.'
   if (finding.basis === 'NO_COMPLETION_OBSERVED_IN_INTERVAL')
