@@ -21,15 +21,22 @@ import {
   renderObservationReport,
   actionSummary,
   comparisonDigest,
+  networkStepSummary,
 } from '../dist/observation-report.mjs'
 import { observationSteps, runSteps } from '../dist/observe-steps.mjs'
+import { connectNetworkFaults } from '../dist/net-fault.mjs'
+import { networkSteps, applyNetworkEvidence } from '../dist/observe-network.mjs'
+
+const USAGE =
+  'observe --config FILE [--out NEW_DIRECTORY] [--json] [--interactive] [--steps FILE] [--network URL]'
 
 export async function observeMain(args) {
   if (!args.length || args.includes('--help')) {
-    console.log(`recovery-probe observe --config FILE [--out NEW_DIRECTORY] [--json] [--interactive] [--steps FILE]
+    console.log(`recovery-probe ${USAGE}
 
-Fault-free observation of an existing browser or Electron renderer.
-No reload, navigation, focus change, fault injection or final UI reset.
+Observation of an existing browser or Electron renderer.
+No reload, navigation, focus change or final UI reset, and no faults except
+explicit network steps.
 Choose transport: http or ipc and explicit regionSelector/contentSelector CSS markers.
 Sampling defaults to detail: "content"; use "region" for full DOM diagnostics.
 Navigate manually during the bounded capture. Enter marks a new interval in an
@@ -37,6 +44,8 @@ interactive terminal; --interactive also enables newline markers on piped input.
 Ctrl+C saves partial evidence. CONTENT_BEFORE_READ and DELAYED_UI_UPDATE are observations, not defects.
 --steps runs an explicit, opt-in list of same-document navigations, clicks, waits and
 interval marks during the capture. Steps act on the app: use a test account.
+--network names a running recovery-probe net, so network steps can fail the app's
+own HTTPS connections; they are removed when the capture ends.
 IPC requires the observation-capable development hook. See docs/observe.md.`)
     return
   }
@@ -45,23 +54,33 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
     if (['--json', '--interactive'].includes(args[i]))
       options[args[i].slice(2)] = true
     else if (
-      ['--config', '--out', '--steps'].includes(args[i]) &&
+      ['--config', '--out', '--steps', '--network'].includes(args[i]) &&
       args[i + 1] &&
       !args[i + 1].startsWith('--')
     )
       options[args[i].slice(2)] = args[++i]
-    else
-      throw Error(
-        'Use observe --config FILE [--out NEW_DIRECTORY] [--json] [--interactive] [--steps FILE]',
-      )
+    else throw Error(`Use ${USAGE}`)
   }
   if (!options.config) throw Error('--config is required')
   const config = observationConfig(
     JSON.parse(await readFile(options.config, 'utf8')),
   )
   const steps = options.steps
-    ? observationSteps(JSON.parse(await readFile(options.steps, 'utf8')))
+    ? observationSteps(JSON.parse(await readFile(options.steps, 'utf8')), {
+        network: Boolean(options.network),
+      })
     : null
+  let network, networkEvidence
+  if (options.network) {
+    const networkControl = connectNetworkFaults(options.network)
+    await networkControl.summary().catch((error) => {
+      throw Error(
+        `No network control at ${options.network}; start recovery-probe net first (${error.message})`,
+        { cause: error },
+      )
+    })
+    network = networkSteps(networkControl)
+  }
   let directory
   if (options.out) {
     directory = resolve(options.out)
@@ -158,6 +177,7 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
                 mark,
                 signal,
                 elapsed,
+                network,
                 log: (r) =>
                   console.error(
                     `Step ${r.index} ${r.kind}${r.name ? ' ' + r.name : ''}: ${r.status} at ${(r.endedMs / 1000).toFixed(1)} s${r.error ? ' — ' + r.error : ''}`,
@@ -181,6 +201,7 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
     }
     report.error = error.message
   } finally {
+    if (network) networkEvidence = await network.finish()
     if (input) {
       input.close()
       process.stdin.pause()
@@ -196,6 +217,7 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
     process.off('SIGINT', stop)
     process.off('SIGTERM', stop)
   }
+  if (networkEvidence) applyNetworkEvidence(report, networkEvidence)
   report.metadata.browserVersion = browserVersion
   await writeFile(
     join(directory, 'scenario.json'),
@@ -238,6 +260,12 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
     if (report.operator)
       console.log(
         `Scripted steps: ${report.operator.status}${report.operator.error ? ' — ' + report.operator.error : ''}`,
+      )
+    for (const record of report.network?.faults ?? [])
+      console.log(networkStepSummary(record))
+    if (report.network?.restoreError)
+      console.error(
+        `Network faults were not removed: ${report.network.restoreError}. Stop recovery-probe net to restore the app's network.`,
       )
     console.log(
       `Sampling: ${config.detail}; requested delay ${config.sampleMs} ms; measured mean cadence ${report.sampling.startToStart.meanMs ?? 'unavailable'} ms.`,

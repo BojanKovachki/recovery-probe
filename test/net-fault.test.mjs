@@ -13,6 +13,7 @@ import {
   startNetworkFaultProxy,
   validateNetworkRules,
   hostMatches,
+  connectNetworkFaults,
 } from '../dist/net-fault.mjs'
 
 // The proxy never reads what goes through a tunnel, so an echo server stands in
@@ -320,4 +321,61 @@ test('a rule drops only the connections opened before it started', async () => {
   } finally {
     await proxy.close()
   }
+})
+
+test('can be controlled from another process', async () => {
+  const proxy = await startNetworkFaultProxy({ control: true })
+  try {
+    const control = connectNetworkFaults(proxy.url)
+    await control.arm([{ host: '127.0.0.1', fault: 'refuse' }])
+    assert.equal((await tunnel(proxy)).status, 502)
+    assert.deepEqual((await control.summary()).rules, [
+      { host: '127.0.0.1', fault: 'refuse', matching: 1, applied: 1 },
+    ])
+    await control.disarm()
+    const { socket } = await tunnel(proxy)
+    const closed = once(socket, 'close')
+    assert.equal(await control.dropOpen('127.0.0.1'), 1)
+    await closed
+    await assert.rejects(
+      control.arm([{ host: '127.0.0.1', fault: 'drop' }]),
+      /arm failed \(400\): rules\[0\]\.fault/,
+    )
+  } finally {
+    await proxy.close()
+  }
+})
+
+// A web page can send a simple request to a loopback port, but not this header.
+test('answers control requests only with its header', async () => {
+  const proxy = await startNetworkFaultProxy({ control: true })
+  try {
+    const plain = await fetch(`${proxy.url}/recovery-probe/network/disarm`, {
+      method: 'POST',
+    })
+    assert.equal(plain.status, 403)
+    const unknown = await fetch(`${proxy.url}/recovery-probe/network/other`, {
+      method: 'POST',
+      headers: { 'x-recovery-probe': 'network' },
+    })
+    assert.equal(unknown.status, 404)
+  } finally {
+    await proxy.close()
+  }
+  const closed = await startNetworkFaultProxy()
+  try {
+    const response = await fetch(
+      `${closed.url}/recovery-probe/network/summary`,
+      {
+        headers: { 'x-recovery-probe': 'network' },
+      },
+    )
+    assert.equal(response.status, 501)
+  } finally {
+    await closed.close()
+  }
+})
+
+test('controls only a loopback proxy', () => {
+  assert.throws(() => connectNetworkFaults('http://192.0.2.1:8899'), /loopback/)
 })

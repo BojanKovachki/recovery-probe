@@ -170,7 +170,9 @@ try {
 import { createFaultFetch, type FetchFaultStats } from 'recovery-probe/fetch';
 import { installIpcProbe, type IpcProbe } from 'recovery-probe/ipc';
 import { connectIpcInspector } from 'recovery-probe/ipc-inspector';
-import { startNetworkFaultProxy, type NetworkFaultProxy, type NetworkFaultRule } from 'recovery-probe/net';
+import { startNetworkFaultProxy, connectNetworkFaults, type NetworkFaultControl, type NetworkFaultProxy, type NetworkFaultRule } from 'recovery-probe/net';
+const networkControl: NetworkFaultControl = connectNetworkFaults('http://127.0.0.1:8899');
+void networkControl;
 const inspector = await connectIpcInspector();
 const snapshot = await inspector.call('snapshot');
 const timestamp: number | null | undefined = snapshot?.channels['fixture:read'].lastCompletedAt;

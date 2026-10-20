@@ -50,7 +50,7 @@ probe.assertApplied();
 
 ## `startNetworkFaultProxy(options)`
 
-From `recovery-probe/net`. Starts a loopback HTTPS proxy that refuses, resets, stalls or delays whole connections per host, for clients that use `HTTPS_PROXY`. It returns `url`, `env()`, `arm(rules)`, `disarm()`, `dropOpen(host)`, `events()`, `summary()`, `assertApplied()` and `close()`. See [Network faults](net.md).
+From `recovery-probe/net`. Starts a loopback HTTPS proxy that refuses, resets, stalls or delays whole connections per host, for clients that use `HTTPS_PROXY`. It returns `url`, `env()`, `arm(rules)`, `disarm()`, `dropOpen(host)`, `events()`, `summary()`, `assertApplied()` and `close()`. With `control: true`, another process can drive it through `connectNetworkFaults(url)`, which has `arm`, `disarm`, `dropOpen` and `summary`. See [Network faults](net.md).
 
 ## `probeRecovery(browser, config)`
 

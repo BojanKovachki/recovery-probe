@@ -4,6 +4,11 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.5.0-preview.10 (2026-10-20)
+
+- **Network steps** for `observe --steps`: with `--network URL`, a step can take hosts away from the app's own HTTPS connections through a running `recovery-probe net`, and `"restore"` brings them back. The capture always removes the faults at the end. The report records what each step faulted, adds `NETWORK_FAULT_NOT_TRIGGERED` or `NETWORK_FAULTS_NOT_RESTORED` coverage gaps, and labels the mode `observation with network faults`. See docs/observe.md.
+- `recovery-probe net` runs without `--rules` and answers a loopback control; `recovery-probe/net` adds `connectNetworkFaults` and the `control` option.
+
 ## 0.5.0-preview.9 (2026-10-20)
 
 - **`recovery-probe net`** fails an app's own HTTPS connections, for requests made outside the page by an SDK, a main process or a command-line tool. It runs a loopback proxy for the app's `HTTPS_PROXY` and refuses, resets, stalls or delays connections to the hosts you name, in time windows counted from the app's first connection. It can close open connections so clients have to reconnect. It sees only hosts and ports: HTTPS stays end to end. See docs/net.md.
