@@ -4,6 +4,17 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.5.0-preview.12 (2026-10-20)
+
+- **`recovery-probe mcp`** serves Recovery Probe to AI coding agents as MCP tools over stdio:
+  - `find_page_reads` and `check_read_recovery` for a page's reads;
+  - four tools that run the network fault proxy;
+  - `run_recovery_probe` for observe, ipc, refresh, desktop and web.
+- When an agent connects, the server tells it how to report results: a pass covers only what was checked, and inconclusive codes are not passes.
+- A caught fault returns the report folder with `fix-brief.md` and `reproduce.mjs`.
+- No new dependencies. See docs/mcp.md.
+- The package description now says the checks can run from an AI coding agent.
+
 ## 0.5.0-preview.11 (2026-10-20)
 
 - **`observe --files DIR`** compares the files under a directory at each interval and reports `LOCAL_FILES_REMOVED` when an interval lost files, with counts and bytes in the report and the paths in a private `files.json`. It catches a failed read that made the app delete installed content, which the screen alone does not show. See docs/observe.md.

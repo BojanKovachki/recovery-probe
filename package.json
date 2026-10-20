@@ -1,8 +1,8 @@
 {
   "name": "recovery-probe",
-  "version": "0.5.0-preview.11",
+  "version": "0.5.0-preview.12",
   "type": "module",
-  "description": "Test whether web and Electron desktop apps show the right data.",
+  "description": "Test whether web and Electron desktop apps show the right data when a read fails, from the command line, your tests or an AI coding agent.",
   "license": "MIT",
   "author": "Bojan Kovachki",
   "homepage": "https://github.com/BojanKovachki/recovery-probe#readme",
@@ -62,6 +62,7 @@
     "docs/start.md",
     "docs/ipc.md",
     "docs/net.md",
+    "docs/mcp.md",
     "docs/refresh.md",
     "docs/observe.md",
     "docs/ci.md",
@@ -116,7 +117,10 @@
     "refresh",
     "observation",
     "ui-state",
-    "cache"
+    "cache",
+    "mcp",
+    "ai-agents",
+    "network-faults"
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
@@ -126,8 +130,8 @@
     "lint": "eslint .",
     "typecheck": "npm run build --silent && tsc -p .",
     "test": "npm run test:core",
-    "test:core": "npm run build --silent && node --test test/fetch-core.test.mjs test/net-fault.test.mjs",
-    "test:browser": "npm run build --silent && node --test test/recovery.integration.test.mjs test/discovery.integration.test.mjs test/discovery-calibration.integration.test.mjs test/attach.integration.test.mjs test/refresh.integration.test.mjs test/observe.integration.test.mjs test/observe-queue.integration.test.mjs",
+    "test:core": "npm run build --silent && node --test test/fetch-core.test.mjs test/net-fault.test.mjs test/mcp.test.mjs",
+    "test:browser": "npm run build --silent && node --test test/recovery.integration.test.mjs test/discovery.integration.test.mjs test/discovery-calibration.integration.test.mjs test/attach.integration.test.mjs test/refresh.integration.test.mjs test/observe.integration.test.mjs test/observe-queue.integration.test.mjs test/mcp.integration.test.mjs",
     "test:package": "npm run build --silent && node --test test/package.integration.test.mjs",
     "test:all": "npm run test:core && npm run test:package && npm run test:browser && npm run test:desktop && npm run test:repair && npm run test:guided && npm run test:ipc && npm run test:ci-example",
     "demo": "npm run build --silent && node bin/core-demo.mjs",
