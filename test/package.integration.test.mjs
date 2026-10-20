@@ -342,6 +342,12 @@ void checkWeb(webConfig);
       )
       assert.match(compareHelp.stdout, /--before REPORT/)
       assert.ok(packed.files.some((file) => file.path === 'docs/compare.md'))
+      const watchHelp = await exec(process.execPath, [cli, 'watch', '--help'], {
+        cwd: consumer,
+        timeout: 10000,
+      })
+      assert.match(watchHelp.stdout, /reruns the check/)
+      assert.ok(packed.files.some((file) => file.path === 'docs/watch.md'))
       await writeFile(
         join(consumer, 'store.ts'),
         'export const rows = async () => (await load()) ?? []',

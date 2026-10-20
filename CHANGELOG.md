@@ -4,6 +4,13 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.5.0-preview.16 (2026-10-20)
+
+- **`recovery-probe watch [PATH...] [-- CHECK]`** watches source files while you work. After each save it scans the changed files for suspects and reruns the check against the running development app. It compares the run with the first one and the one before, by the rules of `compare`.
+- The check runs once at the start for the starting point. `--settle` waits for the dev server to reload, and each run gets its own folder and log.
+- `summary.json` and `summary.md` (the pull request block for the first run against the latest) are rewritten after every run.
+- Without a check, the watch only scans for suspects. See docs/watch.md.
+
 ## 0.5.0-preview.15 (2026-10-20)
 
 - **`recovery-probe compare`** compares reports of the same check from before and after a change and says what happened to each problem: gone, new, still there, or not checked to the end. A problem counts as gone only when a complete run after the change checked it, so a run that stopped early never reads as a fix.

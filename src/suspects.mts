@@ -406,7 +406,7 @@ export function scanSource(
 
 const SOURCE = /\.[cm]?[jt]sx?$/
 const DECLARATION = /\.d\.[cm]?ts$/
-const SKIPPED_DIRECTORIES = new Set([
+export const SKIPPED_DIRECTORIES = new Set([
   'node_modules',
   'dist',
   'build',
@@ -419,7 +419,7 @@ const SKIPPED_DIRECTORIES = new Set([
 const TEST_FILE =
   /\.(?:test|spec)\.[cm]?[jt]sx?$|(?:^|[\\/])(?:__tests__|__mocks__)[\\/]/
 
-const isScannable = (path: string, includeTests: boolean) =>
+export const isScannable = (path: string, includeTests: boolean) =>
   SOURCE.test(path) &&
   !DECLARATION.test(path) &&
   (includeTests || !TEST_FILE.test(path))
