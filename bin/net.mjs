@@ -3,6 +3,7 @@ import {
   startNetworkFaultProxy,
   validateNetworkRules,
 } from '../dist/net-fault.mjs'
+import { untilStopped } from './until-stopped.mjs'
 
 const USAGE =
   'recovery-probe net [--rules FILE] [--port N] [--duration MS] [--out FILE] [--json]'
@@ -50,22 +51,6 @@ function parseArgs(args) {
         throw Error(`--${key} must be a whole number`)
     }
   return options
-}
-
-/** Waits for Ctrl+C, a termination signal or the duration, whichever comes first. */
-function untilStopped(duration) {
-  return new Promise((resolve) => {
-    const stop = () => {
-      clearTimeout(timer)
-      process.off('SIGINT', stop)
-      process.off('SIGTERM', stop)
-      resolve()
-    }
-    const timer =
-      duration === undefined ? undefined : setTimeout(stop, duration)
-    process.on('SIGINT', stop)
-    process.on('SIGTERM', stop)
-  })
 }
 
 function hostCounts(events) {
