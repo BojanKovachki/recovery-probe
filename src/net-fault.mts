@@ -157,7 +157,7 @@ export async function startNetworkFaultProxy(
     options.rules === undefined
       ? undefined
       : validateNetworkRules(options.rules)
-  const startedAt = Date.now()
+  const startedAt = performance.now()
   const events: NetworkConnectionEvent[] = []
   const tunnels = new Set<Tunnel>()
   let rules: ArmedRule[] = []
@@ -170,13 +170,13 @@ export async function startNetworkFaultProxy(
   const record = (event: Omit<NetworkConnectionEvent, 'at'>): void => {
     connections += 1
     if (events.length < MAX_EVENTS)
-      events.push({ at: Date.now() - startedAt, ...event })
+      events.push({ at: Math.round(performance.now() - startedAt), ...event })
   }
 
   /** The index of the rule that faults a connection to `host`, or -1. */
   const select = (host: string): number => {
     if (!active) return -1
-    const elapsed = Date.now() - armedAt
+    const elapsed = performance.now() - armedAt
     let selected = -1
     rules.forEach((rule, index) => {
       if (!hostMatches(rule.host, host)) return
@@ -241,12 +241,13 @@ export async function startNetworkFaultProxy(
         return
       }
       const { host, port } = target
-      const tunnel: Tunnel = { host, openedAt: Date.now(), client }
+      // Armed first, so the connection that arms the rules is not one opened before them.
+      if (pending) proxy.arm(pending)
+      const tunnel: Tunnel = { host, openedAt: performance.now(), client }
       tunnels.add(tunnel)
       client.on('error', () => close(tunnel))
       client.once('close', () => close(tunnel))
 
-      if (pending) proxy.arm(pending)
       const index = select(host)
       if (index === -1) {
         passThrough(tunnel, head, port, (outcome) =>
@@ -323,7 +324,7 @@ export async function startNetworkFaultProxy(
       const validated = validateNetworkRules(next)
       disarm()
       rules = validated.map((rule) => ({ ...rule, matching: 0, applied: 0 }))
-      armedAt = Date.now()
+      armedAt = performance.now()
       active = true
       for (const rule of rules.filter((rule) => rule.dropOpen)) {
         const startsAt = armedAt + (rule.fromMs ?? 0)
