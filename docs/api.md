@@ -48,6 +48,10 @@ probe.assertApplied();
 
 `exerciseApplication` represents your own test adapter or application controller. Calling `assertApplied()` is essential: it proves that every requested fault was consumed.
 
+## `startNetworkFaultProxy(options)`
+
+From `recovery-probe/net`. Starts a loopback HTTPS proxy that refuses, resets, stalls or delays whole connections per host, for clients that use `HTTPS_PROXY`. It returns `url`, `env()`, `arm(rules)`, `disarm()`, `dropOpen(host)`, `events()`, `summary()`, `assertApplied()` and `close()`. See [Network faults](net.md).
+
 ## `probeRecovery(browser, config)`
 
 Runs the baseline and the three default recovery checks used by the [JSON-configured runner](runner.md). For custom interactions or stronger assertions, prefer `withFault` inside your own test.

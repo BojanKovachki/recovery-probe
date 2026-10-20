@@ -82,6 +82,11 @@ test(
         packed.files.some((file) => file.path === 'dist/fetch-fault.d.mts'),
         'the declaration generated from the TypeScript source',
       )
+      for (const path of ['dist/net-fault.d.mts', 'docs/net.md'])
+        assert.ok(
+          packed.files.some((file) => file.path === path),
+          path,
+        )
       assert.ok(packed.files.some((file) => file.path === 'CHANGELOG.md'))
       assert.ok(
         packed.files.every(
@@ -129,6 +134,10 @@ const { createRequire } = await import('node:module');
 assert.equal(typeof createRequire(import.meta.url)('recovery-probe/ipc').installIpcProbe, 'function');
 const desktop = await import('recovery-probe/desktop');
 assert.equal(typeof desktop.checkDesktop, 'function');
+const { startNetworkFaultProxy } = await import('recovery-probe/net');
+const network = await startNetworkFaultProxy({ rules: [{ host: 'example.test', fault: 'refuse' }] });
+assert.equal(network.env().HTTPS_PROXY, network.url);
+await network.close();
 const server = createServer((request, response) => {
   response.setHeader('Content-Type', 'application/json');
   response.end(JSON.stringify({ result: 'consumer received real data' }));
@@ -161,6 +170,7 @@ try {
 import { createFaultFetch, type FetchFaultStats } from 'recovery-probe/fetch';
 import { installIpcProbe, type IpcProbe } from 'recovery-probe/ipc';
 import { connectIpcInspector } from 'recovery-probe/ipc-inspector';
+import { startNetworkFaultProxy, type NetworkFaultProxy, type NetworkFaultRule } from 'recovery-probe/net';
 const inspector = await connectIpcInspector();
 const snapshot = await inspector.call('snapshot');
 const timestamp: number | null | undefined = snapshot?.channels['fixture:read'].lastCompletedAt;
@@ -179,7 +189,11 @@ const response: Promise<Response> = probe.fetch('https://example.test/data');
 const stats: FetchFaultStats = probe.assertApplied();
 // @ts-expect-error Unsupported faults must be rejected by the public types.
 createFaultFetch(fetch, { url: 'https://example.test/data', kind: 'not-a-fault' });
-void response; void stats;
+const rule: NetworkFaultRule = { host: 'example.test', fault: 'stall', untilMs: 1000 };
+const network: Promise<NetworkFaultProxy> = startNetworkFaultProxy({ rules: [rule] });
+// @ts-expect-error Network faults fail whole connections; they have no HTTP status.
+startNetworkFaultProxy({ rules: [{ host: 'example.test', fault: 'http-error' }] });
+void response; void stats; void network;
 `,
       )
       await exec(
