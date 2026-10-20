@@ -82,6 +82,22 @@ const MAX_EVENTS = 10_000
 const ESTABLISHED = 'HTTP/1.1 200 Connection Established\r\n\r\n'
 const REFUSED = 'HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n'
 
+const CONTROL_PATH = '/recovery-probe/network/'
+const CONTROL_HEADER = 'x-recovery-probe'
+const MAX_CONTROL_BODY = 64 * 1024
+
+const readJson = async (request: IncomingMessage): Promise<unknown> => {
+  const chunks: Buffer[] = []
+  let size = 0
+  for await (const chunk of request as AsyncIterable<Buffer>) {
+    size += chunk.length
+    if (size > MAX_CONTROL_BODY)
+      throw Object.assign(new Error('Request too large'), { status: 413 })
+    chunks.push(chunk)
+  }
+  return size ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : undefined
+}
+
 const isWholeNumber = (value: unknown): value is number =>
   Number.isInteger(value) && (value as number) >= 0
 
@@ -150,6 +166,8 @@ export async function startNetworkFaultProxy(
     rules?: NetworkFaultRule[]
     /** Arm `rules` on the first connection, so their windows start with the app. */
     armOnFirstConnection?: boolean
+    /** Answer `connectNetworkFaults` on the proxy's own address. */
+    control?: boolean
   } = {},
 ): Promise<NetworkFaultProxy> {
   // Validated before listening, so invalid rules leave no server behind.
@@ -227,9 +245,44 @@ export async function startNetworkFaultProxy(
     upstream.once('close', () => close(tunnel))
   }
 
-  const server = createServer((_request, response) => {
-    // Plain HTTP is not routed here; only HTTPS tunnels are.
-    response.writeHead(501).end('Recovery Probe tunnels HTTPS (CONNECT) only')
+  const control = async (action: string, body: unknown): Promise<unknown> => {
+    const { rules, host } = (body ?? {}) as { rules?: unknown; host?: unknown }
+    if (action === 'summary') return summary()
+    if (action === 'arm') {
+      proxy.arm(rules as NetworkFaultRule[])
+      return {}
+    }
+    if (action === 'disarm') {
+      disarm()
+      return {}
+    }
+    if (action === 'drop')
+      return { dropped: dropOpen(typeof host === 'string' ? host : undefined) }
+    throw Object.assign(new Error('Unknown control action'), { status: 404 })
+  }
+
+  const server = createServer((request, response) => {
+    const reply = (status: number, body: unknown) =>
+      response
+        .writeHead(status, { 'content-type': 'application/json' })
+        .end(JSON.stringify(body))
+    if (!options.control || !request.url?.startsWith(CONTROL_PATH)) {
+      // Plain HTTP is not routed here; only HTTPS tunnels are.
+      response.writeHead(501).end('Recovery Probe tunnels HTTPS (CONNECT) only')
+      return
+    }
+    // A web page cannot send this header without a preflight, which is never answered.
+    if (request.headers[CONTROL_HEADER] !== 'network') {
+      reply(403, { error: `Send the ${CONTROL_HEADER}: network header` })
+      return
+    }
+    readJson(request)
+      .then((body) => control(request.url!.slice(CONTROL_PATH.length), body))
+      .then(
+        (result) => reply(200, result),
+        (error: Error & { status?: number }) =>
+          reply(error.status ?? 400, { error: error.message }),
+      )
   })
 
   server.on(
@@ -361,4 +414,40 @@ export async function startNetworkFaultProxy(
   if (initialRules && options.armOnFirstConnection) pending = initialRules
   else if (initialRules) proxy.arm(initialRules)
   return proxy
+}
+
+export interface NetworkFaultControl {
+  arm(rules: NetworkFaultRule[]): Promise<void>
+  disarm(): Promise<void>
+  dropOpen(host?: string): Promise<number>
+  summary(): Promise<NetworkFaultSummary>
+}
+
+/** Controls a proxy started with `control: true`, such as `recovery-probe net`. */
+export function connectNetworkFaults(url: string): NetworkFaultControl {
+  const base = new URL(url)
+  if (!['127.0.0.1', 'localhost', '[::1]'].includes(base.hostname))
+    throw new TypeError('The network control must be a loopback URL')
+  const call = async (action: string, body?: unknown): Promise<unknown> => {
+    const response = await fetch(new URL(`${CONTROL_PATH}${action}`, base), {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: { [CONTROL_HEADER]: 'network' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    })
+    const result = (await response.json().catch(() => ({}))) as {
+      error?: string
+    }
+    if (!response.ok)
+      throw new Error(
+        `Network control ${action} failed (${response.status})${result.error ? `: ${result.error}` : ''}`,
+      )
+    return result
+  }
+  return {
+    arm: async (rules) => void (await call('arm', { rules })),
+    disarm: async () => void (await call('disarm', {})),
+    dropOpen: async (host) =>
+      ((await call('drop', { host })) as { dropped: number }).dropped,
+    summary: async () => (await call('summary')) as NetworkFaultSummary,
+  }
 }

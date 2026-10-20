@@ -188,6 +188,28 @@ If the selected target completes more than two reads per sample on average, per-
 
 Each step has exactly one of `mark` (start a new interval and wait for it), `navigate` (same-document `#fragment` only; a document load would reset the state under observation), `click` (exactly one visible match, real input events through Playwright), `waitFor` (first visible match) or `wait` (milliseconds). `name` and `timeoutMs` are optional. Steps start once the capture is observing, run in order, and stop when the capture ends. A failed or unfinished script is reported in `operator` and adds the `OPERATOR_STEPS_INCOMPLETE` coverage gap. The validated steps are saved as a private `steps.json` next to the report. Without `--steps`, observation still never acts.
 
+### Network steps (0.5.0-preview.10)
+
+With `--network URL`, steps can also take hosts away from the app's own HTTPS connections through a running [`recovery-probe net`](net.md). Use them when the app's data comes through native code, such as an SDK in the main process. Start `recovery-probe net` without `--rules` first, start the app with its `HTTPS_PROXY`, then pass its URL to `--network`.
+
+```json
+[
+  { "mark": true },
+  {
+    "network": { "host": "api.example.com", "fault": "stall", "dropOpen": true }
+  },
+  { "wait": 20000 },
+  { "mark": true },
+  { "network": "restore" },
+  { "wait": 20000 },
+  { "mark": true }
+]
+```
+
+`network` takes one rule or a list, with the fields of [network rules](net.md#rules); their windows count from the step, and each set replaces the previous one. `"restore"` removes the faults. The capture also removes them when it ends, even after a failure. Compare the intervals as usual: what the screen kept or lost while the host was away, and whether it came back after the restore.
+
+The report's mode becomes `observation with network faults`, and `network` lists what each step's rules faulted. A rule that faulted no connection adds `NETWORK_FAULT_NOT_TRIGGERED`. Faults that could not be removed add `NETWORK_FAULTS_NOT_RESTORED`; stop `recovery-probe net` to restore the app's network.
+
 ## Interpretation
 
 Local `report.json` and `report.html` contain interval read counts, starts/completions, first-content sample bounds, and a change-only sampled timeline. `scenario.json` records the selected scope. No screenshots, response bodies, IPC arguments, push payloads or raw UI values are saved; tracked row keys are hashed and row states are kept only when allowlisted. Region text and repeated values are hashed; hashes are **not anonymization**, particularly for predictable text. Treat reports and selectors as private evidence.

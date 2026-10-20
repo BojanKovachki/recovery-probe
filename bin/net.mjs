@@ -5,14 +5,15 @@ import {
 } from '../dist/net-fault.mjs'
 
 const USAGE =
-  'recovery-probe net --rules FILE [--port N] [--duration MS] [--out FILE] [--json]'
+  'recovery-probe net [--rules FILE] [--port N] [--duration MS] [--out FILE] [--json]'
 
 const HELP = `${USAGE}
 
 Runs a loopback HTTPS proxy that fails whole connections per host, for apps whose
 native code (an SDK, a main process, a CLI) makes its own HTTPS requests. Start the
 app with HTTPS_PROXY set to the printed URL. Rule windows count from the first
-connection. Stops on Ctrl+C or after --duration. See docs/net.md.`
+connection. Without --rules, connections pass until observe --network arms faults
+from its steps. Stops on Ctrl+C or after --duration. See docs/net.md.`
 
 const seconds = (ms) => `${(ms / 1000).toFixed(1)} s`
 
@@ -41,7 +42,7 @@ function parseArgs(args) {
       i++
     } else throw Error(`Use ${USAGE}`)
   }
-  if (!options.rules) throw Error('--rules required')
+
   for (const key of ['port', 'duration'])
     if (options[key] !== undefined) {
       options[key] = Number(options[key])
@@ -82,14 +83,16 @@ export async function netMain(args) {
     return
   }
   const options = parseArgs(args)
-  const parsed = JSON.parse(await readFile(options.rules, 'utf8'))
-  const rules = validateNetworkRules(
-    Array.isArray(parsed) ? parsed : parsed?.rules,
-  )
+  let rules
+  if (options.rules) {
+    const parsed = JSON.parse(await readFile(options.rules, 'utf8'))
+    rules = validateNetworkRules(Array.isArray(parsed) ? parsed : parsed?.rules)
+  }
   const proxy = await startNetworkFaultProxy({
     port: options.port,
     rules,
     armOnFirstConnection: true,
+    control: true,
   })
 
   let printed = 0
@@ -111,8 +114,11 @@ Start the app with:
   HTTPS_PROXY=${proxy.url}
   NO_PROXY=${proxy.env().NO_PROXY}
 
-Rules, timed from the first connection:
-${rules.map(describe).join('\n')}
+${
+  rules
+    ? `Rules, timed from the first connection:\n${rules.map(describe).join('\n')}`
+    : `No rules: connections pass until observe --network ${proxy.url} arms some.`
+}
 
 Faulted connections:`)
     watch = setInterval(printFaults, 250)
@@ -125,7 +131,8 @@ Faulted connections:`)
 
   const summary = proxy.summary()
   const events = proxy.events()
-  const triggered = summary.rules.every((rule) => rule.applied > 0)
+  // Rules armed through the control are judged by the run that armed them.
+  const triggered = !rules || summary.rules.every((rule) => rule.applied > 0)
   const report = {
     tool: 'recovery-probe',
     mode: 'network faults',

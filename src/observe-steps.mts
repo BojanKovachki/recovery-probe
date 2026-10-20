@@ -1,9 +1,11 @@
 import type { Locator, Page } from 'playwright'
 import { selectorSpec, type SelectorSpec } from './observation-kit.mjs'
+import { validateNetworkRules, type NetworkFaultRule } from './net-fault.mjs'
 
 // Opt-in scripted operator for `observe --steps` and `ipc --action`. Steps act on the
-// app (same-document navigation, clicks, typing, key presses, waits and interval marks);
-// observation itself never acts. Typed values are never written to reports.
+// app (same-document navigation, clicks, typing, key presses, waits and interval marks)
+// or, for observe, on its network through `recovery-probe net`; observation itself
+// never acts. Typed values are never written to reports.
 const NAME = /^[\w.-]{1,40}$/
 const KEY = /^[A-Za-z0-9+]{1,40}$/
 const KINDS = [
@@ -14,6 +16,7 @@ const KINDS = [
   'press',
   'waitFor',
   'wait',
+  'network',
 ] as const
 // The extra property a kind needs besides its selector.
 const ARGUMENTS: Partial<Record<(typeof KINDS)[number], string>> = {
@@ -28,7 +31,15 @@ export type ObservationStep = { name?: string } & (
   | { kind: 'click' | 'waitFor'; target: SelectorSpec; timeoutMs: number }
   | { kind: 'fill'; target: SelectorSpec; value: string; timeoutMs: number }
   | { kind: 'press'; target: SelectorSpec; key: string; timeoutMs: number }
+  // `null` restores the network.
+  | { kind: 'network'; rules: NetworkFaultRule[] | null }
 )
+
+/** Applies network steps; `step` is the index of the step that asked. */
+export interface NetworkStepControl {
+  arm(rules: NetworkFaultRule[], step: number): Promise<void>
+  restore(step: number): Promise<void>
+}
 
 export interface StepResult {
   index: number
@@ -41,7 +52,10 @@ export interface StepResult {
   endedMs?: number
 }
 
-export function observationSteps(input: unknown): ObservationStep[] {
+export function observationSteps(
+  input: unknown,
+  { network = false }: { network?: boolean } = {},
+): ObservationStep[] {
   const steps = Array.isArray(input)
     ? input
     : (input as { steps?: unknown } | null | undefined)?.steps
@@ -75,6 +89,23 @@ export function observationSteps(input: unknown): ObservationStep[] {
     if (kind === 'mark') {
       if (step.mark !== true) throw Error(`steps[${i}].mark must be true`)
       return { kind, ...named }
+    }
+    if (kind === 'network') {
+      if (!network)
+        throw Error(
+          `steps[${i}].network needs a network control: observe --network URL`,
+        )
+      if (step.network === 'restore') return { kind, rules: null, ...named }
+      try {
+        const rules = validateNetworkRules(
+          Array.isArray(step.network) ? step.network : [step.network],
+        )
+        return { kind, rules, ...named }
+      } catch (error) {
+        throw Error(`steps[${i}].network: ${(error as Error).message}`, {
+          cause: error,
+        })
+      }
     }
     if (kind === 'navigate') {
       // Same-document fragment navigation only: a document load would reset the state under observation.
@@ -163,11 +194,13 @@ export async function runSteps(
     signal,
     elapsed,
     log = () => {},
+    network,
   }: {
     mark: () => Promise<number | null>
     signal: AbortSignal
     elapsed: () => number
     log?: (result: StepResult) => void
+    network?: NetworkStepControl
   },
 ): Promise<StepResult[]> {
   const results: StepResult[] = []
@@ -194,7 +227,13 @@ export async function runSteps(
           new Promise((resolve) => setTimeout(resolve, step.ms)),
           signal,
         )
-      else if (step.kind === 'waitFor')
+      else if (step.kind === 'network') {
+        if (!network) throw Error('NETWORK_CONTROL_MISSING')
+        await abortable(
+          step.rules ? network.arm(step.rules, index) : network.restore(index),
+          signal,
+        )
+      } else if (step.kind === 'waitFor')
         await abortable(
           locate(page, step.target)
             .filter({ visible: true })

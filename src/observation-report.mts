@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module'
 import { escapeHtml, renderTemplate } from './report-template.mjs'
+import type { NetworkRuleSummary } from './net-fault.mjs'
 const { version } = createRequire(import.meta.url)('../package.json') as {
   version: string
 }
@@ -234,6 +235,32 @@ export interface ObservationOperator {
   steps?: unknown[]
 }
 
+export interface NetworkStepRecord {
+  /** Index of the step that armed or restored network faults. */
+  step: number
+  restored?: true
+  /** What the armed rules faulted while they applied; missing when unknown. */
+  rules?: NetworkRuleSummary[]
+}
+
+export interface ObservationNetwork {
+  faults: NetworkStepRecord[]
+  /** Why the faults could not be removed at the end. */
+  restoreError?: string
+}
+
+export const networkStepSummary = (record: NetworkStepRecord): string => {
+  if (record.restored) return `Step ${record.step}: network restored`
+  if (!record.rules)
+    return `Step ${record.step}: network faults armed; what they faulted is unknown`
+  return record.rules
+    .map(
+      (rule) =>
+        `Step ${record.step}: ${rule.fault} ${rule.host} faulted ${rule.applied} of ${rule.matching} matching connection(s)`,
+    )
+    .join('; ')
+}
+
 /** An observation report. Optional fields may be missing from older or failed captures. */
 export interface ObservationReport {
   schemaVersion?: number
@@ -263,6 +290,7 @@ export interface ObservationReport {
   rows?: TrackedRow[] | null
   notes?: ObservationNote[]
   operator?: ObservationOperator | null
+  network?: ObservationNetwork
   injected?: number
   reloads?: number
   cleanup?: string
@@ -660,6 +688,9 @@ export function renderObservationReport(report: ObservationReport): string {
   const operatorHtml = report.operator
     ? `<p>Scripted steps: ${escapeHtml(report.operator.status)}${report.operator.error ? ` — ${escapeHtml(report.operator.error)}` : ''}.</p>`
     : ''
+  const networkHtml = report.network
+    ? `<ul>${report.network.faults.map((record) => `<li>${escapeHtml(networkStepSummary(record))}</li>`).join('')}</ul>${report.network.restoreError ? `<p>Network faults were not removed: ${escapeHtml(report.network.restoreError)}</p>` : ''}`
+    : ''
   const samplingHtml = sampling
     ? `<p>Configured delay: ${sampling.requestedDelayMs} ms. Completed samples: ${sampling.completedSamples}. Mean sample duration: ${sampling.sampleDuration.meanMs ?? 'unavailable'} ms. Mean start-to-start cadence: ${sampling.startToStart.meanMs ?? 'unavailable'} ms (maximum ${sampling.startToStart.maxMs ?? 'unavailable'} ms).</p><p>${escapeHtml(sampling.note)}</p>`
     : ''
@@ -684,7 +715,7 @@ export function renderObservationReport(report: ObservationReport): string {
     limitation: report.limitation ?? report.error,
     intervals,
     findings,
-    operator: operatorHtml,
+    operator: operatorHtml + networkHtml,
     actions: actionsHtml,
     trackedRows,
     notes,

@@ -59,6 +59,13 @@ The first rule that matches a connection applies.
 
 - Exit code 0: every rule faulted at least one connection.
 - Exit code 2, `FAULT_NOT_TRIGGERED`: a rule faulted none. Check that the app uses `HTTPS_PROXY` and that the host names match.
+- Without `--rules`, the exit code is 0: the run that armed faults through the control reports on them.
+
+## Use it with observe
+
+Without `--rules`, `net` only passes connections through until something arms faults through its control. [`observe --network URL`](observe.md#network-steps-050-preview10) does that from network steps, so the screen is sampled while hosts are away and after they come back. Code can use the same control with `connectNetworkFaults(url)`.
+
+The control listens on the proxy's own loopback address and answers only requests with the `x-recovery-probe: network` header. A web page cannot send that header without a preflight, which the proxy never answers.
 
 ## Use it from code
 
@@ -73,4 +80,4 @@ proxy.assertApplied() // Throws FAULT_NOT_TRIGGERED when nothing was faulted.
 await proxy.close()
 ```
 
-`arm` replaces the rules and starts their windows. `startNetworkFaultProxy({ rules, armOnFirstConnection: true })` starts them with the first connection, as the command does. `dropOpen(host)`, `events()`, `summary()` and `disarm()` are also available.
+`arm` replaces the rules and starts their windows. `startNetworkFaultProxy({ rules, armOnFirstConnection: true })` starts them with the first connection, as the command does, and `control: true` enables the control. `dropOpen(host)`, `events()`, `summary()` and `disarm()` are also available.
