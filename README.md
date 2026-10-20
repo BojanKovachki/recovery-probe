@@ -4,6 +4,8 @@
 
 Apps can show the wrong data without any error: a list that disappears after one failed read, a cached screen that never picks up a change, or a row whose state lags behind data the app already received. Recovery Probe reproduces these cases on demand. It injects bounded faults into data reads and compares the screen with a healthy run, or it watches reads and the screen without any fault. Each run writes a local report that separates what it measured from what it suspects.
 
+Use it while you build, not only after. An AI coding agent can call it [over MCP](#use-it-from-an-ai-coding-agent) to see what the screen does when a read fails before it claims the code handles that.
+
 Installing the package does not add recovery behavior to your application.
 
 [![CI](https://github.com/BojanKovachki/recovery-probe/actions/workflows/validate.yml/badge.svg)](https://github.com/BojanKovachki/recovery-probe/actions/workflows/validate.yml)
@@ -34,6 +36,7 @@ npx recovery-probe --demo
 | Compare an Electron screen under IPC faults | `recovery-probe ipc --discover --config FILE` | [IPC setup and discovery](docs/ipc.md) |
 | Check what users see when a save or send fails in Electron | `recovery-probe ipc --action --config FILE` | [IPC action check](docs/ipc.md#action-check-050-preview8) |
 | Fail an SDK's or main process's own HTTPS connections | `recovery-probe net --rules FILE`, or network steps in `observe --network URL` | [Network faults](docs/net.md) |
+| Let an AI coding agent check what the screen does when a read fails | `recovery-probe mcp` | [AI coding agents (MCP)](docs/mcp.md) |
 | See whether a failure made the app delete local content | `recovery-probe observe --config FILE --files DIR` | [Local files](docs/observe.md#local-files-050-preview11) |
 | Test a refresh after content has already loaded | `recovery-probe refresh --config FILE --json` | [Refresh experiments](docs/refresh.md) |
 | Watch cached content and row states after user actions, without faults | `recovery-probe observe --config FILE [--steps FILE]` | [Observation](docs/observe.md) |
@@ -52,6 +55,22 @@ npx recovery-probe --demo
 - **Native HTTPS clients that use `HTTPS_PROXY`**, such as an SDK in the main process: fail whole connections per host with `recovery-probe net`.
 
 Desktop support means Electron, not arbitrary native applications. IPC faults do not exercise native networking, HTTP status handling or token refresh. Network faults reach native networking, but only whole connections: they cannot return an HTTP status inside HTTPS. An unsupported data path is inconclusive, never a successful recovery check.
+
+## Use it from an AI coding agent
+
+`recovery-probe mcp` serves the checks as MCP tools, so an agent can verify its own error handling instead of assuming it:
+
+```bash
+claude mcp add recovery-probe -- npx recovery-probe mcp
+```
+
+The agent can then:
+- list the reads behind a page;
+- fail one of them and see whether the screen recovers;
+- run a network fault proxy for an SDK or a main process;
+- run the other commands.
+
+A caught fault comes with a fix brief and a script to reproduce it. The server tells the agent to report outcomes as they are: a pass covers only what was checked, and an inconclusive run is never a pass. See [AI coding agents (MCP)](docs/mcp.md).
 
 ## Add a recovery check to a Playwright test
 

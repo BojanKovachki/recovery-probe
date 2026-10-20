@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { execFile } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
 import {
   mkdtemp,
@@ -300,6 +300,28 @@ void checkWeb(webConfig);
       )
       assert.match(observeHelp.stdout, /No reload/)
       assert.ok(packed.files.some((file) => file.path === 'docs/observe.md'))
+      // The installed package answers an agent's MCP handshake.
+      const mcp = await new Promise((resolve, reject) => {
+        const server = spawn(process.execPath, [cli, 'mcp'], {
+          cwd: consumer,
+          stdio: ['pipe', 'pipe', 'inherit'],
+        })
+        let output = ''
+        server.stdout.on('data', (chunk) => {
+          output += chunk
+          if (output.includes('\n')) {
+            server.stdin.end()
+            resolve(JSON.parse(output.split('\n')[0]))
+          }
+        })
+        server.on('error', reject)
+        server.stdin.write(
+          `${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'consumer', version: '0' } } })}\n`,
+        )
+      })
+      assert.equal(mcp.result.serverInfo.name, 'recovery-probe')
+      assert.equal(mcp.result.serverInfo.version, version)
+      assert.ok(packed.files.some((file) => file.path === 'docs/mcp.md'))
       const desktopHelp = await exec(
         process.execPath,
         [cli, 'desktop', '--help'],
