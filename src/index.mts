@@ -1,18 +1,75 @@
+import type { Browser, Page, Route } from 'playwright'
+import type { FaultKind } from './fetch-fault.mjs'
 export { createFaultFetch } from './fetch-fault.mjs'
+export type {
+  FaultKind,
+  FetchFaultOptions,
+  FetchFaultStats,
+} from './fetch-fault.mjs'
 
-const modes = new Set(['http-error', 'connection-failure', 'invalid-json'])
+export interface FaultOptions {
+  match: string | RegExp
+  kind: FaultKind
+  status?: number
+  count?: number
+  method?: string
+}
 
-export const defaultFaults = Object.freeze([
-  Object.freeze({ name: 'HTTP 503 once', kind: 'http-error', status: 503 }),
+export interface FaultStats {
+  kind: FaultKind
+  requested: number
+  applied: number
+  injectionErrors: number
+}
+
+export interface RecoveryConfig {
+  name?: string
+  url: string
+  requestPattern: string
+  readySelector: string
+  retrySelector: string
+  timeoutMs?: number
+}
+
+export interface ProbeRow {
+  scenario: string
+  outcome: 'pass' | 'fail' | 'inconclusive' | 'skipped'
+  code: string
+  applied: number
+}
+
+const modes = new Set<string>([
+  'http-error',
+  'connection-failure',
+  'invalid-json',
+])
+
+export const defaultFaults: readonly Readonly<{
+  name: string
+  kind: FaultKind
+  status?: number
+}>[] = Object.freeze([
+  Object.freeze({
+    name: 'HTTP 503 once',
+    kind: 'http-error' as const,
+    status: 503,
+  }),
   Object.freeze({
     name: 'Interrupted request once',
-    kind: 'connection-failure',
+    kind: 'connection-failure' as const,
   }),
-  Object.freeze({ name: 'Malformed JSON once', kind: 'invalid-json' }),
+  Object.freeze({ name: 'Malformed JSON once', kind: 'invalid-json' as const }),
 ])
 
 export class ProbeError extends Error {
-  constructor(code, message, stats, cause) {
+  code: string
+  stats: FaultStats
+  constructor(
+    code: string,
+    message: string,
+    stats: FaultStats,
+    cause?: unknown,
+  ) {
     super(message, cause ? { cause } : undefined)
     this.name = 'ProbeError'
     this.code = code
@@ -20,7 +77,8 @@ export class ProbeError extends Error {
   }
 }
 
-function checkFault(options) {
+// Options come from JavaScript callers too, so every field is checked at runtime.
+function checkFault(options: FaultOptions) {
   if (
     !options ||
     !(
@@ -50,22 +108,26 @@ function checkFault(options) {
 }
 
 /** Inject a bounded fault for one explicitly matched endpoint, then restore routing. */
-export async function withFault(page, options, exercise) {
+export async function withFault(
+  page: Page,
+  options: FaultOptions,
+  exercise: () => Promise<void>,
+): Promise<FaultStats> {
   const { count, status, method } = checkFault(options)
   if (typeof exercise !== 'function')
     throw new TypeError('exercise must be a function')
   let reserved = 0
   let applied = 0
   let injectionErrors = 0
-  const pending = new Set()
-  const stats = () => ({
+  const pending = new Set<Promise<void>>()
+  const stats = (): FaultStats => ({
     kind: options.kind,
     requested: count,
     applied,
     injectionErrors,
   })
 
-  const handler = async (route) => {
+  const handler = async (route: Route) => {
     if (route.request().method() !== method || reserved >= count) {
       await route.fallback()
       return
@@ -104,9 +166,9 @@ export async function withFault(page, options, exercise) {
   }
 
   await page.route(options.match, handler)
-  let exerciseError
+  let exerciseError: unknown
   let exerciseFailed = false
-  let cleanupError
+  let cleanupError: unknown
   try {
     await exercise()
   } catch (error) {
@@ -149,14 +211,16 @@ export async function withFault(page, options, exercise) {
   return stats()
 }
 
-function checkScenario(config) {
+function checkScenario(config: RecoveryConfig) {
+  const fields = config as unknown as Record<string, unknown> | undefined
   for (const name of [
     'url',
     'requestPattern',
     'readySelector',
     'retrySelector',
   ]) {
-    if (typeof config?.[name] !== 'string' || !config[name].trim())
+    const value = fields?.[name]
+    if (typeof value !== 'string' || !value.trim())
       throw new TypeError(`${name} is required`)
   }
   const parsed = new URL(config.url)
@@ -171,10 +235,13 @@ function checkScenario(config) {
 }
 
 /** Check a read-only page that automatically loads data and exposes a Retry button. */
-export async function probeRecovery(browser, config) {
+export async function probeRecovery(
+  browser: Browser,
+  config: RecoveryConfig,
+): Promise<{ name: string; ok: boolean; results: ProbeRow[] }> {
   const timeoutMs = checkScenario(config)
-  const results = []
-  async function inPage(fn) {
+  const results: ProbeRow[] = []
+  const inPage = async <T,>(fn: (page: Page) => Promise<T>): Promise<T> => {
     const context = await browser.newContext({ serviceWorkers: 'block' })
     try {
       const page = await context.newPage()
@@ -186,7 +253,7 @@ export async function probeRecovery(browser, config) {
     }
   }
 
-  let baselineError
+  let baselineError: unknown
   try {
     await inPage(async (page) => {
       await page.goto(config.url, { waitUntil: 'domcontentloaded' })
@@ -236,14 +303,15 @@ export async function probeRecovery(browser, config) {
           applied: stats.applied,
         })
       } catch (error) {
+        const failure = error as Partial<ProbeError>
         results.push({
           scenario: fault.name,
           outcome:
-            error.code === 'RECOVERY_ASSERTION_FAILED'
+            failure.code === 'RECOVERY_ASSERTION_FAILED'
               ? 'fail'
               : 'inconclusive',
-          code: error.code ?? 'RUNNER_ERROR',
-          applied: error.stats?.applied ?? 0,
+          code: failure.code ?? 'RUNNER_ERROR',
+          applied: failure.stats?.applied ?? 0,
         })
       }
     }

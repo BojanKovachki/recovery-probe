@@ -1,9 +1,81 @@
+import type { Browser, Page, Request, Response, Route } from 'playwright'
+import type { FaultKind } from './fetch-fault.mjs'
 import { defaultFaults } from './index.mjs'
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-const kinds = new Set(defaultFaults.map((f) => f.kind))
+export interface DesktopConfig {
+  cdp?: string
+  page?: number
+  pageUrl: string
+  endpoint: string
+  readySelector: string
+  readyText?: string
+  busySelector?: string
+  recovery?: 'retry' | 'automatic'
+  retrySelector?: string
+  timeoutMs?: number
+  baselineTimeoutMs?: number
+  recoveryTimeoutMs?: number
+  times?: number
+  faults?: FaultKind[]
+}
 
-export function pageIdentity(raw) {
+/** A configuration after validation: defaults applied, the endpoint and page normalized. */
+export type ValidDesktopConfig = DesktopConfig &
+  Required<
+    Pick<
+      DesktopConfig,
+      | 'recovery'
+      | 'timeoutMs'
+      | 'baselineTimeoutMs'
+      | 'recoveryTimeoutMs'
+      | 'times'
+      | 'faults'
+    >
+  >
+
+export interface DesktopRow {
+  kind: FaultKind
+  outcome: 'pass' | 'fail' | 'inconclusive' | 'skipped'
+  code: string
+  applied: number
+  successfulResponsesAfterFault: number
+  retryClicked: boolean
+  recoveryMs?: number | null
+  screenshot?: string
+  evidenceCaptureFailed?: boolean
+}
+
+export interface DesktopReport {
+  schemaVersion: number
+  mode: string
+  generatedAt: string
+  endpoint: string
+  recovery: string
+  timeoutMs: number
+  baselineTimeoutMs: number
+  recoveryTimeoutMs: number
+  times: number
+  results: DesktopRow[]
+  finalReset: string
+  ok: boolean
+  limitation: string
+}
+
+export interface DesktopDiscovery {
+  pageUrl: string
+  endpoints: {
+    endpoint: string
+    method: string
+    observed: number
+    queryValuesOmitted: boolean
+  }[]
+  limitation: string
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+const kinds = new Set<string>(defaultFaults.map((f) => f.kind))
+
+export function pageIdentity(raw: string): string {
   const u = new URL(raw)
   u.username = ''
   u.password = ''
@@ -11,8 +83,12 @@ export function pageIdentity(raw) {
   u.hash = ''
   return u.href
 }
-export function validateDesktopConfig(input) {
-  const config = {
+
+// Configurations also come from JSON files, so every field is checked at runtime.
+export function validateDesktopConfig(
+  input: DesktopConfig,
+): ValidDesktopConfig {
+  const config: Record<string, unknown> = {
     times: 1,
     timeoutMs: 5000,
     recovery: 'retry',
@@ -20,21 +96,24 @@ export function validateDesktopConfig(input) {
     ...input,
   }
   for (const key of ['pageUrl', 'endpoint', 'readySelector']) {
-    if (typeof config[key] !== 'string' || !config[key].trim())
+    const value = config[key]
+    if (typeof value !== 'string' || !value.trim())
       throw new Error(`${key} is required`)
   }
   for (const key of ['baselineTimeoutMs', 'recoveryTimeoutMs']) {
     config[key] ??= config.timeoutMs
+    const value = config[key]
     if (
-      !Number.isInteger(config[key]) ||
-      config[key] < 200 ||
-      config[key] > 60000
+      !Number.isInteger(value) ||
+      (value as number) < 200 ||
+      (value as number) > 60000
     )
       throw new Error(`Invalid ${key}`)
   }
-  if (!Number.isInteger(config.times) || config.times < 1 || config.times > 10)
+  const times = config.times as number
+  if (!Number.isInteger(times) || times < 1 || times > 10)
     throw new Error('times must be 1–10')
-  const endpoint = new URL(config.endpoint)
+  const endpoint = new URL(config.endpoint as string)
   if (
     !['http:', 'https:'].includes(endpoint.protocol) ||
     endpoint.username ||
@@ -47,8 +126,8 @@ export function validateDesktopConfig(input) {
     )
   }
   config.endpoint = endpoint.href
-  config.pageUrl = pageIdentity(config.pageUrl)
-  if (!['retry', 'automatic'].includes(config.recovery))
+  config.pageUrl = pageIdentity(config.pageUrl as string)
+  if (!['retry', 'automatic'].includes(config.recovery as string))
     throw new Error('recovery must be retry or automatic')
   if (
     config.recovery === 'retry' &&
@@ -56,34 +135,30 @@ export function validateDesktopConfig(input) {
   )
     throw new Error('retrySelector is required for retry recovery')
   for (const key of ['busySelector', 'readyText']) {
-    if (
-      config[key] !== undefined &&
-      (typeof config[key] !== 'string' || !config[key].trim())
-    )
+    const value = config[key]
+    if (value !== undefined && (typeof value !== 'string' || !value.trim()))
       throw new Error(`${key} must be a non-empty string`)
   }
-  if (
-    !Number.isInteger(config.timeoutMs) ||
-    config.timeoutMs < 200 ||
-    config.timeoutMs > 60000
-  )
+  const timeoutMs = config.timeoutMs as number
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 200 || timeoutMs > 60000)
     throw new Error('timeoutMs must be 200–60000')
+  const faults = config.faults
   if (
-    !Array.isArray(config.faults) ||
-    !config.faults.length ||
-    new Set(config.faults).size !== config.faults.length ||
-    config.faults.some((f) => !kinds.has(f))
+    !Array.isArray(faults) ||
+    !faults.length ||
+    new Set(faults).size !== faults.length ||
+    faults.some((f) => !kinds.has(f))
   )
     throw new Error('faults must contain unique supported fault kinds')
-  if (
-    config.page !== undefined &&
-    (!Number.isInteger(config.page) || config.page < 0)
-  )
+  const page = config.page
+  if (page !== undefined && (!Number.isInteger(page) || (page as number) < 0))
     throw new Error('page must be a non-negative integer')
-  return config
+  return config as unknown as ValidDesktopConfig
 }
 
-export async function connectDesktop(cdp = 'http://127.0.0.1:9222') {
+export async function connectDesktop(
+  cdp = 'http://127.0.0.1:9222',
+): Promise<Browser> {
   const url = new URL(cdp)
   if (
     !['http:', 'ws:'].includes(url.protocol) ||
@@ -99,13 +174,18 @@ export async function connectDesktop(cdp = 'http://127.0.0.1:9222') {
   // call with a browserContextId (for example Electron 29).
   return chromium.connectOverCDP(cdp, { timeout: 10000, noDefaults: true })
 }
-export function desktopPages(browser) {
+
+export function desktopPages(browser: Browser): Page[] {
   return browser
     .contexts()
     .flatMap((context) => context.pages())
     .filter((page) => !page.url().startsWith('devtools:'))
 }
-export function selectDesktopPage(browser, { page: index, pageUrl } = {}) {
+
+export function selectDesktopPage(
+  browser: Browser,
+  { page: index, pageUrl }: { page?: number; pageUrl?: string } = {},
+): Page {
   const pages = desktopPages(browser)
   if (index !== undefined) {
     if (!Number.isInteger(index) || index < 0 || !pages[index])
@@ -123,7 +203,8 @@ export function selectDesktopPage(browser, { page: index, pageUrl } = {}) {
     )
   return matches[0]
 }
-function isReadRequest(request, page, endpoint) {
+
+function isReadRequest(request: Request, page: Page, endpoint?: string) {
   if (
     request.method() !== 'GET' ||
     !['fetch', 'xhr'].includes(request.resourceType())
@@ -141,21 +222,25 @@ function isReadRequest(request, page, endpoint) {
 
 /** Reload the current renderer and observe metadata only. No faults are injected. */
 export async function discoverDesktop(
-  page,
-  { durationMs = 5000, maxEndpoints = 50 } = {},
-) {
+  page: Page,
+  {
+    durationMs = 5000,
+    maxEndpoints = 50,
+  }: { durationMs?: number; maxEndpoints?: number } = {},
+): Promise<DesktopDiscovery> {
   if (!Number.isInteger(durationMs) || durationMs < 200 || durationMs > 30000)
     throw new Error('durationMs must be 200–30000')
-  const found = new Map()
-  const listener = (response) => {
+  const found = new Map<string, DesktopDiscovery['endpoints'][number]>()
+  const listener = (response: Response) => {
     const request = response.request()
     if (!isReadRequest(request, page) || !response.ok()) return
     const contentType = response.headers()['content-type'] ?? ''
     if (!/\bjson\b|\+json\b/i.test(contentType)) return
     const endpoint = pageIdentity(response.url())
     if (!/^https?:/.test(endpoint)) return
-    if (found.has(endpoint)) {
-      found.get(endpoint).observed += 1
+    const known = found.get(endpoint)
+    if (known) {
+      known.observed += 1
       return
     }
     if (found.size >= maxEndpoints) return
@@ -181,7 +266,7 @@ export async function discoverDesktop(
   }
 }
 
-async function healthy(page, config) {
+async function healthy(page: Page, config: ValidDesktopConfig) {
   const ready = page.locator(config.readySelector)
   if ((await ready.count()) !== 1 || !(await ready.isVisible())) return false
   if (
@@ -196,7 +281,11 @@ async function healthy(page, config) {
   }
   return true
 }
-async function waitUntil(fn, timeoutMs) {
+
+async function waitUntil(
+  fn: () => boolean | Promise<boolean>,
+  timeoutMs: number,
+) {
   const deadline = Date.now() + timeoutMs
   do {
     if (await fn()) return true
@@ -204,9 +293,10 @@ async function waitUntil(fn, timeoutMs) {
   } while (Date.now() < deadline)
   return false
 }
-async function baseline(page, config) {
+
+async function baseline(page: Page, config: ValidDesktopConfig) {
   let successes = 0
-  const listener = (response) => {
+  const listener = (response: Response) => {
     if (
       isReadRequest(response.request(), page, config.endpoint) &&
       response.ok()
@@ -231,17 +321,29 @@ async function baseline(page, config) {
 }
 
 /** Tests one explicitly selected GET endpoint in the existing renderer, leaving the app open. */
-export async function checkDesktop(page, input, { onFailure } = {}) {
+export async function checkDesktop(
+  page: Page,
+  input: DesktopConfig,
+  {
+    onFailure,
+  }: { onFailure?: (page: Page, row: DesktopRow) => Promise<void> } = {},
+): Promise<DesktopReport> {
   const config = validateDesktopConfig(input)
   if (pageIdentity(page.url()) !== config.pageUrl)
     throw new Error('The selected page does not match pageUrl')
   // Validate locator syntax before changing page state. A typo must not be a reported app bug.
-  for (const key of ['readySelector', 'retrySelector', 'busySelector'])
-    if (config[key]) await page.locator(config[key]).count()
+  for (const key of [
+    'readySelector',
+    'retrySelector',
+    'busySelector',
+  ] as const) {
+    const selector = config[key]
+    if (selector) await page.locator(selector).count()
+  }
   // CDP can attach to a background Electron window. Activate the selected page
   // so real actionability checks receive animation frames; never force clicks.
   await page.bringToFront()
-  const report = {
+  const report: DesktopReport = {
     schemaVersion: 1,
     mode: 'desktop renderer recovery',
     generatedAt: new Date().toISOString(),
@@ -259,7 +361,7 @@ export async function checkDesktop(page, input, { onFailure } = {}) {
   }
   let stop = false
   for (const kind of config.faults) {
-    const row = {
+    const row: DesktopRow = {
       kind,
       outcome: 'inconclusive',
       code: 'BASELINE_FAILED',
@@ -278,15 +380,15 @@ export async function checkDesktop(page, input, { onFailure } = {}) {
       continue
     }
     let reserved = 0
-    let injectedAt
+    let injectedAt: number | undefined
     let injected = false
     let injectionError = false
-    let stage = 'setup'
+    let stage: 'setup' | 'reload' | 'retry' | 'recovery' = 'setup'
     let routeInstalled = false
-    const injectedRequests = new Set()
-    const pending = new Set()
-    const match = (url) => pageIdentity(url.href) === config.endpoint
-    const handler = async (route) => {
+    const injectedRequests = new Set<Request>()
+    const pending = new Set<Promise<void>>()
+    const match = (url: URL) => pageIdentity(url.href) === config.endpoint
+    const handler = async (route: Route) => {
       if (
         reserved >= config.times ||
         !isReadRequest(route.request(), page, config.endpoint)
@@ -324,12 +426,12 @@ export async function checkDesktop(page, input, { onFailure } = {}) {
     }
     // Track a successful request that started AFTER the injected request was reserved.
     // Exclude the deliberately fulfilled malformed-JSON response (HTTP 200).
-    const candidates = new Set()
-    const requestListener = (request) => {
+    const candidates = new Set<Request>()
+    const requestListener = (request: Request) => {
       if (!isReadRequest(request, page, config.endpoint)) return
       if (reserved === config.times) candidates.add(request)
     }
-    const responseListener = (response) => {
+    const responseListener = (response: Response) => {
       if (
         candidates.has(response.request()) &&
         !injectedRequests.has(response.request())
@@ -338,7 +440,7 @@ export async function checkDesktop(page, input, { onFailure } = {}) {
         if (response.ok()) row.successfulResponsesAfterFault++
       }
     }
-    const failedListener = (request) => candidates.delete(request)
+    const failedListener = (request: Request) => candidates.delete(request)
     page.on('request', requestListener)
     page.on('response', responseListener)
     page.on('requestfailed', failedListener)
@@ -360,15 +462,18 @@ export async function checkDesktop(page, input, { onFailure } = {}) {
       } else {
         if (config.recovery === 'retry') {
           stage = 'retry'
-          const retry = page.locator(config.retrySelector)
+          // Validation requires a retry selector for retry recovery.
+          const retry = page.locator(config.retrySelector!)
           await retry.waitFor({ state: 'visible', timeout: config.timeoutMs })
           await retry.click({ timeout: config.timeoutMs })
           row.retryClicked = true
         }
         stage = 'recovery'
+        // The fault was applied, so the handler stamped its time.
+        const startedAt = injectedAt!
         const remainingMs = Math.max(
           0,
-          config.recoveryTimeoutMs - (Date.now() - injectedAt),
+          config.recoveryTimeoutMs - (Date.now() - startedAt),
         )
         const recovered =
           (await waitUntil(
@@ -376,10 +481,10 @@ export async function checkDesktop(page, input, { onFailure } = {}) {
               row.successfulResponsesAfterFault > 0 &&
               (await healthy(page, config)),
             remainingMs,
-          )) && Date.now() - injectedAt <= config.recoveryTimeoutMs
+          )) && Date.now() - startedAt <= config.recoveryTimeoutMs
         row.outcome = recovered ? 'pass' : 'fail'
         row.code = recovered ? 'RECOVERED' : 'RECOVERY_NOT_OBSERVED'
-        row.recoveryMs = recovered ? Date.now() - injectedAt : null
+        row.recoveryMs = recovered ? Date.now() - startedAt : null
       }
     } catch {
       if (stage === 'setup') {
