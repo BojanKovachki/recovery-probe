@@ -57,7 +57,7 @@ npx recovery-probe --demo
 - **Electron apps that read over IPC**: add a development-only hook to the main process.
 - **JavaScript code that takes a fetch function**: use `recovery-probe/fetch`, without Playwright.
 - **Native HTTPS clients that use `HTTPS_PROXY`**, such as an SDK in the main process: fail whole connections per host with `recovery-probe net`.
-- **Android WebViews** with WebView debugging enabled (experimental): `recovery-probe android` makes them inspectable like a desktop page.
+- **Android WebViews** with WebView debugging enabled (experimental): `recovery-probe android` makes them inspectable like a desktop page. On a Meta Quest, `--keep-awake` lets checks run without anyone wearing the headset.
 
 Desktop support means Electron, not arbitrary native applications. IPC faults do not exercise native networking, HTTP status handling or token refresh. Network faults reach native networking, but only whole connections: they cannot return an HTTP status inside HTTPS. An unsupported data path is inconclusive, never a successful recovery check.
 

@@ -149,3 +149,104 @@ export async function forwardAndroidDevtools(
   }
   return { cdp, port: forwarded, remove }
 }
+
+export interface AndroidDisplayState {
+  /** A Meta Quest headset, recognised by its manufacturer or Guardian. */
+  quest: boolean
+  awake: boolean
+  /** The package of the window with input focus, such as com.oculus.guardian. */
+  focus?: string
+}
+
+// A broadcast namespace of the Quest system, not an installed package.
+const QUEST_POWER_MANAGER = 'com.oculus.vrpowermanager'
+const GUARDIAN = 'com.oculus.guardian'
+const GUARDIAN_PAUSE = 'debug.oculus.guardian_pause'
+
+const isQuest = async (run: AdbRunner) => {
+  const manufacturer = await run([
+    'shell',
+    'getprop',
+    'ro.product.manufacturer',
+  ])
+  if (/^(oculus|meta)$/i.test(manufacturer.trim())) return true
+  return run(['shell', 'pm', 'path', GUARDIAN]).then(
+    (output) => output.includes('package:'),
+    () => false,
+  )
+}
+
+/** Whether the display is awake and which app has focus: a page draws no frames otherwise. */
+export async function androidDisplayState(
+  run: AdbRunner,
+): Promise<AndroidDisplayState> {
+  const power = await run(['shell', 'dumpsys', 'power'])
+  const window = await run(['shell', 'dumpsys', 'window'])
+  const quest = await isQuest(run)
+  const focus = /mCurrentFocus=Window\{\S+ \S+ ([\w.]+)\//.exec(window)?.[1]
+  return {
+    quest,
+    awake: /mWakefulness=Awake/.test(power),
+    ...(focus ? { focus } : {}),
+  }
+}
+
+/** Why a page on this display would draw no frames, if it would not. */
+export function displayProblems(state: AndroidDisplayState): string[] {
+  const problems: string[] = []
+  if (!state.awake)
+    problems.push(
+      'The display is asleep, so the page draws no frames: clicks time out and the screen does not update.',
+    )
+  if (state.focus === GUARDIAN)
+    problems.push(
+      'The Guardian boundary dialog is in front of the app, so the app draws no frames.',
+    )
+  return problems
+}
+
+export interface KeptAwake {
+  /** Puts Guardian and the display's proximity handling back as they were. */
+  restore(): Promise<void>
+}
+
+/**
+ * Keeps a Quest's display awake without anyone wearing it, and pauses the
+ * Guardian boundary dialog that would otherwise take focus from the app.
+ */
+export async function keepQuestAwake(run: AdbRunner): Promise<KeptAwake> {
+  const previous = (await run(['shell', 'getprop', GUARDIAN_PAUSE])).trim()
+  const restoreCommands = [
+    ['shell', 'setprop', GUARDIAN_PAUSE, previous || '0'],
+    [
+      'shell',
+      'am',
+      'broadcast',
+      '-a',
+      `${QUEST_POWER_MANAGER}.automation_disable`,
+    ],
+  ]
+  const restore = async () => {
+    const failures: string[] = []
+    for (const args of restoreCommands)
+      await run(args).catch((error: Error) => failures.push(error.message))
+    if (failures.length)
+      throw new Error(
+        `Could not restore the headset (${failures.join('; ')}); run ${restoreCommands.map((args) => `adb ${args.join(' ')}`).join(' and ')}`,
+      )
+  }
+  try {
+    await run([
+      'shell',
+      'am',
+      'broadcast',
+      '-a',
+      `${QUEST_POWER_MANAGER}.prox_close`,
+    ])
+    await run(['shell', 'setprop', GUARDIAN_PAUSE, '1'])
+  } catch (error) {
+    await restore().catch(() => {})
+    throw error
+  }
+  return { restore }
+}

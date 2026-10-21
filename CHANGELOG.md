@@ -4,6 +4,13 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.5.0-preview.17 (2026-10-21)
+
+- **`recovery-probe android --keep-awake`** keeps a Meta Quest's display awake and pauses the Guardian boundary until the forward stops, then restores both. Checks can then run on a headset that nobody wears.
+- `android` warns when the display is asleep or the Guardian dialog has focus. The page then draws no frames, and clicks time out.
+- Checks that record the window state now tell a visible page apart from one that only reports itself visible: `visible-not-rendering` (no frames) or `visible-without-viewport` (no size). They also say so on the terminal.
+- Checked on a Quest 2: discovery and a recovery check on a production app's WebView, and clicks with `--keep-awake`. See docs/android.md.
+
 ## 0.5.0-preview.16 (2026-10-20)
 
 - **`recovery-probe watch [PATH...] [-- CHECK]`** watches source files while you work. After each save it scans the changed files for suspects and reruns the check against the running development app. It compares the run with the first one and the one before, by the rules of `compare`.
