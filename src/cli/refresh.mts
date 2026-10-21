@@ -1,3 +1,4 @@
+import { signals } from './until-stopped.mjs'
 import { readFile, mkdir, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -70,8 +71,8 @@ export async function refreshMain(args: string[]) {
   await writeFile(resolve(directory, '.gitignore'), '*\n', { mode: 0o600 })
   const abort = new AbortController()
   const onSignal = () => abort.abort()
-  process.on('SIGINT', onSignal)
-  process.on('SIGTERM', onSignal)
+  signals.on('SIGINT', onSignal)
+  signals.on('SIGTERM', onSignal)
   let browser: Browser | undefined,
     control: IpcInspector | undefined,
     visibility: PreparedVisibility | undefined
@@ -149,8 +150,8 @@ export async function refreshMain(args: string[]) {
       current.ok = false
       current.disconnectError = (error as Error).message
     }
-    process.off('SIGINT', onSignal)
-    process.off('SIGTERM', onSignal)
+    signals.off('SIGINT', onSignal)
+    signals.off('SIGTERM', onSignal)
   }
   await writeFile(
     resolve(directory, 'scenario.json'),

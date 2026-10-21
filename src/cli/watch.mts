@@ -1,3 +1,4 @@
+import { signals } from './until-stopped.mjs'
 import { relative, sep } from 'node:path'
 import type { RunEvidence } from '../compare.mjs'
 import {
@@ -156,7 +157,7 @@ export async function watchMain(args: string[]) {
     )
     controller.abort()
   }
-  process.on('SIGINT', onSignal)
+  signals.on('SIGINT', onSignal)
   try {
     const result = await runWatch({
       ...options,
@@ -167,6 +168,6 @@ export async function watchMain(args: string[]) {
       console.log(`Pull request block: ${shown(result.directory)}/summary.md`)
     process.exitCode = result.latest?.exitCode ?? 0
   } finally {
-    process.off('SIGINT', onSignal)
+    signals.off('SIGINT', onSignal)
   }
 }

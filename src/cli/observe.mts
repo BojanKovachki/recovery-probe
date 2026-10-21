@@ -1,3 +1,4 @@
+import { signals } from './until-stopped.mjs'
 import { readFile, mkdir, writeFile, mkdtemp, stat } from 'node:fs/promises'
 import { resolve, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -130,8 +131,8 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
   await writeFile(join(directory, '.gitignore'), '*\n', { mode: 0o600 })
   const abort = new AbortController()
   const stop = () => abort.abort()
-  process.on('SIGINT', stop)
-  process.on('SIGTERM', stop)
+  signals.on('SIGINT', stop)
+  signals.on('SIGTERM', stop)
   let control: IpcInspector | undefined
   let input: Interface | undefined
   let browser: Browser | undefined,
@@ -258,8 +259,8 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
       current.captureComplete = false
       current.disconnectError = (error as Error).message
     }
-    process.off('SIGINT', stop)
-    process.off('SIGTERM', stop)
+    signals.off('SIGINT', stop)
+    signals.off('SIGTERM', stop)
   }
   if (networkEvidence) applyNetworkEvidence(report, networkEvidence)
   let filePaths
