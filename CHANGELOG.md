@@ -4,6 +4,10 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.5.0-preview.20 (2026-10-21)
+
+- HTTP discovery (`web --attach --discover`), the guided setup (`recovery-probe start`) and its content picker are written in TypeScript. Their reports and prompts are unchanged.
+
 ## 0.5.0-preview.19 (2026-10-21)
 
 - The package root (`withFault`, `probeRecovery`), `recovery-probe/desktop` and `recovery-probe/web` are written in TypeScript. Their reports are unchanged.

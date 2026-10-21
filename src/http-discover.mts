@@ -3,18 +3,132 @@ import {
   retainPartialFindings,
 } from './discovery-control.mjs'
 import { performance } from 'node:perf_hooks'
+import type { Page } from 'playwright'
 import { pageIdentity } from './desktop.mjs'
+import type { DiscoveryFinding } from './discovery-report.mjs'
+import type { FaultKind } from './fetch-fault.mjs'
 import {
   readRegion,
   summarizeRegion,
   compareRegions,
   classifyObservation,
+  type RegionSummary,
 } from './ipc-observation.mjs'
 import { observeHttp } from './http-observer.mjs'
-import { prepareVisibility, windowVisibility } from './visibility.mjs'
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-export function httpDiscoveryConfig(input) {
-  const c = {
+import {
+  prepareVisibility,
+  windowVisibility,
+  type WindowVisibility,
+} from './visibility.mjs'
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+export interface HttpDiscoveryConfig {
+  endpoint: string
+  requiredEndpoints: string[]
+  cdp: string
+  page?: number
+  pageUrl?: string
+  times: number
+  faults: FaultKind[]
+  baselineTimeoutMs: number
+  recoveryTimeoutMs: number
+  settleMs: number
+  repeats: number
+  regionSelector?: string
+  restoreWindow: boolean
+}
+
+type HttpObserver = Awaited<ReturnType<typeof observeHttp>>
+type HttpSnapshot = ReturnType<HttpObserver['snapshot']>
+type CoverageEntry = ReturnType<HttpObserver['coverage']>[number]
+
+interface DiscoveryEvent {
+  elapsedMs: number
+  ui: RegionSummary
+  channels: HttpSnapshot['channels']
+  injected: number
+}
+
+interface DiscoveryPhase {
+  fault: FaultKind | 'healthy'
+  times: number
+  ready: boolean
+  elapsedMs: number
+  ui: RegionSummary
+  snapshot: HttpSnapshot
+  timeline: DiscoveryEvent[]
+  newErrors: number
+  recoveryMs: number | null
+  repeatedReads: {
+    code: 'REPEATED_READS'
+    endpoint: string
+    count: number
+    redundant: 'not-established'
+  }[]
+}
+
+interface DiscoveryRun extends DiscoveryPhase {
+  control: { ui: RegionSummary; snapshot: HttpSnapshot }
+  observation: ReturnType<typeof compareRegions> & {
+    injected: number
+    channels: HttpSnapshot['channels']
+    recoveryMs: number | null
+    repeatedReads: DiscoveryPhase['repeatedReads']
+  }
+  interpretation: ReturnType<typeof classifyObservation>
+}
+
+type PreparedVisibility = Awaited<ReturnType<typeof prepareVisibility>>
+
+export interface HttpDiscoveryReport {
+  schemaVersion: 2
+  mode: 'HTTP discovery'
+  baselines: DiscoveryPhase[]
+  results: DiscoveryRun[]
+  findings: DiscoveryFinding[]
+  coverage: CoverageEntry[]
+  finalReset: 'healthy' | 'not-verified'
+  ok: boolean
+  readiness: {
+    strategy: 'bounded-end-state-calibration'
+    calibrationRuns: number
+    calibrationWindowMs: number
+    calibrationComplete: boolean
+    relevantEndpoints: string[]
+    settleMs: number
+    note: string
+  }
+  limitation: string
+  window?: {
+    initial: WindowVisibility
+    restoration?: Awaited<ReturnType<PreparedVisibility['revert']>>
+  }
+  environment?: WindowVisibility & { online: boolean }
+  stoppedObservation?: {
+    reason: string
+    fault: FaultKind | 'healthy'
+    times: number
+    snapshot: HttpSnapshot | undefined
+    ui: RegionSummary | undefined
+    timeline: DiscoveryEvent[]
+  }
+  failedControl?: DiscoveryPhase & {
+    reasons: {
+      notReady: boolean
+      newErrors: number
+      fingerprintChanged: boolean
+    }
+    diff: ReturnType<typeof compareRegions>
+  }
+  cleanup?: DiscoveryPhase
+  error?: string
+  cleanupError?: string
+  windowRestoreError?: string
+}
+
+// Configurations also come from JSON files, so every field is checked at runtime.
+export function httpDiscoveryConfig(input: object): HttpDiscoveryConfig {
+  const c: Record<string, unknown> = {
     endpoint: undefined,
     requiredEndpoints: [],
     cdp: 'http://127.0.0.1:9222',
@@ -30,9 +144,10 @@ export function httpDiscoveryConfig(input) {
     restoreWindow: false,
   }
   for (const key of Object.keys(c))
-    if (Object.hasOwn(input, key)) c[key] = input[key]
-  const endpoint = (value) => {
-    const u = new URL(value)
+    if (Object.hasOwn(input, key))
+      c[key] = (input as Record<string, unknown>)[key]
+  const endpoint = (value: unknown) => {
+    const u = new URL(value as string)
     if (
       !['http:', 'https:'].includes(u.protocol) ||
       u.username ||
@@ -48,28 +163,36 @@ export function httpDiscoveryConfig(input) {
   c.endpoint = endpoint(c.endpoint)
   if (!Array.isArray(c.requiredEndpoints))
     throw new Error('requiredEndpoints must be an array')
-  c.requiredEndpoints = c.requiredEndpoints.map(endpoint)
-  if (
-    new Set([c.endpoint, ...c.requiredEndpoints]).size !==
-    c.requiredEndpoints.length + 1
-  )
+  const required = c.requiredEndpoints.map(endpoint)
+  c.requiredEndpoints = required
+  if (new Set([c.endpoint, ...required]).size !== required.length + 1)
     throw new Error('Use distinct endpoints')
-  for (const key of ['baselineTimeoutMs', 'recoveryTimeoutMs'])
-    if (!Number.isInteger(c[key]) || c[key] < 500 || c[key] > 30000)
+  for (const key of ['baselineTimeoutMs', 'recoveryTimeoutMs']) {
+    const value = c[key]
+    if (
+      !Number.isInteger(value) ||
+      (value as number) < 500 ||
+      (value as number) > 30000
+    )
       throw new Error(`${key} must be 500–30000`)
-  if (!Number.isInteger(c.times) || c.times < 1 || c.times > 10)
+  }
+  const times = c.times as number
+  if (!Number.isInteger(times) || times < 1 || times > 10)
     throw new Error('times must be 1–10')
-  if (!Number.isInteger(c.settleMs) || c.settleMs < 200 || c.settleMs > 5000)
+  const settleMs = c.settleMs as number
+  if (!Number.isInteger(settleMs) || settleMs < 200 || settleMs > 5000)
     throw new Error('settleMs must be 200–5000')
-  if (!Number.isInteger(c.repeats) || c.repeats < 1 || c.repeats > 3)
+  const repeats = c.repeats as number
+  if (!Number.isInteger(repeats) || repeats < 1 || repeats > 3)
     throw new Error('repeats must be 1–3')
+  const faults = c.faults
   if (
-    !Array.isArray(c.faults) ||
-    !c.faults.length ||
-    c.faults.some(
+    !Array.isArray(faults) ||
+    !faults.length ||
+    faults.some(
       (f) => !['http-error', 'connection-failure', 'invalid-json'].includes(f),
     ) ||
-    new Set(c.faults).size !== c.faults.length
+    new Set(faults).size !== faults.length
   )
     throw new Error('Invalid faults')
   if (
@@ -79,9 +202,13 @@ export function httpDiscoveryConfig(input) {
     throw new Error('Invalid regionSelector')
   if (typeof c.restoreWindow !== 'boolean')
     throw new Error('restoreWindow must be boolean')
-  return c
+  return c as unknown as HttpDiscoveryConfig
 }
-export async function discoverHttp(page, input) {
+
+export async function discoverHttp(
+  page: Page,
+  input: object,
+): Promise<HttpDiscoveryReport> {
   const config = httpDiscoveryConfig(input)
   const initialUrl = page.url()
   if (
@@ -89,7 +216,7 @@ export async function discoverHttp(page, input) {
     pageIdentity(initialUrl) !== pageIdentity(config.pageUrl)
   )
     throw new Error('Page identity mismatch')
-  const report = {
+  const report: HttpDiscoveryReport = {
     schemaVersion: 2,
     mode: 'HTTP discovery',
     baselines: [],
@@ -110,29 +237,29 @@ export async function discoverHttp(page, input) {
     limitation:
       'Synthetic GET fetch/XHR faults on the selected origin/path; query variants share the budget. Observed structural changes are not semantic proof of a defect. Native, IPC and service-worker-only traffic are not covered. No payloads, raw UI text or credentials are saved.',
   }
-  const coverage = new Map()
-  let visibility,
+  const coverage = new Map<string, CoverageEntry>()
+  let visibility: PreparedVisibility | undefined,
     errors = 0,
-    trustedFingerprint
+    trustedFingerprint: string | undefined
   const settleMs = config.settleMs
   const onError = () => errors++
   page.on('pageerror', onError)
   const phase = async (
-    fault,
+    fault: FaultKind | undefined,
     times = 1,
-    expectedFingerprint,
+    expectedFingerprint?: string,
     calibrate = false,
-  ) => {
+  ): Promise<DiscoveryPhase> => {
     const started = performance.now(),
       initialErrors = errors,
-      timeline = []
-    let observer,
-      snapshot,
-      ui,
-      previous,
-      previousEvent,
+      timeline: DiscoveryEvent[] = []
+    let observer: HttpObserver | undefined,
+      snapshot: HttpSnapshot | undefined,
+      ui: RegionSummary | undefined,
+      previous: string | undefined,
+      previousEvent: string | undefined,
       stableSince = started,
-      firstInjection
+      firstInjection: number | undefined
     try {
       observer = await observeHttp(page, { ...config, fault, times })
       await page.reload({
@@ -140,42 +267,44 @@ export async function discoverHttp(page, input) {
         timeout: config.baselineTimeoutMs,
       })
       while (true) {
-        snapshot = observer.snapshot()
-        ui = summarizeRegion(
+        const current = observer.snapshot()
+        snapshot = current
+        const summary = summarizeRegion(
           await page.evaluate(readRegion, config.regionSelector),
         )
-        if (!ui.visible || !ui.online) {
+        ui = summary
+        if (!summary.visible || !summary.online) {
           report.environment = {
             ...(await windowVisibility(page)),
-            online: ui.online,
+            online: summary.online,
           }
           throw new Error(
             'ENVIRONMENT_BLOCKED: ' + report.environment.diagnosis,
           )
         }
         if (page.url() !== initialUrl) throw new Error('TARGET_NAVIGATED')
-        if (snapshot.injectionError) throw new Error('INJECTION_ERROR')
-        if (snapshot.injectedAt && firstInjection === undefined)
+        if (current.injectionError) throw new Error('INJECTION_ERROR')
+        if (current.injectedAt && firstInjection === undefined)
           firstInjection = performance.now()
-        const signature = JSON.stringify(ui)
+        const signature = JSON.stringify(summary)
         if (signature !== previous) {
           stableSince = performance.now()
           previous = signature
         }
         const event = {
           elapsedMs: Math.round(performance.now() - started),
-          ui,
-          channels: snapshot.channels,
-          injected: snapshot.injected,
+          ui: summary,
+          channels: current.channels,
+          injected: current.injected,
         }
         const eventSignature = JSON.stringify({ ...event, elapsedMs: 0 })
         if (timeline.length < 100 && eventSignature !== previousEvent) {
           timeline.push(event)
           previousEvent = eventSignature
         }
-        const target = snapshot.channels[config.endpoint]
+        const target = current.channels[config.endpoint]
         const dependencies = config.requiredEndpoints.map(
-          (e) => snapshot.channels[e],
+          (e) => current.channels[e],
         )
         if (dependencies.some((r) => r.errors))
           throw new Error('DEPENDENCY_FAILED')
@@ -184,15 +313,15 @@ export async function discoverHttp(page, input) {
           target.pending === 0 &&
           dependencies.every((r) => r.successes > 0 && r.pending === 0)
         const ready =
-          matchesHealthyControl(ui, expectedFingerprint) &&
+          matchesHealthyControl(summary, expectedFingerprint) &&
           settled &&
-          !ui.loading &&
+          !summary.loading &&
           performance.now() - stableSince >= settleMs &&
           target.successes > 0 &&
           (!fault ||
-            (snapshot.injected === times &&
-              snapshot.successfulAfterFault > 0 &&
-              ui.fingerprint === trustedFingerprint))
+            (current.injected === times &&
+              current.successfulAfterFault > 0 &&
+              summary.fingerprint === trustedFingerprint))
         const elapsed = performance.now() - (firstInjection ?? started)
         if (
           (!calibrate && ready) ||
@@ -206,26 +335,27 @@ export async function discoverHttp(page, input) {
             times: fault ? times : 0,
             ready,
             elapsedMs: Math.round(performance.now() - started),
-            ui,
-            snapshot,
+            ui: summary,
+            snapshot: current,
             timeline,
             newErrors: errors - initialErrors,
+            // As before, a missing injection time counts as 0.
             recoveryMs:
-              fault && ready ? Date.now() - snapshot.injectedAt : null,
-            repeatedReads: Object.entries(snapshot.channels)
+              fault && ready ? Date.now() - (current.injectedAt ?? 0) : null,
+            repeatedReads: Object.entries(current.channels)
               .filter(([, r]) => r.realCalls > 1)
               .map(([endpoint, r]) => ({
-                code: 'REPEATED_READS',
+                code: 'REPEATED_READS' as const,
                 endpoint,
                 count: r.realCalls,
-                redundant: 'not-established',
+                redundant: 'not-established' as const,
               })),
           }
         await sleep(100)
       }
     } catch (error) {
       report.stoppedObservation ??= {
-        reason: error.message,
+        reason: (error as Error).message,
         fault: fault ?? 'healthy',
         times,
         snapshot,
@@ -259,7 +389,7 @@ export async function discoverHttp(page, input) {
     trustedFingerprint = report.baselines[0].ui.fingerprint
     report.readiness.calibrationComplete = true
     for (const fault of config.faults) {
-      const runs = []
+      const runs: DiscoveryRun[] = []
       for (let i = 0; i < config.repeats; i++) {
         const healthy = await phase(undefined, 1, trustedFingerprint)
         if (
@@ -279,23 +409,26 @@ export async function discoverHttp(page, input) {
           }
           throw new Error('CONTROL_UNSTABLE')
         }
-        const run = await phase(fault, config.times)
-        run.control = { ui: healthy.ui, snapshot: healthy.snapshot }
-        run.observation = {
-          ...compareRegions(healthy.ui, run.ui),
-          injected: run.snapshot.injected,
-          channels: run.snapshot.channels,
-          recoveryMs: run.recoveryMs,
-          repeatedReads: run.repeatedReads,
+        const result = await phase(fault, config.times)
+        const run: DiscoveryRun = {
+          ...result,
+          control: { ui: healthy.ui, snapshot: healthy.snapshot },
+          observation: {
+            ...compareRegions(healthy.ui, result.ui),
+            injected: result.snapshot.injected,
+            channels: result.snapshot.channels,
+            recoveryMs: result.recoveryMs,
+            repeatedReads: result.repeatedReads,
+          },
+          interpretation: classifyObservation({
+            baseline: healthy.ui,
+            final: result.ui,
+            injected: result.snapshot.injected,
+            expected: config.times,
+            recovered: result.ready,
+            newErrors: result.newErrors,
+          }),
         }
-        run.interpretation = classifyObservation({
-          baseline: healthy.ui,
-          final: run.ui,
-          injected: run.snapshot.injected,
-          expected: config.times,
-          recovered: run.ready,
-          newErrors: run.newErrors,
-        })
         runs.push(run)
         report.results.push(run)
       }
@@ -322,7 +455,7 @@ export async function discoverHttp(page, input) {
       })
     }
   } catch (error) {
-    report.error = error.message
+    report.error = (error as Error).message
   } finally {
     try {
       const cleanup = await phase(undefined, 1, trustedFingerprint)
@@ -335,12 +468,13 @@ export async function discoverHttp(page, input) {
           ? 'healthy'
           : 'not-verified'
     } catch (error) {
-      report.cleanupError = error.message
+      report.cleanupError = (error as Error).message
     }
     try {
-      if (visibility) report.window.restoration = await visibility.revert()
+      // The window state is recorded as soon as visibility is prepared.
+      if (visibility) report.window!.restoration = await visibility.revert()
     } catch (error) {
-      report.windowRestoreError = error.message
+      report.windowRestoreError = (error as Error).message
     }
     page.off('pageerror', onError)
   }
