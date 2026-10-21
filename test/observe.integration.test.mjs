@@ -476,33 +476,36 @@ test('brief content can be sampled, but a transition entirely between samples is
         document.querySelector('#view').innerHTML =
           '<section id="records-region"><li>steady</li></section>'
       })
-      let pulsed = false
-      const c = config({ observationMs: 800 })
+      let phase = 0
+      const c = config({ observationMs: 1500 })
+      const setContent = (text) =>
+        page.locator('#records-region li').evaluate((row, value) => {
+          row.textContent = value
+        }, text)
       const report = await runObservation(
         page,
         c,
         httpObservationAdapter(page, c),
         {
           onSample: async () => {
-            if (pulsed) return
-            pulsed = true
-            await page.evaluate(async (wait) => {
-              const row = document.querySelector('#records-region li')
-              row.textContent = 'brief-private-content'
-              const restore = new Promise((resolve) =>
-                setTimeout(
-                  () => {
-                    row.textContent = 'steady'
-                    resolve()
-                  },
-                  wait ? 20 : 250,
-                ),
-              )
-              if (wait) await restore // Prove the limitation with a pulse entirely between samples.
-            }, betweenSamples)
+            if (phase === 0) {
+              phase = 1
+              await setContent('brief-private-content')
+              // A slow sampler must not lose the fixture's intended sample.
+              // The previous 250 ms restoration timer raced this delay.
+              await new Promise((resolve) => setTimeout(resolve, 300))
+              if (betweenSamples) {
+                await setContent('steady')
+                phase = 2 // Restore before this callback lets sampling resume.
+              }
+            } else if (phase === 1) {
+              await setContent('steady')
+              phase = 2 // The pulse has now been sampled; restoration may follow.
+            }
           },
         },
       )
+      assert.equal(phase, 2, 'the fixture completed its pulse and restoration')
       assert.equal(report.captureComplete, true, JSON.stringify(report))
       const distinct = new Set(
         report.timeline.map((e) => e.ui.content?.textFingerprint),
