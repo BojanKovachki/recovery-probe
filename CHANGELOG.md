@@ -4,6 +4,10 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.5.0-preview.18 (2026-10-21)
+
+- Refresh experiments (`recovery-probe refresh`) are written in TypeScript. Their reports are unchanged.
+
 ## 0.5.0-preview.17 (2026-10-21)
 
 - **`recovery-probe android --keep-awake`** keeps a Meta Quest's display awake and pauses the Guardian boundary until the forward stops, then restores both. Checks can then run on a headset that nobody wears.
