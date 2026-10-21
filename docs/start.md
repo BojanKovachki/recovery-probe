@@ -10,8 +10,8 @@ Install the exact npm version after confirming availability:
 
 ```bash
 mkdir recovery-probe-tools && cd recovery-probe-tools
-npm view recovery-probe@0.4.0 version
-npm install --save-dev --save-exact recovery-probe@0.4.0 playwright@1.62.1
+npm view recovery-probe@0.5.0 version
+npm install --save-dev --save-exact recovery-probe@0.5.0 playwright@1.62.1
 npx recovery-probe start web http://localhost:3000
 ```
 

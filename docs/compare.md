@@ -1,4 +1,4 @@
-# Before and after (0.5.0-preview.15)
+# Before and after
 
 A fix is easier to trust with evidence: the same check showing the problem without the change and not with it. `recovery-probe compare` reads reports of the same check from before and after a change, such as main and a pull request branch. It says what happened to each problem the check found, and writes a Markdown block for the pull request.
 

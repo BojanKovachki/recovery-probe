@@ -1,4 +1,4 @@
-# Watch mode (0.5.0-preview.16)
+# Watch mode
 
 `recovery-probe watch` keeps the evidence current while you change code. After each save it:
 

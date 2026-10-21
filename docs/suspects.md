@@ -1,4 +1,4 @@
-# Suspect scanner (0.5.0-preview.14, experimental)
+# Suspect scanner (experimental)
 
 Some error handling loses data without showing an error. A failed read becomes an empty list, and the code after it clears the screen or deletes files. `recovery-probe suspects` reads JavaScript and TypeScript sources for two such patterns, without running them. Each suspect names the read to fail and the check that proves or dismisses it, so a lead from the code turns into an experiment on the running app.
 

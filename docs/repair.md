@@ -22,7 +22,7 @@ Node 22+, Git and Playwright Chromium are required. You do not have to modify yo
 mkdir recovery-probe-tools
 cd recovery-probe-tools
 npm init -y
-npm install --save-dev recovery-probe@0.4.0 playwright@1.62.1
+npm install --save-dev recovery-probe@0.5.0 playwright@1.62.1
 npx playwright install chromium
 npx recovery-probe --version
 ```
