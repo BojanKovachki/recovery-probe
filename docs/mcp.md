@@ -1,4 +1,4 @@
-# AI coding agents (MCP) (0.5.0-preview.12)
+# AI coding agents (MCP)
 
 An AI coding agent can say "this handles a failed request" without ever seeing one fail. `recovery-probe mcp` gives the agent the means to check first. It serves Recovery Probe as [Model Context Protocol](https://modelcontextprotocol.io) tools over stdio, so the agent can fail a read and see what the screen does while it is still writing the code. The same tools work for a developer who drives an agent, and for one who does not use an agent at all: they are the existing checks.
 
