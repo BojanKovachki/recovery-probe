@@ -1,4 +1,4 @@
-# Network faults (0.5.0-preview.9)
+# Network faults
 
 Some apps make their own HTTPS requests outside the page: an SDK, the Electron main process or a command-line tool. Recovery Probe's HTTP and IPC faults do not reach them. `recovery-probe net` does, one connection at a time: it runs a loopback HTTPS proxy, the app connects through it, and connections to the hosts you name are refused, reset, stalled or delayed.
 
@@ -63,7 +63,7 @@ The first rule that matches a connection applies.
 
 ## Use it with observe
 
-Without `--rules`, `net` only passes connections through until something arms faults through its control. [`observe --network URL`](observe.md#network-steps-050-preview10) does that from network steps, so the screen is sampled while hosts are away and after they come back. Code can use the same control with `connectNetworkFaults(url)`.
+Without `--rules`, `net` only passes connections through until something arms faults through its control. [`observe --network URL`](observe.md#network-steps) does that from network steps, so the screen is sampled while hosts are away and after they come back. Code can use the same control with `connectNetworkFaults(url)`.
 
 The control listens on the proxy's own loopback address and answers only requests with the `x-recovery-probe: network` header. A web page cannot send that header without a preflight, which the proxy never answers.
 
