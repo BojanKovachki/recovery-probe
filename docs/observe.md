@@ -3,7 +3,7 @@
 Available since **0.3.0**. Install an exact version and verify the CLI:
 
 ```bash
-npm install --save-dev --save-exact recovery-probe@0.4.0 playwright@1.62.1
+npm install --save-dev --save-exact recovery-probe@0.5.0 playwright@1.62.1
 npx recovery-probe --version
 ```
 
@@ -188,7 +188,7 @@ If the selected target completes more than two reads per sample on average, per-
 
 Each step has exactly one of `mark` (start a new interval and wait for it), `navigate` (same-document `#fragment` only; a document load would reset the state under observation), `click` (exactly one visible match, real input events through Playwright), `waitFor` (first visible match) or `wait` (milliseconds). `name` and `timeoutMs` are optional. Steps start once the capture is observing, run in order, and stop when the capture ends. A failed or unfinished script is reported in `operator` and adds the `OPERATOR_STEPS_INCOMPLETE` coverage gap. The validated steps are saved as a private `steps.json` next to the report. Without `--steps`, observation still never acts.
 
-### Network steps (0.5.0-preview.10)
+### Network steps
 
 With `--network URL`, steps can also take hosts away from the app's own HTTPS connections through a running [`recovery-probe net`](net.md). Use them when the app's data comes through native code, such as an SDK in the main process. Start `recovery-probe net` without `--rules` first, start the app with its `HTTPS_PROXY`, then pass its URL to `--network`.
 
@@ -210,7 +210,7 @@ With `--network URL`, steps can also take hosts away from the app's own HTTPS co
 
 The report's mode becomes `observation with network faults`, and `network` lists what each step's rules faulted. A rule that faulted no connection adds `NETWORK_FAULT_NOT_TRIGGERED`. Faults that could not be removed add `NETWORK_FAULTS_NOT_RESTORED`; stop `recovery-probe net` to restore the app's network.
 
-### Local files (0.5.0-preview.11)
+### Local files
 
 A failed read can cost more than a blank screen: an app that treats an unknown file list as an empty one deletes the content it has installed. `--files DIR` takes a snapshot of the regular files under a directory (their paths and sizes, never their contents) when the capture starts, at each new interval, and when it ends, and compares each interval's snapshots.
 
