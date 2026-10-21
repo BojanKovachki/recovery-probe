@@ -1,6 +1,5 @@
 // Builds dist/: the compiler emits the TypeScript sources with their declarations, and
-// the JavaScript not yet converted, hand-written declarations and report templates are
-// copied unchanged.
+// everything else under src/ (the report templates) is copied unchanged.
 import { cp, rm } from 'node:fs/promises'
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'

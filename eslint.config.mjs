@@ -13,21 +13,14 @@ const inPageModules = [
   'src/ipc-observation.mts',
   'src/observation-kit.mts',
   'src/observe-steps.mts',
-  'src/pick-marker.mjs',
-  'src/refresh.mjs',
+  'src/pick-marker.mts',
+  'src/refresh.mts',
   'src/visibility.mts',
 ]
 
 export default [
   {
-    ignores: [
-      'node_modules/',
-      'artifacts/',
-      '.recovery-probe/',
-      'dist/',
-      // Hand-written declarations for JavaScript modules; generated ones replace them.
-      'src/**/*.d.{ts,mts,cts}',
-    ],
+    ignores: ['node_modules/', 'artifacts/', '.recovery-probe/', 'dist/'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended.map((config) => ({
