@@ -4,6 +4,12 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.5.0-preview.19 (2026-10-21)
+
+- The package root (`withFault`, `probeRecovery`), `recovery-probe/desktop` and `recovery-probe/web` are written in TypeScript. Their reports are unchanged.
+- Their declarations are generated from the source instead of written by hand. They accept everything the old ones did and add `ValidDesktopConfig`, `DesktopDiscovery`, a typed `ProbeError` constructor, and the `baselineTimeoutMs`, `recoveryTimeoutMs` and `times` fields that `DesktopReport` already carried.
+- The root declarations moved from `dist/index.d.ts` to `dist/index.d.mts`. The `types` fields point to the new file.
+
 ## 0.5.0-preview.18 (2026-10-21)
 
 - Refresh experiments (`recovery-probe refresh`) are written in TypeScript. Their reports are unchanged.

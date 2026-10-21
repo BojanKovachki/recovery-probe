@@ -1,6 +1,27 @@
-import { checkDesktop, discoverDesktop } from './desktop.mjs'
+import type { Browser, BrowserContext, Page } from 'playwright'
+import {
+  checkDesktop,
+  discoverDesktop,
+  type DesktopConfig,
+  type DesktopDiscovery,
+  type DesktopReport,
+  type DesktopRow,
+} from './desktop.mjs'
 
-export async function openWeb(config) {
+export interface WebConfig extends Omit<DesktopConfig, 'cdp'> {
+  storageState?: string
+  headless?: boolean
+  startupTimeoutMs?: number
+}
+
+type WebSession = Pick<
+  WebConfig,
+  'pageUrl' | 'storageState' | 'headless' | 'startupTimeoutMs'
+>
+
+export async function openWeb(
+  config: WebSession,
+): Promise<{ browser: Browser; context: BrowserContext; page: Page }> {
   const url = new URL(config.pageUrl)
   if (
     !['http:', 'https:'].includes(url.protocol) ||
@@ -27,7 +48,10 @@ export async function openWeb(config) {
   }
 }
 
-export async function checkWeb(config, options) {
+export async function checkWeb(
+  config: WebConfig,
+  options?: { onFailure?: (page: Page, row: DesktopRow) => Promise<void> },
+): Promise<DesktopReport> {
   const session = await openWeb(config)
   try {
     const report = await checkDesktop(
@@ -42,7 +66,10 @@ export async function checkWeb(config, options) {
   }
 }
 
-export async function discoverWeb(config, options) {
+export async function discoverWeb(
+  config: WebSession,
+  options?: { durationMs?: number; maxEndpoints?: number },
+): Promise<DesktopDiscovery> {
   const session = await openWeb(config)
   try {
     return await discoverDesktop(session.page, options)
