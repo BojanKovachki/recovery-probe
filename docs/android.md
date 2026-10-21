@@ -1,4 +1,4 @@
-# Android WebViews (0.5.0-preview.13, experimental)
+# Android WebViews (experimental)
 
 Many Android apps show their screens in a WebView. When the app enables WebView debugging, its pages can be inspected over adb like a desktop debugging endpoint, so the same checks apply: page discovery, `observe`, and HTTP faults inside the page. `recovery-probe android` finds the app's DevTools socket, forwards a local port to it, and prints the URL.
 
@@ -23,7 +23,7 @@ npx recovery-probe desktop --cdp http://127.0.0.1:PORT --list
 
 or as `cdp` in an `observe` or `desktop` config.
 
-On a Meta Quest that nobody is wearing, add `--keep-awake` (0.5.0-preview.17), as explained in [Keep the app drawing](#keep-the-app-drawing):
+On a Meta Quest that nobody is wearing, add `--keep-awake`, as explained in [Keep the app drawing](#keep-the-app-drawing):
 
 ```bash
 npx recovery-probe android --package com.example.app --keep-awake
