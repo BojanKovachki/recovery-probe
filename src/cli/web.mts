@@ -2,10 +2,20 @@ import { attachMain } from './attach.mjs'
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { resolve, dirname, join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
-import { openWeb, checkWeb, discoverWeb } from '../dist/web.mjs'
-import { writeDesktopReport } from '../dist/desktop-report.mjs'
+import { openWeb, checkWeb, discoverWeb } from '../web.mjs'
+import { writeDesktopReport } from '../desktop-report.mjs'
 
-export async function webMain(args) {
+interface WebOptions {
+  login?: true
+  discover?: true
+  headed?: true
+  url?: string
+  state?: string
+  config?: string
+  out?: string
+}
+
+export async function webMain(args: string[]) {
   if (args.includes('--attach') && !args.includes('--help')) {
     const attached = args.filter((a) => a !== '--attach')
     if (
@@ -28,15 +38,16 @@ State contains credentials: never commit/share it. Automatic recovery needs no R
 Discovery writes a scenario template; fill its endpoint and data-dependent readySelector.`)
     return
   }
-  const options = {}
+  const options: WebOptions = {}
+  const set = options as Record<string, string | true>
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]
     if (['--login', '--discover', '--headed'].includes(arg))
-      options[arg.slice(2)] = true
+      set[arg.slice(2)] = true
     else if (['--url', '--state', '--config', '--out'].includes(arg)) {
       if (!args[i + 1] || args[i + 1].startsWith('--'))
         throw new Error(`${arg} needs a value`)
-      options[arg.slice(2)] = args[++i]
+      set[arg.slice(2)] = args[++i]
     } else throw new Error(`Unknown web option: ${arg}`)
   }
   if (
@@ -45,11 +56,13 @@ Discovery writes a scenario template; fill its endpoint and data-dependent ready
   )
     throw new Error('Choose --login, --discover, or --config')
   const configPath = options.config && resolve(options.config)
+  // The check validates the configuration file.
   const config = configPath
     ? JSON.parse(await readFile(configPath, 'utf8'))
     : { pageUrl: options.url }
   if (config.storageState)
-    config.storageState = resolve(dirname(configPath), config.storageState)
+    // Only a configuration file can name a storage state.
+    config.storageState = resolve(dirname(configPath!), config.storageState)
   if (options.state && !options.login)
     config.storageState = resolve(options.state)
   if (options.headed || options.login) config.headless = false

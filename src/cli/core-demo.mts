@@ -1,6 +1,11 @@
-#!/usr/bin/env node
 import { mkdir, writeFile } from 'node:fs/promises'
-import { runCoreDemo } from '../examples/core-demo.mjs'
+
+// The examples stay plain JavaScript, so this one is loaded by URL at run time.
+const { runCoreDemo } = (await import(
+  new URL('../../examples/core-demo.mjs', import.meta.url).href
+)) as {
+  runCoreDemo: () => Promise<{ expectedDemonstrationVerified: boolean }>
+}
 const report = await runCoreDemo()
 await mkdir('artifacts', { recursive: true })
 await writeFile(

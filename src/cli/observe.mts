@@ -1,41 +1,52 @@
 import { readFile, mkdir, writeFile, mkdtemp, stat } from 'node:fs/promises'
 import { resolve, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { createInterface } from 'node:readline'
-import {
-  connectDesktop,
-  selectDesktopPage,
-  desktopPages,
-} from '../dist/desktop.mjs'
-import { connectIpcInspector } from '../dist/ipc-inspector.mjs'
+import { createInterface, type Interface } from 'node:readline'
+import type { Browser, Page } from 'playwright'
+import { connectDesktop, selectDesktopPage, desktopPages } from '../desktop.mjs'
+import { connectIpcInspector, type IpcInspector } from '../ipc-inspector.mjs'
 import {
   observationConfig,
   runObservation,
   httpObservationAdapter,
   ipcObservationAdapter,
-} from '../dist/observe.mjs'
+} from '../observe.mjs'
 import {
   observationMetadata,
   samplingMetrics,
   observationSummary,
   renderObservationReport,
+  type ObservationReport,
   actionSummary,
   comparisonDigest,
   networkStepSummary,
-} from '../dist/observation-report.mjs'
-import { observationSteps, runSteps } from '../dist/observe-steps.mjs'
-import { connectNetworkFaults } from '../dist/net-fault.mjs'
-import { networkSteps, applyNetworkEvidence } from '../dist/observe-network.mjs'
+} from '../observation-report.mjs'
+import { observationSteps, runSteps } from '../observe-steps.mjs'
+import { connectNetworkFaults } from '../net-fault.mjs'
+import { networkSteps, applyNetworkEvidence } from '../observe-network.mjs'
 import {
   snapshotFiles,
   fileEvidence,
   applyFileEvidence,
-} from '../dist/file-evidence.mjs'
+} from '../file-evidence.mjs'
+
+type NetworkSteps = ReturnType<typeof networkSteps>
+type ObservationAdapter = Parameters<typeof runObservation>[2]
+
+interface ObserveOptions {
+  json?: true
+  interactive?: true
+  config?: string
+  out?: string
+  steps?: string
+  network?: string
+  files?: string
+}
 
 const USAGE =
   'observe --config FILE [--out NEW_DIRECTORY] [--json] [--interactive] [--steps FILE] [--network URL] [--files DIR]'
 
-export async function observeMain(args) {
+export async function observeMain(args: string[]) {
   if (!args.length || args.includes('--help')) {
     console.log(`recovery-probe ${USAGE}
 
@@ -56,10 +67,11 @@ removed or shrank (LOCAL_FILES_REMOVED, a lead). Paths stay in a private files.j
 IPC requires the observation-capable development hook. See docs/observe.md.`)
     return
   }
-  const options = {}
+  const options: ObserveOptions = {}
+  const set = options as Record<string, string | true>
   for (let i = 0; i < args.length; i++) {
     if (['--json', '--interactive'].includes(args[i]))
-      options[args[i].slice(2)] = true
+      set[args[i].slice(2)] = true
     else if (
       ['--config', '--out', '--steps', '--network', '--files'].includes(
         args[i],
@@ -67,7 +79,7 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
       args[i + 1] &&
       !args[i + 1].startsWith('--')
     )
-      options[args[i].slice(2)] = args[++i]
+      set[args[i].slice(2)] = args[++i]
     else throw Error(`Use ${USAGE}`)
   }
   if (!options.config) throw Error('--config is required')
@@ -79,19 +91,23 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
         network: Boolean(options.network),
       })
     : null
-  let filesDirectory
-  const fileSnapshots = []
+  let filesDirectory: string | undefined
+  const fileSnapshots: {
+    interval: number
+    snapshot: ReturnType<typeof snapshotFiles>
+  }[] = []
   if (options.files) {
     filesDirectory = resolve(options.files)
     if (!(await stat(filesDirectory).catch(() => null))?.isDirectory())
       throw Error('--files must name an existing directory')
   }
   // Started without waiting: walking a large directory must not delay sampling.
-  const takeFileSnapshot = (interval) => {
+  const takeFileSnapshot = (interval: number) => {
     if (filesDirectory)
       fileSnapshots.push({ interval, snapshot: snapshotFiles(filesDirectory) })
   }
-  let network, networkEvidence
+  let network: NetworkSteps | undefined
+  let networkEvidence: Awaited<ReturnType<NetworkSteps['finish']>> | undefined
   if (options.network) {
     const networkControl = connectNetworkFaults(options.network)
     await networkControl.summary().catch((error) => {
@@ -102,7 +118,7 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
     })
     network = networkSteps(networkControl)
   }
-  let directory
+  let directory: string
   if (options.out) {
     directory = resolve(options.out)
     await mkdir(directory, { mode: 0o700 })
@@ -116,30 +132,31 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
   const stop = () => abort.abort()
   process.on('SIGINT', stop)
   process.on('SIGTERM', stop)
-  /** @type {Awaited<ReturnType<typeof connectIpcInspector>> | undefined} */
-  let control
-  /** @type {import('node:readline').Interface | undefined} */
-  let input
-  let browser,
-    report,
+  let control: IpcInspector | undefined
+  let input: Interface | undefined
+  let browser: Browser | undefined,
+    report: ObservationReport | undefined,
     pendingMarkers = 0,
-    browserVersion = null
+    browserVersion: string | null = null
   try {
-    browser = await connectDesktop(config.cdp)
+    const attached = await connectDesktop(config.cdp)
+    browser = attached
     try {
-      browserVersion = await browser.version()
+      browserVersion = attached.version()
     } catch {
       /* Metadata may be unavailable on an attached runtime. */
     }
-    let page, adapter
+    let page: Page, adapter: ObservationAdapter
     if (config.transport === 'ipc') {
-      control = await connectIpcInspector(config.inspector)
-      const identity = await control.call('identify')
-      if (!identity.registered.includes(config.channel))
+      // IPC observation always has an inspector address after validation.
+      const inspector = await connectIpcInspector(config.inspector as string)
+      control = inspector
+      const identity = await inspector.call('identify')
+      if (!identity.registered.includes(config.channel as string))
         throw Error(
           'Configured read channel was not registered through the development hook',
         )
-      const pages = desktopPages(browser).filter(
+      const pages = desktopPages(attached).filter(
         (p) => p.url() === identity.pageUrl,
       )
       if (pages.length !== 1)
@@ -155,16 +172,16 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
         })
       }, nonce)
       try {
-        await control.call('identify', nonce)
+        await inspector.call('identify', nonce)
       } finally {
         await page.evaluate((value) => {
           if (globalThis.__recoveryProbeWindowNonce === value)
             delete globalThis.__recoveryProbeWindowNonce
         }, nonce)
       }
-      adapter = ipcObservationAdapter(control, config, identity.senderId)
+      adapter = ipcObservationAdapter(inspector, config, identity.senderId)
     } else {
-      page = selectDesktopPage(browser, config)
+      page = selectDesktopPage(attached, config)
       adapter = httpObservationAdapter(page, config)
     }
     report = await runObservation(page, config, adapter, {
@@ -203,7 +220,7 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
                 network,
                 log: (r) =>
                   console.error(
-                    `Step ${r.index} ${r.kind}${r.name ? ' ' + r.name : ''}: ${r.status} at ${(r.endedMs / 1000).toFixed(1)} s${r.error ? ' — ' + r.error : ''}`,
+                    `Step ${r.index} ${r.kind}${r.name ? ' ' + r.name : ''}: ${r.status} at ${((r.endedMs as number) / 1000).toFixed(1)} s${r.error ? ' — ' + r.error : ''}`,
                   ),
               }),
           }
@@ -222,8 +239,10 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
       reloads: 0,
       injected: 0,
     }
-    report.error = error.message
+    report.error = (error as Error).message
   } finally {
+    // The capture or its catch has set the report by now.
+    const current = report!
     // Taken before the network is restored: the state the capture ended in.
     if (fileSnapshots.length) takeFileSnapshot(0)
     if (network) networkEvidence = await network.finish()
@@ -235,9 +254,9 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
     try {
       await browser?.close()
     } catch (error) {
-      report.status = 'incomplete'
-      report.captureComplete = false
-      report.disconnectError = error.message
+      current.status = 'incomplete'
+      current.captureComplete = false
+      current.disconnectError = (error as Error).message
     }
     process.off('SIGINT', stop)
     process.off('SIGTERM', stop)
@@ -256,7 +275,8 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
     applyFileEvidence(report, evidence)
     filePaths = evidence.paths
   }
-  report.metadata.browserVersion = browserVersion
+  // Both the capture and the fallback report carry metadata.
+  report.metadata!.browserVersion = browserVersion
   await writeFile(
     join(directory, 'scenario.json'),
     JSON.stringify(config, null, 2),
@@ -316,7 +336,7 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
         `Network faults were not removed: ${report.network.restoreError}. Stop recovery-probe net to restore the app's network.`,
       )
     console.log(
-      `Sampling: ${config.detail}; requested delay ${config.sampleMs} ms; measured mean cadence ${report.sampling.startToStart.meanMs ?? 'unavailable'} ms.`,
+      `Sampling: ${config.detail}; requested delay ${config.sampleMs} ms; measured mean cadence ${report.sampling!.startToStart.meanMs ?? 'unavailable'} ms.`,
     )
     if (report.error) console.error(report.error)
     console.log(

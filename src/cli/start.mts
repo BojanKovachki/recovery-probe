@@ -1,7 +1,7 @@
-import { createInterface } from 'node:readline/promises'
-import { parseStartArgs, runStart } from '../dist/guided-start.mjs'
+import { createInterface, type Interface } from 'node:readline/promises'
+import { parseStartArgs, runStart, type StartIo } from '../guided-start.mjs'
 
-export async function startMain(args) {
+export async function startMain(args: string[]) {
   if (!args.length || args.includes('--help')) {
     console.log(`Recovery Probe guided start
   recovery-probe start web [URL] [--fresh] [--headless] [--dir FOLDER]
@@ -16,9 +16,8 @@ Local checks only: no source upload or AI repair. Native/Rust/IPC traffic is not
     return
   }
   const options = parseStartArgs(args)
-  /** @type {import('node:readline/promises').Interface | undefined} */
-  let terminal
-  const io = {
+  let terminal: Interface | undefined
+  const io: StartIo = {
     interactive: Boolean(process.stdin.isTTY),
     log: (text) => console.log(text),
     ask: async (prompt) => {

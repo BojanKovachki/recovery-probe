@@ -8,10 +8,22 @@ import {
   discoverDesktop,
   checkDesktop,
   validateDesktopConfig,
-} from '../dist/desktop.mjs'
-import { writeDesktopReport } from '../dist/desktop-report.mjs'
+} from '../desktop.mjs'
+import { writeDesktopReport } from '../desktop-report.mjs'
 
-export async function desktopMain(args) {
+interface DesktopOptions {
+  list?: true
+  discover?: true
+  screenshots?: true
+  cdp?: string
+  /** A string from the command line, a number once checked. */
+  page?: string | number
+  duration?: string
+  out?: string
+  config?: string
+}
+
+export async function desktopMain(args: string[]) {
   if (!args.length || args.includes('--help')) {
     console.log(`Recovery Probe desktop preview
 
@@ -29,17 +41,17 @@ Requests made by native SDKs/IPC and untouched app screens are outside this chec
 Reports stay local. Screenshots are opt-in and may contain private on-screen content.`)
     return
   }
-  const options = {}
+  const options: DesktopOptions = {}
+  const set = options as Record<string, string | true>
   const values = new Set(['--cdp', '--page', '--duration', '--out', '--config'])
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]
     const key = arg.slice(2)
-    if (['--list', '--discover', '--screenshots'].includes(arg))
-      options[key] = true
+    if (['--list', '--discover', '--screenshots'].includes(arg)) set[key] = true
     else if (values.has(arg)) {
       if (!args[i + 1] || args[i + 1].startsWith('--'))
         throw new Error(`${arg} needs a value`)
-      options[key] = args[++i]
+      set[key] = args[++i]
     } else throw new Error(`Unknown desktop option: ${arg}`)
   }
   if (
@@ -48,7 +60,7 @@ Reports stay local. Screenshots are opt-in and may contain private on-screen con
   )
     throw new Error('Choose one of --list, --discover, or --config')
   if (options.page !== undefined) {
-    if (!/^\d+$/.test(options.page))
+    if (!/^\d+$/.test(options.page as string))
       throw new Error('--page must be a non-negative integer')
     options.page = Number(options.page)
   }

@@ -1,5 +1,5 @@
 /** Waits for Ctrl+C, a termination signal or the duration, whichever comes first. */
-export function untilStopped(duration) {
+export function untilStopped(duration?: number): Promise<void> {
   return new Promise((resolve) => {
     const stop = () => {
       clearTimeout(timer)

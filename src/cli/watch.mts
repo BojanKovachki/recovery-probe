@@ -1,5 +1,11 @@
 import { relative, sep } from 'node:path'
-import { runWatch, validateWatchCommand } from '../dist/watch.mjs'
+import type { RunEvidence } from '../compare.mjs'
+import {
+  runWatch,
+  validateWatchCommand,
+  type WatchEvent,
+  type WatchOptions,
+} from '../watch.mjs'
 
 const USAGE =
   'recovery-probe watch [PATH...] [--settle MS] [--no-suspects] [--max-runs N] [--out NEW_DIRECTORY] [-- CHECK...]'
@@ -19,17 +25,19 @@ against the latest) are rewritten after every run. Stop with Ctrl+C. Exit code
 after --max-runs or Ctrl+C: that of the latest comparison (0, 1 or 2), or 0.
 See docs/watch.md.`
 
-const shown = (path) => relative('.', path).split(sep).join('/') || '.'
+const shown = (path: string) => relative('.', path).split(sep).join('/') || '.'
 const time = () => new Date().toTimeString().slice(0, 8)
 
-function parseArgs(args) {
+type CliOptions = WatchOptions & { paths: string[]; command: string[] }
+
+function parseArgs(args: string[]): CliOptions {
   const split = args.indexOf('--')
   const own = split === -1 ? args : args.slice(0, split)
-  const options = {
+  const options: CliOptions = {
     paths: [],
     command: split === -1 ? [] : args.slice(split + 1),
   }
-  const number = (arg, value, min) => {
+  const number = (arg: string, value: string, min: number) => {
     const parsed = Number(value)
     if (!Number.isInteger(parsed) || parsed < min)
       throw Error(`${arg} needs a whole number of at least ${min}`)
@@ -50,12 +58,12 @@ function parseArgs(args) {
   return options
 }
 
-const problemsOf = (evidence) =>
+const problemsOf = (evidence: RunEvidence) =>
   evidence.problems
     .map((p) => (p.scope ? `${p.code} (${p.scope})` : p.code))
     .join(', ') || 'no problem found'
 
-function print(event) {
+function print(event: WatchEvent) {
   switch (event.type) {
     case 'start':
       console.log(
@@ -93,7 +101,8 @@ function print(event) {
     case 'run': {
       const { run } = event
       const log = shown(run.log)
-      if (run.error) {
+      // A run without an error has read its report.
+      if (run.error || !run.evidence) {
         console.log(
           `  run ${run.run}: no report to compare: ${run.error} (log: ${log})`,
         )
@@ -130,7 +139,7 @@ function print(event) {
   }
 }
 
-export async function watchMain(args) {
+export async function watchMain(args: string[]) {
   if (
     args.includes('--help') &&
     !args.slice(0, args.indexOf('--help')).includes('--')

@@ -1,6 +1,6 @@
 {
   "name": "recovery-probe",
-  "version": "0.5.0-preview.21",
+  "version": "0.5.0-preview.22",
   "type": "module",
   "description": "Test whether web and Electron desktop apps show the right data when a read fails, from the command line, your tests or an AI coding agent.",
   "license": "MIT",
@@ -143,7 +143,7 @@
     "test:browser": "npm run build --silent && node --test test/recovery.integration.test.mjs test/discovery.integration.test.mjs test/discovery-calibration.integration.test.mjs test/attach.integration.test.mjs test/refresh.integration.test.mjs test/observe.integration.test.mjs test/observe-queue.integration.test.mjs test/mcp.integration.test.mjs test/watch.integration.test.mjs",
     "test:package": "npm run build --silent && node --test test/package.integration.test.mjs",
     "test:all": "npm run test:core && npm run test:package && npm run test:browser && npm run test:desktop && npm run test:repair && npm run test:guided && npm run test:ipc && npm run test:ci-example",
-    "demo": "npm run build --silent && node bin/core-demo.mjs",
+    "demo": "npm run build --silent && node dist/cli/core-demo.mjs",
     "demo:browser": "npm run build --silent && node bin/recovery-probe.mjs --demo --out artifacts/browser-demo.json",
     "prepublishOnly": "npm run test:core && npm run test:package && npm run test:ipc",
     "test:desktop": "npm run build --silent && node --test test/desktop.test.mjs",

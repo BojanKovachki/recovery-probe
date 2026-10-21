@@ -1,13 +1,22 @@
 import { readFile, mkdir } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import { connectDesktop, selectDesktopPage } from '../dist/desktop.mjs'
-import { discoverHttp, httpDiscoveryConfig } from '../dist/http-discover.mjs'
-import { writeDiscoveryReport } from '../dist/discovery-report.mjs'
-import { prepareVisibility } from '../dist/visibility.mjs'
-import { checkDesktop } from '../dist/desktop.mjs'
-import { writeDesktopReport } from '../dist/desktop-report.mjs'
-export async function attachMain(args) {
-  const options = {}
+import {
+  connectDesktop,
+  selectDesktopPage,
+  checkDesktop,
+  type DesktopReport,
+} from '../desktop.mjs'
+import {
+  discoverHttp,
+  httpDiscoveryConfig,
+  type HttpDiscoveryReport,
+} from '../http-discover.mjs'
+import { writeDiscoveryReport } from '../discovery-report.mjs'
+import { prepareVisibility } from '../visibility.mjs'
+import { writeDesktopReport } from '../desktop-report.mjs'
+
+export async function attachMain(args: string[]) {
+  const options: Record<string, string | true> = {}
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]
     if (arg === '--discover' || arg === '--restore-window')
@@ -24,31 +33,32 @@ export async function attachMain(args) {
       )
   }
   if (!options.config) throw new Error('--config is required')
-  let config = JSON.parse(await readFile(options.config, 'utf8'))
+  // The checks below validate the configuration file.
+  let config = JSON.parse(await readFile(options.config as string, 'utf8'))
   if (options.cdp) config.cdp = options.cdp
   if (options.page !== undefined) {
-    if (!/^\d+$/.test(options.page)) throw new Error('Invalid page')
+    if (!/^\d+$/.test(options.page as string)) throw new Error('Invalid page')
     config.page = Number(options.page)
   }
   if (options['restore-window']) config.restoreWindow = true
   if (options.discover) config = httpDiscoveryConfig(config)
   const directory = resolve(
-    options.out ?? `.recovery-probe/attached-${Date.now()}`,
+    (options.out as string | undefined) ??
+      `.recovery-probe/attached-${Date.now()}`,
   )
   await mkdir(resolve(directory, '..'), { recursive: true, mode: 0o700 })
   await mkdir(directory, { mode: 0o700 })
   const browser = await connectDesktop(config.cdp)
   try {
     const page = selectDesktopPage(browser, config)
-    /** @type {Record<string, any>} */
-    let report
+    let report: HttpDiscoveryReport | DesktopReport
     if (options.discover) {
       const discovery = await discoverHttp(page, config)
       await writeDiscoveryReport(directory, discovery, config)
       report = discovery
     } else {
       const visibility = await prepareVisibility(page, config)
-      let check
+      let check: DesktopReport
       try {
         check = await checkDesktop(page, config)
         check.mode = 'attached browser recovery'
@@ -58,17 +68,21 @@ export async function attachMain(args) {
       await writeDesktopReport(directory, check, config)
       report = check
     }
-    for (const f of report.findings ?? report.results)
-      console.log(
-        `${f.id ?? f.kind}: ${f.classification ?? f.code}${f.partial ? `; runs=${f.completedRuns}/${f.plannedRuns} partial; observed=${f.observedInterpretation.classification}` : ''}`,
-      )
-    if (report.error) console.error(report.error)
+    if ('findings' in report)
+      for (const f of report.findings)
+        console.log(
+          // A partial finding always carries the interpretation it observed.
+          `${f.id}: ${f.classification}${f.partial ? `; runs=${f.completedRuns}/${f.plannedRuns} partial; observed=${f.observedInterpretation!.classification}` : ''}`,
+        )
+    else for (const r of report.results) console.log(`${r.kind}: ${r.code}`)
+    // Only discovery reports carry an error; a check's failures are its rows.
+    if ('findings' in report && report.error) console.error(report.error)
     console.log(
       `Final reload: ${report.finalReset}\nReport: ${directory}/report.html`,
     )
     process.exitCode = report.ok
       ? 0
-      : options.discover
+      : 'findings' in report
         ? 2
         : report.results.some((r) => r.outcome === 'fail')
           ? 1
