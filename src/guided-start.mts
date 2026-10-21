@@ -2,26 +2,66 @@ import { access, mkdir, readFile, writeFile, mkdtemp } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { createRequire } from 'node:module'
 import { spawn } from 'node:child_process'
+import type { Browser, BrowserContext, Page } from 'playwright'
 import {
   connectDesktop,
   desktopPages,
   pageIdentity,
   discoverDesktop,
   checkDesktop,
+  type DesktopConfig,
+  type DesktopReport,
 } from './desktop.mjs'
 import { writeDesktopReport } from './desktop-report.mjs'
-import { pickMarker } from './pick-marker.mjs'
+import { pickMarker, type PickedMarker } from './pick-marker.mjs'
 
 const require = createRequire(import.meta.url)
-const safeLabel = (text) =>
+const safeLabel = (text: string) =>
   String(text)
     // eslint-disable-next-line no-control-regex -- strips terminal control characters from untrusted text
     .replace(/[\x00-\x1f\x7f-\x9f]/g, ' ')
     .slice(0, 240)
 
-export function parseStartArgs(args) {
-  const options = { target: args[0] }
-  if (!['web', 'desktop'].includes(options.target))
+export interface StartOptions {
+  target: 'web' | 'desktop'
+  url?: string
+  fresh?: boolean
+  headless?: boolean
+  cdp?: string
+  dir?: string
+}
+
+/** The terminal, or a test double: where questions go and answers come from. */
+export interface StartIo {
+  interactive?: boolean
+  log(message: string): void
+  ask(prompt: string): Promise<string>
+}
+
+/** A saved setup's check: the desktop configuration plus where it runs. */
+export type GuidedConfig = DesktopConfig & {
+  target?: 'web' | 'desktop'
+  cdp?: string
+  storageState?: string
+}
+
+interface SavedSetup {
+  schemaVersion: number
+  target: string
+  requestedUrl?: string
+  config: GuidedConfig
+}
+
+export interface StartDependencies {
+  launchWeb?: (options: StartOptions, io: StartIo) => Promise<Browser>
+  connectDesktop?: (cdp: string) => Promise<Browser>
+  durationMs?: number
+  pick?: (page: Page) => Promise<PickedMarker>
+}
+
+export function parseStartArgs(args: string[]): StartOptions {
+  const options: Record<string, unknown> = { target: args[0] }
+  if (!['web', 'desktop'].includes(options.target as string))
     throw new Error('Use start web [URL] or start desktop')
   for (let i = 1; i < args.length; i++) {
     const arg = args[i]
@@ -42,10 +82,14 @@ export function parseStartArgs(args) {
     throw new Error('--cdp is only for desktop')
   if (options.target === 'desktop' && options.headless)
     throw new Error('--headless is only for saved web checks')
-  return options
+  return options as unknown as StartOptions
 }
 
-export async function choose(io, prompt, choices) {
+export async function choose<T>(
+  io: StartIo,
+  prompt: string,
+  choices: { label: string; value: T }[],
+): Promise<T> {
   if (!choices.length) throw new Error(`No choices available: ${prompt}`)
   if (choices.length === 1) {
     io.log(`Selected: ${safeLabel(choices[0].label)}`)
@@ -63,8 +107,8 @@ export async function choose(io, prompt, choices) {
   }
 }
 
-async function launchWeb(options, io) {
-  let playwright
+async function launchWeb(options: StartOptions, io: StartIo): Promise<Browser> {
+  let playwright: typeof import('playwright')
   try {
     playwright = await import('playwright')
   } catch {
@@ -76,48 +120,49 @@ async function launchWeb(options, io) {
   try {
     await access(playwright.chromium.executablePath())
   } catch (error) {
-    if (error.code !== 'ENOENT') throw error
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     io.log('Downloading Chromium for the first run…')
     const cli = join(
       dirname(require.resolve('playwright/package.json')),
       'cli.js',
     )
-    await /** @type {Promise<void>} */ (
-      new Promise((resolve, reject) => {
-        const child = spawn(process.execPath, [cli, 'install', 'chromium'], {
-          stdio: 'inherit',
-          shell: false,
-        })
-        child.once('error', reject)
-        child.once('exit', (code) =>
-          code === 0
-            ? resolve()
-            : reject(
-                new Error(
-                  'Chromium installation failed. Run npx playwright install chromium, then retry.',
-                ),
-              ),
-        )
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn(process.execPath, [cli, 'install', 'chromium'], {
+        stdio: 'inherit',
+        shell: false,
       })
-    )
+      child.once('error', reject)
+      child.once('exit', (code) =>
+        code === 0
+          ? resolve()
+          : reject(
+              new Error(
+                'Chromium installation failed. Run npx playwright install chromium, then retry.',
+              ),
+            ),
+      )
+    })
   }
   return playwright.chromium.launch({ headless: Boolean(options.headless) })
 }
 
-async function readSaved(path) {
+async function readSaved(path: string): Promise<SavedSetup | null> {
   try {
     return JSON.parse(await readFile(path, 'utf8'))
   } catch (error) {
-    if (error.code === 'ENOENT') return null
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
     throw error
   }
 }
 
 export async function configurePage(
-  page,
-  io,
-  { durationMs = 5000, pick = pickMarker } = {},
-) {
+  page: Page,
+  io: StartIo,
+  {
+    durationMs = 5000,
+    pick = pickMarker,
+  }: Pick<StartDependencies, 'durationMs' | 'pick'> = {},
+): Promise<GuidedConfig> {
   io.log('Discovering GET JSON requests by reloading this screen…')
   const discovery = await discoverDesktop(page, { durationMs })
   if (!discovery.endpoints.length)
@@ -135,7 +180,7 @@ export async function configurePage(
   io.log(
     'In the app, click one loaded piece of content supplied by that request. Avoid headings, menus, clocks and loading indicators.',
   )
-  let marker
+  let marker: PickedMarker
   while (true) {
     marker = await pick(page)
     io.log(
@@ -152,10 +197,10 @@ export async function configurePage(
     if (accepted) break
   }
   const recovery = await choose(io, 'How should this screen recover?', [
-    { label: 'Automatically, without a click', value: 'automatic' },
-    { label: 'A user clicks a Retry button', value: 'retry' },
+    { label: 'Automatically, without a click', value: 'automatic' as const },
+    { label: 'A user clicks a Retry button', value: 'retry' as const },
   ])
-  const config = {
+  const config: GuidedConfig = {
     pageUrl: page.url(),
     endpoint,
     ...marker,
@@ -183,7 +228,16 @@ export async function configurePage(
 }
 
 /** Interactive setup once; subsequent runs use the saved assertion and auth locally. */
-export async function runStart(options, io, dependencies = {}) {
+export async function runStart(
+  options: StartOptions,
+  io: StartIo,
+  dependencies: StartDependencies = {},
+): Promise<{
+  report: DesktopReport
+  config: GuidedConfig
+  output: string
+  exitCode: 0 | 1 | 2
+}> {
   const directory = resolve(
     options.dir ?? join('.recovery-probe', 'start', options.target),
   )
@@ -217,34 +271,39 @@ export async function runStart(options, io, dependencies = {}) {
   // Keep all state private and ignored even when invoked inside an existing repo.
   await mkdir(directory, { recursive: true, mode: 0o700 })
   await writeFile(join(directory, '.gitignore'), '*\n', { mode: 0o600 })
-  let browser
-  let context
-  let page
+  let browser: Browser | undefined
+  let context: BrowserContext | undefined
+  let page: Page
   const cdp = options.cdp ?? saved?.config.cdp ?? 'http://127.0.0.1:9222'
   try {
     if (options.target === 'web') {
-      browser = await (dependencies.launchWeb ?? launchWeb)(options, io)
-      context = await browser.newContext({
+      const launched = await (dependencies.launchWeb ?? launchWeb)(options, io)
+      browser = launched
+      const opened = await launched.newContext({
         serviceWorkers: 'block',
         ...(saved?.config.storageState
           ? { storageState: saved.config.storageState }
           : {}),
       })
-      page = await context.newPage()
-      await page.goto(saved?.config.pageUrl ?? requestedUrl, {
+      context = opened
+      page = await opened.newPage()
+      // A web setup always has a URL: saved, given, or asked for above.
+      await page.goto((saved?.config.pageUrl ?? requestedUrl)!, {
         waitUntil: 'domcontentloaded',
         timeout: 30000,
       })
     } else {
+      let attached: Browser
       try {
-        browser = await (dependencies.connectDesktop ?? connectDesktop)(cdp)
+        attached = await (dependencies.connectDesktop ?? connectDesktop)(cdp)
       } catch (error) {
         throw new Error(
-          `Cannot attach to Electron at ${cdp}. Start its development build with --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 (or use --cdp for your port). The flags must reach Electron, not only its frontend server. ${error.message}`,
+          `Cannot attach to Electron at ${cdp}. Start its development build with --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 (or use --cdp for your port). The flags must reach Electron, not only its frontend server. ${(error as Error).message}`,
           { cause: error },
         )
       }
-      const pages = desktopPages(browser)
+      browser = attached
+      const pages = desktopPages(attached)
       const matching = saved
         ? pages.filter(
             (item) =>
@@ -267,7 +326,7 @@ export async function runStart(options, io, dependencies = {}) {
       )
       await page.bringToFront()
     }
-    let config
+    let config: GuidedConfig
     if (!saved) {
       io.log(
         'Use a development/test account. Checks reload this screen and inject request failures. Source code is not read or uploaded.',
@@ -284,7 +343,8 @@ export async function runStart(options, io, dependencies = {}) {
         config.storageState = join(stateDir, 'auth.json')
         await writeFile(
           config.storageState,
-          JSON.stringify(await context.storageState({ indexedDB: true })),
+          // The web branch above opened this context.
+          JSON.stringify(await context!.storageState({ indexedDB: true })),
           { mode: 0o600 },
         )
         io.log(

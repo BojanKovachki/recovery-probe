@@ -1,9 +1,20 @@
+import type { Page } from 'playwright'
+
+/** The content a user picked: a unique selector, and its text when short. */
+export interface PickedMarker {
+  readySelector: string
+  readyText?: string
+}
+
 /** Pick an existing, unique DOM element without changing application source. */
-export async function pickMarker(page, { timeoutMs = 120000 } = {}) {
+export async function pickMarker(
+  page: Page,
+  { timeoutMs = 120000 }: { timeoutMs?: number } = {},
+): Promise<PickedMarker> {
   await page.bringToFront()
   return page.evaluate(
     ({ timeoutMs }) =>
-      new Promise((resolve, reject) => {
+      new Promise<PickedMarker>((resolve, reject) => {
         const host = document.createElement('div')
         host.setAttribute('data-recovery-probe-picker', '')
         const shadow = host.attachShadow({ mode: 'closed' })
@@ -26,8 +37,8 @@ export async function pickMarker(page, { timeoutMs = 120000 } = {}) {
           document.removeEventListener('pointermove', move, true)
           document.removeEventListener('keydown', key, true)
         }
-        const target = (event) => event.composedPath()[0]
-        const move = (event) => {
+        const target = (event: Event) => event.composedPath()[0]
+        const move = (event: Event) => {
           const el = target(event)
           if (!(el instanceof Element) || el === host) return
           const r = el.getBoundingClientRect()
@@ -38,7 +49,37 @@ export async function pickMarker(page, { timeoutMs = 120000 } = {}) {
             height: `${r.height}px`,
           })
         }
-        const click = (event) => {
+        const unique = (selector: string) =>
+          document.querySelectorAll(selector).length === 1
+        // A test id, data-test or id that is unique, else the shortest unique
+        // nth-of-type path from the element upwards.
+        const selectorFor = (el: HTMLElement) => {
+          for (const attr of ['data-testid', 'data-test', 'id']) {
+            const value = el.getAttribute(attr)
+            if (value && value.length < 200) {
+              const candidate = `[${attr}=${JSON.stringify(value)}]`
+              if (unique(candidate)) return candidate
+            }
+          }
+          const path: string[] = []
+          for (
+            let current: Element | null = el;
+            current && current !== document.documentElement;
+            current = current.parentElement
+          ) {
+            const tagName = current.tagName
+            // Below the root element, every element has a parent.
+            const siblings = [...current.parentElement!.children].filter(
+              (item) => item.tagName === tagName,
+            )
+            path.unshift(
+              `${current.localName}:nth-of-type(${siblings.indexOf(current) + 1})`,
+            )
+            if (unique(path.join(' > '))) break
+          }
+          return path.join(' > ')
+        }
+        const click = (event: Event) => {
           event.preventDefault()
           event.stopImmediatePropagation()
           const el = target(event)
@@ -54,36 +95,7 @@ export async function pickMarker(page, { timeoutMs = 120000 } = {}) {
               'Choose visible loaded content in the main page (not an input, whole page, iframe or shadow root). Escape cancels.'
             return
           }
-          const unique = (selector) =>
-            document.querySelectorAll(selector).length === 1
-          let selector
-          for (const attr of ['data-testid', 'data-test', 'id']) {
-            const value = el.getAttribute(attr)
-            if (value && value.length < 200) {
-              const candidate = `[${attr}=${JSON.stringify(value)}]`
-              if (unique(candidate)) {
-                selector = candidate
-                break
-              }
-            }
-          }
-          if (!selector) {
-            const path = []
-            for (
-              let current = el;
-              current && current !== document.documentElement;
-              current = current.parentElement
-            ) {
-              const siblings = [...current.parentElement.children].filter(
-                (item) => item.tagName === current.tagName,
-              )
-              path.unshift(
-                `${current.localName}:nth-of-type(${siblings.indexOf(current) + 1})`,
-              )
-              if (unique(path.join(' > '))) break
-            }
-            selector = path.join(' > ')
-          }
+          const selector = selectorFor(el)
           const text = el.innerText.trim()
           clean()
           resolve({
@@ -91,7 +103,7 @@ export async function pickMarker(page, { timeoutMs = 120000 } = {}) {
             ...(text && text.length <= 160 ? { readyText: text } : {}),
           })
         }
-        const key = (event) => {
+        const key = (event: KeyboardEvent) => {
           if (event.key === 'Escape') {
             event.preventDefault()
             event.stopImmediatePropagation()
