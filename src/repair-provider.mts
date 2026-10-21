@@ -21,20 +21,46 @@ export const proposalSchema = {
   },
 }
 
+export interface RepairEdit {
+  path: string
+  find: string
+  replace: string
+}
+
+/** What the model proposes; applyProposalToSources checks every field before use. */
+export interface RepairProposal {
+  summary: string
+  reasoning: string
+  edits: RepairEdit[]
+}
+
+export interface ProviderOptions {
+  model?: string
+  allowSourceUpload?: boolean
+  apiKey?: string
+  fetchImpl?: typeof fetch
+  /** A saved config's provider block may carry other settings; they are ignored. */
+  [key: string]: unknown
+}
+
+interface ResponsesResult {
+  status?: string
+  output?: {
+    type: string
+    content?: { type: string; text?: string }[]
+  }[]
+}
+
 /** One bounded, opt-in request. Source contents are never uploaded by a test run. */
-/**
- * @param {any} bundle
- * @param {{ model?: string, allowSourceUpload?: boolean, apiKey?: string, fetchImpl?: typeof fetch, [key: string]: any }} [options]
- */
 export async function proposeRepair(
-  bundle,
+  bundle: unknown,
   {
     model,
     allowSourceUpload = false,
     apiKey = process.env.OPENAI_API_KEY,
     fetchImpl = fetch,
-  } = {},
-) {
+  }: ProviderOptions = {},
+): Promise<RepairProposal> {
   if (!allowSourceUpload)
     throw new Error(
       'Source upload requires --allow-source-upload and employer/project authorization',
@@ -76,7 +102,7 @@ export async function proposeRepair(
     throw new Error(
       `Patch provider returned HTTP ${response.status}; check API access, model and billing. No automatic retry was made.`,
     )
-  const data = await response.json()
+  const data = (await response.json()) as ResponsesResult
   if (data.status !== 'completed')
     throw new Error('Patch provider did not complete; no proposal applied')
   const content = (data.output ?? [])

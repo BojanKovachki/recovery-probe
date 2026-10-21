@@ -13,18 +13,91 @@ import { promisify } from 'node:util'
 import { createHash } from 'node:crypto'
 import { createInterface } from 'node:readline/promises'
 import { connect as netConnect } from 'node:net'
-import { checkWeb } from './web.mjs'
+import type { Browser, Page } from 'playwright'
+import { checkWeb, type WebConfig } from './web.mjs'
 import {
   connectDesktop,
   selectDesktopPage,
   checkDesktop,
   validateDesktopConfig,
+  type DesktopConfig,
+  type DesktopReport,
+  type ValidDesktopConfig,
 } from './desktop.mjs'
-import { proposeRepair } from './repair-provider.mjs'
-import { runCommand, startCommand, validateCommand } from './repair-process.mjs'
+import {
+  proposeRepair,
+  type RepairEdit,
+  type RepairProposal,
+} from './repair-provider.mjs'
+import {
+  runCommand,
+  startCommand,
+  validateCommand,
+  type CommandResult,
+} from './repair-process.mjs'
+
+/** A repair run's configuration, validated: what to launch, test and read. */
+export interface RepairConfig {
+  target: 'web' | 'desktop'
+  repo: string
+  sourceFiles: string[]
+  launch: string[]
+  setup?: string[][]
+  tests?: string[][]
+  scenario: ValidDesktopConfig &
+    Pick<WebConfig, 'storageState' | 'headless' | 'startupTimeoutMs'>
+  manualLogin?: boolean
+  startupTimeoutMs: number
+  commandTimeoutMs: number
+  provider?: Record<string, unknown>
+}
+
+interface SourceSnapshot {
+  path: string
+  content: string
+  sha256: string
+}
+
+/** What a model sees: the expectation, the observations and the selected sources. */
+export interface RepairBundle {
+  task: string
+  expectation: Pick<
+    DesktopConfig,
+    | 'endpoint'
+    | 'readySelector'
+    | 'readyText'
+    | 'busySelector'
+    | 'recovery'
+    | 'retrySelector'
+    | 'timeoutMs'
+  >
+  observations: DesktopReport
+  sources: SourceSnapshot[]
+}
+
+interface RepairState {
+  schemaVersion: 1
+  baseCommit: string
+  workspace: string
+  phase: string
+}
+
+type CommandRecord = CommandResult & { command: string[] }
+
+export interface RepairVerification {
+  schemaVersion: 1
+  status:
+    'verified-candidate' | 'scenario-passed-tests-missing' | 'not-verified'
+  scenarioPassed: boolean
+  testsPassed: boolean
+  error?: string
+  baseCommit: string
+  summary: string
+  limitation: string
+}
 
 const exec = promisify(execFile)
-const git = async (cwd, args) =>
+const git = async (cwd: string, args: string[]) =>
   (
     await exec('git', ['-c', 'core.hooksPath=/dev/null', ...args], {
       cwd,
@@ -32,29 +105,34 @@ const git = async (cwd, args) =>
       timeout: 30000,
     })
   ).stdout
-const sha = (value) => createHash('sha256').update(value).digest('hex')
-const save = (directory, name, value) =>
+const sha = (value: string) => createHash('sha256').update(value).digest('hex')
+const save = (directory: string, name: string, value: unknown) =>
   writeFile(join(directory, name), JSON.stringify(value, null, 2) + '\n', {
     mode: 0o600,
   })
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 // Resolve existing ancestor symlinks before creating anything near the source tree.
-async function canonicalDestination(path) {
+async function canonicalDestination(path: string) {
   let ancestor = dirname(resolve(path))
   const missing = [basename(path)]
   while (true) {
     try {
       return resolve(await realpath(ancestor), ...missing)
     } catch (error) {
-      if (error.code !== 'ENOENT' || ancestor === dirname(ancestor)) throw error
+      if (
+        (error as NodeJS.ErrnoException).code !== 'ENOENT' ||
+        ancestor === dirname(ancestor)
+      )
+        throw error
       missing.unshift(basename(ancestor))
       ancestor = dirname(ancestor)
     }
   }
 }
 
-export function validateSourcePath(path) {
+// Paths come from a JSON config and from a model's proposal, so they are checked at runtime.
+export function validateSourcePath(path: unknown): string {
   if (
     typeof path !== 'string' ||
     !/^[a-zA-Z0-9_@./-]+\.(?:[cm]?[jt]sx?|vue|svelte|html|css|rs)$/.test(
@@ -67,11 +145,12 @@ export function validateSourcePath(path) {
       path,
     )
   ) {
-    throw new Error(`Not an allowed application source path: ${path}`)
+    throw new Error(`Not an allowed application source path: ${String(path)}`)
   }
   return path
 }
-async function sourceFile(root, path) {
+
+async function sourceFile(root: string, path: string) {
   validateSourcePath(path)
   let current = root
   for (const part of path.split('/')) {
@@ -86,7 +165,8 @@ async function sourceFile(root, path) {
   if (content.includes('\0')) throw new Error('Binary source is not allowed')
   return content
 }
-function loopback(value, protocols) {
+
+function loopback(value: string, protocols: string[]) {
   const url = new URL(value)
   if (
     !protocols.includes(url.protocol) ||
@@ -99,39 +179,43 @@ function loopback(value, protocols) {
     )
   return url
 }
-export function validateRepairConfig(input) {
-  if (!input || !['web', 'desktop'].includes(input.target))
+
+export function validateRepairConfig(input: unknown): RepairConfig {
+  const raw = input as Record<string, unknown> | null | undefined
+  if (!raw || !['web', 'desktop'].includes(raw.target as string))
     throw new Error('target must be web or desktop')
-  if (typeof input.repo !== 'string' || !input.repo)
+  if (typeof raw.repo !== 'string' || !raw.repo)
     throw new Error('repo is required')
+  const sourceFiles = raw.sourceFiles
   if (
-    !Array.isArray(input.sourceFiles) ||
-    !input.sourceFiles.length ||
-    input.sourceFiles.length > 12 ||
-    new Set(input.sourceFiles).size !== input.sourceFiles.length
+    !Array.isArray(sourceFiles) ||
+    !sourceFiles.length ||
+    sourceFiles.length > 12 ||
+    new Set(sourceFiles).size !== sourceFiles.length
   )
     throw new Error(
       'sourceFiles must list 1–12 unique application source paths',
     )
-  input.sourceFiles.forEach(validateSourcePath)
-  validateCommand(input.launch)
+  sourceFiles.forEach(validateSourcePath)
+  validateCommand(raw.launch)
   for (const key of ['setup', 'tests']) {
-    if (input[key] !== undefined && !Array.isArray(input[key]))
+    const commands = raw[key]
+    if (commands !== undefined && !Array.isArray(commands))
       throw new Error(`${key} must be an array of commands`)
-    ;(input[key] ?? []).forEach(validateCommand)
+    ;((commands as unknown[] | undefined) ?? []).forEach(validateCommand)
   }
   const scenario = validateDesktopConfig({
     recovery: 'automatic',
-    ...input.scenario,
+    ...(raw.scenario as DesktopConfig),
   })
-  if (input.target === 'web') loopback(scenario.pageUrl, ['http:', 'https:'])
-  else loopback(scenario.cdp, ['http:'])
+  if (raw.target === 'web') loopback(scenario.pageUrl, ['http:', 'https:'])
+  else loopback(scenario.cdp as string, ['http:'])
   const config = {
     startupTimeoutMs: 30000,
     commandTimeoutMs: 120000,
-    ...input,
+    ...raw,
     scenario,
-  }
+  } as RepairConfig
   if (
     config.manualLogin !== undefined &&
     typeof config.manualLogin !== 'boolean'
@@ -141,7 +225,7 @@ export function validateRepairConfig(input) {
     throw new Error(
       'Web repair uses scenario.storageState; manualLogin is for Electron',
     )
-  for (const key of ['startupTimeoutMs', 'commandTimeoutMs'])
+  for (const key of ['startupTimeoutMs', 'commandTimeoutMs'] as const)
     if (
       !Number.isInteger(config[key]) ||
       config[key] < 200 ||
@@ -150,13 +234,14 @@ export function validateRepairConfig(input) {
       throw new Error(`${key} must be 200–600000`)
   return config
 }
-async function portOpen(url) {
-  return new Promise((resolve) => {
+
+async function portOpen(url: URL) {
+  return new Promise<boolean>((resolve) => {
     const socket = netConnect({
       host: url.hostname.replace(/^\[|\]$/g, ''),
       port: Number(url.port || (url.protocol === 'https:' ? 443 : 80)),
     })
-    const done = (value) => {
+    const done = (value: boolean) => {
       socket.destroy()
       resolve(value)
     }
@@ -167,14 +252,15 @@ async function portOpen(url) {
 }
 
 /** Only run the target started in this checkout, not an already-running company app. */
-/**
- * @param {any} config
- * @param {string} workspace
- * @param {{ logPath?: string }} [options]
- */
-export async function observeRepairTarget(config, workspace, { logPath } = {}) {
+export async function observeRepairTarget(
+  config: RepairConfig,
+  workspace: string,
+  { logPath }: { logPath?: string } = {},
+): Promise<DesktopReport> {
   const url = new URL(
-    config.target === 'web' ? config.scenario.pageUrl : config.scenario.cdp,
+    (config.target === 'web'
+      ? config.scenario.pageUrl
+      : config.scenario.cdp) as string,
   )
   if (await portOpen(url))
     throw new Error(
@@ -188,7 +274,7 @@ export async function observeRepairTarget(config, workspace, { logPath } = {}) {
       'electron-test-profile',
     ),
   })
-  let browser
+  let browser: Browser | undefined
   try {
     const deadline = Date.now() + config.startupTimeoutMs
     let ready = false
@@ -221,12 +307,13 @@ export async function observeRepairTarget(config, workspace, { logPath } = {}) {
         terminal.close()
       }
     }
-    browser = await connectDesktop(config.scenario.cdp)
-    let page
+    const attached = await connectDesktop(config.scenario.cdp)
+    browser = attached
+    let page: Page | undefined
     const pageDeadline = Date.now() + config.startupTimeoutMs
     while (Date.now() < pageDeadline) {
       try {
-        page = selectDesktopPage(browser, config.scenario)
+        page = selectDesktopPage(attached, config.scenario)
         break
       } catch {}
       await delay(100)
@@ -243,22 +330,27 @@ export async function observeRepairTarget(config, workspace, { logPath } = {}) {
   }
 }
 
-export function applyProposalToSources(proposal, sources) {
+// A proposal comes from a model, so every field is checked before it touches a file.
+export function applyProposalToSources(
+  proposal: unknown,
+  sources: { path: string; content: string }[],
+): Map<string, string> {
+  const candidate = proposal as Partial<RepairProposal> | null | undefined
   if (
-    !proposal ||
-    typeof proposal.summary !== 'string' ||
-    typeof proposal.reasoning !== 'string' ||
-    !Array.isArray(proposal.edits) ||
-    proposal.edits.length > 12
+    !candidate ||
+    typeof candidate.summary !== 'string' ||
+    typeof candidate.reasoning !== 'string' ||
+    !Array.isArray(candidate.edits) ||
+    candidate.edits.length > 12
   )
     throw new Error('Invalid patch proposal')
   const modified = new Map(
     sources.map((source) => [source.path, source.content]),
   )
-  for (const edit of proposal.edits) {
+  for (const edit of candidate.edits as Partial<RepairEdit>[]) {
     validateSourcePath(edit.path)
     if (
-      !modified.has(edit.path) ||
+      !modified.has(edit.path as string) ||
       typeof edit.find !== 'string' ||
       !edit.find ||
       typeof edit.replace !== 'string' ||
@@ -266,7 +358,8 @@ export function applyProposalToSources(proposal, sources) {
       edit.find === edit.replace
     )
       throw new Error('Patch edit must change only an allowlisted source file')
-    const original = modified.get(edit.path)
+    const path = edit.path as string
+    const original = modified.get(path) as string
     const index = original.indexOf(edit.find)
     if (index < 0 || original.indexOf(edit.find, index + 1) !== -1)
       throw new Error(
@@ -278,13 +371,17 @@ export function applyProposalToSources(proposal, sources) {
       original.slice(index + edit.find.length)
     if (Buffer.byteLength(result) > 100000)
       throw new Error('Patched source exceeds the size limit')
-    modified.set(edit.path, result)
+    modified.set(path, result)
   }
   return modified
 }
 
-async function commands(config, workspace, key) {
-  const results = []
+async function commands(
+  config: RepairConfig,
+  workspace: string,
+  key: 'setup' | 'tests',
+) {
+  const results: CommandRecord[] = []
   for (const command of config[key] ?? []) {
     const result = await runCommand(command, workspace, config.commandTimeoutMs)
     results.push({ command, ...result })
@@ -292,7 +389,8 @@ async function commands(config, workspace, key) {
   }
   return results
 }
-async function assertTrackedUnchanged(workspace) {
+
+async function assertTrackedUnchanged(workspace: string) {
   if (
     (
       await git(workspace, ['status', '--porcelain', '--untracked-files=no'])
@@ -304,10 +402,15 @@ async function assertTrackedUnchanged(workspace) {
 }
 
 export async function prepareRepair(
-  input,
-  directory,
-  { allowExecution = false } = {},
-) {
+  input: unknown,
+  directory: string,
+  { allowExecution = false }: { allowExecution?: boolean } = {},
+): Promise<{
+  reproduced: boolean
+  before: DesktopReport
+  bundle: RepairBundle
+  state: RepairState
+}> {
   if (!allowExecution)
     throw new Error(
       'Configured setup, launch and test commands require --allow-execution',
@@ -354,7 +457,7 @@ export async function prepareRepair(
   ])
   await git(workspace, ['checkout', '--detach', baseCommit])
   await git(workspace, ['remote', 'remove', 'origin']) // No accidental push target.
-  const sources = []
+  const sources: SourceSnapshot[] = []
   for (const path of config.sourceFiles) {
     // The index says what a path is. Without symlink rights, Git for Windows checks out
     // a committed symlink as a plain file holding the link text.
@@ -403,7 +506,7 @@ export async function prepareRepair(
     before.finalReset === 'healthy' &&
     before.results.some((row) => row.outcome === 'fail' && row.applied === 1) &&
     before.results.every((row) => ['pass', 'fail'].includes(row.outcome))
-  const state = {
+  const state: RepairState = {
     schemaVersion: 1,
     baseCommit,
     workspace,
@@ -411,7 +514,7 @@ export async function prepareRepair(
   }
   await save(dir, 'state.json', state)
   // Upload bundle intentionally excludes auth state, local paths, command logs and configuration secrets.
-  const bundle = {
+  const bundle: RepairBundle = {
     task: 'Repair the reproduced request-recovery defect without weakening its expectation',
     expectation: {
       endpoint: config.scenario.endpoint,
@@ -429,20 +532,28 @@ export async function prepareRepair(
   return { reproduced, before, bundle, state }
 }
 
-/**
- * @param {string} directory
- * @param {{ allowSourceUpload?: boolean, apiKey?: string, fetchImpl?: typeof fetch }} [options]
- */
 export async function generateRepair(
-  directory,
-  { allowSourceUpload = false, apiKey, fetchImpl } = {},
-) {
+  directory: string,
+  {
+    allowSourceUpload = false,
+    apiKey,
+    fetchImpl,
+  }: {
+    allowSourceUpload?: boolean
+    apiKey?: string
+    fetchImpl?: typeof fetch
+  } = {},
+): Promise<RepairProposal> {
   const dir = resolve(directory)
-  const state = JSON.parse(await readFile(join(dir, 'state.json'), 'utf8'))
+  const state: RepairState = JSON.parse(
+    await readFile(join(dir, 'state.json'), 'utf8'),
+  )
   if (state.phase !== 'reproduced')
     throw new Error('Generate requires a reproduced failure')
-  const config = JSON.parse(await readFile(join(dir, 'config.json'), 'utf8'))
-  const bundle = JSON.parse(
+  const config: RepairConfig = JSON.parse(
+    await readFile(join(dir, 'config.json'), 'utf8'),
+  )
+  const bundle: RepairBundle = JSON.parse(
     await readFile(join(dir, 'repair-request.json'), 'utf8'),
   )
   const proposal = await proposeRepair(bundle, {
@@ -460,13 +571,18 @@ export async function generateRepair(
   return proposal
 }
 
-export async function verifyRepair(directory, { allowExecution = false } = {}) {
+export async function verifyRepair(
+  directory: string,
+  { allowExecution = false }: { allowExecution?: boolean } = {},
+): Promise<RepairVerification> {
   if (!allowExecution)
     throw new Error(
       'Review proposal.json first. Verification executes proposed code and requires --allow-execution',
     )
   const dir = await realpath(directory)
-  const state = JSON.parse(await readFile(join(dir, 'state.json'), 'utf8'))
+  const state: RepairState = JSON.parse(
+    await readFile(join(dir, 'state.json'), 'utf8'),
+  )
   if (state.phase !== 'reproduced')
     throw new Error(
       'This run is not available for verification; start a new run',
@@ -480,10 +596,10 @@ export async function verifyRepair(directory, { allowExecution = false } = {}) {
   const config = validateRepairConfig(
     JSON.parse(await readFile(join(dir, 'config.json'), 'utf8')),
   )
-  const bundle = JSON.parse(
+  const bundle: RepairBundle = JSON.parse(
     await readFile(join(dir, 'repair-request.json'), 'utf8'),
   )
-  const proposal = JSON.parse(
+  const proposal: RepairProposal = JSON.parse(
     await readFile(join(dir, 'proposal.json'), 'utf8'),
   )
   if (!proposal.edits?.length)
@@ -506,9 +622,9 @@ export async function verifyRepair(directory, { allowExecution = false } = {}) {
     flag: 'wx',
   })
   await save(dir, 'state.json', { ...state, phase: 'verifying' })
-  let after
-  let testsAfter = []
-  let error
+  let after: DesktopReport | undefined
+  let testsAfter: CommandRecord[] = []
+  let error: string | undefined
   try {
     after = await observeRepairTarget(config, workspace, {
       logPath: join(dir, 'launch-after.log'),
@@ -521,14 +637,14 @@ export async function verifyRepair(directory, { allowExecution = false } = {}) {
         'App or test command changed the candidate patch during verification',
       )
   } catch (value) {
-    error = value.message
+    error = (value as Error).message
   }
   const scenarioPassed = !error && after?.ok === true
   const testsPassed =
     testsAfter.length > 0 &&
     testsAfter.length === config.tests?.length &&
     testsAfter.every((result) => result.code === 0)
-  const result = {
+  const result: RepairVerification = {
     schemaVersion: 1,
     status:
       scenarioPassed && testsPassed
