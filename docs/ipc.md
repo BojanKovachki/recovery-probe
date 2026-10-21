@@ -12,8 +12,8 @@ Node 22+ is required for the CLI. Electron 29's bundled Node can load the small 
 
 ```bash
 mkdir -p recovery-probe-tools && cd recovery-probe-tools
-npm view recovery-probe@0.4.0 version
-npm install --save-dev --save-exact recovery-probe@0.4.0 playwright@1.62.1
+npm view recovery-probe@0.5.0 version
+npm install --save-dev --save-exact recovery-probe@0.5.0 playwright@1.62.1
 node -p "require.resolve('recovery-probe/ipc')"
 ```
 
@@ -188,7 +188,7 @@ Calibration observes three full `baselineTimeoutMs` windows before injection: 45
 
 Unstable or unfinished calibration stops fault experiments. Cleanup still removes faults and attempts a healthy reload, but `finalReset` remains `not-verified` without a trusted baseline. Later controls and cleanup can finish early once they match that baseline. Known dependencies must still be configured; content arriving after the calibration window remains untested.
 
-## Action check (0.5.0-preview.8)
+## Action check
 
 `ipc --action` checks what the user sees after an action that writes, such as Send or Save. Add the write channel to the hook's `channels`, open the screen, then run:
 
@@ -225,4 +225,4 @@ Each run reloads the screen, runs `setup` (start with a `waitFor`, because it be
 
 The hook answers up to 10 requests per run; more than that reach the app's own handler and are reported as `REAL_REQUEST_SENT`. The plan is armed right before the click, so slow setup can't outlive it. `fill` values stay in your scenario file and are never written to the report.
 
-Simulated success is an empty result. An action whose success handling needs data from the response may treat it as a failure; review the success run before trusting the comparison. The check needs the 0.5.0-preview.8 hook, which adds `delayMs` to fault plans.
+Simulated success is an empty result. An action whose success handling needs data from the response may treat it as a failure; review the success run before trusting the comparison. The check needs the 0.5.0 hook, which supports `delayMs` in fault plans.
