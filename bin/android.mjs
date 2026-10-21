@@ -2,13 +2,16 @@ import {
   adbRunner,
   androidDevices,
   androidDevtoolsTargets,
+  androidDisplayState,
+  displayProblems,
   forwardAndroidDevtools,
+  keepQuestAwake,
 } from '../dist/android.mjs'
 import { startCdpBridge } from '../dist/cdp-bridge.mjs'
 import { untilStopped } from './until-stopped.mjs'
 
 const USAGE =
-  'recovery-probe android [--list] [--serial SERIAL] [--package NAME] [--port N] [--duration MS] [--adb PATH]'
+  'recovery-probe android [--list] [--serial SERIAL] [--package NAME] [--port N] [--duration MS] [--keep-awake] [--adb PATH]'
 
 const HELP = `${USAGE}
 
@@ -16,7 +19,13 @@ Makes an Android WebView or Chrome inspectable like a desktop debugging endpoint
 It finds the app's DevTools socket over adb, forwards a local port to it and keeps
 the forward until Ctrl+C or --duration. Use the printed URL with desktop --cdp, or as
 "cdp" in an observe or desktop config. The app must enable WebView debugging, and the
-device needs USB debugging. --list shows what can be inspected. See docs/android.md.`
+device needs USB debugging. --list shows what can be inspected. A page draws no frames
+while the display sleeps or a system dialog is in front; the command warns when it
+sees either. On a Meta Quest, --keep-awake keeps the display awake and pauses the
+Guardian boundary until the forward stops, so nobody has to wear the headset.
+See docs/android.md.`
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 function parseArgs(args) {
   const options = {}
@@ -24,6 +33,7 @@ function parseArgs(args) {
     const arg = args[i]
     const value = args[i + 1]
     if (arg === '--list') options.list = true
+    else if (arg === '--keep-awake') options.keepAwake = true
     else if (
       ['--serial', '--package', '--port', '--duration', '--adb'].includes(
         arg,
@@ -89,12 +99,21 @@ export async function androidMain(args) {
     )
 
   const [target] = matching
+  if (options.keepAwake && !(await androidDisplayState(run)).quest)
+    throw Error('--keep-awake works on Meta Quest headsets only')
   const forward = await forwardAndroidDevtools(run, target.socket)
   let bridge
+  let awake
   try {
     // Android keeps blank WebViews without a window that never answer DevTools; a
     // client attaching to them all would wait forever, so the bridge hides them.
     bridge = await startCdpBridge({ upstream: forward.cdp, port: options.port })
+    if (options.keepAwake) {
+      awake = await keepQuestAwake(run)
+      // The display and the app's panel take a moment to come back.
+      await sleep(3000)
+    }
+    const display = await androidDisplayState(run).catch(() => undefined)
     console.log(`Android ${describe(target).trim()} on ${bridge.url}
 
 Use it like a desktop debugging endpoint:
@@ -102,8 +121,19 @@ Use it like a desktop debugging endpoint:
   "cdp": "${bridge.url}" in an observe or desktop config
 
 Keep the app on screen while a check runs. Press Ctrl+C to remove the forward.`)
+    if (awake)
+      console.log(
+        'Keeping the Quest display awake and the Guardian boundary paused until the forward stops.',
+      )
+    for (const problem of display ? displayProblems(display) : [])
+      console.log(
+        `Warning: ${problem} ${display.quest && !awake ? 'Wear the headset, or use --keep-awake.' : 'Wake the device and bring the app to the front.'}`,
+      )
     await untilStopped(options.duration)
   } finally {
+    await awake
+      ?.restore()
+      .catch((error) => console.error(`Recovery Probe: ${error.message}`))
     await bridge?.close()
     await forward.remove()
   }

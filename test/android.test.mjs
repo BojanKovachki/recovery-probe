@@ -7,6 +7,9 @@ import {
   parseDevtoolsSockets,
   parseProcesses,
   defaultAdbPath,
+  androidDisplayState,
+  displayProblems,
+  keepQuestAwake,
 } from '../dist/android.mjs'
 
 // Shaped like a device's output; the same discovery chrome://inspect uses.
@@ -118,5 +121,92 @@ test('falls back to adb on PATH without an Android SDK', () => {
   assert.equal(
     defaultAdbPath({}),
     process.platform === 'win32' ? 'adb.exe' : 'adb',
+  )
+})
+
+// Shaped like a Quest whose display sleeps behind the Guardian boundary dialog.
+const QUEST_ASLEEP = {
+  'shell dumpsys power': 'Power Manager State:\n  mWakefulness=Asleep\n',
+  'shell dumpsys window':
+    '  mCurrentFocus=Window{4f2a1c u0 com.oculus.guardian/com.oculus.vrguardianservice.guardiandialog.GuardianDialogActivity}\n',
+  'shell getprop ro.product.manufacturer': 'Oculus\n',
+}
+
+test('tells why a page on the device would draw no frames', async () => {
+  const quest = await androidDisplayState(fakeAdb(QUEST_ASLEEP).run)
+  assert.deepEqual(quest, {
+    quest: true,
+    awake: false,
+    focus: 'com.oculus.guardian',
+  })
+  assert.equal(displayProblems(quest).length, 2)
+  const phone = await androidDisplayState(
+    fakeAdb({
+      'shell dumpsys power': '  mWakefulness=Awake\n',
+      'shell dumpsys window':
+        '  mCurrentFocus=Window{9 u0 com.example.reader/com.example.reader.Main}\n',
+      'shell getprop ro.product.manufacturer': 'Google\n',
+      'shell pm path com.oculus.guardian': Error('not found'),
+    }).run,
+  )
+  assert.deepEqual(phone, {
+    quest: false,
+    awake: true,
+    focus: 'com.example.reader',
+  })
+  assert.deepEqual(displayProblems(phone), [])
+})
+
+test('keeps a Quest awake and puts the headset back as it was', async () => {
+  for (const [previous, restored] of [
+    ['\n', '0'],
+    ['1\n', '1'],
+  ]) {
+    const adb = fakeAdb({
+      'shell getprop debug.oculus.guardian_pause': previous,
+      'shell am broadcast -a com.oculus.vrpowermanager.prox_close': '',
+      'shell setprop debug.oculus.guardian_pause 1': '',
+      [`shell setprop debug.oculus.guardian_pause ${restored}`]: '',
+      'shell am broadcast -a com.oculus.vrpowermanager.automation_disable': '',
+    })
+    const awake = await keepQuestAwake(adb.run)
+    assert.deepEqual(adb.calls.slice(1), [
+      'shell am broadcast -a com.oculus.vrpowermanager.prox_close',
+      'shell setprop debug.oculus.guardian_pause 1',
+    ])
+    await awake.restore()
+    assert.deepEqual(adb.calls.slice(3), [
+      `shell setprop debug.oculus.guardian_pause ${restored}`,
+      'shell am broadcast -a com.oculus.vrpowermanager.automation_disable',
+    ])
+  }
+})
+
+test('says how to restore the headset by hand when adb cannot', async () => {
+  const adb = fakeAdb({
+    'shell getprop debug.oculus.guardian_pause': '\n',
+    'shell am broadcast -a com.oculus.vrpowermanager.prox_close': '',
+    'shell setprop debug.oculus.guardian_pause 1': '',
+    'shell setprop debug.oculus.guardian_pause 0': Error('device offline'),
+    'shell am broadcast -a com.oculus.vrpowermanager.automation_disable': '',
+  })
+  const awake = await keepQuestAwake(adb.run)
+  await assert.rejects(
+    awake.restore(),
+    /device offline.*adb shell setprop debug\.oculus\.guardian_pause 0 and adb shell am broadcast/,
+  )
+  // A failed start leaves nothing changed behind it.
+  const failing = fakeAdb({
+    'shell getprop debug.oculus.guardian_pause': '\n',
+    'shell am broadcast -a com.oculus.vrpowermanager.prox_close': '',
+    'shell setprop debug.oculus.guardian_pause 1': Error('permission denied'),
+    'shell setprop debug.oculus.guardian_pause 0': '',
+    'shell am broadcast -a com.oculus.vrpowermanager.automation_disable': '',
+  })
+  await assert.rejects(keepQuestAwake(failing.run), /permission denied/)
+  assert.ok(
+    failing.calls.includes(
+      'shell am broadcast -a com.oculus.vrpowermanager.automation_disable',
+    ),
   )
 })
