@@ -20,7 +20,7 @@ The package includes a deliberately broken app and a corrected one. Both pass th
 
 ```bash
 mkdir recovery-probe-tools && cd recovery-probe-tools
-npm install --save-dev --save-exact recovery-probe@0.4.0 playwright@1.62.1
+npm install --save-dev --save-exact recovery-probe@0.5.0 playwright@1.62.1
 npx playwright install chromium
 npx recovery-probe --demo
 ```
@@ -34,13 +34,13 @@ npx recovery-probe --demo
 | Set up a first recovery check interactively | `recovery-probe start web URL` or `start desktop` | [Guided start](docs/start.md) |
 | Discover and test the reads behind a screen in a browser or Electron window | `recovery-probe desktop --cdp URL` | [Attachment and HTTP discovery](docs/desktop.md) |
 | Compare an Electron screen under IPC faults | `recovery-probe ipc --discover --config FILE` | [IPC setup and discovery](docs/ipc.md) |
-| Check what users see when a save or send fails in Electron | `recovery-probe ipc --action --config FILE` | [IPC action check](docs/ipc.md#action-check-050-preview8) |
+| Check what users see when a save or send fails in Electron | `recovery-probe ipc --action --config FILE` | [IPC action check](docs/ipc.md#action-check) |
 | Fail an SDK's or main process's own HTTPS connections | `recovery-probe net --rules FILE`, or network steps in `observe --network URL` | [Network faults](docs/net.md) |
 | Let an AI coding agent check what the screen does when a read fails | `recovery-probe mcp` | [AI coding agents (MCP)](docs/mcp.md) |
 | Find error handling that turns a failed read into "no data", before running anything | `recovery-probe suspects --changed-since main` | [Suspect scanner](docs/suspects.md) |
 | Show in a pull request that a change fixed what a check found | `recovery-probe compare --before DIR --after DIR --markdown` | [Before and after](docs/compare.md) |
 | See after every save whether an edit fixed or broke what a check found | `recovery-probe watch src -- CHECK` | [Watch mode](docs/watch.md) |
-| See whether a failure made the app delete local content | `recovery-probe observe --config FILE --files DIR` | [Local files](docs/observe.md#local-files-050-preview11) |
+| See whether a failure made the app delete local content | `recovery-probe observe --config FILE --files DIR` | [Local files](docs/observe.md#local-files) |
 | Inspect an Android app's WebView (experimental) | `recovery-probe android --package NAME` | [Android WebViews](docs/android.md) |
 | Test a refresh after content has already loaded | `recovery-probe refresh --config FILE --json` | [Refresh experiments](docs/refresh.md) |
 | Watch cached content and row states after user actions, without faults | `recovery-probe observe --config FILE [--steps FILE]` | [Observation](docs/observe.md) |
@@ -107,9 +107,11 @@ If no request matches, `withFault` throws `FAULT_NOT_TRIGGERED` instead of letti
 
 ## Install
 
-**0.4.0** is the stable release on npm's `latest` channel, and the commands above pin it for reproducible reports. Prereleases use the `next` channel and are opt-in.
+**0.5.0** is the stable release on npm's `latest` channel, and the commands above pin it for reproducible reports. Prereleases use the `next` channel and are opt-in.
 
 Use Node.js 22 or newer. A separate tools folder keeps the tester out of your application's production dependencies. Browser and desktop commands need Playwright; attached targets use their existing browser runtime. If a version is not on npm yet, use the [source installation](CONTRIBUTING.md#install-an-unpublished-source-preview): a GitHub merge alone does not publish the package. See [CHANGELOG.md](CHANGELOG.md) for version history.
+
+When upgrading from 0.4.0, resolve any stored IPC hook path again with `node -p "require.resolve('recovery-probe/ipc')"` and restart the development app. The hook now ships in `dist/`. The library and CLI are compiled from TypeScript; using the published package does not require a build. Source scanning with `suspects` additionally needs the optional TypeScript peer dependency. Experimental commands retain that status in 0.5.0.
 
 ## Reports, agents and privacy
 
