@@ -4,6 +4,19 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.5.0 (2026-10-21)
+
+Promotes previews 1–22 to the stable npm `latest` channel. The preview entries below retain the detailed history.
+
+- Synchronize the brief-content observation fixture with completed samples so a slow sampler cannot race its restoration timer. Keep coverage of transitions entirely between samples.
+- Complete the TypeScript migration of the library and CLI. Published JavaScript and declarations are built into `dist/`; public package imports and the `recovery-probe` command remain available.
+- Add IPC action checks for simulated success, failure and double-clicks, delayed injected results, and scripted fill/press steps.
+- Add a host-level HTTPS fault proxy and network steps during observation, plus evidence of local files removed by the app.
+- Add MCP tools for coding agents, experimental source scanning with `suspects`, before/after report comparison, and `watch` to rerun checks after saves.
+- Add experimental Android WebView attachment and Meta Quest keep-awake support, with diagnostics for visible pages that are not rendering.
+
+Upgrading from 0.4.0: keep using the public package exports and CLI. If `RECOVERY_PROBE_IPC_MODULE` stores the old `src/ipc-probe.cjs` path, resolve it again with `node -p "require.resolve('recovery-probe/ipc')"`; it now points into `dist/`. Restart the development app after upgrading so its loaded IPC hook matches the CLI. The optional TypeScript peer dependency is needed only for source scanning. Experimental workflows remain experimental in this stable package.
+
 ## 0.5.0-preview.22 (2026-10-21)
 
 - The command line is written in TypeScript under `src/cli` and compiled to `dist/cli`. `bin/recovery-probe.mjs` is now a launcher for it; the `recovery-probe` command, its options and its output are unchanged.
