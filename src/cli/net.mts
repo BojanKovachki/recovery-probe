@@ -2,7 +2,9 @@ import { readFile, writeFile } from 'node:fs/promises'
 import {
   startNetworkFaultProxy,
   validateNetworkRules,
-} from '../dist/net-fault.mjs'
+  type NetworkConnectionEvent,
+  type NetworkFaultRule,
+} from '../net-fault.mjs'
 import { untilStopped } from './until-stopped.mjs'
 
 const USAGE =
@@ -16,9 +18,9 @@ app with HTTPS_PROXY set to the printed URL. Rule windows count from the first
 connection. Without --rules, connections pass until observe --network arms faults
 from its steps. Stops on Ctrl+C or after --duration. See docs/net.md.`
 
-const seconds = (ms) => `${(ms / 1000).toFixed(1)} s`
+const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`
 
-function describe(rule, index) {
+function describe(rule: NetworkFaultRule, index: number) {
   const parts = [`${index + 1}. ${rule.fault} ${rule.host}`]
   if (rule.fault === 'delay') parts.push(`by ${rule.delayMs} ms`)
   if (rule.fromMs) parts.push(`from ${seconds(rule.fromMs)}`)
@@ -28,8 +30,16 @@ function describe(rule, index) {
   return `  ${parts.join(', ')}`
 }
 
-function parseArgs(args) {
-  const options = {}
+interface NetOptions {
+  json?: true
+  rules?: string
+  port?: number
+  duration?: number
+  out?: string
+}
+
+function parseArgs(args: string[]): NetOptions {
+  const options: Record<string, string | number | true> = {}
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]
     const value = args[i + 1]
@@ -47,14 +57,14 @@ function parseArgs(args) {
   for (const key of ['port', 'duration'])
     if (options[key] !== undefined) {
       options[key] = Number(options[key])
-      if (!Number.isInteger(options[key]) || options[key] < 0)
+      if (!Number.isInteger(options[key]) || (options[key] as number) < 0)
         throw Error(`--${key} must be a whole number`)
     }
-  return options
+  return options as NetOptions
 }
 
-function hostCounts(events) {
-  const hosts = {}
+function hostCounts(events: NetworkConnectionEvent[]) {
+  const hosts: Record<string, Record<string, number>> = {}
   for (const { host, outcome } of events) {
     hosts[host] ??= {}
     hosts[host][outcome] = (hosts[host][outcome] ?? 0) + 1
@@ -62,13 +72,13 @@ function hostCounts(events) {
   return hosts
 }
 
-export async function netMain(args) {
+export async function netMain(args: string[]) {
   if (args.includes('--help')) {
     console.log(HELP)
     return
   }
   const options = parseArgs(args)
-  let rules
+  let rules: NetworkFaultRule[] | undefined
   if (options.rules) {
     const parsed = JSON.parse(await readFile(options.rules, 'utf8'))
     rules = validateNetworkRules(Array.isArray(parsed) ? parsed : parsed?.rules)
@@ -91,7 +101,7 @@ export async function netMain(args) {
     printed = events.length
   }
 
-  let watch
+  let watch: NodeJS.Timeout | undefined
   if (!options.json) {
     console.log(`Recovery Probe network faults on ${proxy.url}
 

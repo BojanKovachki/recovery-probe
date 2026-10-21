@@ -1,13 +1,21 @@
-import { writeDiscoveryReport } from '../dist/discovery-report.mjs'
-import { writeActionReport } from '../dist/action-report.mjs'
-import { actionConfig, checkAction } from '../dist/ipc-action.mjs'
+import { writeDiscoveryReport } from '../discovery-report.mjs'
+import { writeActionReport } from '../action-report.mjs'
+import { actionConfig, checkAction } from '../ipc-action.mjs'
 import { readFile, mkdir, writeFile, mkdtemp } from 'node:fs/promises'
 import { resolve, join } from 'node:path'
-import { discoverIpc, discoveryConfig } from '../dist/ipc-discover.mjs'
-import { checkIpc } from '../dist/ipc-check.mjs'
-import { renderTemplate } from '../dist/report-template.mjs'
+import { discoverIpc, discoveryConfig } from '../ipc-discover.mjs'
+import { checkIpc } from '../ipc-check.mjs'
+import { renderTemplate } from '../report-template.mjs'
 
-export async function ipcMain(args) {
+interface IpcOptions {
+  restoreWindow?: true
+  discover?: true
+  action?: true
+  config?: string
+  out?: string
+}
+
+export async function ipcMain(args: string[]) {
   if (!args.length || args.includes('--help')) {
     console.log(`Recovery Probe IPC preview
   recovery-probe ipc --config ipc-scenario.json [--out NEW_DIRECTORY] [--discover | --action]
@@ -22,14 +30,15 @@ Discovery uses structural comparisons and language hints; findings require revie
 No HTTP/Rust transport faults or AI calls. See docs/ipc.md for installation and scope.`)
     return
   }
-  const options = {}
+  const options: IpcOptions = {}
+  const set = options as Record<string, string | true>
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--restore-window') {
       options.restoreWindow = true
       continue
     }
     if (args[i] === '--discover' || args[i] === '--action') {
-      options[args[i].slice(2)] = true
+      set[args[i].slice(2)] = true
       continue
     }
     if (
@@ -40,11 +49,12 @@ No HTTP/Rust transport faults or AI calls. See docs/ipc.md for installation and 
       throw new Error(
         'Use ipc --config FILE [--out NEW_DIRECTORY] [--discover | --action]',
       )
-    options[args[i].slice(2)] = args[++i]
+    set[args[i].slice(2)] = args[++i]
   }
   if (!options.config) throw new Error('--config is required')
   if (options.discover && options.action)
     throw new Error('Use either --discover or --action')
+  // Each check validates the configuration file it is given.
   const rawConfig = JSON.parse(await readFile(options.config, 'utf8'))
   if (options.restoreWindow) rawConfig.restoreWindow = true
   const config = options.discover
@@ -53,7 +63,7 @@ No HTTP/Rust transport faults or AI calls. See docs/ipc.md for installation and 
       ? actionConfig(rawConfig)
       : rawConfig
   const parent = resolve('.recovery-probe')
-  let directory
+  let directory: string
   if (options.out) {
     directory = resolve(options.out)
     await mkdir(directory, { mode: 0o700 })
@@ -104,7 +114,8 @@ No HTTP/Rust transport faults or AI calls. See docs/ipc.md for installation and 
     await writeDiscoveryReport(directory, report, config)
     for (const finding of report.findings)
       console.log(
-        `${finding.kind.toUpperCase()}: ${finding.id} — ${finding.classification}; runs=${finding.confirmations}${finding.partial ? `/${finding.plannedRuns} partial; observed=${finding.observedInterpretation.classification}` : ''}`,
+        // A partial finding always carries the interpretation it observed.
+        `${finding.kind.toUpperCase()}: ${finding.id} — ${finding.classification}; runs=${finding.confirmations}${finding.partial ? `/${finding.plannedRuns} partial; observed=${finding.observedInterpretation!.classification}` : ''}`,
       )
     if (report.error) console.error(`Discovery stopped: ${report.error}`)
     if (report.cleanupError) console.error(`Cleanup: ${report.cleanupError}`)

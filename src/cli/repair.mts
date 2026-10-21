@@ -1,8 +1,18 @@
 import { readFile } from 'node:fs/promises'
 import { resolve, dirname } from 'node:path'
-import { prepareRepair, generateRepair, verifyRepair } from '../dist/repair.mjs'
+import { prepareRepair, generateRepair, verifyRepair } from '../repair.mjs'
 
-export async function repairMain(args) {
+interface RepairOptions {
+  'allow-execution'?: true
+  'allow-source-upload'?: true
+  'auto-verify'?: true
+  config?: string
+  out?: string
+  generate?: string
+  verify?: string
+}
+
+export async function repairMain(args: string[]) {
   if (!args.length || args.includes('--help')) {
     console.log(`Recovery Probe repair preview — local development only
   recovery-probe repair --config repair.json --out NEW_DIRECTORY --allow-execution
@@ -22,7 +32,8 @@ There is no implicit source upload, production deployment, commit, merge or orig
 See docs/repair.md for complete web and Electron examples and Windows commands.`)
     return
   }
-  const options = {}
+  const options: RepairOptions = {}
+  const set = options as Record<string, string | true>
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]
     if (
@@ -30,11 +41,11 @@ See docs/repair.md for complete web and Electron examples and Windows commands.`
         arg,
       )
     )
-      options[arg.slice(2)] = true
+      set[arg.slice(2)] = true
     else if (['--config', '--out', '--generate', '--verify'].includes(arg)) {
       if (!args[i + 1] || args[i + 1].startsWith('--'))
         throw new Error(`${arg} needs a value`)
-      options[arg.slice(2)] = args[++i]
+      set[arg.slice(2)] = args[++i]
     } else throw new Error(`Unknown repair option: ${arg}`)
   }
   if (
@@ -70,6 +81,7 @@ See docs/repair.md for complete web and Electron examples and Windows commands.`
   }
   if (options.config) {
     const configPath = resolve(options.config)
+    // prepareRepair validates the configuration.
     const config = JSON.parse(await readFile(configPath, 'utf8'))
     config.repo = resolve(dirname(configPath), config.repo ?? '.')
     if (config.scenario?.storageState)

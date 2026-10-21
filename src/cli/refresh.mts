@@ -1,28 +1,56 @@
+import { signals } from './until-stopped.mjs'
 import { readFile, mkdir, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { connectDesktop, selectDesktopPage, desktopPages } from '../desktop.mjs'
+import type { Browser, Page } from 'playwright'
+import { connectIpcInspector, type IpcInspector } from '../ipc-inspector.mjs'
+import { prepareVisibility, type WindowVisibility } from '../visibility.mjs'
 import {
-  connectDesktop,
-  selectDesktopPage,
-  desktopPages,
-} from '../dist/desktop.mjs'
-import { connectIpcInspector } from '../dist/ipc-inspector.mjs'
-import { prepareVisibility } from '../dist/visibility.mjs'
-import { refreshConfig, runRefresh } from '../dist/refresh.mjs'
-import {
-  httpRefreshAdapter,
-  ipcRefreshAdapter,
-} from '../dist/refresh-adapters.mjs'
-import { escapeHtml, renderTemplate } from '../dist/report-template.mjs'
+  refreshConfig,
+  runRefresh,
+  type RefreshAdapter,
+  type RefreshFinding,
+  type RefreshReport,
+  type RefreshRun,
+} from '../refresh.mjs'
+import { httpRefreshAdapter, ipcRefreshAdapter } from '../refresh-adapters.mjs'
+import { escapeHtml, renderTemplate } from '../report-template.mjs'
 
-export async function refreshMain(args) {
+type PreparedVisibility = Awaited<ReturnType<typeof prepareVisibility>>
+
+// The experiment's report, or a minimal one when setup failed, plus what the CLI adds.
+type CliReport = (
+  | RefreshReport
+  | {
+      schemaVersion: number
+      mode: string
+      ok: boolean
+      finalReset: string
+      faultReset?: string
+      limitation?: string
+      results: RefreshRun[]
+      findings: RefreshFinding[]
+    }
+) & {
+  window?: {
+    initial: WindowVisibility
+    restoration?: Awaited<ReturnType<PreparedVisibility['revert']>>
+  }
+  error?: string
+  windowRestoreError?: string
+  disconnectError?: string
+}
+
+export async function refreshMain(args: string[]) {
   if (args.includes('--help')) {
     console.log(
       'recovery-probe refresh --config FILE [--out NEW_DIRECTORY] [--json]\nOpt-in synthetic window-event refresh experiments. No network outage or OS resume. See docs/refresh.md.',
     )
     return
   }
-  const options = {}
+  const options: { json?: true; config?: string; out?: string } = {}
+  const set = options as Record<string, string | true>
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--json') options.json = true
     else if (
@@ -30,7 +58,7 @@ export async function refreshMain(args) {
       args[i + 1] &&
       !args[i + 1].startsWith('--')
     )
-      options[args[i].slice(2)] = args[++i]
+      set[args[i].slice(2)] = args[++i]
     else throw Error('Use refresh --config FILE [--out NEW_DIRECTORY] [--json]')
   }
   if (!options.config) throw Error('--config required')
@@ -43,23 +71,26 @@ export async function refreshMain(args) {
   await writeFile(resolve(directory, '.gitignore'), '*\n', { mode: 0o600 })
   const abort = new AbortController()
   const onSignal = () => abort.abort()
-  process.on('SIGINT', onSignal)
-  process.on('SIGTERM', onSignal)
-  let browser, control, visibility
-  /** @type {Record<string, any> | undefined} */
-  let report
+  signals.on('SIGINT', onSignal)
+  signals.on('SIGTERM', onSignal)
+  let browser: Browser | undefined,
+    control: IpcInspector | undefined,
+    visibility: PreparedVisibility | undefined
+  let report: CliReport | undefined
   try {
-    browser = await connectDesktop(c.cdp)
-    let page, adapter
+    const attached = await connectDesktop(c.cdp)
+    browser = attached
+    let page: Page, adapter: RefreshAdapter
     if (c.transport === 'ipc') {
-      control = await connectIpcInspector(c.inspector)
+      const inspector = await connectIpcInspector(c.inspector)
+      control = inspector
       const identity = await control.call('identify')
       if (c.times > identity.capabilities?.maxFaultCount)
         throw Error('IPC hook does not support requested fault count')
       for (const channel of [c.channel, ...c.requiredChannels])
         if (!identity.registered.includes(channel))
           throw Error('Configured channel was not captured')
-      const pages = desktopPages(browser).filter(
+      const pages = desktopPages(attached).filter(
         (p) => p.url() === identity.pageUrl,
       )
       if (pages.length !== 1) throw Error('Keep one matching IPC target open')
@@ -74,13 +105,13 @@ export async function refreshMain(args) {
         })
       }, nonce)
       try {
-        await control.call('identify', nonce)
+        await inspector.call('identify', nonce)
       } finally {
         await page.evaluate(() => delete globalThis.__recoveryProbeWindowNonce)
       }
-      adapter = ipcRefreshAdapter(control, c, identity.senderId)
+      adapter = ipcRefreshAdapter(inspector, c, identity.senderId)
     } else {
-      page = selectDesktopPage(browser, c)
+      page = selectDesktopPage(attached, c)
       adapter = httpRefreshAdapter(page, c)
     }
     visibility = await prepareVisibility(page, {
@@ -99,26 +130,28 @@ export async function refreshMain(args) {
       results: [],
       findings: [],
     }
-    report.error = error.message
+    report.error = (error as Error).message
   } finally {
+    // The run or its catch has set the report by now.
+    const current = report!
     try {
       if (visibility) {
-        report.window ??= { initial: visibility.initial }
-        report.window.restoration = await visibility.revert()
+        current.window ??= { initial: visibility.initial }
+        current.window.restoration = await visibility.revert()
       }
     } catch (error) {
-      report.ok = false
-      report.windowRestoreError = error.message
+      current.ok = false
+      current.windowRestoreError = (error as Error).message
     }
     control?.close()
     try {
       if (browser) await browser.close()
     } catch (error) {
-      report.ok = false
-      report.disconnectError = error.message
+      current.ok = false
+      current.disconnectError = (error as Error).message
     }
-    process.off('SIGINT', onSignal)
-    process.off('SIGTERM', onSignal)
+    signals.off('SIGINT', onSignal)
+    signals.off('SIGTERM', onSignal)
   }
   await writeFile(
     resolve(directory, 'scenario.json'),

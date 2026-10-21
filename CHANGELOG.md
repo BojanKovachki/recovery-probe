@@ -4,6 +4,11 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.5.0-preview.22 (2026-10-21)
+
+- The command line is written in TypeScript under `src/cli` and compiled to `dist/cli`. `bin/recovery-probe.mjs` is now a launcher for it; the `recovery-probe` command, its options and its output are unchanged.
+- `npm run demo` runs `dist/cli/core-demo.mjs`.
+
 ## 0.5.0-preview.21 (2026-10-21)
 
 - The opt-in repair workflow (`recovery-probe repair`) is written in TypeScript. Its files, prompts and checks are unchanged.

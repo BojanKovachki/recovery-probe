@@ -6,8 +6,10 @@ import {
   displayProblems,
   forwardAndroidDevtools,
   keepQuestAwake,
-} from '../dist/android.mjs'
-import { startCdpBridge } from '../dist/cdp-bridge.mjs'
+  type AndroidDevtoolsTarget,
+  type KeptAwake,
+} from '../android.mjs'
+import { startCdpBridge, type CdpBridge } from '../cdp-bridge.mjs'
 import { untilStopped } from './until-stopped.mjs'
 
 const USAGE =
@@ -25,10 +27,20 @@ sees either. On a Meta Quest, --keep-awake keeps the display awake and pauses th
 Guardian boundary until the forward stops, so nobody has to wear the headset.
 See docs/android.md.`
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-function parseArgs(args) {
-  const options = {}
+interface AndroidOptions {
+  list?: true
+  keepAwake?: true
+  serial?: string
+  package?: string
+  port?: number
+  duration?: number
+  adb?: string
+}
+
+function parseArgs(args: string[]): AndroidOptions {
+  const options: Record<string, string | number | true> = {}
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]
     const value = args[i + 1]
@@ -48,16 +60,16 @@ function parseArgs(args) {
   for (const key of ['port', 'duration'])
     if (options[key] !== undefined) {
       options[key] = Number(options[key])
-      if (!Number.isInteger(options[key]) || options[key] < 0)
+      if (!Number.isInteger(options[key]) || (options[key] as number) < 0)
         throw Error(`--${key} must be a whole number`)
     }
-  return options
+  return options as AndroidOptions
 }
 
-const describe = (target) =>
+const describe = (target: AndroidDevtoolsTarget) =>
   `${target.kind.padEnd(7)} ${target.package ?? 'unknown app'}${target.pid ? ` (pid ${target.pid})` : ''}`
 
-export async function androidMain(args) {
+export async function androidMain(args: string[]) {
   if (args.includes('--help')) {
     console.log(HELP)
     return
@@ -102,8 +114,8 @@ export async function androidMain(args) {
   if (options.keepAwake && !(await androidDisplayState(run)).quest)
     throw Error('--keep-awake works on Meta Quest headsets only')
   const forward = await forwardAndroidDevtools(run, target.socket)
-  let bridge
-  let awake
+  let bridge: CdpBridge | undefined
+  let awake: KeptAwake | undefined
   try {
     // Android keeps blank WebViews without a window that never answer DevTools; a
     // client attaching to them all would wait forever, so the bridge hides them.
@@ -127,7 +139,7 @@ Keep the app on screen while a check runs. Press Ctrl+C to remove the forward.`)
       )
     for (const problem of display ? displayProblems(display) : [])
       console.log(
-        `Warning: ${problem} ${display.quest && !awake ? 'Wear the headset, or use --keep-awake.' : 'Wake the device and bring the app to the front.'}`,
+        `Warning: ${problem} ${display?.quest && !awake ? 'Wear the headset, or use --keep-awake.' : 'Wake the device and bring the app to the front.'}`,
       )
     await untilStopped(options.duration)
   } finally {

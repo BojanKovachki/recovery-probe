@@ -1,4 +1,11 @@
-import { compareReports, describeRuns, describeSide } from '../dist/compare.mjs'
+import {
+  compareReports,
+  describeRuns,
+  describeSide,
+  type ChangeStatus,
+  type Comparison,
+  type RunEvidence,
+} from '../compare.mjs'
 
 const USAGE =
   'recovery-probe compare --before REPORT... --after REPORT... [--before-label TEXT] [--after-label TEXT] [--markdown | --json]'
@@ -13,26 +20,35 @@ run that stopped early never reads as a fix. --markdown prints a block for a
 pull request. Exit 0: improved, or no problem on either side; 1: a new suspected
 defect or failed check; 2: anything else to review. See docs/compare.md.`
 
-const STATUS = {
+const STATUS: Record<ChangeStatus, string> = {
   NEW: 'new',
   STILL: 'still there',
   GONE: 'gone',
   UNVERIFIED: 'not checked to the end',
 }
 
-function parseArgs(args) {
-  const options = { before: [], after: [], labels: {} }
-  let side
+type Side = 'before' | 'after'
+
+interface CompareOptions {
+  before: string[]
+  after: string[]
+  labels: { before?: string; after?: string }
+  format?: 'json' | 'markdown'
+}
+
+function parseArgs(args: string[]): CompareOptions {
+  const options: CompareOptions = { before: [], after: [], labels: {} }
+  let side: Side | undefined
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]
-    if (arg === '--before' || arg === '--after') side = arg.slice(2)
+    if (arg === '--before' || arg === '--after') side = arg.slice(2) as Side
     else if (arg === '--json' || arg === '--markdown') {
-      options.format = arg.slice(2)
+      options.format = arg.slice(2) as 'json' | 'markdown'
       side = undefined
     } else if (arg === '--before-label' || arg === '--after-label') {
       if (!args[i + 1] || args[i + 1].startsWith('--'))
         throw Error(`${arg} needs a text, such as main`)
-      options.labels[arg.slice(2, -'-label'.length)] = args[++i]
+      options.labels[arg.slice(2, -'-label'.length) as Side] = args[++i]
       side = undefined
     } else if (arg.startsWith('--') || !side) throw Error(`Use ${USAGE}`)
     else options[side].push(arg)
@@ -42,7 +58,7 @@ function parseArgs(args) {
   return options
 }
 
-function printText(comparison) {
+function printText(comparison: Comparison) {
   const { labels } = comparison
   console.log(
     `Recovery Probe comparison${comparison.mode ? `: ${comparison.mode}` : ''}${comparison.target ? `, ${comparison.target}` : ''}`,
@@ -64,10 +80,11 @@ function printText(comparison) {
     console.log(
       `\n  Other outcomes: ${labels.before} ${outcomes.before.join(', ') || 'none'}; ${labels.after} ${outcomes.after.join(', ') || 'none'}`,
     )
-  for (const [label, runs] of [
+  const sides: [string, RunEvidence[]][] = [
     [labels.before, comparison.before],
     [labels.after, comparison.after],
-  ])
+  ]
+  for (const [label, runs] of sides)
     for (const run of runs)
       if (run.gaps.length)
         console.log(
@@ -78,7 +95,7 @@ function printText(comparison) {
     console.log(`Covers only this check. ${comparison.limitation}`)
 }
 
-export async function compareMain(args) {
+export async function compareMain(args: string[]) {
   if (args.includes('--help')) {
     console.log(HELP)
     return
