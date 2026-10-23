@@ -1,6 +1,6 @@
 {
   "name": "recovery-probe",
-  "version": "0.5.0",
+  "version": "0.6.0-preview.1",
   "type": "module",
   "description": "Test whether web and Electron desktop apps show the right data when a read fails, from the command line, your tests or an AI coding agent.",
   "license": "MIT",
@@ -109,7 +109,7 @@
   },
   "publishConfig": {
     "access": "public",
-    "tag": "latest"
+    "tag": "next"
   },
   "keywords": [
     "playwright",
@@ -140,7 +140,7 @@
     "typecheck": "npm run build --silent && tsc -p .",
     "test": "npm run test:core",
     "test:core": "npm run build --silent && node --test test/fetch-core.test.mjs test/net-fault.test.mjs test/mcp.test.mjs test/android.test.mjs test/cdp-bridge.test.mjs test/suspects.test.mjs test/compare.test.mjs test/watch.test.mjs",
-    "test:browser": "npm run build --silent && node --test test/recovery.integration.test.mjs test/discovery.integration.test.mjs test/discovery-calibration.integration.test.mjs test/attach.integration.test.mjs test/refresh.integration.test.mjs test/observe.integration.test.mjs test/observe-queue.integration.test.mjs test/mcp.integration.test.mjs test/watch.integration.test.mjs",
+    "test:browser": "npm run build --silent && node --test test/recovery.integration.test.mjs test/discovery.integration.test.mjs test/discovery-calibration.integration.test.mjs test/attach.integration.test.mjs test/refresh.integration.test.mjs test/observe.integration.test.mjs test/observe-queue.integration.test.mjs test/observe-library.integration.test.mjs test/mcp.integration.test.mjs test/watch.integration.test.mjs",
     "test:package": "npm run build --silent && node --test test/package.integration.test.mjs",
     "test:all": "npm run test:core && npm run test:package && npm run test:browser && npm run test:desktop && npm run test:repair && npm run test:guided && npm run test:ipc && npm run test:ci-example",
     "demo": "npm run build --silent && node dist/cli/core-demo.mjs",

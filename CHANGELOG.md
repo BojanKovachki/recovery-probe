@@ -4,6 +4,11 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.6.0-preview.1 (2026-10-23)
+
+- Observation rows can take their state from a marker element, such as an icon, with `rows.markers`. `state` and `states` are optional when markers are set.
+- `rows.unexpected` lists states a region must not show. A row shown in one of them is reported as `UNEXPECTED_ROW_STATE`, once per stretch of samples, with the samples that showed it and the action before it.
+
 ## 0.5.0 (2026-10-21)
 
 Promotes previews 1–22 to the stable npm `latest` channel. The preview entries below retain the detailed history.

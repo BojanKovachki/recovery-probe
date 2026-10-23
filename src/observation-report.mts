@@ -195,6 +195,18 @@ export interface DelayedUiUpdateFinding extends ObservationFinding {
   afterAction: (ActionRef & { changedAfterActionMs: [number, number] }) | null
 }
 
+export interface UnexpectedRowStateFinding extends ObservationFinding {
+  code: 'UNEXPECTED_ROW_STATE'
+  row: string
+  state: string
+  /** Bounds of the first sample that showed the row in this state. */
+  firstSeenMs: [number, number]
+  /** End of the last sample that showed it, before the row showed another state. */
+  lastSeenMs: number
+  samples: number
+  afterAction: (ActionRef & { seenAfterActionMs: [number, number] }) | null
+}
+
 export interface ContentBeforeReadFinding extends ObservationFinding {
   code: 'CONTENT_BEFORE_READ'
   fromMs: number
@@ -539,6 +551,11 @@ const isDelayedUiUpdate = (
   finding: ObservationFinding,
 ): finding is DelayedUiUpdateFinding => finding.code === 'DELAYED_UI_UPDATE'
 
+const isUnexpectedRowState = (
+  finding: ObservationFinding,
+): finding is UnexpectedRowStateFinding =>
+  finding.code === 'UNEXPECTED_ROW_STATE'
+
 export function observationSummary(finding: ObservationFinding): string {
   if (isDelayedUiUpdate(finding)) {
     const data =
@@ -549,6 +566,12 @@ export function observationSummary(finding: ObservationFinding): string {
       ? ` The change came ${range(finding.afterAction.changedAfterActionMs)} after action ‘${finding.afterAction.name}’${finding.previousStateStartedAfterActionMs == null ? '; the earlier state did not start right after an action' : '; the earlier state started right after it'}.`
       : ''
     return `${rowName(finding.row)[0].toUpperCase()}${rowName(finding.row).slice(1)} stayed ${finding.from} for ${seconds(finding.persistedMs)} s across ${finding.unchangedReadCompletions} completed selected reads, then changed to ${finding.to}${data}.${action}`
+  }
+  if (isUnexpectedRowState(finding)) {
+    const action = finding.afterAction
+      ? `; first seen ${range(finding.afterAction.seenAfterActionMs)} after action ‘${finding.afterAction.name}’`
+      : ''
+    return `${rowName(finding.row)[0].toUpperCase()}${rowName(finding.row).slice(1)} showed ${finding.state}, which this region must not show, in ${finding.samples} sample${finding.samples === 1 ? '' : 's'} from ${range(finding.firstSeenMs)} to ${seconds(finding.lastSeenMs)} s${action}.`
   }
   if (finding.code === 'LOCAL_FILES_REMOVED' && finding.summary)
     return finding.summary
@@ -685,7 +708,7 @@ export function renderObservationReport(report: ObservationReport): string {
     ? `<h2>Actions</h2>${effects.map((e) => `<p>${escapeHtml(actionSummary(e))}</p>`).join('')}`
     : ''
   const trackedRows = report.rows?.length
-    ? `<h2>Tracked rows</h2><table><thead><tr><th>Row</th><th>First seen</th><th>State changes</th><th>Last state</th></tr></thead><tbody>${report.rows.map(trackedRowHtml).join('')}</tbody></table><p>Row keys are hashed unless an alias was configured. States outside the configured allowlist are recorded as “other”.</p>`
+    ? `<h2>Tracked rows</h2><table><thead><tr><th>Row</th><th>First seen</th><th>State changes</th><th>Last state</th></tr></thead><tbody>${report.rows.map(trackedRowHtml).join('')}</tbody></table><p>Row keys are hashed unless an alias was configured. A configured marker names the state; otherwise text outside the configured allowlist is recorded as “other”.</p>`
     : ''
   const notes = (report.notes ?? [])
     .map((n) => `<p>Note: ${escapeHtml(n.note)}</p>`)
