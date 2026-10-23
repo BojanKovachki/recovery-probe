@@ -35,6 +35,8 @@ function printHelp() {
 Usage:
   recovery-probe --demo [--out report.json] [--json]
   recovery-probe --config scenario.json [--out report.json] [--json]
+  recovery-probe init [URL]
+  recovery-probe doctor
   recovery-probe start web http://localhost:3000
   recovery-probe start desktop
   recovery-probe refresh --help
@@ -136,6 +138,14 @@ async function main() {
   if (args[0] === 'ipc') {
     const { ipcMain } = await import('./ipc.mjs')
     return ipcMain(args.slice(1))
+  }
+  if (args[0] === 'init') {
+    const { initMain } = await import('./init.mjs')
+    return initMain(args.slice(1))
+  }
+  if (args[0] === 'doctor') {
+    const { doctorMain } = await import('./doctor.mjs')
+    return doctorMain(args.slice(1))
   }
   if (args[0] === 'start') {
     const { startMain } = await import('./start.mjs')

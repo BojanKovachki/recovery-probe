@@ -107,6 +107,32 @@ export async function choose<T>(
   }
 }
 
+/** Any number of the choices, including none. */
+export async function chooseMany<T>(
+  io: StartIo,
+  prompt: string,
+  choices: { label: string; value: T }[],
+): Promise<T[]> {
+  if (!choices.length) return []
+  io.log(prompt)
+  choices.forEach((choice, index) =>
+    io.log(`  ${index + 1}. ${safeLabel(choice.label)}`),
+  )
+  while (true) {
+    const answer = (
+      await io.ask('Numbers separated by commas, or Enter for none: ')
+    ).trim()
+    const picks = answer ? answer.split(',').map((pick) => pick.trim()) : []
+    if (
+      picks.every(
+        (pick) => /^[1-9]\d*$/.test(pick) && choices[Number(pick) - 1],
+      )
+    )
+      return [...new Set(picks)].map((pick) => choices[Number(pick) - 1].value)
+    io.log('Enter numbers from the list, separated by commas.')
+  }
+}
+
 async function launchWeb(options: StartOptions, io: StartIo): Promise<Browser> {
   let playwright: typeof import('playwright')
   try {
