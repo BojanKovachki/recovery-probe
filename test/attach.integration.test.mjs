@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { chromium } from 'playwright'
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, writeFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFile } from 'node:child_process'
@@ -68,6 +68,7 @@ test(
           'web',
           '--attach',
           '--discover',
+          '--screenshots',
           '--config',
           path,
           '--out',
@@ -81,6 +82,10 @@ test(
       )
       assert.equal(report.ok, true)
       assert.equal(report.results[0].snapshot.injected, 2)
+      assert.equal(report.baselines[0].screenshot, 'baseline.png')
+      assert.equal(report.results[0].screenshot, 'http-error-2-run1.png')
+      for (const name of ['baseline.png', 'http-error-2-run1.png'])
+        assert.ok((await stat(join(out, name))).size > 0, name)
       assert.ok(!JSON.stringify(report).includes('fixture-private-session'))
       assert.ok(
         !(await readFile(join(out, 'scenario.json'), 'utf8')).includes(

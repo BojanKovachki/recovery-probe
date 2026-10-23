@@ -11,6 +11,7 @@ import {
   findingId,
   laterCalls,
   screenshotRun,
+  type DiscoveryExperiment,
   type DiscoveryFinding,
   type DiscoveryScreenshot,
 } from './discovery-report.mjs'
@@ -56,12 +57,7 @@ interface DiscoveryEvent {
   uncaughtErrors: number
 }
 
-interface Experiment {
-  fault: IpcFault
-  times: number
-  /** The call of the load to fail first, when it is not the first. */
-  call?: number
-}
+type Experiment = DiscoveryExperiment<IpcFault>
 
 interface DiscoveryPhase {
   elapsedMs: number

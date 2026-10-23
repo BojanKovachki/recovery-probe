@@ -4,6 +4,12 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.6.0-preview.5 (2026-10-23)
+
+- IPC and HTTP discovery count how often each healthy load reads the target. When every load reads it the same number of times, they also fail the 2nd, 3rd and 4th call of a load on its own, as findings such as `rejection-1-call2` with a `call` field. `readiness.callsGap` says when later calls were not failed on their own. IPC discovery needs the hook from this version for these experiments; restart the app after upgrading.
+- `ipc --discover --screenshots` and `web --attach --discover --screenshots` save the screen after the first baseline and each faulted run, and show the screenshots in `report.html`.
+- The IPC hook's `begin` takes `skip`, the calls on the channel that pass before the first fault.
+
 ## 0.6.0-preview.4 (2026-10-23)
 
 - A click on a `<label>` records its action once. The browser also clicks the label's control, which counted as a second click on the same action.

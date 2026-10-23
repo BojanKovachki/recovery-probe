@@ -1,8 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { execFile } from 'node:child_process'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { promisify } from 'node:util'
 import {
   callsGap,
   findingId,
@@ -74,4 +77,19 @@ test('the discovery report shows only screenshots saved in its folder', async ()
   } finally {
     await rm(directory, { recursive: true, force: true })
   }
+})
+
+test('only discovery takes screenshots', async () => {
+  const cli = fileURLToPath(
+    new URL('../bin/recovery-probe.mjs', import.meta.url),
+  )
+  for (const args of [
+    ['ipc', '--screenshots', '--config', 'missing.json'],
+    ['web', '--attach', '--screenshots', '--config', 'missing.json'],
+  ])
+    await assert.rejects(
+      promisify(execFile)(process.execPath, [cli, ...args]),
+      (error) => /--screenshots needs --discover/.test(error.stderr),
+      args.join(' '),
+    )
 })

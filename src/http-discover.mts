@@ -10,6 +10,7 @@ import {
   findingId,
   laterCalls,
   screenshotRun,
+  type DiscoveryExperiment,
   type DiscoveryFinding,
   type DiscoveryScreenshot,
 } from './discovery-report.mjs'
@@ -56,12 +57,7 @@ interface DiscoveryEvent {
   injected: number
 }
 
-interface Experiment {
-  fault: FaultKind
-  times: number
-  /** The read of the load to fail first, when it is not the first. */
-  call?: number
-}
+type Experiment = DiscoveryExperiment<FaultKind>
 
 interface DiscoveryPhase {
   fault: FaultKind | 'healthy'

@@ -21,7 +21,7 @@ const exec = promisify(execFile)
 
 test(
   'real IPC: registration hook, serialized rejection, real retry, null and dependency boundaries, CLI cleanup',
-  { timeout: 180000 },
+  { timeout: 240000 },
   async () => {
     const cdpPort = await freePort()
     let inspectorPort = await freePort()

@@ -46,12 +46,15 @@ export function callsGap(
     return `Calls after the ${MAX_TARGETED_CALL}th of a load were not failed on their own.`
 }
 
-/** An experiment's id, such as rejection-1 or rejection-1-call2. */
-export function findingId(run: {
-  fault: string
+export interface DiscoveryExperiment<Fault extends string = string> {
+  fault: Fault
   times: number
+  /** The call of the load to fail first, when it is not the first. */
   call?: number
-}): string {
+}
+
+/** An experiment's id, such as rejection-1 or rejection-1-call2. */
+export function findingId(run: DiscoveryExperiment): string {
   return `${run.fault}-${run.times}${run.call ? `-call${run.call}` : ''}`
 }
 
