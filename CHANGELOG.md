@@ -4,6 +4,11 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.6.0-preview.2 (2026-10-23)
+
+- `UNEXPECTED_ROW_STATE` ends a stretch when the row leaves the region, so a row that comes back gets a new finding instead of extending the old one.
+- Marker labels cannot be `none` or `other`, the states rows get without a marker or allowlisted text.
+
 ## 0.6.0-preview.1 (2026-10-23)
 
 - Observation rows can take their state from a marker element, such as an icon, with `rows.markers`. `state` and `states` are optional when markers are set.

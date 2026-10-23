@@ -201,7 +201,7 @@ export interface UnexpectedRowStateFinding extends ObservationFinding {
   state: string
   /** Bounds of the first sample that showed the row in this state. */
   firstSeenMs: [number, number]
-  /** End of the last sample that showed it, before the row showed another state. */
+  /** End of the last of the consecutive samples that showed it. */
   lastSeenMs: number
   samples: number
   afterAction: (ActionRef & { seenAfterActionMs: [number, number] }) | null
@@ -546,6 +546,8 @@ const range = ([low, high]: readonly [number, number]) => {
 }
 const rowName = (row: string) =>
   row.startsWith('key:') ? `row ${row.slice(4, 12)}` : `row ‘${row}’`
+const capitalizedRowName = (row: string) =>
+  rowName(row)[0].toUpperCase() + rowName(row).slice(1)
 
 const isDelayedUiUpdate = (
   finding: ObservationFinding,
@@ -565,13 +567,13 @@ export function observationSummary(finding: ObservationFinding): string {
     const action = finding.afterAction
       ? ` The change came ${range(finding.afterAction.changedAfterActionMs)} after action ‘${finding.afterAction.name}’${finding.previousStateStartedAfterActionMs == null ? '; the earlier state did not start right after an action' : '; the earlier state started right after it'}.`
       : ''
-    return `${rowName(finding.row)[0].toUpperCase()}${rowName(finding.row).slice(1)} stayed ${finding.from} for ${seconds(finding.persistedMs)} s across ${finding.unchangedReadCompletions} completed selected reads, then changed to ${finding.to}${data}.${action}`
+    return `${capitalizedRowName(finding.row)} stayed ${finding.from} for ${seconds(finding.persistedMs)} s across ${finding.unchangedReadCompletions} completed selected reads, then changed to ${finding.to}${data}.${action}`
   }
   if (isUnexpectedRowState(finding)) {
     const action = finding.afterAction
       ? `; first seen ${range(finding.afterAction.seenAfterActionMs)} after action ‘${finding.afterAction.name}’`
       : ''
-    return `${rowName(finding.row)[0].toUpperCase()}${rowName(finding.row).slice(1)} showed ${finding.state}, which this region must not show, in ${finding.samples} sample${finding.samples === 1 ? '' : 's'} from ${range(finding.firstSeenMs)} to ${seconds(finding.lastSeenMs)} s${action}.`
+    return `${capitalizedRowName(finding.row)} showed ${finding.state}, which this region must not show, in ${finding.samples} sample${finding.samples === 1 ? '' : 's'} from ${range(finding.firstSeenMs)} to ${seconds(finding.lastSeenMs)} s${action}.`
   }
   if (finding.code === 'LOCAL_FILES_REMOVED' && finding.summary)
     return finding.summary
