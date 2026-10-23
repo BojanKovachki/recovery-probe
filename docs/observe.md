@@ -168,7 +168,7 @@ This is a lead, not a verdict. Read contents are never recorded, so the tool can
 
 ### State markers and `UNEXPECTED_ROW_STATE` (0.6.0-preview.1)
 
-Some screens show a row's state with an icon or badge rather than text. `rows.markers` names such states: each label maps to a selector inside the row, and a row's state is the label of the first marker with a visible match. Rows without a matching marker fall back to the `state` text, or `none`. Marker labels count as tracked states, so they appear in transitions, action effects and `DELAYED_UI_UPDATE` like text states. `state` and `states` become optional when `markers` is set.
+Some screens show a row's state with an icon or badge rather than text. `rows.markers` names such states: each label (other than `none` and `other`) maps to a selector inside the row, and a row's state is the label of the first marker with a visible match. Rows without a matching marker fall back to the `state` text, or `none`. Marker labels count as tracked states, so they appear in transitions, action effects and `DELAYED_UI_UPDATE` like text states. `state` and `states` become optional when `markers` is set.
 
 `rows.unexpected` lists states, from `states` or `markers`, that the region must never show. Use it for views that filter rows, such as an "installed" list that must not show items still downloading:
 
@@ -185,7 +185,7 @@ Some screens show a row's state with an icon or badge rather than text. `rows.ma
 }
 ```
 
-Each stretch of samples in which a row shows an unexpected state adds one `UNEXPECTED_ROW_STATE` finding. It records the row, the state, the bounds of the first sample, the end of the last sample, the number of samples, and the last configured action before it. For example: "Row ‘queued’ showed not installed, which this region must not show, in 40 samples from 1.2–1.3 s to 6.0 s; first seen 0.1–0.2 s after action ‘show-installed’." The rule comes from your configuration, so check that it holds for every row the region can show. A state shown only between samples can be missed.
+Each stretch of consecutive samples in which a row shows an unexpected state adds one `UNEXPECTED_ROW_STATE` finding; a row that leaves the region or shows another state ends the stretch. It records the row, the state, the bounds of the first sample, the end of the last sample, the number of samples, and the last configured action before it. For example: "Row ‘queued’ showed not installed, which this region must not show, in 40 samples from 1.2–1.3 s to 6.0 s; first seen 0.1–0.2 s after action ‘show-installed’." The rule comes from your configuration, so check that it holds for every row the region can show. A state shown only between samples can be missed.
 
 ### Busy targets
 

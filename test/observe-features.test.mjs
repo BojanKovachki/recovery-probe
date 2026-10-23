@@ -289,6 +289,7 @@ test('observation config validates selectors, rows, actions, methods and data ev
     { selector: 'li', markers: { A: 'svg' }, unexpected: [] },
     { selector: 'li', state: 'b', states: ['A'], markers: { A: 'svg' } },
     { selector: 'li', markers: { A: { name: 'x' } } },
+    { selector: 'li', markers: { none: 'svg' } },
   ])
     assert.throws(
       () => observationConfig({ ...base, rows }),
@@ -376,11 +377,14 @@ test('the row tracker reports each stretch of a row in an unexpected state once'
     ...sample(7, 'Pause', 7),
     rows: { items: [{ row: 'x', state: 'Pause' }] },
   })
+  // 'second' was missing from sample 7, so coming back starts a new finding.
+  t.add(sample(8, 'not installed', 8))
   const findings = t.snapshot().findings
   assert.deepEqual(
     findings.map((f) => [f.code, f.row, f.state, f.samples]),
     [
       ['UNEXPECTED_ROW_STATE', 'second', 'not installed', 3],
+      ['UNEXPECTED_ROW_STATE', 'second', 'not installed', 1],
       ['UNEXPECTED_ROW_STATE', 'second', 'not installed', 1],
     ],
   )

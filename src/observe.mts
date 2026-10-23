@@ -253,7 +253,7 @@ function labels(value: unknown, key: string): string[] {
   return [...value]
 }
 
-const stateLabel = (s: unknown) =>
+const isStateLabel = (s: unknown) =>
   typeof s === 'string' && s.trim() !== '' && s.length <= 60
 
 function rowsConfig(input: unknown): RowsConfig {
@@ -283,7 +283,7 @@ function rowsConfig(input: unknown): RowsConfig {
     throw Error('rows.state and rows.states go together')
   if (
     states.length > 20 ||
-    !states.every(stateLabel) ||
+    !states.every(isStateLabel) ||
     new Set(states).size !== states.length
   )
     throw Error(
@@ -298,10 +298,12 @@ function rowsConfig(input: unknown): RowsConfig {
     if (
       !entries.length ||
       entries.length > 20 ||
-      !entries.every(([label]) => stateLabel(label))
+      !entries.every(
+        ([label]) => isStateLabel(label) && !['none', 'other'].includes(label),
+      )
     )
       throw Error(
-        'rows.markers must map 1–20 state labels (1–60 characters) to selectors',
+        'rows.markers must map 1–20 state labels (1–60 characters, not none or other) to selectors',
       )
     for (const [label, selector] of entries) {
       if (states.includes(label))
@@ -309,7 +311,7 @@ function rowsConfig(input: unknown): RowsConfig {
       markers[label] = selectorSpec(selector, `rows.markers.${label}`)
     }
   }
-  const known = [...Object.keys(markers), ...states]
+  const known = stateLabels({ states, markers })
   const unexpected = r.unexpected
   if (
     unexpected !== undefined &&
@@ -604,19 +606,23 @@ export function rowTracker(c: ObservationConfig) {
   const labels = stateLabels(c.rows!)
   const tracked = (state: string) => labels.includes(state)
   const unexpected = new Set(c.rows!.unexpected ?? [])
-  // The open UNEXPECTED_ROW_STATE finding of each row, until the row shows another state.
-  const shown = new Map<string, UnexpectedRowStateFinding>()
+  // Each row's current UNEXPECTED_ROW_STATE finding and the last sample that extended it.
+  const shown = new Map<
+    string,
+    { finding: UnexpectedRowStateFinding; index: number }
+  >()
   const lastActionBefore = (ms: number) =>
     actions.filter((a) => a.atMs <= ms).at(-1) ?? null
   const showUnexpected = (row: string, state: string, s: RowSample) => {
+    if (!unexpected.has(state)) return
     const open = shown.get(row)
-    if (open?.state === state) {
-      open.lastSeenMs = s.toMs
-      open.samples++
+    // A row that left the region or showed another state in between starts a new finding.
+    if (open?.finding.state === state && open.index === s.index - 1) {
+      open.finding.lastSeenMs = s.toMs
+      open.finding.samples++
+      open.index = s.index
       return
     }
-    shown.delete(row)
-    if (!unexpected.has(state)) return
     const action = lastActionBefore(s.toMs)
     const finding: UnexpectedRowStateFinding = {
       code: 'UNEXPECTED_ROW_STATE',
@@ -638,7 +644,7 @@ export function rowTracker(c: ObservationConfig) {
       },
       note: 'The region showed a row in a state its configuration lists as unexpected. The rule comes from the configuration, so check that it holds for every row the region can show.',
     }
-    shown.set(row, finding)
+    shown.set(row, { finding, index: s.index })
     findings.push(finding)
   }
   return {

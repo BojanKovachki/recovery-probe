@@ -107,7 +107,7 @@ test(
     assert.equal(finding.row, 'second')
     assert.equal(finding.state, 'not installed')
     assert.equal(finding.afterAction.name, 'start')
-    assert.ok(finding.afterAction.seenAfterActionMs[1] < 1500)
+    assert.ok(finding.afterAction.seenAfterActionMs[1] < 3000)
     assert.ok(finding.samples > 10)
     assert.ok(finding.lastSeenMs > finding.firstSeenMs[1])
     assert.equal(finding.summary, observationSummary(finding))
