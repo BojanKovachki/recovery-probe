@@ -19,9 +19,14 @@ async function inspected(t, main) {
   const port = await freePort()
   const child = spawn(
     process.execPath,
-    [`--inspect=127.0.0.1:${port}`, '-e', main],
-    { stdio: 'ignore' },
+    [`--inspect=127.0.0.1:${port}`, '-e', `${main}\nprocess.send('ready')`],
+    { stdio: ['ignore', 'ignore', 'ignore', 'ipc'] },
   )
+  // The inspector listens before Node evaluates the fixture's program.
+  let initialized = false
+  child.on('message', (message) => {
+    if (message === 'ready') initialized = true
+  })
   t.after(() => child.kill())
   const inspector = `http://127.0.0.1:${port}`
   for (let i = 0; i < 100; i++) {
@@ -29,10 +34,10 @@ async function inspected(t, main) {
       (r) => r.ok,
       () => false,
     )
-    if (ready) return inspector
+    if (ready && initialized) return inspector
     await new Promise((resolve) => setTimeout(resolve, 50))
   }
-  throw new Error('The inspector did not start')
+  throw new Error('The inspector fixture did not finish initializing')
 }
 
 test('with nothing running, only optional parts are missing', async () => {

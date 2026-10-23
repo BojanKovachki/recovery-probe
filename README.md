@@ -109,6 +109,10 @@ Reports stay on your machine and there's no telemetry. Request and response bodi
 
 Only test apps and accounts you're allowed to, and keep debugging ports on localhost.
 
+## Upgrading from 0.5.0
+
+Restart the development app after upgrading so its IPC hook matches the CLI. Public package imports and the hook's path are unchanged. The old command spellings still work until 1.0, with a migration notice; new commands distinguish usage errors (exit 3) and setup failures (exit 4) from inconclusive results (exit 2). Update CI scripts that interpret exit codes. With the new `demo` and JSON-runner `check` commands, `--out` names a new report folder; their old spellings still write one file. See the [changelog](CHANGELOG.md) for the full migration notes.
+
 ## Docs
 
 [Guided start](docs/start.md) · [Desktop and browsers](docs/desktop.md) · [IPC](docs/ipc.md) · [Discovery](docs/discovery.md) · [Observe](docs/observe.md) · [Refresh](docs/refresh.md) · [Network faults](docs/net.md) · [Android](docs/android.md) · [Suspects](docs/suspects.md) · [Compare](docs/compare.md) · [Watch](docs/watch.md) · [Verify](docs/verify.md) · [MCP](docs/mcp.md) · [API](docs/api.md) · [JSON runner](docs/runner.md) · [CI](docs/ci.md) · [Repair](docs/repair.md) · [Changelog](CHANGELOG.md)
