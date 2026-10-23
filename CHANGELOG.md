@@ -4,6 +4,12 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.6.0-preview.12 (2026-10-23)
+
+- Every `report.json` has an `evidence` block in one shape: workflow, transport, target, problems, outcomes, what the run checked and why parts don't count. `compare`, `watch` and `verify` read it; older reports are read from their other fields as before.
+- `compare` matches runs by workflow and transport instead of the report's label, so a check from `check --cdp` compares with one from the old `web --attach`, and an older refresh report compares with a new one.
+- Discovery, action and refresh findings are told apart by experiment: before, `rejection-1`, `rejection-2` and `rejection-1-call2` all counted as `rejection`, so a problem that moved between them looked unchanged.
+
 ## 0.6.0-preview.11 (2026-10-23)
 
 - One set of commands. `check`, `discover` and `action` read what to do from the config: a `channel` means IPC, an `endpoint` means HTTP, and `check` attaches when given `--cdp` or a config with `cdp` or `page`, otherwise it opens Chromium. `windows`, `reads`, `login` and `demo` replace `--list`, `--discover` without a config, `--login` and `--demo`.

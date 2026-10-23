@@ -38,7 +38,34 @@ It reads the reports of:
 
 Reports from the old `--config`, `web`, `desktop` and `ipc` spellings work too.
 
-Both sides must come from the same kind of check on the same target, which is an endpoint, an IPC channel or an observed read. Otherwise the result is `NOT_COMPARABLE`.
+Both sides must come from the same kind of check, the same workflow over the same transport, on the same target, which is an endpoint, an IPC channel or an observed read. Otherwise the result is `NOT_COMPARABLE`. A check from `check --cdp` and one from the old `web --attach` are the same kind.
+
+## The evidence block
+
+Every `report.json` has an `evidence` block in the same shape, whatever wrote it. `compare`, `watch` and `verify` read only this block, and so can your own tools:
+
+```json
+{
+  "schema": "recovery-probe/evidence@1",
+  "workflow": "discover",
+  "transport": "ipc",
+  "target": "files:read",
+  "complete": true,
+  "gaps": [],
+  "problems": [
+    { "code": "SILENT_EMPTY", "scope": "rejection-2", "severity": "defect" }
+  ],
+  "outcomes": ["RECOVERED (rejection-1)"],
+  "checked": ["", "rejection-1", "rejection-2"]
+}
+```
+
+- `workflow` is `check`, `discover`, `refresh`, `observe` or `action`; `transport` is `http`, `ipc` or `browser` (the JSON runner).
+- `problems` are suspected defects (`defect`) and leads (`lead`). `scope` is the fault or experiment they came from: `rejection-1` and `rejection-2` stay apart.
+- `complete` is false when the run stopped early or a control failed; `gaps` say why. Only complete runs can show that a problem is gone.
+- `checked` lists the scopes the run checked to the end.
+
+Reports from before this block are read from their other fields.
 
 ## How it decides
 

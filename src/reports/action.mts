@@ -2,6 +2,7 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { IpcActionReport } from '../workflows/action.mjs'
 import { escapeHtml, renderTemplate } from './template.mjs'
+import { withEvidence } from './evidence.mjs'
 
 export async function writeActionReport(
   directory: string,
@@ -16,7 +17,11 @@ export async function writeActionReport(
   )
   await writeFile(
     join(directory, 'report.json'),
-    JSON.stringify(report, null, 2),
+    JSON.stringify(
+      withEvidence(report, { workflow: 'action', transport: 'ipc' }),
+      null,
+      2,
+    ),
     { mode: 0o600 },
   )
   const findings = report.findings

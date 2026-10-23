@@ -1,6 +1,17 @@
 import { existsSync } from 'node:fs'
 import { readdir, readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
+import {
+  EVIDENCE_SCHEMA,
+  evidenceOf,
+  kindOf,
+  scoped,
+  type Evidence,
+  type Problem,
+  type ProblemSeverity,
+} from '../reports/evidence.mjs'
+
+export type { ProblemSeverity } from '../reports/evidence.mjs'
 
 /** What happened to a problem between the two sides. */
 export type ChangeStatus = 'GONE' | 'NEW' | 'STILL' | 'UNVERIFIED'
@@ -14,30 +25,11 @@ export type ComparisonVerdict =
   | 'INCONCLUSIVE'
   | 'NOT_COMPARABLE'
 
-/** A suspected defect or failed check, or a lead to review. */
-export type ProblemSeverity = 'defect' | 'lead'
-
-interface Problem {
-  code: string
-  /** The fault or scenario it was found under, when the report has several. */
-  scope?: string
-  severity: ProblemSeverity
-}
-
-/** What one report shows, reduced to what can be compared. */
-export interface RunEvidence {
+/** One report's evidence, with where it came from. */
+export interface RunEvidence extends Omit<Evidence, 'schema'> {
   path: string
+  /** The report's own label for what it ran, for display. */
   mode: string
-  target?: string
-  /** Whether the run finished well enough for a missing problem to count. */
-  complete: boolean
-  /** Why parts of the run do not count: errors, inconclusive rows, coverage gaps. */
-  gaps: string[]
-  problems: Problem[]
-  /** Results that are not problems, such as RECOVERED or FEEDBACK_SHOWN. */
-  outcomes: string[]
-  /** Scopes the run checked to the end; '' stands for the whole check. */
-  checked: string[]
   limitation?: string
 }
 
@@ -76,124 +68,11 @@ export interface Comparison {
 }
 
 type Report = Record<string, unknown>
-type Row = Record<string, unknown>
 
-const OBSERVATION_MODES = new Set([
-  'fault-free observation',
-  'observation with network faults',
-])
-const FINDING_MODES = new Set([
-  'experimental IPC discovery',
-  'HTTP discovery',
-  'IPC action check',
-  'refresh experiment',
-])
-// Recovery checks with a row per fault: desktop, web, attached, guided and IPC
-// checks are all named "... recovery".
-const isCheck = (mode: string) =>
-  mode.endsWith(' recovery') ||
-  mode === 'configured recovery check' ||
-  mode === 'controlled demonstration'
-
-const list = (value: unknown): Row[] =>
-  Array.isArray(value)
-    ? value.filter((item): item is Row => !!item && typeof item === 'object')
-    : []
 const string = (value: unknown) =>
   typeof value === 'string' && value ? value : undefined
-const scoped = (code: string, scope?: string) =>
-  scope ? `${code} (${scope})` : code
 const plural = (count: number, word: string) =>
   `${count} ${word}${count === 1 ? '' : 's'}`
-
-/** The first line of an error, enough to say why a run stopped. */
-const briefly = (text: string) => text.split('\n')[0].slice(0, 160)
-
-function targetOf(report: Report): string | undefined {
-  const readiness = report.readiness as Record<string, unknown> | undefined
-  const trigger = report.trigger as Record<string, unknown> | undefined
-  const apps = list(report.apps)
-  return (
-    string(report.channel) ??
-    string(report.endpoint) ??
-    string(report.target) ??
-    (Array.isArray(readiness?.relevantEndpoints)
-      ? string(readiness.relevantEndpoints[0])
-      : undefined) ??
-    string(trigger?.name) ??
-    (apps.length
-      ? apps.map((app) => string(app.name) ?? '?').join(', ')
-      : undefined)
-  )
-}
-
-// Reports with a row per fault: pass, fail, inconclusive or skipped.
-function fromCheck(report: Report, evidence: RunEvidence) {
-  const baseline = report.baseline as Row | undefined
-  if (baseline && baseline.outcome !== 'pass') {
-    evidence.gaps.push(`baseline ${string(baseline.code) ?? 'did not pass'}`)
-    evidence.complete = false
-  }
-  const rows = report.apps
-    ? list(report.apps).flatMap((app) => list(app.results))
-    : list(report.results)
-  for (const row of rows) {
-    const code = string(row.code) ?? 'UNKNOWN'
-    const scope = string(row.kind) ?? string(row.fault) ?? string(row.scenario)
-    if (row.outcome === 'fail') {
-      evidence.problems.push({ code, scope, severity: 'defect' })
-      if (scope) evidence.checked.push(scope)
-    } else if (row.outcome === 'pass') {
-      evidence.outcomes.push(scoped(code, scope))
-      if (scope) evidence.checked.push(scope)
-    } else evidence.gaps.push(scoped(code, scope))
-  }
-  if (!evidence.checked.length) evidence.complete = false
-}
-
-// Reports with findings classified as suspected-defect, decision-needed,
-// observation (good outcomes such as RECOVERED) or inconclusive.
-function fromFindings(report: Report, evidence: RunEvidence) {
-  if (report.failedControl) {
-    evidence.gaps.push('the control run failed')
-    evidence.complete = false
-  }
-  let conclusive = 0
-  for (const finding of list(report.findings)) {
-    const code = string(finding.classification) ?? 'UNKNOWN'
-    const scope = string(finding.fault)
-    if (finding.kind === 'inconclusive' || finding.partial) {
-      evidence.gaps.push(scoped(code, scope))
-      continue
-    }
-    conclusive++
-    if (scope) evidence.checked.push(scope)
-    if (finding.kind === 'suspected-defect')
-      evidence.problems.push({ code, scope, severity: 'defect' })
-    else if (finding.kind === 'decision-needed')
-      evidence.problems.push({ code, scope, severity: 'lead' })
-    else evidence.outcomes.push(scoped(code, scope))
-  }
-  if (!conclusive) evidence.complete = false
-}
-
-// Observation findings are all leads; any coverage gap makes the run partial.
-function fromObservation(report: Report, evidence: RunEvidence) {
-  if (report.status !== 'complete' || report.captureComplete === false) {
-    evidence.gaps.push(`capture ${string(report.status) ?? 'incomplete'}`)
-    evidence.complete = false
-  }
-  const coverage = report.coverage as Record<string, unknown> | undefined
-  for (const gap of Array.isArray(coverage?.gaps) ? coverage.gaps : []) {
-    evidence.gaps.push(String(gap))
-    evidence.complete = false
-  }
-  for (const finding of list(report.findings)) {
-    const code = string(finding.code) ?? 'UNKNOWN'
-    if (!evidence.problems.some((problem) => problem.code === code))
-      evidence.problems.push({ code, severity: 'lead' })
-  }
-}
 
 /**
  * The report files a path stands for: the file itself, the report.json in a
@@ -227,38 +106,23 @@ export async function readRunEvidence(file: string): Promise<RunEvidence> {
 
 /** Reduces a parsed report to what can be compared. */
 export function runEvidence(report: Report, path = ''): RunEvidence {
+  const kind = kindOf(report)
   const mode = string(report?.mode)
-  if (
-    !mode ||
-    !(OBSERVATION_MODES.has(mode) || FINDING_MODES.has(mode) || isCheck(mode))
-  )
+  if (!kind)
     throw new Error(
       `${path || 'This file'} is not a Recovery Probe report this version can compare${mode ? ` (mode: ${mode})` : ''}`,
     )
+  // Reports carry their evidence; older ones are read from their fields.
+  const embedded = report.evidence as Evidence | undefined
+  const { schema: _schema, ...evidence } =
+    embedded?.schema === EVIDENCE_SCHEMA ? embedded : evidenceOf(report, kind)
   const coverage = report.coverage as Record<string, unknown> | undefined
-  const evidence: RunEvidence = {
+  return {
+    ...evidence,
     path,
-    mode,
-    target: targetOf(report),
-    complete: true,
-    gaps: [],
-    problems: [],
-    outcomes: [],
-    checked: [],
+    mode: mode ?? kind.workflow,
     limitation: string(report.limitation) ?? string(coverage?.scope),
   }
-  const error = string(report.error)
-  if (error) {
-    evidence.gaps.push(`error: ${briefly(error)}`)
-    evidence.complete = false
-  }
-  if (OBSERVATION_MODES.has(mode)) fromObservation(report, evidence)
-  else if (FINDING_MODES.has(mode)) fromFindings(report, evidence)
-  else fromCheck(report, evidence)
-  evidence.checked = evidence.complete
-    ? [...new Set(['', ...evidence.checked])]
-    : []
-  return evidence
 }
 
 const keyOf = (problem: Problem) => scoped(problem.code, problem.scope)
@@ -280,9 +144,18 @@ function statusOf(before: SideCount, after: SideCount): ChangeStatus {
   return before.checked ? 'NEW' : 'UNVERIFIED'
 }
 
+// Runs are the same check when their workflows match and their transports don't differ.
 function mismatches(runs: RunEvidence[]): string[] {
-  const modes = [...new Set(runs.map((run) => run.mode))]
-  if (modes.length > 1) return [`different checks: ${modes.join(' and ')}`]
+  const [first] = runs
+  const differs = runs.some(
+    (run) =>
+      run.workflow !== first.workflow ||
+      (run.transport && first.transport && run.transport !== first.transport),
+  )
+  if (differs)
+    return [
+      `different checks: ${[...new Set(runs.map((run) => run.mode))].join(' and ')}`,
+    ]
   const targets = [...new Set(runs.map((run) => run.target ?? 'none'))]
   return targets.length > 1
     ? [`different targets: ${targets.join(' and ')}`]

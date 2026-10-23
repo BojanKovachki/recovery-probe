@@ -38,6 +38,7 @@ import {
 import { attachIpcWindow } from '../targets/ipc-window.mjs'
 import { reportFolder } from '../reports/folder.mjs'
 import { parseOptions, readConfig, UsageError } from './args.mjs'
+import { withEvidence } from '../reports/evidence.mjs'
 
 type NetworkSteps = ReturnType<typeof networkSteps>
 type ObservationAdapter = Parameters<typeof runObservation>[2]
@@ -270,7 +271,14 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
     )
   await writeFile(
     join(directory, 'report.json'),
-    JSON.stringify(report, null, 2),
+    JSON.stringify(
+      withEvidence(report, {
+        workflow: 'observe',
+        transport: config.transport,
+      }),
+      null,
+      2,
+    ),
     { mode: 0o600 },
   )
   await writeFile(

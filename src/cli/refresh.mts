@@ -27,6 +27,7 @@ import { escapeHtml, renderTemplate } from '../reports/template.mjs'
 import { attachIpcWindow } from '../targets/ipc-window.mjs'
 import { reportFolder } from '../reports/folder.mjs'
 import { parseOptions, readConfig, text, UsageError } from './args.mjs'
+import { withEvidence } from '../reports/evidence.mjs'
 
 type PreparedVisibility = Awaited<ReturnType<typeof prepareVisibility>>
 
@@ -146,7 +147,11 @@ export async function refreshMain(args: string[]) {
   )
   await writeFile(
     resolve(directory, 'report.json'),
-    JSON.stringify(report, null, 2),
+    JSON.stringify(
+      withEvidence(report, { workflow: 'refresh', transport: c.transport }),
+      null,
+      2,
+    ),
     { mode: 0o600 },
   )
   await writeFile(
