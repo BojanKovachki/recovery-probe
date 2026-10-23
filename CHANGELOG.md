@@ -4,6 +4,15 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.6.0-preview.9 (2026-10-23)
+
+- IPC and HTTP discovery run on one engine, built on the same read sessions as refresh. The IPC and HTTP modules only set up their transport.
+- Both now behave the same where they had drifted apart:
+  - Over HTTP, a healthy load that doesn't settle stops the run with `BASELINE_NOT_HEALTHY`, as over IPC. `BASELINE_UNSTABLE` means healthy loads ended on different screens, over both, without the extra text IPC added.
+  - Over IPC, an `UNSTABLE` finding has low confidence, as over HTTP.
+  - HTTP findings and runs have the fields IPC ones had: `observationMs`, advice per classification, `verification`, `recoveryDetectedAt`, `timingNote`, `assessment`, and `uncaughtErrors` in the timeline.
+- The read sessions take `skip`, and the HTTP one keeps the requests its observers saw.
+
 ## 0.6.0-preview.8 (2026-10-23)
 
 - The source is split into layers (core, transports, targets, reports, workflows, tools, cli), and a test keeps each layer from importing the ones above it. `desktop.mts`, which held the HTTP check, CDP attachment and endpoint listing, is now three modules, and `index.mts` no longer holds a check engine. The public imports (`recovery-probe`, `/fetch`, `/net`, `/desktop`, `/web`, `/ipc-inspector`, `/ipc`) and the hook's path are unchanged. Imports of other files inside `dist/` were never supported and now break.
