@@ -15,7 +15,7 @@ Most apps don't crash when a read fails. The list goes empty, the spinner never 
 You need Node.js 22 or newer.
 
 ```bash
-npm install --save-dev recovery-probe playwright
+npm install --save-dev --save-exact recovery-probe@0.6.0 playwright@1.62.1
 npx playwright install chromium
 npx recovery-probe demo
 ```
@@ -108,6 +108,10 @@ It doesn't simulate a whole device going offline, WebSocket drops, token expiry,
 Reports stay on your machine and there's no telemetry. Request and response bodies aren't recorded, and discovery and observation keep screen text only as hashes. Reports can still contain endpoint paths, selectors, text you picked as a marker and, with `--screenshots`, what was on screen, so check them before you share them. Nothing calls an AI service except the opt-in [repair](docs/repair.md) workflow.
 
 Only test apps and accounts you're allowed to, and keep debugging ports on localhost.
+
+## Upgrading from 0.5.0
+
+Restart the development app after upgrading so its IPC hook matches the CLI. Public package imports and the hook's path are unchanged. The old command spellings still work until 1.0, with a migration notice; new commands distinguish usage errors (exit 3) and setup failures (exit 4) from inconclusive results (exit 2). Update CI scripts that interpret exit codes. With the new `demo` and JSON-runner `check` commands, `--out` names a new report folder; their old spellings still write one file. See the [changelog](CHANGELOG.md) for the full migration notes.
 
 ## Docs
 
