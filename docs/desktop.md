@@ -131,7 +131,7 @@ The integration suite launches a real Electron BrowserWindow with context isolat
 
 ```bash
 npm install --no-save --package-lock=false electron@44.5.1
-npm run test:desktop:electron
+npm run test:electron
 ```
 
 Actual compatibility with your application's Electron version and its startup/network design still needs your first local run.

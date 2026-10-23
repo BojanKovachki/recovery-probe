@@ -16,14 +16,15 @@ npm ci
 npm run format:check
 npm run lint
 npm run typecheck
-npm test
-npm run test:package
+npm test                  # unit tests, no browser
+npm run test:package      # installs the packed package like a user would
 npx playwright install chromium
-npm run test:browser
-npm run test:repair     # safety, authenticated portal, before/after pipeline
-# After installing the optional Electron test runtime:
-npm run test:repair:electron
+npm run test:integration  # real Chromium
+npm install --no-save --package-lock=false electron@44.5.1
+npm run test:electron     # real Electron
 ```
+
+Tests live in `test/unit`, `test/integration`, `test/electron` and `test/package`, and each script runs every `*.test.mjs` in its folder. Shared helpers are in `test/helpers` (free ports, launching an Electron fixture, the repair fixture) and fixture apps in `test/fixtures`. Electron tests start Electron through `test/helpers/electron.mjs`, which also clears `ELECTRON_RUN_AS_NODE` (some editors set it) and stops the whole process tree.
 
 Repair integration tests use a **controlled mock model response** but real apps, fault injection, source changes and reruns. They validate orchestration, not live AI diagnosis quality.
 

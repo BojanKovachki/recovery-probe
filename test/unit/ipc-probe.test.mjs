@@ -1,0 +1,179 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { installIpcProbe } from '../../dist/ipc-probe.cjs'
+import { validateIpcConfig } from '../../dist/ipc-check.mjs'
+function fixture(real) {
+  const handlers = new Map()
+  const ipc = {
+    handle(channel, listener) {
+      if (handlers.has(channel)) throw Error('duplicate')
+      handlers.set(channel, listener)
+    },
+  }
+  const sender = {
+    id: 1,
+    mainFrame: {},
+    isDestroyed: () => false,
+    getURL: () => 'file:///fixture.html#/files',
+  }
+  const event = { sender, senderFrame: sender.mainFrame }
+  const original = ipc.handle
+  const probe = installIpcProbe(ipc, {
+    enabled: true,
+    channels: ['read', 'versions'],
+    sender: () => sender,
+  })
+  ipc.handle('read', real ?? (() => Promise.resolve('real')))
+  ipc.handle('versions', () => Promise.resolve([]))
+  return { ipc, handlers, event, probe, original }
+}
+test('preserves Promise identity, receiver, all arguments and non-target traffic', async () => {
+  const receiver = {}
+  const promise = Promise.resolve('real')
+  let received
+  const f = fixture(function (...args) {
+    received = { receiver: this, args }
+    return promise
+  })
+  f.probe.begin({ id: 'baseline', channel: 'read' })
+  const actual = f.handlers.get('read').call(receiver, f.event, 7, 'argument')
+  assert.equal(actual, promise)
+  assert.equal(await actual, 'real')
+  assert.equal(received.receiver, receiver)
+  assert.deepEqual(received.args, [f.event, 7, 'argument'])
+  assert.equal(f.probe.snapshot().channels.read.successes, 1)
+  f.probe.begin({ id: 'fault', channel: 'read', fault: 'rejection' })
+  for (const event of [
+    { ...f.event, senderFrame: {} },
+    { ...f.event, sender: { ...f.event.sender, id: 2 } },
+  ])
+    assert.equal(await f.handlers.get('read')(event), 'real')
+  assert.equal(f.probe.snapshot().injected, 0)
+  await assert.rejects(f.handlers.get('read')(f.event), /injected IPC/)
+  assert.equal(await f.handlers.get('read')(f.event), 'real')
+  assert.equal(f.probe.snapshot().injected, 1)
+  assert.equal(f.probe.snapshot().successfulAfterFault, 1)
+  assert.equal(f.probe.snapshot().armed, null)
+})
+test('atomic one-shot consumption, stale IDs, TTL, null shape and transparent disposal', async () => {
+  const f = fixture()
+  f.probe.begin({ id: 'one', channel: 'read', fault: 'rejection' })
+  const results = await Promise.allSettled(
+    Array.from({ length: 8 }, () => f.handlers.get('read')(f.event)),
+  )
+  assert.equal(results.filter((r) => r.status === 'rejected').length, 1)
+  assert.throws(() => f.probe.reset('old'), /Stale/)
+  f.probe.begin({ id: 'two', channel: 'read', fault: 'null-result' })
+  assert.equal(await f.handlers.get('read')(f.event), null)
+  assert.throws(
+    () => f.probe.begin({ id: 'two', channel: 'read' }),
+    /new non-empty/,
+  )
+  f.probe.begin({
+    id: 'expiry',
+    channel: 'read',
+    fault: 'rejection',
+    ttlMs: 100,
+  })
+  await new Promise((r) => setTimeout(r, 130))
+  assert.equal(f.probe.snapshot().armed, null)
+  assert.equal(await f.handlers.get('read')(f.event), 'real')
+  f.probe.begin({ id: 'dispose', channel: 'read', fault: 'rejection' })
+  f.probe.dispose()
+  assert.equal(f.ipc.handle, f.original)
+  assert.equal(await f.handlers.get('read')(f.event), 'real')
+})
+test('pending calls cannot contaminate a later run and invalid configuration fails closed', async () => {
+  let resolve
+  const f = fixture(
+    () =>
+      new Promise((r) => {
+        resolve = r
+      }),
+  )
+  f.probe.begin({ id: 'pending', channel: 'read' })
+  const pending = f.handlers.get('read')(f.event)
+  assert.throws(
+    () => f.probe.begin({ id: 'later', channel: 'read' }),
+    /pending/,
+  )
+  resolve('real')
+  await pending
+  f.probe.begin({
+    id: 'later',
+    channel: 'read',
+    requiredChannels: ['versions'],
+  })
+  assert.equal(f.probe.snapshot().channels.read.successes, 0)
+  assert.throws(
+    () => f.probe.begin({ id: 'unknown', channel: 'unregistered' }),
+    /allowed and registered/,
+  )
+  assert.throws(() => installIpcProbe(f.ipc, {}), /enablement/)
+  assert.throws(() => validateIpcConfig({}), /channel/)
+  assert.throws(
+    () =>
+      validateIpcConfig({
+        channel: 'read',
+        readySelector: '#row',
+        readyText: 'file',
+        faults: ['http-error'],
+      }),
+    /rejection/,
+  )
+  assert.throws(() => f.ipc.handle('read', () => 0), /duplicate/)
+})
+test('skip lets earlier calls on the channel through before the fault', async () => {
+  const f = fixture()
+  assert.equal(f.probe.identify().capabilities.faultSkip, true)
+  f.probe.begin({ id: 'second', channel: 'read', fault: 'rejection', skip: 1 })
+  assert.deepEqual(await f.handlers.get('versions')(f.event), [])
+  assert.equal(await f.handlers.get('read')(f.event), 'real')
+  await assert.rejects(f.handlers.get('read')(f.event), /injected IPC/)
+  assert.equal(await f.handlers.get('read')(f.event), 'real')
+  const snapshot = f.probe.snapshot()
+  assert.equal(snapshot.injected, 1)
+  assert.equal(snapshot.channels.read.realCalls, 2)
+  assert.equal(snapshot.successfulAfterFault, 1)
+  assert.equal(snapshot.armed, null)
+  for (const plan of [
+    { fault: 'rejection', skip: -1 },
+    { fault: 'rejection', skip: 10 },
+    { fault: 'rejection', skip: 1.5 },
+    { fault: 'rejection', skip: '1' },
+    { skip: 1 },
+  ])
+    assert.throws(
+      () => f.probe.begin({ id: 'bad-skip', channel: 'read', ...plan }),
+      /skip/,
+    )
+})
+test('bounded repeated faults consume atomically and reset never leaves the unused budget armed', async () => {
+  const f = fixture()
+  f.probe.begin({
+    id: 'two-rejections',
+    channel: 'read',
+    fault: 'rejection',
+    times: 2,
+  })
+  const results = await Promise.allSettled(
+    Array.from({ length: 5 }, () => f.handlers.get('read')(f.event)),
+  )
+  assert.equal(results.filter((r) => r.status === 'rejected').length, 2)
+  assert.equal(f.probe.snapshot().successfulAfterFault, 3)
+  assert.equal(f.probe.snapshot().armed, null)
+  f.probe.begin({
+    id: 'partial',
+    channel: 'read',
+    fault: 'rejection',
+    times: 2,
+  })
+  await assert.rejects(f.handlers.get('read')(f.event))
+  assert.equal(f.probe.snapshot().armed.remaining, 1)
+  f.probe.reset('partial')
+  assert.equal(await f.handlers.get('read')(f.event), 'real')
+  assert.throws(
+    () => f.probe.begin({ id: 'bad-count', channel: 'read', times: 0 }),
+    /times/,
+  )
+})
