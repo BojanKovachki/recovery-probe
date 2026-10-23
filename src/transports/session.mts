@@ -5,19 +5,42 @@ import { resetIpcAndConfirm } from './ipc/control.mjs'
 import type { FaultKind } from '../core/faults.mjs'
 import type { IpcInspector } from './ipc/inspector.mjs'
 
+type HttpObserver = Awaited<ReturnType<typeof observeHttp>>
+
+/** Faults for one HTTP read: `skip` lets that many matching reads through first. */
+export interface HttpPlan {
+  fault?: FaultKind
+  times?: number
+  skip?: number
+}
+
 export function httpRefreshAdapter(
   page: Page,
   config: { endpoint: string; requiredEndpoints?: string[] },
 ) {
-  let current: Awaited<ReturnType<typeof observeHttp>> | undefined
+  let current: HttpObserver | undefined
+  let stopped = false
+  const coverage = new Map<
+    string,
+    ReturnType<HttpObserver['coverage']>[number]
+  >()
+  // Keeps the requests an observer saw, then stops it.
+  const retire = async () => {
+    if (!current || stopped) return
+    for (const entry of current.coverage())
+      coverage.set(entry.method + entry.endpoint, entry)
+    stopped = true
+    await current.stop()
+  }
   return {
-    async begin(fault: { fault?: FaultKind; times?: number } = {}) {
-      if (current) await current.stop()
+    async begin(plan: HttpPlan = {}) {
+      await retire()
       current = await observeHttp(page, {
         endpoint: config.endpoint,
         requiredEndpoints: config.requiredEndpoints,
-        ...fault,
+        ...plan,
       })
+      stopped = false
     },
     snapshot() {
       if (!current) throw Error('Observer not started')
@@ -26,9 +49,9 @@ export function httpRefreshAdapter(
     async disarm() {
       if (current) await current.disarm()
     },
-    async stop() {
-      if (current) await current.stop()
-    },
+    stop: retire,
+    /** Every GET and non-GET request the observers saw, by method and endpoint. */
+    coverage: () => [...coverage.values()],
   }
 }
 export function ipcRefreshAdapter(
@@ -51,6 +74,7 @@ export function ipcRefreshAdapter(
       fault: {
         fault?: 'rejection' | 'null-result'
         times?: number
+        skip?: number
         ttlMs?: number
       } = {},
     ) {

@@ -48,7 +48,7 @@ Other check options, such as `readySelector`, are ignored, and they are left out
 
 ## How a run goes
 
-1. **Calibration.** Three healthy reloads, each watched for the whole `baselineTimeoutMs`. They must end on the same screen, or the run stops before any fault. An empty screen is fine if the reads behind it succeeded.
+1. **Calibration.** Three healthy reloads, each watched for the whole `baselineTimeoutMs`. A load that doesn't settle stops the run with `BASELINE_NOT_HEALTHY`, and loads that end on different screens stop it with `BASELINE_UNSTABLE`, both before any fault. `BASELINE_UNSTABLE` usually means the screen changes on its own; use the explicit check for it instead. An empty screen is fine if the reads behind it succeeded.
 2. **Experiments.** Every faulted reload follows a healthy reload that must match the calibrated screen. If one doesn't, the run stops with `CONTROL_UNSTABLE` and keeps that control in `failedControl`.
 3. **Cleanup.** The faults are removed, and a last healthy reload must match the calibrated screen (`finalReset: healthy`).
 
