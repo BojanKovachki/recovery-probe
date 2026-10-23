@@ -14,7 +14,7 @@ Faults are bounded by `count` (default `1`, maximum `20`). The count is reserved
 
 ## `withFault(page, options, exercise)`
 
-Installs one temporary Playwright route, runs `exercise`, verifies the requested fault count, and removes only that route handler. See the [README example](../README.md#add-a-recovery-check-to-a-playwright-test).
+Installs one temporary Playwright route, runs `exercise`, verifies the requested fault count, and removes only that route handler. See the [README example](../README.md#use-it-in-your-tests).
 
 ```ts
 interface FaultOptions {

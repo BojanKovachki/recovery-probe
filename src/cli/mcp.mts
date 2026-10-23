@@ -10,8 +10,8 @@ const HELP = `recovery-probe mcp
 
 Serves Recovery Probe to AI coding agents as MCP tools over stdio, so an agent can
 check what an app shows when a read fails before it claims the app handles it.
-Add it to an agent, for example: claude mcp add recovery-probe -- npx recovery-probe mcp
-See docs/mcp.md.`
+Add it to your agent as an MCP server with the command: npx recovery-probe mcp
+See docs/mcp.md for the config formats.`
 
 export async function mcpMain(args: string[]) {
   if (args.includes('--help')) {

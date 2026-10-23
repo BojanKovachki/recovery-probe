@@ -11,13 +11,12 @@ Unlike renderer HTTP routing, this boundary requires a small main-process hook. 
 Node 22+ is required for the CLI. Electron 29's bundled Node can load the small CommonJS hook; it does not load Playwright into your main process.
 
 ```bash
-mkdir -p recovery-probe-tools && cd recovery-probe-tools
-npm view recovery-probe@0.5.0 version
-npm install --save-dev --save-exact recovery-probe@0.5.0 playwright@1.62.1
+mkdir recovery-probe-tools && cd recovery-probe-tools
+npm install --save-dev recovery-probe playwright
 node -p "require.resolve('recovery-probe/ipc')"
 ```
 
-Record the absolute path printed by the last command. If the version is not published yet, use the [source installation](../CONTRIBUTING.md#install-an-unpublished-source-preview) and run the path-resolution command there. Chromium need not be downloaded: the checker attaches to Electron.
+Note the absolute path the last command prints. No Chromium download is needed: the checker attaches to Electron.
 
 ## 2. Add a development-only registration hook
 
@@ -122,81 +121,9 @@ A failed `begin` reply does not prove that arming failed. The checker records th
 
 All reports remain local. No AI service or source upload is used. The app still contacts its configured backend on real calls. After testing, disable the development flags and revert only the hook changes introduced for this test, preserving pre-existing work.
 
-## Experimental discovery (preview.6)
+## Discovery
 
-Use the same development-only hook and loopback ports described above, but **restart the app with the new hook module** after upgrading. Discovery checks the loaded hook's repeated-fault capability before injecting anything. Open the chosen read-only screen and keep the window visible and online.
-
-```bash
-npx recovery-probe ipc --discover --config ./ipc-files.json
-```
-
-The existing config is accepted. `readySelector`, `readyText`, `busySelector`, `faults`, `retryDelayMs` and `renderMarginMs` are ignored in discovery mode. It automatically runs three experiments: one rejection, two consecutive rejections, and one null result, plus one for each [later call](#later-calls-and-screenshots-060-preview5) of a load. This is an explicit fault plan, not autonomous exploration. A minimal config is:
-
-```json
-{
-  "channel": "fixture:read",
-  "requiredChannels": ["fixture:versions"],
-  "observationMs": 8000,
-  "baselineTimeoutMs": 15000,
-  "repeats": 3
-}
-```
-
-Replace channels with the explicitly allowed read channels in your app. Dependencies must be listed: the tool cannot discover native/IPC semantics or infer that an operation is read-only. Defaults use CDP 9222 and inspector 9229. Three healthy reloads each run for the full `baselineTimeoutMs` window and must have matching stable end states; another healthy control precedes every faulted run. Default success-path workload is 22 reloads (3 baselines + 18 control/fault reloads + 1 cleanup). Failure observations can take several minutes in total. Observation windows are explicit budgets, not inferred guarantees about the app's retry policy.
-
-Reports contain UI counts, English loading/empty/error/retry indicators, text hashes, call counters and timing samples. Raw UI text is used transiently but not saved; no response bodies, credentials or source uploads are collected, and screenshots only with `--screenshots`. A text hash is not guaranteed anonymization. Reports and scenario configs remain private local files ignored by git; discovery saves only its supported configuration fields, dropping ignored selectors/text. Channel names and port configuration still appear in the report.
-
-- `RECOVERED`: a later real read succeeded and stable UI text matched its healthy control.
-- `SILENT_EMPTY`: suspected failure-as-empty behaviour; review against product requirements. A legitimate empty healthy control does not trigger this lead.
-- `UNCAUGHT_ERROR`: additional renderer exceptions; inspect locally for cause.
-- `ERROR_OR_RETRY_SHOWN`: observed error/retry indication; no automatic bug claim.
-- `LOADING_AT_DEADLINE` / `UI_DIFFERENCE_AT_DEADLINE`: product decision needed, not proof of permanent failure.
-- `UNSTABLE`, `FAULT_NOT_TRIGGERED`, environment/dependency/control errors: inconclusive.
-
-English heuristics can misinterpret unrelated text and miss translated or icon-only states. Discovery uses the first main landmark, or the body if absent, and stops if healthy text varies. Virtualization, clocks and live content may make this unsuitable; use the existing explicit `ipc` verifier then. No DOM snapshots or region-specific source semantics are inferred. Visibility changes remain blockers, not deliberate experiments.
-
-Each finding includes counts of repeated outcomes, a suggested investigation and a replay instruction. Re-run the saved scenario with `ipc --discover --config PATH` after a local fix. Compare the same experiment and its healthy controls; disappearance of a heuristic alone does not prove a fix. There is no automatic patch application or `verify <id>` command in this workflow.
-
-Exit 0 means completed with only informational observations; exit 2 means findings need review or the experiment was inconclusive. Discovery never returns exit 1 for an unverified heuristic defect. The existing explicit checker retains its exit codes. `recoveryMs` measures injection-to-detection, including sampling and a 300ms UI stability requirement; it is not just the handler duration.
-
-## Structural discovery (preview.7)
-
-Preview.7 extends `ipc --discover` with rendered element groups, image/link/button counts, structural fingerprints and hashed repeated-value distributions. Unchanged text is no longer sufficient for matching a healthy grid. `CONTENT_LOSS` is a suspected interpretation when content disappears without a recognized error; it does not claim the screen is a legitimate empty-state component. English/German wording is supplementary and incomplete. Icon-only alerts are recognized when exposed with semantic alert roles. Unfamiliar or inaccessible error UI may still be misclassified.
-
-A result now separates `observation` (before/after counts, indicators, distributions, calls, timing, repeated reads) from `interpretation` (classification, kind, confidence). `assessment` is retained in IPC results for compatibility. `regionReplacedCandidate` means a structural replacement was observed, not that a particular product screen was identified. `REPEATED_READS` is informational; arguments and purpose are not compared, so redundancy is not established. Hashed values can still be guessed and must not be treated as anonymized data.
-
-Readiness requires successful reads from the explicit target and `requiredChannels`, no pending watched reads, no loading indicator, and the configured structural stability interval (`settleMs`, default 800ms). Initial calibration evaluates these conditions at the end of each full window; later controls may finish early when they also match the trusted baseline. This is a heuristic, not automatic dependency discovery. Unwatched reads, delayed independent work and continuous polling need explicit configuration; they cannot be assumed complete. `regionSelector` optionally scopes comparison to one region; otherwise the first main landmark or body is used. There is a 5,000-element/100-group observation budget. Only rendered DOM is counted in virtualized views; no total dataset count is inferred.
-
-`failedControl` preserves the control that stopped a run, its readiness/error/fingerprint reasons and a structural diff. `stoppedObservation` preserves the sampled state for a phase error. `coverage` lists watched and other registered channels and states that multiplexed argument-level methods are not identified. Uninstrumented IPC/native calls remain unknown.
-
-Use `--restore-window` with discovery to opt into temporary un-minimizing. The CLI announces the action, restores the original minimized state at the end, and records restoration. Attached browsers use CDP window APIs. When the preview.7 Electron hook is available, its native window state is preferred because Electron’s browser-level CDP window state may be incomplete. Restart the app with the new hook to use that fallback. No always-on-top behaviour is used. A hidden but non-minimized window is diagnosed as possibly covered: keep it uncovered yourself. OS-specific occlusion causes are not proven by CDP. This does not add deliberate hidden-window experiments.
-
-HTML reports now lead with a compact findings table. Timelines record changed samples, bounded to 100 per phase; they are sampled evidence, not a complete event trace.
-
-
-## Healthy controls and partial experiments (preview.8)
-
-After the three initial baselines agree, each later healthy control and the final cleanup must match the established fingerprint as well as satisfy the existing dependency and stability checks. A stable intermediate screen is observed until it matches or the existing `baselineTimeoutMs` expires. The timeout is not increased. Persistent mismatches retain their timeline and differences and stop the run; fault injection does not proceed after a failed control.
-
-If an experiment stops after some completed faulted runs, `findings` includes an `INCOMPLETE_EXPERIMENT` entry with `kind: inconclusive`, `partial: true`, `completedRuns`, `plannedRuns`, `observedInterpretation` and `repeatConfirmed: false`. HTML and terminal summaries expose this partial evidence. It is not a completed experiment or a confirmed defect, even when the completed runs agree.
-
-This does not discover missing dependencies, fix application state carry-over or guarantee that the initial baselines captured all content. Known relevant dependencies must still be configured. Unchanged time windows bound the observation; later recovery remains untested.
-
-## Initial baseline calibration (preview.11)
-
-Calibration observes three full `baselineTimeoutMs` windows before injection: 45 seconds with the default 15-second window. It does not prefer a nonempty screen or a larger item count. A legitimately empty selected region is valid after successful target/dependency reads and a stable end state. Delayed content within the window is included in the baseline. `readiness.calibrationComplete` becomes true only when all three healthy end states agree; their bounded timelines remain in the report.
-
-Unstable or unfinished calibration stops fault experiments. Cleanup still removes faults and attempts a healthy reload, but `finalReset` remains `not-verified` without a trusted baseline. Later controls and cleanup can finish early once they match that baseline. Known dependencies must still be configured; content arriving after the calibration window remains untested.
-
-## Later calls and screenshots (0.6.0-preview.5)
-
-Calibration counts how often each healthy load reads the selected channel (`readiness.callsPerLoad`). When every load reads it the same number of times and more than once, discovery also fails the 2nd, 3rd and 4th call of a load on its own, with one rejection each. Their findings have ids such as `rejection-1-call2` and a `call` field. A screen that ignores a failed first read but shows a failed second read as an empty list is only found this way. When the counts differ between loads, or a load reads more than four times, `readiness.callsGap` says which calls were not failed on their own. Restart the app with the hook from this version: an older hook cannot let calls through before a fault, so discovery fails only the first call and says so in `callsGap`.
-
-`--screenshots` saves the screen after the first healthy baseline and after each faulted run as PNG files in the report folder, and shows them in `report.html`. They are off by default and may show private on-screen content.
-
-```bash
-npx recovery-probe ipc --discover --screenshots --config ./ipc-files.json
-```
+`ipc --discover` fails the selected channel in a few fixed ways and compares the screen with healthy runs, without a ready selector. See [Discovery](discovery.md).
 
 ## Action check
 
@@ -235,4 +162,4 @@ Each run reloads the screen, runs `setup` (start with a `waitFor`, because it be
 
 The hook answers up to 10 requests per run; more than that reach the app's own handler and are reported as `REAL_REQUEST_SENT`. The plan is armed right before the click, so slow setup can't outlive it. `fill` values stay in your scenario file and are never written to the report.
 
-Simulated success is an empty result. An action whose success handling needs data from the response may treat it as a failure; review the success run before trusting the comparison. The check needs the 0.5.0 hook, which supports `delayMs` in fault plans.
+Simulated success is an empty result. An action whose success handling needs data from the response may treat it as a failure; review the success run before trusting the comparison. The check needs a hook from 0.5.0 or later, which supports `delayMs` in fault plans.

@@ -1,12 +1,5 @@
 # Observe reads without resetting the app
 
-Available since **0.3.0**. Install an exact version and verify the CLI:
-
-```bash
-npm install --save-dev --save-exact recovery-probe@0.5.0 playwright@1.62.1
-npx recovery-probe --version
-```
-
 Use observation when reloading would erase the state you are investigating: cached rows, content carried between screens, or content surviving a session change. The command attaches to an existing development browser/Electron renderer. It never reloads, navigates, clicks, changes focus, clears caches, injects faults, or resets the UI at the end. You operate the app yourself.
 
 This is evidence collection, not an identity-isolation test. A cache hit can be correct. Content overlap can be legitimate shared data. No finding establishes whose data is visible or whether a server authorized it correctly.
@@ -49,7 +42,7 @@ Select an existing page using `desktop --list`. HTTP observes main-frame GET fet
 
 `regionSelector` must identify at most one region. The region may disappear or become hidden during navigation. `contentSelector` is a CSS selector **inside that region**, chosen to identify actual data rows/cards rather than headings, placeholders or loading skeletons. This explicit marker is the only basis for saying data-dependent content is present. Nothing infers a framework mount, a user id, or ownership from the DOM.
 
-Since preview.14, `detail` defaults to `"content"`: each sample reads visible selected markers and their normalized text, without traversing the region's full structure, controls and repeated-value distributions. Existing configs automatically use this lighter path. Set `"detail": "region"` to retain detailed region diagnostics alongside the same marker evidence. Fault-injection/discovery workflows retain their detailed inspections.
+`detail` defaults to `"content"`: each sample reads visible selected markers and their normalized text, without traversing the region's full structure, controls and repeated-value distributions. Set `"detail": "region"` to retain detailed region diagnostics alongside the same marker evidence. Fault-injection/discovery workflows retain their detailed inspections.
 
 `ui.contentCount` counts visible matches of your content selector. In region detail, `ui.items` is a separate generic list/row heuristic and is **not** the number of application records. Content fingerprints cover ordered normalized marker text/count, not attributes, image pixels, input values, server data or account identity. Controls inside a selected marker contribute to its text; use a narrower marker when appropriate.
 
@@ -74,13 +67,13 @@ To observe a particular cached state that already exists, start on a neutral scr
 
 ## Report provenance and sampling
 
-Since preview.13, `metadata` records the installed Recovery Probe version, CLI Node version, browser version when available, and the IPC hook's reported version, runtime and observation capabilities. Older observation-capable hooks remain compatible; unavailable metadata is null. Restart with the new hook if its version/runtime metadata is needed. No environment variables, account information, full user agent or registered-channel inventory is included.
+`metadata` records the installed Recovery Probe version, CLI Node version, browser version when available, and the IPC hook's reported version, runtime and observation capabilities. Metadata an older hook doesn't report is null. No environment variables, account information, full user agent or registered-channel inventory is included.
 
 `sampleMs` is the requested delay **after each completed sample**, not a guaranteed sampling resolution. `sampling.sampleDuration` summarizes the UI-read-to-counter-snapshot duration; `sampling.startToStart` measures actual cadence, including protocol work, delays and operator callbacks. Both contain count, meanMs, minMs and maxMs. All completed samples contribute, including unchanged samples omitted from the timeline. With no samples the duration statistics are null; with fewer than two samples cadence statistics are null. A timed-out/incomplete sample is not included. `captureComplete` retains its existing meaning and does not guarantee that brief UI flashes were captured.
 
 JSON findings retain their codes/bases and add a plain-language `summary`. HTML shows first-content sample bounds relative to each interval rather than an exact paint time.
 
-Since preview.14, `sampling.phases` also summarizes `beforeSnapshotMs`, `uiRoundTripMs`, `rendererReadMs`, `summarizeMs`, and `afterSnapshotMs`. Renderer time is measured inside the page; the other durations use the CLI's monotonic clock. **Renderer time is included in the UI round trip**, so these fields must not all be added together. They help distinguish renderer work from protocol/serialization and counter costs. Timing values are excluded from the UI signature, so timing noise does not fill the change-only timeline. An observation lease, inspector transport or busy app can still dominate cadence.
+`sampling.phases` summarizes `beforeSnapshotMs`, `uiRoundTripMs`, `rendererReadMs`, `summarizeMs`, and `afterSnapshotMs`. Renderer time is measured inside the page; the other durations use the CLI's monotonic clock. **Renderer time is included in the UI round trip**, so these fields must not all be added together. They help distinguish renderer work from protocol/serialization and counter costs. Timing values are excluded from the UI signature, so timing noise does not fill the change-only timeline. An observation lease, inspector transport or busy app can still dominate cadence.
 
 For a reproducible local diagnostic from a repository checkout, run `npm run benchmark:observe` after installing dependencies and Chromium. It alternates content/region reads of a synthetic 200-row fixture, discards warmup samples, and prints renderer, round-trip, summarization and transfer measurements. This is not a performance pass/fail gate or a guarantee of detecting a particular flash duration. Compare actual cadence in field reports before drawing conclusions about the application under test.
 
@@ -97,7 +90,7 @@ The browser tests include unchanged content after a failed refresh, changed cont
 
 ### Later samples after a comparison
 
-Since 0.3.0, each retained comparison also has `followUp` evidence from later completed samples in the **same operator interval**. The original `result`, `before` and `after` remain unchanged. Follow-up compares with the original `before` baseline, not the first return sample:
+Each retained comparison also has `followUp` evidence from later completed samples in the **same operator interval**. The original `result`, `before` and `after` remain unchanged. Follow-up compares with the original `before` baseline, not the first return sample:
 
 - `samples`, `comparableSamples` and `unavailableSamples` count later samples, including unchanged samples omitted from the timeline.
 - `firstBaselineMatch` records the first later sample matching the baseline, or null. It records an observation, not an exact transition time.
@@ -108,7 +101,7 @@ Tracking ends at the next operator interval or capture termination, including in
 
 ## Actions, tracked rows and delayed UI updates
 
-Available since **0.4.0**. The development IPC hook must come from the same version as the CLI; restart the app after upgrading.
+The development IPC hook must come from the same version as the CLI; restart the app after upgrading.
 
 These options are opt-in and extend the same fault-free capture. They answer "how long after the user's action did the screen show the right state, and did data arrive before it?"
 
@@ -144,7 +137,7 @@ These options are opt-in and extend the same fault-free capture. They answer "ho
 
 ### Tracked rows
 
-`rows` follows each visible row in the region. The row key text is hashed (`key:` plus 16 hex characters) unless it exactly matches a configured alias, so the report can say "row ‘second’" without storing its text. The state element's text is recorded only if it is in the `states` allowlist; other text becomes `other`, and a missing state element becomes `none`. States shown by an icon can be named with [markers](#state-markers-and-unexpected_row_state-060-preview1). Row identity is only as stable as the key text you select: choose a name, not a progress value.
+`rows` follows each visible row in the region. The row key text is hashed (`key:` plus 16 hex characters) unless it exactly matches a configured alias, so the report can say "row ‘second’" without storing its text. The state element's text is recorded only if it is in the `states` allowlist; other text becomes `other`, and a missing state element becomes `none`. States shown by an icon can be named with [markers](#state-markers-and-unexpected_row_state). Row identity is only as stable as the key text you select: choose a name, not a progress value.
 
 ### Shared IPC channels and data events
 
@@ -166,7 +159,7 @@ Reported when a tracked row kept an allowlisted state across at least `minUnchan
 
 This is a lead, not a verdict. Read contents are never recorded, so the tool cannot prove that the data said the new state earlier. Typical causes are optimistic UI state that outlives the real state, timers, or render paths that ignore fresh data. Changes are only evaluated between consecutive samples of a visible row.
 
-### State markers and `UNEXPECTED_ROW_STATE` (0.6.0-preview.1)
+### State markers and `UNEXPECTED_ROW_STATE`
 
 Some screens show a row's state with an icon or badge rather than text. `rows.markers` names such states: each label (other than `none` and `other`) maps to a selector inside the row, and a row's state is the label of the first marker with a visible match. Rows without a matching marker fall back to the `state` text, or `none`. Marker labels count as tracked states, so they appear in transitions, action effects and `DELAYED_UI_UPDATE` like text states. `state` and `states` become optional when `markers` is set.
 
@@ -258,7 +251,7 @@ A document reload/navigation ends capture as incomplete because the renderer sta
 
 ## Supported inspector API
 
-Advanced scripts can use `recovery-probe/ipc-inspector`, available since 0.3.0, without importing internal file paths:
+Advanced scripts can use `recovery-probe/ipc-inspector` without importing internal file paths:
 
 ```js
 import { randomUUID } from 'node:crypto';
