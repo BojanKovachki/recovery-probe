@@ -1,10 +1,10 @@
-import { readFile } from 'node:fs/promises'
-import { serveMcp } from '../mcp-server.mjs'
+import { version } from '../core/package.mjs'
+import { serveMcp } from '../tools/mcp/server.mjs'
 import {
   recoveryProbeTools,
   closeRecoveryProbeTools,
   MCP_INSTRUCTIONS,
-} from '../mcp-tools.mjs'
+} from '../tools/mcp/tools.mjs'
 
 const HELP = `recovery-probe mcp
 
@@ -19,9 +19,6 @@ export async function mcpMain(args: string[]) {
     return
   }
   if (args.length) throw Error('Use recovery-probe mcp')
-  const { version } = JSON.parse(
-    await readFile(new URL('../../package.json', import.meta.url), 'utf8'),
-  )
   try {
     await serveMcp({
       name: 'recovery-probe',

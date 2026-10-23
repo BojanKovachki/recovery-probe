@@ -67,8 +67,8 @@ test(
       assert.equal(packed.name, 'recovery-probe')
       assert.equal(packed.version, version)
       for (const path of [
-        'dist/observation-report.mjs',
-        'dist/report-templates/observation.html',
+        'dist/workflows/observe/report.mjs',
+        'dist/reports/templates/observation.html',
         'dist/ipc-probe.cjs',
         'docs/ci.md',
         'examples/ci/run.mjs',
@@ -86,7 +86,7 @@ test(
       for (const path of [
         'dist/net-fault.d.mts',
         'docs/net.md',
-        'dist/android.mjs',
+        'dist/targets/android.mjs',
         'docs/android.md',
       ])
         assert.ok(

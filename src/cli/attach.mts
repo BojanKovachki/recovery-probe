@@ -1,19 +1,16 @@
 import { readFile, mkdir } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import {
-  connectDesktop,
-  selectDesktopPage,
-  checkDesktop,
-  type DesktopReport,
-} from '../desktop.mjs'
+import { connectDesktop, selectDesktopPage } from '../targets/cdp.mjs'
+import { checkDesktop, type DesktopReport } from '../workflows/check/http.mjs'
 import {
   discoverHttp,
   httpDiscoveryConfig,
   type HttpDiscoveryReport,
-} from '../http-discover.mjs'
-import { screenshotsIn, writeDiscoveryReport } from '../discovery-report.mjs'
-import { prepareVisibility } from '../visibility.mjs'
-import { writeDesktopReport } from '../desktop-report.mjs'
+} from '../workflows/discover/http.mjs'
+import { screenshotsIn } from '../workflows/discover/screenshots.mjs'
+import { writeDiscoveryReport } from '../reports/discovery.mjs'
+import { prepareVisibility } from '../targets/visibility.mjs'
+import { writeDesktopReport } from '../reports/check.mjs'
 
 export async function attachMain(args: string[]) {
   const options: Record<string, string | true> = {}

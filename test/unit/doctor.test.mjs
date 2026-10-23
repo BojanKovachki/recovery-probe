@@ -5,7 +5,7 @@ import { createServer } from 'node:http'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { freePort } from '../helpers/ports.mjs'
-import { IPC_HOOK_PATH, runDoctor } from '../../dist/doctor.mjs'
+import { IPC_HOOK_PATH, runDoctor } from '../../dist/tools/doctor.mjs'
 
 const cli = fileURLToPath(
   new URL('../../bin/recovery-probe.mjs', import.meta.url),

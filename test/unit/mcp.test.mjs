@@ -8,7 +8,7 @@ import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
 import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
-import { serveMcp } from '../../dist/mcp-server.mjs'
+import { serveMcp } from '../../dist/tools/mcp/server.mjs'
 
 /** A client that sends JSON-RPC lines and resolves replies by id. */
 function client(input, output) {

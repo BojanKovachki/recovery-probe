@@ -2,10 +2,20 @@ import { signals } from './until-stopped.mjs'
 import { readFile, mkdir, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { connectDesktop, selectDesktopPage, desktopPages } from '../desktop.mjs'
+import {
+  connectDesktop,
+  selectDesktopPage,
+  desktopPages,
+} from '../targets/cdp.mjs'
 import type { Browser, Page } from 'playwright'
-import { connectIpcInspector, type IpcInspector } from '../ipc-inspector.mjs'
-import { prepareVisibility, type WindowVisibility } from '../visibility.mjs'
+import {
+  connectIpcInspector,
+  type IpcInspector,
+} from '../transports/ipc/inspector.mjs'
+import {
+  prepareVisibility,
+  type WindowVisibility,
+} from '../targets/visibility.mjs'
 import {
   refreshConfig,
   runRefresh,
@@ -13,9 +23,12 @@ import {
   type RefreshFinding,
   type RefreshReport,
   type RefreshRun,
-} from '../refresh.mjs'
-import { httpRefreshAdapter, ipcRefreshAdapter } from '../refresh-adapters.mjs'
-import { escapeHtml, renderTemplate } from '../report-template.mjs'
+} from '../workflows/refresh.mjs'
+import {
+  httpRefreshAdapter,
+  ipcRefreshAdapter,
+} from '../transports/session.mjs'
+import { escapeHtml, renderTemplate } from '../reports/template.mjs'
 
 type PreparedVisibility = Awaited<ReturnType<typeof prepareVisibility>>
 

@@ -1,6 +1,10 @@
 import { readFile } from 'node:fs/promises'
 import { resolve, dirname } from 'node:path'
-import { prepareRepair, generateRepair, verifyRepair } from '../repair.mjs'
+import {
+  prepareRepair,
+  generateRepair,
+  verifyRepair,
+} from '../tools/repair/run.mjs'
 
 interface RepairOptions {
   'allow-execution'?: true

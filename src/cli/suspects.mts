@@ -1,4 +1,4 @@
-import { scanForSuspects, type SuspectPattern } from '../suspects.mjs'
+import { scanForSuspects, type SuspectPattern } from '../tools/suspects.mjs'
 
 const USAGE =
   'recovery-probe suspects [PATH...] [--changed-since REF] [--include-tests] [--json]'

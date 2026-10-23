@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { attachWindow, launchElectron } from '../helpers/electron.mjs'
 import { connectIpcInspector } from '../../dist/ipc-inspector.mjs'
-import { checkAction } from '../../dist/ipc-action.mjs'
+import { checkAction } from '../../dist/workflows/action.mjs'
 const exec = promisify(execFile)
 
 const classes = (report) =>

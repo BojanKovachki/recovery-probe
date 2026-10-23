@@ -4,8 +4,12 @@ import { execFileSync } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { changedLines, scanForSuspects } from '../../dist/suspects.mjs'
-import { recordBaseline, verifyChange, verifyPlan } from '../../dist/verify.mjs'
+import { changedLines, scanForSuspects } from '../../dist/tools/suspects.mjs'
+import {
+  recordBaseline,
+  verifyChange,
+  verifyPlan,
+} from '../../dist/tools/verify.mjs'
 
 const git = (cwd, ...args) =>
   execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], {

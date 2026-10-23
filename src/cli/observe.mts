@@ -4,14 +4,21 @@ import { resolve, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { createInterface, type Interface } from 'node:readline'
 import type { Browser, Page } from 'playwright'
-import { connectDesktop, selectDesktopPage, desktopPages } from '../desktop.mjs'
-import { connectIpcInspector, type IpcInspector } from '../ipc-inspector.mjs'
+import {
+  connectDesktop,
+  selectDesktopPage,
+  desktopPages,
+} from '../targets/cdp.mjs'
+import {
+  connectIpcInspector,
+  type IpcInspector,
+} from '../transports/ipc/inspector.mjs'
 import {
   observationConfig,
   runObservation,
   httpObservationAdapter,
   ipcObservationAdapter,
-} from '../observe.mjs'
+} from '../workflows/observe/run.mjs'
 import {
   observationMetadata,
   samplingMetrics,
@@ -21,15 +28,18 @@ import {
   actionSummary,
   comparisonDigest,
   networkStepSummary,
-} from '../observation-report.mjs'
-import { observationSteps, runSteps } from '../observe-steps.mjs'
-import { connectNetworkFaults } from '../net-fault.mjs'
-import { networkSteps, applyNetworkEvidence } from '../observe-network.mjs'
+} from '../workflows/observe/report.mjs'
+import { observationSteps, runSteps } from '../workflows/observe/steps.mjs'
+import { connectNetworkFaults } from '../transports/net.mjs'
+import {
+  networkSteps,
+  applyNetworkEvidence,
+} from '../workflows/observe/network.mjs'
 import {
   snapshotFiles,
   fileEvidence,
   applyFileEvidence,
-} from '../file-evidence.mjs'
+} from '../workflows/observe/files.mjs'
 
 type NetworkSteps = ReturnType<typeof networkSteps>
 type ObservationAdapter = Parameters<typeof runObservation>[2]

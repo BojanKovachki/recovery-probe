@@ -7,10 +7,13 @@ import {
   observationConfig,
   runObservation,
   httpObservationAdapter,
-} from '../../dist/observe.mjs'
-import { observationSteps, runSteps } from '../../dist/observe-steps.mjs'
-import { actionSummary } from '../../dist/observation-report.mjs'
-import { installObserverKit } from '../../dist/observation-kit.mjs'
+} from '../../dist/workflows/observe/run.mjs'
+import {
+  observationSteps,
+  runSteps,
+} from '../../dist/workflows/observe/steps.mjs'
+import { actionSummary } from '../../dist/workflows/observe/report.mjs'
+import { installObserverKit } from '../../dist/workflows/observe/kit.mjs'
 
 let browser,
   server,

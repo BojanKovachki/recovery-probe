@@ -5,9 +5,12 @@ import {
   validateSourcePath,
   applyProposalToSources,
   prepareRepair,
-} from '../../dist/repair.mjs'
-import { proposeRepair } from '../../dist/repair-provider.mjs'
-import { runCommand, executionEnvironment } from '../../dist/repair-process.mjs'
+} from '../../dist/tools/repair/run.mjs'
+import { proposeRepair } from '../../dist/tools/repair/provider.mjs'
+import {
+  runCommand,
+  executionEnvironment,
+} from '../../dist/tools/repair/process.mjs'
 
 const config = {
   target: 'web',

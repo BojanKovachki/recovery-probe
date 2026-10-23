@@ -10,7 +10,7 @@ import {
   compareRuns,
   compareReports,
   runEvidence,
-} from '../../dist/compare.mjs'
+} from '../../dist/tools/compare.mjs'
 
 const action = (findings, extra = {}) => ({
   schemaVersion: 1,

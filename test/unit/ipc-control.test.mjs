@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { callIpcInspector } from '../../dist/ipc-inspector.mjs'
-import { resetIpcAndConfirm } from '../../dist/ipc-control.mjs'
+import { resetIpcAndConfirm } from '../../dist/transports/ipc/control.mjs'
 
 test('synchronous controls never enable implicit Promise awaiting', async () => {
   const calls = []

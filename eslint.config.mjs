@@ -8,14 +8,14 @@ import tseslint from 'typescript-eslint'
 const typeScriptFiles = ['**/*.{ts,mts,cts}']
 
 const inPageModules = [
-  'src/ipc-action.mts',
-  'src/ipc-check.mts',
-  'src/ipc-observation.mts',
-  'src/observation-kit.mts',
-  'src/observe-steps.mts',
-  'src/pick-marker.mts',
-  'src/refresh.mts',
-  'src/visibility.mts',
+  'src/core/screen.mts',
+  'src/targets/visibility.mts',
+  'src/tools/pick-marker.mts',
+  'src/workflows/action.mts',
+  'src/workflows/check/ipc.mts',
+  'src/workflows/observe/kit.mts',
+  'src/workflows/observe/steps.mts',
+  'src/workflows/refresh.mts',
 ]
 
 export default [

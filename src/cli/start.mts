@@ -1,4 +1,4 @@
-import { parseStartArgs, runStart } from '../guided-start.mjs'
+import { parseStartArgs, runStart } from '../tools/guided-start.mjs'
 import { terminalIo } from './terminal.mjs'
 
 export async function startMain(args: string[]) {

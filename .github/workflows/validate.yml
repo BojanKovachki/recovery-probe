@@ -153,6 +153,6 @@ jobs:
       - name: Install Electron test runtime
         run: npm install --no-save --package-lock=false --no-audit --no-fund electron@${{ matrix.electron }}
       - name: Install window manager for native minimize/restore validation
-        run: sudo apt-get update && sudo apt-get install -y openbox
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends openbox
       - name: Electron tests
         run: xvfb-run -a sh -c 'openbox >/tmp/recovery-probe-openbox.log 2>&1 & npm run test:electron'

@@ -9,7 +9,7 @@ import {
   prepareRepair,
   generateRepair,
   verifyRepair,
-} from '../../dist/repair.mjs'
+} from '../../dist/tools/repair/run.mjs'
 import { freePort } from '../helpers/ports.mjs'
 import { fixture, mockProvider } from '../helpers/repair.mjs'
 const exec = promisify(execFile)

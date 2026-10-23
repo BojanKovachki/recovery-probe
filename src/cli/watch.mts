@@ -1,12 +1,12 @@
 import { signals } from './until-stopped.mjs'
 import { relative, sep } from 'node:path'
-import type { RunEvidence } from '../compare.mjs'
+import type { RunEvidence } from '../tools/compare.mjs'
 import {
   runWatch,
   validateCheckCommand,
   type WatchEvent,
   type WatchOptions,
-} from '../watch.mjs'
+} from '../tools/watch.mjs'
 
 const USAGE =
   'recovery-probe watch [PATH...] [--settle MS] [--no-suspects] [--max-runs N] [--out NEW_DIRECTORY] [-- CHECK...]'

@@ -8,8 +8,8 @@ import {
   compareSnapshots,
   fileEvidence,
   applyFileEvidence,
-} from '../../dist/file-evidence.mjs'
-import { observationSummary } from '../../dist/observation-report.mjs'
+} from '../../dist/workflows/observe/files.mjs'
+import { observationSummary } from '../../dist/workflows/observe/report.mjs'
 
 async function contentDirectory() {
   const directory = await mkdtemp(join(tmpdir(), 'recovery-probe-files-'))

@@ -1,8 +1,9 @@
 import { mkdir, writeFile } from 'node:fs/promises'
+import { packageUrl } from '../core/package.mjs'
 
 // The examples stay plain JavaScript, so this one is loaded by URL at run time.
 const { runCoreDemo } = (await import(
-  new URL('../../examples/core-demo.mjs', import.meta.url).href
+  packageUrl('examples/core-demo.mjs').href
 )) as {
   runCoreDemo: () => Promise<{ expectedDemonstrationVerified: boolean }>
 }

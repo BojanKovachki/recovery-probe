@@ -8,7 +8,7 @@ import {
   prepareRepair,
   generateRepair,
   verifyRepair,
-} from '../../dist/repair.mjs'
+} from '../../dist/tools/repair/run.mjs'
 import { fixture, mockProvider, fixtureProposal } from '../helpers/repair.mjs'
 const exec = promisify(execFile)
 

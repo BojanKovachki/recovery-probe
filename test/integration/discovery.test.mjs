@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { chromium } from 'playwright'
 import { mkdir, writeFile } from 'node:fs/promises'
-import { discoverHttp } from '../../dist/http-discover.mjs'
+import { discoverHttp } from '../../dist/workflows/discover/http.mjs'
 import { checkDesktop } from '../../dist/desktop.mjs'
 
 function fixture(options) {
