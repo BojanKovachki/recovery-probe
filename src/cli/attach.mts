@@ -11,7 +11,7 @@ import {
   httpDiscoveryConfig,
   type HttpDiscoveryReport,
 } from '../http-discover.mjs'
-import { writeDiscoveryReport } from '../discovery-report.mjs'
+import { screenshotsIn, writeDiscoveryReport } from '../discovery-report.mjs'
 import { prepareVisibility } from '../visibility.mjs'
 import { writeDesktopReport } from '../desktop-report.mjs'
 
@@ -19,7 +19,7 @@ export async function attachMain(args: string[]) {
   const options: Record<string, string | true> = {}
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]
-    if (arg === '--discover' || arg === '--restore-window')
+    if (['--discover', '--screenshots', '--restore-window'].includes(arg))
       options[arg.slice(2)] = true
     else if (
       ['--config', '--cdp', '--out', '--page'].includes(arg) &&
@@ -29,10 +29,12 @@ export async function attachMain(args: string[]) {
       options[arg.slice(2)] = args[++i]
     else
       throw new Error(
-        'Use web --attach [--discover] --config FILE [--cdp URL] [--page N] [--restore-window] [--out NEW_DIRECTORY]',
+        'Use web --attach [--discover [--screenshots]] --config FILE [--cdp URL] [--page N] [--restore-window] [--out NEW_DIRECTORY]',
       )
   }
   if (!options.config) throw new Error('--config is required')
+  if (options.screenshots && !options.discover)
+    throw new Error('--screenshots needs --discover')
   // The checks below validate the configuration file.
   let config = JSON.parse(await readFile(options.config as string, 'utf8'))
   if (options.cdp) config.cdp = options.cdp
@@ -53,7 +55,9 @@ export async function attachMain(args: string[]) {
     const page = selectDesktopPage(browser, config)
     let report: HttpDiscoveryReport | DesktopReport
     if (options.discover) {
-      const discovery = await discoverHttp(page, config)
+      const discovery = await discoverHttp(page, config, {
+        screenshot: options.screenshots ? screenshotsIn(directory) : undefined,
+      })
       await writeDiscoveryReport(directory, discovery, config)
       report = discovery
     } else {

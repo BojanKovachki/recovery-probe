@@ -16,10 +16,12 @@ const empty = document.querySelector('#empty');
 async function load() {
   try {
     const versions = await fixtureApi.versions();
+    // two-reads prefetches and ignores a failure, then renders a second read without retrying it.
+    if (mode === 'two-reads') await fixtureApi.read().catch(() => {});
     let data;
     try { data = await fixtureApi.read(); }
     catch(error) {
-      if (mode === 'broken' || mode === 'refresh' || gridMode) throw error;
+      if (mode === 'broken' || mode === 'refresh' || mode === 'two-reads' || gridMode) throw error;
       await new Promise(resolve => setTimeout(resolve, 30));
       data = await fixtureApi.read();
     }

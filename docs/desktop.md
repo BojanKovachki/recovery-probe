@@ -199,3 +199,9 @@ This does not discover missing dependencies, fix application state carry-over or
 Calibration observes three full `baselineTimeoutMs` windows before injection: 45 seconds with the default 15-second window. It does not prefer a nonempty screen or a larger item count. A legitimately empty selected region is valid after successful target/dependency reads and a stable end state. Delayed content within the window is included in the baseline. `readiness.calibrationComplete` becomes true only when all three healthy end states agree; their bounded timelines remain in the report.
 
 Unstable or unfinished calibration stops fault experiments. Cleanup still removes faults and attempts a healthy reload, but `finalReset` remains `not-verified` without a trusted baseline. Later controls and cleanup can finish early once they match that baseline. Known dependencies must still be configured; content arriving after the calibration window remains untested.
+
+## Later reads and screenshots (0.6.0-preview.5)
+
+Calibration counts how often each healthy load reads the selected endpoint (`readiness.callsPerLoad`). When every load reads it the same number of times and more than once, discovery also fails the 2nd, 3rd and 4th read of a load on its own, once each with the first listed fault. Their findings have ids such as `http-error-1-call2` and a `call` field. Query variants count as reads of the endpoint. When the counts differ between loads, or a load reads more than four times, `readiness.callsGap` says which reads were not failed on their own.
+
+`web --attach --discover --screenshots` saves the screen after the first healthy baseline and after each faulted run as PNG files in the report folder, and shows them in `report.html`. They are off by default and may show private on-screen content.

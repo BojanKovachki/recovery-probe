@@ -31,7 +31,7 @@ function fixture(options) {
 }
 test(
   'structural HTTP fixture matrix: three fetch styles, negative controls and repeated faults',
-  { timeout: 240000 },
+  { timeout: 300000 },
   async () => {
     let options
     let loads = 0
@@ -144,12 +144,20 @@ test(
             assert.ok(
               report.results[0].observation.distributionChanges.length > 0,
             )
-          if (family === 'repeated')
+          if (family === 'repeated') {
             assert.ok(
               report.baselines[0].repeatedReads.some(
                 (r) => r.code === 'REPEATED_READS',
               ),
             )
+            // Its first read is ignored; only failing the second one shows the empty screen.
+            assert.deepEqual(report.readiness.callsPerLoad, [2, 2, 2])
+            const second = report.findings.find(
+              (f) => f.id === 'http-error-1-call2',
+            )
+            assert.equal(second?.call, 2, JSON.stringify(report.findings))
+            assert.equal(second.kind, 'suspected-defect')
+          } else assert.equal(report.findings.length, 1)
           if (family === 'grid')
             assert.equal(report.results[0].observation.after.images, 0)
         }
@@ -166,15 +174,27 @@ test(
       }
       loads = 0
       await page.goto(base)
-      const delayed = await discoverHttp(page, {
-        endpoint: base + '/api/read',
-        faults: ['http-error'],
-        repeats: 1,
-        settleMs: 200,
-        baselineTimeoutMs: 3000,
-        recoveryTimeoutMs: 1600,
-      })
+      const shots = []
+      const delayed = await discoverHttp(
+        page,
+        {
+          endpoint: base + '/api/read',
+          faults: ['http-error'],
+          repeats: 1,
+          settleMs: 200,
+          baselineTimeoutMs: 3000,
+          recoveryTimeoutMs: 1600,
+        },
+        {
+          screenshot: async (_, name) => {
+            shots.push(name)
+            return name + '.png'
+          },
+        },
+      )
       assert.equal(delayed.error, undefined, JSON.stringify(delayed))
+      assert.deepEqual(shots, ['baseline', 'http-error-2-run1'])
+      assert.equal(delayed.results[0].screenshot, 'http-error-2-run1.png')
       assert.equal(
         delayed.results[0].control.ui.fingerprint,
         delayed.baselines[0].ui.fingerprint,

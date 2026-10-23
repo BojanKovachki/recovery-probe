@@ -27,7 +27,7 @@ export async function webMain(args: string[]) {
   }
   if (!args.length || args.includes('--help')) {
     console.log(`Recovery Probe web preview
-  recovery-probe web --attach [--discover] --config scenario.json --cdp http://127.0.0.1:9223 [--restore-window]
+  recovery-probe web --attach [--discover [--screenshots]] --config scenario.json --cdp http://127.0.0.1:9223 [--restore-window]
   recovery-probe web --login --url http://localhost:3000 --state /private/portal-state.json
   recovery-probe web --discover --url http://localhost:3000/users [--state /private/portal-state.json] [--out NEW_DIRECTORY]
   recovery-probe web --config scenario.json [--state /private/portal-state.json] [--headed] [--out NEW_DIRECTORY]

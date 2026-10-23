@@ -46,6 +46,8 @@ export interface IpcSnapshot {
   armed: {
     fault: 'rejection' | 'null-result'
     remaining: number
+    /** Calls on the channel that still pass through before the first fault. */
+    skip: number
     expiresAt: number
     /** Injected results settle after this many milliseconds, like a slow request. */
     delayMs: number
@@ -78,6 +80,7 @@ export interface IpcIdentity {
     methods: boolean
     pushes: boolean
     faultDelay: true
+    faultSkip: true
   }
 }
 export interface IpcProbe {
@@ -96,6 +99,8 @@ export interface IpcProbe {
           observation?: false
           fault?: 'rejection' | 'null-result'
           delayMs?: number
+          /** Let this many calls through before the first fault: 1 fails the 2nd call. */
+          skip?: number
         }
     ),
   ): IpcSnapshot
@@ -204,6 +209,7 @@ export function installIpcProbe(
     methods: Boolean(classify),
     pushes: allowedPushes.size > 0,
     faultDelay: true as const,
+    faultSkip: true as const,
   })
   const identify = ((
     challenge?: unknown,
@@ -352,6 +358,7 @@ export function installIpcProbe(
     times = 1,
     ttlMs = 30000,
     delayMs = 0,
+    skip = 0,
   }: Record<string, unknown> = {}): IpcSnapshot => {
     if (!active) throw new Error('IPC probe is disposed')
     if (typeof id !== 'string' || !id || id.length > 100 || seenIds.has(id))
@@ -391,6 +398,14 @@ export function installIpcProbe(
     )
       throw new Error('delayMs must be 0–10000 and needs a fault')
     if (
+      typeof skip !== 'number' ||
+      !Number.isInteger(skip) ||
+      skip < 0 ||
+      skip > 9 ||
+      (skip > 0 && fault === undefined)
+    )
+      throw new Error('skip must be 0–9 and needs a fault')
+    if (
       typeof ttlMs !== 'number' ||
       !Number.isInteger(ttlMs) ||
       ttlMs < 100 ||
@@ -421,6 +436,7 @@ export function installIpcProbe(
         ? {
             fault: fault as 'rejection' | 'null-result',
             remaining: times,
+            skip,
             expiresAt: Date.now() + ttlMs,
             delayMs,
           }
@@ -486,7 +502,9 @@ export function installIpcProbe(
         method.lastReadAt = row.lastReadAt
       }
       if (current.armed && Date.now() >= current.armed.expiresAt) disarm()
-      if (channel === current.channel && current.armed) {
+      if (channel === current.channel && current.armed?.skip)
+        current.armed.skip--
+      else if (channel === current.channel && current.armed) {
         const { fault, delayMs } = current.armed
         current.armed.remaining--
         if (!current.armed.remaining) disarm()

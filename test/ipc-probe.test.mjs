@@ -123,6 +123,31 @@ test('pending calls cannot contaminate a later run and invalid configuration fai
   )
   assert.throws(() => f.ipc.handle('read', () => 0), /duplicate/)
 })
+test('skip lets earlier calls on the channel through before the fault', async () => {
+  const f = fixture()
+  assert.equal(f.probe.identify().capabilities.faultSkip, true)
+  f.probe.begin({ id: 'second', channel: 'read', fault: 'rejection', skip: 1 })
+  assert.deepEqual(await f.handlers.get('versions')(f.event), [])
+  assert.equal(await f.handlers.get('read')(f.event), 'real')
+  await assert.rejects(f.handlers.get('read')(f.event), /injected IPC/)
+  assert.equal(await f.handlers.get('read')(f.event), 'real')
+  const snapshot = f.probe.snapshot()
+  assert.equal(snapshot.injected, 1)
+  assert.equal(snapshot.channels.read.realCalls, 2)
+  assert.equal(snapshot.successfulAfterFault, 1)
+  assert.equal(snapshot.armed, null)
+  for (const plan of [
+    { fault: 'rejection', skip: -1 },
+    { fault: 'rejection', skip: 10 },
+    { fault: 'rejection', skip: 1.5 },
+    { fault: 'rejection', skip: '1' },
+    { skip: 1 },
+  ])
+    assert.throws(
+      () => f.probe.begin({ id: 'bad-skip', channel: 'read', ...plan }),
+      /skip/,
+    )
+})
 test('bounded repeated faults consume atomically and reset never leaves the unused budget armed', async () => {
   const f = fixture()
   f.probe.begin({

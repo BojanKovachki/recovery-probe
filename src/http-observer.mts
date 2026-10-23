@@ -23,6 +23,8 @@ export interface HttpObserverOptions {
   requiredEndpoints?: string[]
   fault?: FaultKind
   times?: number
+  /** Matching reads that pass before the first fault: 1 fails the 2nd read. */
+  skip?: number
 }
 
 interface RequestMeta {
@@ -35,7 +37,13 @@ interface RequestMeta {
 
 export async function observeHttp(
   page: Page,
-  { endpoint, requiredEndpoints = [], fault, times = 1 }: HttpObserverOptions,
+  {
+    endpoint,
+    requiredEndpoints = [],
+    fault,
+    times = 1,
+    skip = 0,
+  }: HttpObserverOptions,
 ) {
   const channels: Record<string, ReadChannelStats> = Object.fromEntries(
     [endpoint, ...requiredEndpoints].map((e) => [
@@ -68,7 +76,8 @@ export async function observeHttp(
       }
     >(),
     operations = new Set<Promise<unknown>>()
-  let reserved = 0,
+  let skipped = 0,
+    reserved = 0,
     applied = 0,
     injectedAt: number | null = null,
     successfulAfterFault = 0,
@@ -151,6 +160,10 @@ export async function observeHttp(
     const r = route.request()
     if (!active || reserved >= times || !mainRead(r) || r.method() !== 'GET')
       return route.fallback()
+    if (skipped < skip) {
+      skipped++
+      return route.fallback()
+    }
     reserved++
     injectedAt ??= Date.now()
     const meta = requests.get(r)

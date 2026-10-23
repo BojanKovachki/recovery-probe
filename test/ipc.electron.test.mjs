@@ -7,7 +7,7 @@ import { createRequire } from 'node:module'
 import { spawn, execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
-import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, writeFile, readFile, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { freePort } from './repair-fixture.mjs'
@@ -21,7 +21,7 @@ const exec = promisify(execFile)
 
 test(
   'real IPC: registration hook, serialized rejection, real retry, null and dependency boundaries, CLI cleanup',
-  { timeout: 180000 },
+  { timeout: 240000 },
   async () => {
     const cdpPort = await freePort()
     let inspectorPort = await freePort()
@@ -184,6 +184,23 @@ test(
       assert.equal(discovered.finalReset, 'healthy')
       assert.ok(discovered.results[0].recoveryMs >= 0)
       assert.ok(!JSON.stringify(discovered).includes('rp-fixture-cube.fbx'))
+      await page.goto(baseUrl + '?mode=two-reads')
+      const twoReads = await discoverIpc({ ...discoveryConfig, repeats: 1 })
+      assert.equal(twoReads.error, undefined, JSON.stringify(twoReads))
+      assert.deepEqual(twoReads.readiness.callsPerLoad, [2, 2, 2])
+      assert.equal(twoReads.readiness.callsGap, undefined)
+      assert.equal(twoReads.findings[0].classification, 'RECOVERED')
+      assert.deepEqual(
+        twoReads.findings.map((f) => f.id),
+        ['rejection-1', 'rejection-2', 'null-result-1', 'rejection-1-call2'],
+      )
+      assert.equal(twoReads.findings[3].call, 2)
+      assert.equal(twoReads.findings[3].classification, 'SILENT_EMPTY')
+      assert.equal(
+        twoReads.results[3].snapshot.channels['fixture:read'].realCalls,
+        1,
+      )
+      assert.equal(twoReads.finalReset, 'healthy')
       await page.goto(baseUrl + '?mode=grid')
       const grid = await discoverIpc({ ...discoveryConfig, repeats: 1 })
       assert.equal(grid.error, undefined, JSON.stringify(grid))
@@ -407,14 +424,28 @@ test(
           fileURLToPath(new URL('../bin/recovery-probe.mjs', import.meta.url)),
           'ipc',
           '--discover',
+          '--screenshots',
           '--config',
           discoverFile,
           '--out',
           discoveryOut,
         ],
-        { timeout: 20000 },
+        { timeout: 30000 },
       )
       assert.match(cliDiscovery.stdout, /ERROR_OR_RETRY_SHOWN/)
+      const shots = (await readdir(discoveryOut)).filter((name) =>
+        name.endsWith('.png'),
+      )
+      assert.deepEqual(shots.sort(), [
+        'baseline.png',
+        'null-result-1-run1.png',
+        'rejection-1-run1.png',
+        'rejection-2-run1.png',
+      ])
+      assert.match(
+        await readFile(join(discoveryOut, 'report.html'), 'utf8'),
+        /<img alt="The screen at the end of the run" src="rejection-2-run1\.png">/,
+      )
       assert.ok(
         !(await readFile(join(discoveryOut, 'scenario.json'), 'utf8')).includes(
           'must-not-persist',

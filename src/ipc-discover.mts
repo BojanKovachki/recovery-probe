@@ -6,7 +6,15 @@ import { randomUUID } from 'node:crypto'
 import { performance } from 'node:perf_hooks'
 import type { Browser, Page } from 'playwright'
 import { connectDesktop, desktopPages } from './desktop.mjs'
-import type { DiscoveryFinding } from './discovery-report.mjs'
+import {
+  callsGap,
+  findingId,
+  laterCalls,
+  screenshotRun,
+  type DiscoveryExperiment,
+  type DiscoveryFinding,
+  type DiscoveryScreenshot,
+} from './discovery-report.mjs'
 import { connectIpcInspector } from './ipc-inspector.mjs'
 import {
   confirmSameWindow,
@@ -49,10 +57,16 @@ interface DiscoveryEvent {
   uncaughtErrors: number
 }
 
+type Experiment = DiscoveryExperiment<IpcFault>
+
 interface DiscoveryPhase {
   elapsedMs: number
   fault: IpcFault | 'healthy'
   times: number
+  /** The call of the load that failed, when it was not the first. */
+  call?: number
+  screenshot?: string
+  evidenceCaptureFailed?: true
   ready: boolean
   ui: RegionSummary
   snapshot: IpcSnapshot
@@ -102,6 +116,9 @@ export interface IpcDiscoveryReport {
     calibrationComplete: boolean
     relevantChannels: string[]
     settleMs: number
+    /** How often each healthy calibration load read the selected channel. */
+    callsPerLoad?: number[]
+    callsGap?: string
     note: string
   }
   limitation: string
@@ -197,6 +214,7 @@ export function discoveryConfig(input: IpcDiscoveryInput): IpcDiscoveryConfig {
 }
 export async function discoverIpc(
   input: IpcDiscoveryInput,
+  { screenshot }: { screenshot?: DiscoveryScreenshot } = {},
 ): Promise<IpcDiscoveryReport> {
   const config = discoveryConfig(input)
   const report: IpcDiscoveryReport = {
@@ -283,11 +301,11 @@ export async function discoverIpc(
     }
     await observe()
     const phase = async (
-      fault: IpcFault | undefined,
-      times = 1,
+      experiment: Experiment | undefined,
       expectedFingerprint?: string,
       calibrate = false,
     ): Promise<DiscoveryPhase> => {
+      const { fault, times = 1, call } = experiment ?? {}
       // An app retry can still be in flight after a faulted run.
       await waitForSettledCalls(control, config.baselineTimeoutMs)
       runId = randomUUID()
@@ -306,7 +324,9 @@ export async function discoverIpc(
           id,
           channel: config.channel,
           requiredChannels: config.requiredChannels,
-          ...(fault ? { fault, times } : {}),
+          ...(fault
+            ? { fault, times, ...(call ? { skip: call - 1 } : {}) }
+            : {}),
           ttlMs: config.baselineTimeoutMs + config.observationMs,
         })
         await page.reload({
@@ -376,6 +396,7 @@ export async function discoverIpc(
               elapsedMs: Math.round(performance.now() - started),
               fault: fault ?? 'healthy',
               times: fault ? times : 0,
+              ...(call ? { call } : {}),
               ready,
               ui: summary,
               snapshot,
@@ -413,7 +434,12 @@ export async function discoverIpc(
     }
     try {
       for (let i = 0; i < 3; i++) {
-        const baseline = await phase(undefined, 1, undefined, true)
+        const baseline = await phase(undefined, undefined, true)
+        if (i === 0)
+          Object.assign(
+            baseline,
+            await screenshotRun(screenshot, page, 'baseline'),
+          )
         report.baselines.push(baseline)
         if (!baseline.ready || baseline.newErrors)
           throw new Error('BASELINE_NOT_HEALTHY')
@@ -428,15 +454,29 @@ export async function discoverIpc(
         )
       trustedFingerprint = report.baselines[0].ui.fingerprint
       report.readiness.calibrationComplete = true
-      for (const experiment of [
+      const callsPerLoad = report.baselines.map(
+        (b) => b.snapshot.channels[config.channel].realCalls,
+      )
+      const canSkip = identity.capabilities.faultSkip === true
+      report.readiness.callsPerLoad = callsPerLoad
+      report.readiness.callsGap = callsGap(callsPerLoad, canSkip)
+      const calls = canSkip ? laterCalls(callsPerLoad) : []
+      const experiments: Experiment[] = [
         { fault: 'rejection', times: 1 },
         { fault: 'rejection', times: 2 },
         { fault: 'null-result', times: 1 },
-      ] as const) {
+        ...calls.map((call) => ({
+          fault: 'rejection' as const,
+          times: 1,
+          call,
+        })),
+      ]
+      for (const experiment of experiments) {
+        const id = findingId(experiment)
         const runs: DiscoveryRun[] = []
         for (let i = 0; i < config.repeats; i++) {
           // A healthy control before every faulted run also clears the previous state.
-          const healthy = await phase(undefined, 1, trustedFingerprint)
+          const healthy = await phase(undefined, trustedFingerprint)
           if (
             !healthy.ready ||
             healthy.newErrors ||
@@ -454,7 +494,7 @@ export async function discoverIpc(
             }
             throw new Error('CONTROL_UNSTABLE')
           }
-          const result = await phase(experiment.fault, experiment.times)
+          const result = await phase(experiment)
           const assessment = classifyObservation({
             baseline: healthy.ui,
             final: result.ui,
@@ -475,6 +515,7 @@ export async function discoverIpc(
               repeatedReads: result.repeatedReads,
             },
             interpretation: assessment,
+            ...(await screenshotRun(screenshot, page, `${id}-run${i + 1}`)),
           }
           runs.push(run)
           report.results.push(run)
@@ -487,7 +528,7 @@ export async function discoverIpc(
           ? runs[0].assessment
           : { classification: 'UNSTABLE', kind: 'inconclusive' }
         report.findings.push({
-          id: `${experiment.fault}-${experiment.times}`,
+          id,
           ...experiment,
           ...assessment,
           confirmations: runs.length,
@@ -506,7 +547,7 @@ export async function discoverIpc(
     } finally {
       try {
         if (runId) await resetIpcAndConfirm(control, runId)
-        const cleanup = await phase(undefined, 1, trustedFingerprint)
+        const cleanup = await phase(undefined, trustedFingerprint)
         report.cleanup = cleanup
         report.finalReset =
           trustedFingerprint !== undefined &&

@@ -1,11 +1,13 @@
-import type {
-  DiscoveryFinding,
-  DiscoveryInterpretation,
+import {
+  findingId,
+  type DiscoveryFinding,
+  type DiscoveryInterpretation,
 } from './discovery-report.mjs'
 
 interface DiscoveryRun {
   fault: string
   times: number
+  call?: number
   interpretation?: DiscoveryInterpretation
   assessment?: DiscoveryInterpretation
 }
@@ -32,7 +34,7 @@ export function retainPartialFindings(
 ): void {
   const groups = new Map<string, DiscoveryRun[]>()
   for (const run of report.results) {
-    const id = `${run.fault}-${run.times}`
+    const id = findingId(run)
     if (!groups.has(id)) groups.set(id, [])
     groups.get(id)!.push(run)
   }
@@ -48,6 +50,7 @@ export function retainPartialFindings(
       id,
       fault: runs[0].fault,
       times: runs[0].times,
+      ...(runs[0].call ? { call: runs[0].call } : {}),
       classification: 'INCOMPLETE_EXPERIMENT',
       kind: 'inconclusive',
       confidence: 'low',
