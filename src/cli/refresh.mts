@@ -1,12 +1,7 @@
 import { signals } from './until-stopped.mjs'
-import { readFile, mkdir, writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import { randomUUID } from 'node:crypto'
-import {
-  connectDesktop,
-  selectDesktopPage,
-  desktopPages,
-} from '../targets/cdp.mjs'
+import { connectDesktop, selectDesktopPage } from '../targets/cdp.mjs'
 import type { Browser, Page } from 'playwright'
 import {
   connectIpcInspector,
@@ -29,6 +24,8 @@ import {
   ipcRefreshAdapter,
 } from '../transports/session.mjs'
 import { escapeHtml, renderTemplate } from '../reports/template.mjs'
+import { attachIpcWindow } from '../targets/ipc-window.mjs'
+import { reportFolder } from '../reports/folder.mjs'
 
 type PreparedVisibility = Awaited<ReturnType<typeof prepareVisibility>>
 
@@ -76,12 +73,7 @@ export async function refreshMain(args: string[]) {
   }
   if (!options.config) throw Error('--config required')
   const c = refreshConfig(JSON.parse(await readFile(options.config, 'utf8')))
-  const directory = resolve(
-    options.out ?? `.recovery-probe/refresh-${Date.now()}`,
-  )
-  await mkdir(resolve(directory, '..'), { recursive: true, mode: 0o700 })
-  await mkdir(directory, { mode: 0o700 })
-  await writeFile(resolve(directory, '.gitignore'), '*\n', { mode: 0o600 })
+  const directory = await reportFolder('refresh', options.out)
   const abort = new AbortController()
   const onSignal = () => abort.abort()
   signals.on('SIGINT', onSignal)
@@ -97,32 +89,14 @@ export async function refreshMain(args: string[]) {
     if (c.transport === 'ipc') {
       const inspector = await connectIpcInspector(c.inspector)
       control = inspector
-      const identity = await control.call('identify')
-      if (c.times > identity.capabilities?.maxFaultCount)
+      const ipc = await attachIpcWindow(attached, inspector, [
+        c.channel,
+        ...c.requiredChannels,
+      ])
+      if (c.times > ipc.identity.capabilities?.maxFaultCount)
         throw Error('IPC hook does not support requested fault count')
-      for (const channel of [c.channel, ...c.requiredChannels])
-        if (!identity.registered.includes(channel))
-          throw Error('Configured channel was not captured')
-      const pages = desktopPages(attached).filter(
-        (p) => p.url() === identity.pageUrl,
-      )
-      if (pages.length !== 1) throw Error('Keep one matching IPC target open')
-      page = pages[0]
-      const nonce = randomUUID()
-      await page.evaluate((value) => {
-        if (Object.hasOwn(globalThis, '__recoveryProbeWindowNonce'))
-          throw Error('Existing challenge')
-        Object.defineProperty(globalThis, '__recoveryProbeWindowNonce', {
-          value,
-          configurable: true,
-        })
-      }, nonce)
-      try {
-        await inspector.call('identify', nonce)
-      } finally {
-        await page.evaluate(() => delete globalThis.__recoveryProbeWindowNonce)
-      }
-      adapter = ipcRefreshAdapter(inspector, c, identity.senderId)
+      page = ipc.page
+      adapter = ipcRefreshAdapter(inspector, c, ipc.identity.senderId)
     } else {
       page = selectDesktopPage(attached, c)
       adapter = httpRefreshAdapter(page, c)

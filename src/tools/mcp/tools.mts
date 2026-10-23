@@ -390,6 +390,7 @@ const runCli: McpTool = {
         'Only android --list can run here; run the forward in a terminal',
       )
     const timeoutMs = integer(args, 'timeoutMs', [1000, 900000]) ?? 300000
+    // A separate process can be killed on timeout or cancel; the server keeps running.
     const cli = fileURLToPath(packageUrl('bin/recovery-probe.mjs'))
     return new Promise((resolve, reject) => {
       const child = spawn(process.execPath, [cli, ...argv], {

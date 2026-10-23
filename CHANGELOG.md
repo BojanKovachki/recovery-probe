@@ -4,6 +4,12 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.6.0-preview.10 (2026-10-23)
+
+- One function finds the IPC hook's window and proves the debugging port and the hook reach the same one. It replaces five copies in the IPC check, discovery, the action check, observe and refresh, which had different error messages and, in refresh, removed any window challenge instead of only its own.
+- `ipc`, `observe`, `refresh`, `web` and `web --attach` create their report folder the same way: `--out` must be a new folder, its parent folders are created, and without `--out` it's a new `.recovery-probe/<command>-…` folder.
+- `watch`, `verify` and the MCP server still run each check as its own CLI process, on purpose: a hung or crashing check can be stopped without stopping them.
+
 ## 0.6.0-preview.9 (2026-10-23)
 
 - IPC and HTTP discovery run on one engine, built on the same read sessions as refresh. The IPC and HTTP modules only set up their transport.

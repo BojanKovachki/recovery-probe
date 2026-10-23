@@ -5,6 +5,7 @@ import { createInterface } from 'node:readline/promises'
 import { openWeb } from '../targets/browser.mjs'
 import { checkWeb, discoverWeb } from '../workflows/web.mjs'
 import { writeDesktopReport } from '../reports/check.mjs'
+import { reportFolder } from '../reports/folder.mjs'
 
 interface WebOptions {
   login?: true
@@ -92,9 +93,7 @@ Discovery writes a scenario template; fill its endpoint and data-dependent ready
     }
     return
   }
-  const directory = resolve(options.out ?? `.recovery-probe/web-${Date.now()}`)
-  await mkdir(dirname(directory), { recursive: true, mode: 0o700 })
-  await mkdir(directory, { mode: 0o700 })
+  const directory = await reportFolder('web', options.out)
   if (options.discover) {
     const report = await discoverWeb(config)
     const scenario = {

@@ -1,11 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { performance } from 'node:perf_hooks'
 import type { Browser, Page } from 'playwright'
-import { connectDesktop, desktopPages } from '../targets/cdp.mjs'
+import { connectDesktop } from '../targets/cdp.mjs'
 import { connectIpcInspector } from '../transports/ipc/inspector.mjs'
 import type { IpcInspector } from '../transports/ipc/inspector.mjs'
 import {
-  confirmSameWindow,
   resetIpcAndConfirm,
   waitForSettledCalls,
 } from '../transports/ipc/control.mjs'
@@ -18,6 +17,7 @@ import { locate, observationSteps, runSteps } from './observe/steps.mjs'
 import type { ObservationStep, StepResult } from './observe/steps.mjs'
 import { prepareVisibility } from '../targets/visibility.mjs'
 import type { WindowVisibility } from '../targets/visibility.mjs'
+import { attachIpcWindow } from '../targets/ipc-window.mjs'
 
 export interface IpcActionConfig {
   cdp: string
@@ -291,21 +291,14 @@ export async function checkAction(
     errorCount++
   }
   try {
-    const identity = await control.call('identify')
+    browser = await connectDesktop(config.cdp)
+    const { page, identity } = await attachIpcWindow(browser, control, [
+      config.channel,
+    ])
     if (!identity.capabilities?.faultDelay)
       throw new Error(
-        'Restart the app with the 0.5.0-preview.8 or newer hook; it lacks simulated latency',
+        "The loaded hook can't delay its answers; restart the app with the hook from this version",
       )
-    if (!identity.registered.includes(config.channel))
-      throw new Error('Channel not captured: ' + config.channel)
-    browser = await connectDesktop(config.cdp)
-    const pages = desktopPages(browser).filter(
-      (p) => p.url() === identity.pageUrl,
-    )
-    if (pages.length !== 1)
-      throw new Error('Keep one matching target window open')
-    const page = pages[0]
-    await confirmSameWindow(page, control)
     visibility = await prepareVisibility(page, {
       restoreWindow: config.restoreWindow,
       control,

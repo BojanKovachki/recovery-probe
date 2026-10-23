@@ -1,5 +1,4 @@
-import { readFile, mkdir } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { readFile } from 'node:fs/promises'
 import { connectDesktop, selectDesktopPage } from '../targets/cdp.mjs'
 import { checkDesktop, type DesktopReport } from '../workflows/check/http.mjs'
 import {
@@ -11,6 +10,7 @@ import { screenshotsIn } from '../workflows/discover/screenshots.mjs'
 import { writeDiscoveryReport } from '../reports/discovery.mjs'
 import { prepareVisibility } from '../targets/visibility.mjs'
 import { writeDesktopReport } from '../reports/check.mjs'
+import { reportFolder } from '../reports/folder.mjs'
 
 export async function attachMain(args: string[]) {
   const options: Record<string, string | true> = {}
@@ -41,12 +41,10 @@ export async function attachMain(args: string[]) {
   }
   if (options['restore-window']) config.restoreWindow = true
   if (options.discover) config = httpDiscoveryConfig(config)
-  const directory = resolve(
-    (options.out as string | undefined) ??
-      `.recovery-probe/attached-${Date.now()}`,
+  const directory = await reportFolder(
+    'attached',
+    options.out as string | undefined,
   )
-  await mkdir(resolve(directory, '..'), { recursive: true, mode: 0o700 })
-  await mkdir(directory, { mode: 0o700 })
   const browser = await connectDesktop(config.cdp)
   try {
     const page = selectDesktopPage(browser, config)

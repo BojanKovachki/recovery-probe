@@ -1,10 +1,8 @@
 import type { Browser } from 'playwright'
-import { connectDesktop, desktopPages } from '../../targets/cdp.mjs'
+import { connectDesktop } from '../../targets/cdp.mjs'
+import { attachIpcWindow } from '../../targets/ipc-window.mjs'
 import { connectIpcInspector } from '../../transports/ipc/inspector.mjs'
-import {
-  confirmSameWindow,
-  type IpcFault,
-} from '../../transports/ipc/control.mjs'
+import type { IpcFault } from '../../transports/ipc/control.mjs'
 import { ipcRefreshAdapter } from '../../transports/session.mjs'
 import type { IpcSnapshot } from '../../ipc-probe.cjs'
 import { runDiscovery, type DiscoveryResult } from './run.mjs'
@@ -138,23 +136,13 @@ export async function discoverIpc(
   const control = await connectIpcInspector(config.inspector)
   let browser: Browser | undefined
   try {
-    const identity = await control.call('identify')
+    const watched = [config.channel, ...config.requiredChannels]
+    browser = await connectDesktop(config.cdp)
+    const { page, identity } = await attachIpcWindow(browser, control, watched)
     if (!(identity.capabilities?.maxFaultCount >= 2))
       throw new Error(
         'The loaded hook cannot fail a read twice in a row; restart the app with the hook from this version',
       )
-    const watched = [config.channel, ...config.requiredChannels]
-    for (const ch of watched)
-      if (!identity.registered.includes(ch))
-        throw new Error('Channel not captured: ' + ch)
-    browser = await connectDesktop(config.cdp)
-    const pages = desktopPages(browser).filter(
-      (p) => p.url() === identity.pageUrl,
-    )
-    if (pages.length !== 1)
-      throw new Error('Keep one matching target window open')
-    const [page] = pages
-    await confirmSameWindow(page, control)
     report.coverage = {
       watchedChannels: watched,
       unobservedRegisteredChannels: identity.registered.filter(

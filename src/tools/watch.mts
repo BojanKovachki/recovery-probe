@@ -24,6 +24,8 @@ const EDITOR_FILE =
 const CHECKS = ['ipc', 'observe', 'refresh', 'web', 'desktop']
 // Flags a rerun sets itself, or that need a person at the keyboard.
 const NOT_IN_A_RERUN = ['--out', '--interactive', '--help', '--list']
+// Each check runs as its own CLI process, so a hung or crashing check can be stopped
+// without taking the watcher down.
 const CLI = fileURLToPath(packageUrl('bin/recovery-probe.mjs'))
 
 export interface SourceWatcher {
