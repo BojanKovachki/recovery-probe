@@ -29,6 +29,7 @@ import {
   type Values,
 } from './args.mjs'
 import { runBrowserCheck } from './runner.mjs'
+import { withEvidence } from '../reports/evidence.mjs'
 
 export const usage = `recovery-probe check --config FILE [options]
 
@@ -208,7 +209,11 @@ async function checkIpcRead(raw: Record<string, unknown>, values: Values) {
   )
   await writeFile(
     join(directory, 'report.json'),
-    JSON.stringify(report, null, 2),
+    JSON.stringify(
+      withEvidence(report, { workflow: 'check', transport: 'ipc' }),
+      null,
+      2,
+    ),
     { mode: 0o600 },
   )
   await writeFile(

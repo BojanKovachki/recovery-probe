@@ -81,6 +81,8 @@ test(
         await readFile(join(out, 'report.json'), 'utf8'),
       )
       assert.equal(report.ok, true)
+      assert.equal(report.evidence.workflow, 'discover')
+      assert.equal(report.evidence.transport, 'http')
       assert.equal(report.results[0].snapshot.injected, 2)
       assert.equal(report.baselines[0].screenshot, 'baseline.png')
       assert.equal(report.results[0].screenshot, 'http-error-2-run1.png')

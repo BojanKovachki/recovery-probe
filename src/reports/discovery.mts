@@ -2,6 +2,7 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { escapeHtml, renderTemplate } from './template.mjs'
 import { type DiscoveryFinding } from '../workflows/discover/experiment.mjs'
+import { withEvidence } from './evidence.mjs'
 
 /** The fields of an HTTP or IPC discovery report that the written report uses. */
 export interface DiscoveryReport {
@@ -31,7 +32,8 @@ export async function writeDiscoveryReport(
   )
   await writeFile(
     join(directory, 'report.json'),
-    JSON.stringify(report, null, 2),
+    // Its mode says whether the discovery ran over IPC or HTTP.
+    JSON.stringify(withEvidence(report), null, 2),
     { mode: 0o600 },
   )
   const experiments = report.findings

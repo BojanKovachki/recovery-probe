@@ -8,6 +8,7 @@ import {
   type RecoveryConfig,
 } from '../workflows/check/browser.mjs'
 import type { Values } from './args.mjs'
+import { withEvidence } from '../reports/evidence.mjs'
 
 interface DemoServer {
   url: string
@@ -121,7 +122,12 @@ export async function runBrowserCheck(
   }
   if (values.json) console.log(JSON.stringify(report, null, 2))
   else printSummary(report)
-  const json = JSON.stringify(report, null, 2) + '\n'
+  const json =
+    JSON.stringify(
+      withEvidence(report, { workflow: 'check', transport: 'browser' }),
+      null,
+      2,
+    ) + '\n'
   // The old spellings wrote the report to one file, and only when asked.
   if ('reportFile' in values) {
     if (typeof values.reportFile !== 'string') return

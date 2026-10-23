@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { resolve, join } from 'node:path'
 import type { DesktopReport } from '../workflows/check/http.mjs'
 import { escapeHtml, renderTemplate } from './template.mjs'
+import { withEvidence } from './evidence.mjs'
 
 export function desktopReportHtml(
   report: DesktopReport,
@@ -60,7 +61,12 @@ export async function writeDesktopReport(
       ? `import { readFile } from 'node:fs/promises';\nimport { checkWeb } from 'recovery-probe/web';\nconst config = JSON.parse(await readFile(new URL('./scenario.json', import.meta.url), 'utf8'));\nconst report = await checkWeb(config);\nconsole.log(JSON.stringify(report, null, 2));\nprocess.exitCode = report.ok ? 0 : 1;\n`
       : `import { readFile } from 'node:fs/promises';\nimport { connectDesktop, selectDesktopPage, checkDesktop } from 'recovery-probe/desktop';\nconst config = JSON.parse(await readFile(new URL('./scenario.json', import.meta.url), 'utf8'));\nconst browser = await connectDesktop(config.cdp);\ntry {\n  const report = await checkDesktop(selectDesktopPage(browser, config), config);\n  console.log(JSON.stringify(report, null, 2));\n  process.exitCode = report.ok ? 0 : 1;\n} finally { await browser.close(); }\n`
   for (const [name, value] of Object.entries({
-    'report.json': JSON.stringify(report, null, 2) + '\n',
+    'report.json':
+      JSON.stringify(
+        withEvidence(report, { workflow: 'check', transport: 'http' }),
+        null,
+        2,
+      ) + '\n',
     'scenario.json': JSON.stringify(config, null, 2) + '\n',
     'report.html': desktopReportHtml(
       report,
