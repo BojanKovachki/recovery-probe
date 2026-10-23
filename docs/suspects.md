@@ -70,7 +70,7 @@ Both patterns go by names:
 ## Prove or dismiss a suspect
 
 A suspect is a lead from reading code, not a bug. Fail its read once:
-- **UNKNOWN_AS_EMPTY** is confirmed by content that disappears (`check_read_recovery`, `ipc --discover`) or by files removed from disk (`observe --files`).
+- **UNKNOWN_AS_EMPTY** is confirmed by content that disappears (`check_read_recovery`, `discover`) or by files removed from disk (`observe --files`).
 - **FAILURE_ONLY_LOGGED** is confirmed when the data never comes back and no error shows, which `check_read_recovery` reports as `RECOVERY_NOT_OBSERVED`.
 
 When a reviewed suspect is fine, for example an empty cache that is only a cache miss, mark the line. The comment works on the flagged line or the line above:

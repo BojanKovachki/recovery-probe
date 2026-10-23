@@ -1,5 +1,5 @@
 import { signals } from './until-stopped.mjs'
-import { readFile, writeFile } from 'node:fs/promises'
+import { writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { connectDesktop, selectDesktopPage } from '../targets/cdp.mjs'
 import type { Browser, Page } from 'playwright'
@@ -26,6 +26,7 @@ import {
 import { escapeHtml, renderTemplate } from '../reports/template.mjs'
 import { attachIpcWindow } from '../targets/ipc-window.mjs'
 import { reportFolder } from '../reports/folder.mjs'
+import { parseOptions, readConfig, text, UsageError } from './args.mjs'
 
 type PreparedVisibility = Awaited<ReturnType<typeof prepareVisibility>>
 
@@ -59,20 +60,18 @@ export async function refreshMain(args: string[]) {
     )
     return
   }
-  const options: { json?: true; config?: string; out?: string } = {}
-  const set = options as Record<string, string | true>
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--json') options.json = true
-    else if (
-      ['--config', '--out'].includes(args[i]) &&
-      args[i + 1] &&
-      !args[i + 1].startsWith('--')
-    )
-      set[args[i].slice(2)] = args[++i]
-    else throw Error('Use refresh --config FILE [--out NEW_DIRECTORY] [--json]')
+  const { values } = parseOptions(args, {
+    config: { type: 'string' },
+    out: { type: 'string' },
+    json: { type: 'boolean' },
+  })
+  const options = {
+    json: values.json === true,
+    config: text(values, 'config'),
+    out: text(values, 'out'),
   }
-  if (!options.config) throw Error('--config required')
-  const c = refreshConfig(JSON.parse(await readFile(options.config, 'utf8')))
+  if (!options.config) throw new UsageError('--config is required')
+  const c = await readConfig(options.config, refreshConfig)
   const directory = await reportFolder('refresh', options.out)
   const abort = new AbortController()
   const onSignal = () => abort.abort()

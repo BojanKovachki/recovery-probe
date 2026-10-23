@@ -37,17 +37,17 @@ Install the exact version in a separate tester folder:
 ```bash
 mkdir recovery-probe-tools && cd recovery-probe-tools
 npm install --save-dev recovery-probe playwright
-npx recovery-probe desktop --list
+npx recovery-probe windows
 ```
 
-No Chromium download is needed: the tester connects to the Chromium already running inside your Electron app. `--list` prints window indexes and page URLs with query strings/fragments omitted. If there are multiple windows, select the intended one explicitly.
+No Chromium download is needed: the tester connects to the Chromium already running inside your Electron app. `windows` prints window indexes and page URLs with query strings/fragments omitted. If there are multiple windows, select the intended one explicitly.
 
 ## 3. Discover the page's API requests
 
 For window 0:
 
 ```bash
-npx recovery-probe desktop --discover --page 0 --out .recovery-probe/discovery
+npx recovery-probe reads --page 0 --out .recovery-probe/discovery
 ```
 
 This reloads the page, observes successful GET fetch/XHR JSON responses for five seconds, and writes `discovery.json` and a `scenario.json` template. Extend discovery with `--duration 15000` if startup is slower. Choose a page that reloads into the desired route and makes the relevant request during loading.
@@ -85,7 +85,7 @@ Use your real selectors and one endpoint from discovery. **Choose a ready marker
 ## 5. Run and inspect
 
 ```bash
-npx recovery-probe desktop --config .recovery-probe/discovery/scenario.json --out .recovery-probe/first-run
+npx recovery-probe check --config .recovery-probe/discovery/scenario.json --out .recovery-probe/first-run
 ```
 
 Open `.recovery-probe/first-run/report.html` in your browser. Add `--screenshots` to capture failed/inconclusive fault states locally. Screenshots can contain private information; none are captured by default. Endpoint paths, selectors and configured ready text can also be private. Keep `.recovery-probe/` out of your app's Git repository and review files before sharing.
@@ -142,15 +142,16 @@ The check also takes `times` (1–10, default 1), `baselineTimeoutMs` and `recov
 
 ## Attach to a browser
 
-For a Chromium or Edge test session you're allowed to automate, started with a local debugging port, use `web --attach` instead of `desktop`:
+A Chromium or Edge test session you're allowed to automate, started with a local debugging port, works the same way. Point the commands at its port:
 
 ```bash
-npx recovery-probe web --attach --list --cdp http://127.0.0.1:9223
-npx recovery-probe web --attach --config ./scenario.json --cdp http://127.0.0.1:9223
+npx recovery-probe windows --cdp http://127.0.0.1:9223
+npx recovery-probe reads --cdp http://127.0.0.1:9223 --page 0
+npx recovery-probe check --config ./scenario.json --cdp http://127.0.0.1:9223
 ```
 
-It keeps the live page and its sessionStorage login through reloads, and leaves the browser open at the end. It doesn't export credentials or get around sign-in policy. `web --attach --discover --page N` lists the page's reads like `desktop --discover`.
+It keeps the live page and its sessionStorage login through reloads, and leaves the browser open at the end. It doesn't export credentials or get around sign-in policy.
 
 ## Discovery
 
-`web --attach --discover --config FILE` fails the selected read in a few fixed ways and compares the screen with healthy runs, without a ready selector. See [Discovery](discovery.md).
+`discover --config FILE` fails the selected read in a few fixed ways and compares the screen with healthy runs, without a ready selector. See [Discovery](discovery.md).

@@ -5,6 +5,7 @@ import {
   generateRepair,
   verifyRepair,
 } from '../tools/repair/run.mjs'
+import { parseOptions, UsageError } from './args.mjs'
 
 interface RepairOptions {
   'allow-execution'?: true
@@ -36,34 +37,28 @@ There is no implicit source upload, production deployment, commit, merge or orig
 See docs/repair.md for complete web and Electron examples and Windows commands.`)
     return
   }
-  const options: RepairOptions = {}
-  const set = options as Record<string, string | true>
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i]
-    if (
-      ['--allow-execution', '--allow-source-upload', '--auto-verify'].includes(
-        arg,
-      )
-    )
-      set[arg.slice(2)] = true
-    else if (['--config', '--out', '--generate', '--verify'].includes(arg)) {
-      if (!args[i + 1] || args[i + 1].startsWith('--'))
-        throw new Error(`${arg} needs a value`)
-      set[arg.slice(2)] = args[++i]
-    } else throw new Error(`Unknown repair option: ${arg}`)
-  }
+  const { values } = parseOptions(args, {
+    'allow-execution': { type: 'boolean' },
+    'allow-source-upload': { type: 'boolean' },
+    'auto-verify': { type: 'boolean' },
+    config: { type: 'string' },
+    out: { type: 'string' },
+    generate: { type: 'string' },
+    verify: { type: 'string' },
+  })
+  const options = values as RepairOptions
   if (
     [options.config, options.generate, options.verify].filter(Boolean)
       .length !== 1
   )
-    throw new Error('Choose --config, --generate, or --verify')
+    throw new UsageError('Choose --config, --generate, or --verify')
   if (
     options['auto-verify'] &&
     (!options.config ||
       !options['allow-execution'] ||
       !options['allow-source-upload'])
   )
-    throw new Error(
+    throw new UsageError(
       '--auto-verify requires --config, --allow-execution and --allow-source-upload',
     )
   const directory = resolve(

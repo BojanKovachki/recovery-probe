@@ -84,7 +84,7 @@ test(
       )
       const result = await exec(
         process.execPath,
-        [cli, 'web', '--config', path, '--out', output],
+        [cli, 'check', '--config', path, '--out', output],
         { timeout: 20000 },
       )
       assert.match(result.stdout, /PASS/)

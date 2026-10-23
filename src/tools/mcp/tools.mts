@@ -17,14 +17,20 @@ import { packageUrl } from '../../core/package.mjs'
 const FAULTS = ['http-error', 'connection-failure', 'invalid-json']
 const MAX_OUTPUT = 50_000
 const MAX_SUSPECTS = 200
+// The old ipc, desktop and web spellings still run until 1.0.
 const CLI_COMMANDS = [
+  'check',
+  'discover',
+  'action',
+  'reads',
+  'windows',
   'observe',
-  'ipc',
   'refresh',
-  'desktop',
-  'web',
   'android',
   'doctor',
+  'ipc',
+  'desktop',
+  'web',
 ]
 
 export const MCP_INSTRUCTIONS = `Recovery Probe shows what an app does when a data read fails. Use it to check a claim about error handling before you make it, and quote its results as they are.
@@ -348,7 +354,7 @@ const networkTools: McpTool[] = [
 const runCli: McpTool = {
   name: 'run_recovery_probe',
   title: 'Run a Recovery Probe command',
-  description: `Runs a Recovery Probe command that has no dedicated tool, such as observe (with --steps, --network or --files), ipc discovery, refresh, desktop attachment, android --list or doctor (setup checks), and returns its exit code and output. Commands: ${CLI_COMMANDS.join(', ')}. Pass --json where the command supports it. See the package docs for each command's configuration.`,
+  description: `Runs a Recovery Probe command that has no dedicated tool, such as check and discover for an Electron app or an attached browser, action, observe (with --steps, --network or --files), refresh, reads, windows, android --list or doctor (setup checks), and returns its exit code and output. Commands: ${CLI_COMMANDS.join(', ')}. Pass --json where the command supports it. See the package docs for each command's configuration.`,
   inputSchema: {
     type: 'object',
     properties: {

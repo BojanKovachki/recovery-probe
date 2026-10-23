@@ -127,6 +127,9 @@ jobs:
           path: |
             artifacts/*.json
             artifacts/ci-example-*/
+            .recovery-probe/demo-*/
+          # The demo report folder starts with a dot.
+          include-hidden-files: true
           if-no-files-found: warn
 
   electron:

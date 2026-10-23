@@ -67,9 +67,7 @@ test(
           fileURLToPath(
             new URL('../../bin/recovery-probe.mjs', import.meta.url),
           ),
-          'web',
-          '--attach',
-          '--discover',
+          'discover',
           '--screenshots',
           '--config',
           path,

@@ -11,11 +11,11 @@ You see whether an edit fixed what the check found, or broke something, without 
 ## Run it
 
 ```bash
-npx recovery-probe watch src -- ipc --action --config action.json
+npx recovery-probe watch src -- action --config action.json
 ```
 
 - **Paths** are the files and folders to watch; the default is the working directory. The watch skips `node_modules`, `dist`, `build`, `out`, `coverage`, `.next`, `.git`, `.recovery-probe` and editor swap files.
-- **After `--`** goes the check, as you would run it but without `--out`. That is `--config FILE` for a browser recovery check, or `web`, `desktop`, `ipc`, `observe` or `refresh` with `--config FILE`. Options that need a person, such as `--interactive`, don't work in a watch.
+- **After `--`** goes the check, as you would run it but without `--out`. That is `check`, `discover`, `action`, `observe` or `refresh` with `--config FILE`. Options that need a person, such as `--interactive`, don't work in a watch.
 - **Without a check**, the watch only scans changed files for suspects: `npx recovery-probe watch src`.
 - **`--settle MS`** is how long the files must be quiet before a run, 1500 ms by default. It gives the dev server time to rebuild and reload the app first; raise it if runs start before the reload.
 - **`--no-suspects`** turns the scan off.
@@ -29,7 +29,7 @@ Stop with Ctrl+C. The run in progress finishes first; a second Ctrl+C quits at o
 This example ran on the included demo page. The fix was simulated by pointing the check at the page that recovers, while a source file was edited:
 
 ```text
-Watching src; each change reruns: recovery-probe --config scenario.json.
+Watching src; each change reruns: recovery-probe check --config scenario.json.
 Runs and summary: .recovery-probe/watch-2026-10-20T18-29-09-776Z. Stop with Ctrl+C.
 
 [20:29:09] starting point: running the check

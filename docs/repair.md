@@ -34,13 +34,13 @@ The exact version keeps saved experiments reproducible. Review generated changes
 Start your portal locally using its existing development command and a test account/backend. If login is required:
 
 ```bash
-npx recovery-probe web --login --url http://127.0.0.1:3100 --state ./private-portal-state.json
+npx recovery-probe login --url http://127.0.0.1:3100 --state ./private-portal-state.json
 ```
 
 Sign in yourself in the Chromium window, return to the app, then press Enter in the terminal. The command refuses to overwrite an existing state file. State includes cookies/local storage/IndexedDB, not session storage. Keep it private. Session-storage-only auth needs your existing Playwright login fixture with the `withFault` helper; this workflow does not export that state. Use the same origin/port for subsequent checks.
 
 ```bash
-npx recovery-probe web --discover --url http://127.0.0.1:3100/users --state ./private-portal-state.json --out ./portal-discovery
+npx recovery-probe reads --url http://127.0.0.1:3100/users --state ./private-portal-state.json --out ./portal-discovery
 ```
 
 Fill the generated `scenario.json`, for example:
@@ -60,7 +60,7 @@ Fill the generated `scenario.json`, for example:
 The ready selector must match exactly **one** visible element. If there are many users, select one exact test row. Selectors are examples, not assumptions about your app. Endpoint must be origin+path without query values; query variants share a fault budget. Only successful main-frame GET fetch/XHR JSON traffic is discovered.
 
 ```bash
-npx recovery-probe web --config ./portal-discovery/scenario.json --out ./portal-check
+npx recovery-probe check --config ./portal-discovery/scenario.json --out ./portal-check
 ```
 
 Optional `--headed` shows the browser. An expired login, wrong endpoint, missing health marker, native request or interception failure is inconclusive—not an automatically confirmed defect. A bounded recovery failure needs investigation against the intended product behavior.

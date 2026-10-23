@@ -7,8 +7,9 @@ import {
   detectTarget,
   type InitTarget,
 } from '../tools/init.mjs'
-import { ipcMain } from './ipc.mjs'
+import { run as discover } from './discover.mjs'
 import { terminalIo } from './terminal.mjs'
+import { parseOptions, text, UsageError } from './args.mjs'
 
 const HELP = `recovery-probe init [URL] [--cdp URL] [--inspector URL] [--dir FOLDER] [--fresh]
 
@@ -34,20 +35,25 @@ const NOTHING_TO_TEST = `Nothing to test yet. Either:
   - for an Electron app that loads data over IPC, also load the hook: recovery-probe doctor shows how`
 
 function parseInitArgs(args: string[]): InitOptions {
-  const options: InitOptions = {}
-  const set = options as Record<string, string | true>
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i]
-    if (arg === '--fresh') options.fresh = true
-    else if (['--cdp', '--inspector', '--dir'].includes(arg)) {
-      if (!args[i + 1] || args[i + 1].startsWith('--'))
-        throw new Error(`${arg} needs a value`)
-      set[arg.slice(2)] = args[++i]
-    } else if (!arg.startsWith('--') && !options.url) options.url = arg
-    else throw new Error(`Unknown init option: ${arg}`)
+  const { values, positionals } = parseOptions(
+    args,
+    {
+      fresh: { type: 'boolean' },
+      cdp: { type: 'string' },
+      inspector: { type: 'string' },
+      dir: { type: 'string' },
+    },
+    1,
+  )
+  const options: InitOptions = {
+    url: positionals[0],
+    cdp: text(values, 'cdp'),
+    inspector: text(values, 'inspector'),
+    dir: text(values, 'dir'),
+    ...(values.fresh ? { fresh: true as const } : {}),
   }
   if (options.url && (options.cdp || options.inspector))
-    throw new Error('Give either a URL or --cdp and --inspector, not both')
+    throw new UsageError('Give either a URL or --cdp and --inspector, not both')
   return options
 }
 
@@ -121,5 +127,5 @@ async function initIpc(
       io.close()
     }
   }
-  await ipcMain(['--discover', '--config', configPath])
+  await discover({ config: configPath })
 }

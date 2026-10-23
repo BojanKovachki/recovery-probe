@@ -249,12 +249,12 @@ test('accepts only a check it can rerun the same way', async () => {
     'start',
     'web',
   ]).catch((error) => error)
-  assert.equal(failed.code, 2)
+  assert.equal(failed.code, 3)
   assert.match(failed.stderr, /reruns a check/)
   const help = await promisify(execFile)(process.execPath, [
     cli,
     'watch',
     '--help',
   ])
-  assert.match(help.stdout, /recovery-probe watch src -- ipc --action/)
+  assert.match(help.stdout, /recovery-probe watch src -- action --config/)
 })

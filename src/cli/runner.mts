@@ -1,0 +1,138 @@
+import { mkdir, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+import { packageUrl, version } from '../core/package.mjs'
+import { reportFolder } from '../reports/folder.mjs'
+import {
+  probeRecovery,
+  type ProbeRow,
+  type RecoveryConfig,
+} from '../workflows/check/browser.mjs'
+import type { Values } from './args.mjs'
+
+interface DemoServer {
+  url: string
+  close(): Promise<void>
+}
+
+// The examples stay plain JavaScript, so the demo server is loaded by URL when needed.
+const startDemoServer = async (): Promise<DemoServer> =>
+  (
+    (await import(packageUrl('examples/demo-server.mjs').href)) as {
+      startDemoServer: () => Promise<DemoServer>
+    }
+  ).startDemoServer()
+
+export interface RunnerReport {
+  tool: string
+  version: string
+  generatedAt: string
+  environment: { node: string; platform: string; chromium: string }
+  mode: string
+  apps: { name: string; ok: boolean; results: ProbeRow[] }[]
+  expectedDemonstrationVerified?: boolean
+}
+
+const marker = (outcome: string) =>
+  outcome === 'pass'
+    ? 'PASS'
+    : outcome === 'fail'
+      ? 'CAUGHT'
+      : outcome.toUpperCase()
+
+function printSummary(report: RunnerReport) {
+  console.log(`Recovery Probe ${report.version} — ${report.mode}\n`)
+  for (const app of report.apps) {
+    console.log(app.name)
+    for (const row of app.results) {
+      const injected = row.applied ? `, injected ${row.applied}` : ''
+      console.log(
+        `  ${marker(row.outcome).padEnd(12)} ${row.scenario} (${row.code}${injected})`,
+      )
+    }
+    console.log('')
+  }
+  if (report.mode === 'controlled demonstration')
+    console.log(
+      report.expectedDemonstrationVerified
+        ? 'Demo verified: the happy path passes, the broken recovery is caught, and the fixed app recovers.'
+        : 'Demo failed: the expected broken-versus-fixed distinction was not observed.',
+    )
+  else
+    console.log(
+      report.apps.every((app) => app.ok)
+        ? 'Recovery check passed.'
+        : 'Recovery check did not pass.',
+    )
+}
+
+/**
+ * Runs the built-in demo, or one JSON-runner config, in a headless Chromium,
+ * then prints and saves the report.
+ */
+export async function runBrowserCheck(
+  config: RecoveryConfig | 'demo',
+  values: Values,
+): Promise<void> {
+  const demo = config === 'demo'
+  const { chromium } = await import('playwright')
+  const browser = await chromium.launch({ headless: true })
+  let server: DemoServer | undefined
+  let report: RunnerReport
+  try {
+    const apps = []
+    if (demo) {
+      server = await startDemoServer()
+      for (const variant of ['broken', 'fixed'])
+        apps.push(
+          await probeRecovery(browser, {
+            name: `${variant} synthetic fixture`,
+            url: `${server.url}/${variant}`,
+            requestPattern: '**/api/profile',
+            readySelector: '#profile',
+            retrySelector: '#retry',
+            timeoutMs: 1200,
+          }),
+        )
+    } else apps.push(await probeRecovery(browser, config))
+    report = {
+      tool: 'Recovery Probe',
+      version,
+      generatedAt: new Date().toISOString(),
+      environment: {
+        node: process.version,
+        platform: process.platform,
+        chromium: browser.version(),
+      },
+      mode: demo ? 'controlled demonstration' : 'configured recovery check',
+      apps,
+    }
+    if (demo) {
+      report.expectedDemonstrationVerified =
+        apps[0].results[0].outcome === 'pass' &&
+        apps[0].results
+          .slice(1)
+          .every((row) => row.outcome === 'fail' && row.applied === 1) &&
+        apps[1].ok
+      process.exitCode = report.expectedDemonstrationVerified ? 0 : 1
+    } else process.exitCode = apps.every((app) => app.ok) ? 0 : 1
+  } finally {
+    await browser.close()
+    if (server) await server.close()
+  }
+  if (values.json) console.log(JSON.stringify(report, null, 2))
+  else printSummary(report)
+  const json = JSON.stringify(report, null, 2) + '\n'
+  // The old spellings wrote the report to one file, and only when asked.
+  if ('reportFile' in values) {
+    if (typeof values.reportFile !== 'string') return
+    await mkdir(dirname(values.reportFile), { recursive: true })
+    await writeFile(values.reportFile, json)
+    return
+  }
+  const directory = await reportFolder(
+    demo ? 'demo' : 'check',
+    values.out as string | undefined,
+  )
+  await writeFile(join(directory, 'report.json'), json, { mode: 0o600 })
+  if (!values.json) console.log(`Report: ${join(directory, 'report.json')}`)
+}

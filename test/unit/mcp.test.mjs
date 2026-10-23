@@ -135,7 +135,7 @@ test('reports invalid arguments as a tool error the agent can read', async () =>
       args: ['repair'],
     })
     assert.equal(unknown.isError, true)
-    assert.match(unknown.content[0].text, /must be one of observe/)
+    assert.match(unknown.content[0].text, /must be one of check/)
     const forward = await call(server, 'run_recovery_probe', {
       args: ['android', '--package', 'com.example.app'],
     })

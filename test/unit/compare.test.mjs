@@ -333,7 +333,7 @@ test('reads report folders and runs from the command line', async () => {
     const regressed = await run(['--before', 'after.json', '--after', 'before'])
     assert.equal(regressed.code, 1)
     const oneSide = await run(['--before', 'before'])
-    assert.equal(oneSide.code, 2)
+    assert.equal(oneSide.code, 3)
     assert.match(oneSide.stderr, /Give reports on both sides/)
   } finally {
     await rm(root, { recursive: true, force: true })

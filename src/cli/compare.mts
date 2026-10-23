@@ -6,6 +6,7 @@ import {
   type Comparison,
   type RunEvidence,
 } from '../tools/compare.mjs'
+import { UsageError } from './args.mjs'
 
 const USAGE =
   'recovery-probe compare --before REPORT... --after REPORT... [--before-label TEXT] [--after-label TEXT] [--markdown | --json]'
@@ -47,14 +48,15 @@ function parseArgs(args: string[]): CompareOptions {
       side = undefined
     } else if (arg === '--before-label' || arg === '--after-label') {
       if (!args[i + 1] || args[i + 1].startsWith('--'))
-        throw Error(`${arg} needs a text, such as main`)
+        throw new UsageError(`${arg} needs a text, such as main`)
       options.labels[arg.slice(2, -'-label'.length) as Side] = args[++i]
       side = undefined
-    } else if (arg.startsWith('--') || !side) throw Error(`Use ${USAGE}`)
+    } else if (arg.startsWith('--') || !side)
+      throw new UsageError(`Use ${USAGE}`)
     else options[side].push(arg)
   }
   if (!options.before.length || !options.after.length)
-    throw Error(`Give reports on both sides: ${USAGE}`)
+    throw new UsageError(`Give reports on both sides: ${USAGE}`)
   return options
 }
 

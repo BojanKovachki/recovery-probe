@@ -38,7 +38,7 @@ For renderer HTTP reads, use:
 }
 ```
 
-Select an existing page using `desktop --list`. HTTP observes main-frame GET fetch/XHR requests grouped by origin/path. Query values, headers and bodies are not recorded. Native SDK traffic, IPC, service-worker-only traffic, iframes, and other endpoints are outside this HTTP observation. It does not install route interception, so it does not disable the browser's HTTP cache.
+Select an existing page using `windows`. HTTP observes main-frame GET fetch/XHR requests grouped by origin/path. Query values, headers and bodies are not recorded. Native SDK traffic, IPC, service-worker-only traffic, iframes, and other endpoints are outside this HTTP observation. It does not install route interception, so it does not disable the browser's HTTP cache.
 
 `regionSelector` must identify at most one region. The region may disappear or become hidden during navigation. `contentSelector` is a CSS selector **inside that region**, chosen to identify actual data rows/cards rather than headings, placeholders or loading skeletons. This explicit marker is the only basis for saying data-dependent content is present. Nothing infers a framework mount, a user id, or ownership from the DOM.
 

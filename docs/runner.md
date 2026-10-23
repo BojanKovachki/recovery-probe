@@ -14,7 +14,7 @@ The original CLI runner suits pages that automatically load GET data, expose a v
 ```
 
 ```bash
-npx recovery-probe --config recovery-probe.json --out artifacts/profile-recovery.json
+npx recovery-probe check --config recovery-probe.json --out artifacts/profile-recovery
 ```
 
 The runner first checks the normal baseline in a fresh browser context. If that baseline fails, fault comparisons are skipped and reported as inconclusive. Each fault then receives its own fresh context with service workers blocked so Playwright can intercept the request.
@@ -25,7 +25,10 @@ The runner requires explicit selectors and endpoint matching. It does not discov
 
 - `0`: every configured check passed, or the controlled demo observed its expected broken-versus-fixed result.
 - `1`: a recovery check failed, was inconclusive, or was skipped.
-- `2`: invalid arguments, configuration, or environment setup.
+- `3`: invalid arguments or configuration.
+- `4`: it couldn't run, for example because Chromium isn't installed.
+
+`--out` is a new folder for `report.json`. The old `recovery-probe --config FILE --out report.json` spelling still writes one file and exits with 2 on errors, until 1.0.
 
 ## Result codes
 

@@ -177,7 +177,7 @@ export async function discoverIpc(
           : undefined,
         control,
         verification:
-          'Rerun the saved scenario with ipc --discover after the local change. Compare this experiment and its healthy controls; a disappeared warning alone does not prove a fix.',
+          'Rerun the saved scenario with recovery-probe discover after the local change. Compare this experiment and its healthy controls; a disappeared warning alone does not prove a fix.',
       },
       config,
       report,

@@ -17,7 +17,7 @@ You need Node.js 22 or newer.
 ```bash
 npm install --save-dev recovery-probe playwright
 npx playwright install chromium
-npx recovery-probe --demo
+npx recovery-probe demo
 ```
 
 The demo runs two versions of a small app. Both load fine. Only the fixed one survives a 503, a dropped connection and a broken JSON response.
@@ -42,9 +42,9 @@ Each run saves an HTML and JSON report. Run the same command again to repeat the
 
 | To | Run | Docs |
 | --- | --- | --- |
-| Fail the reads behind a screen without writing assertions | `ipc --discover`, `web --attach --discover` | [Discovery](docs/discovery.md) |
+| Fail the read behind a screen without writing assertions | `discover` | [Discovery](docs/discovery.md) |
 | Catch stale screens and rows stuck in an old state, without faults | `observe` | [Observe](docs/observe.md) |
-| See what users get when Save or Send fails | `ipc --action` | [Action check](docs/ipc.md#action-check) |
+| See what users get when Save or Send fails | `action` | [Action check](docs/ipc.md#action-check) |
 | Fail an SDK's or a main process's own HTTPS connections | `net` | [Network faults](docs/net.md) |
 | Find code that turns a failed read into "no data" | `suspects` | [Suspects](docs/suspects.md) |
 | Prove a change fixed it | `compare`, `watch`, `verify` | [Compare](docs/compare.md), [Watch](docs/watch.md), [Verify](docs/verify.md) |
@@ -92,6 +92,7 @@ If nothing matches, `withFault` throws `FAULT_NOT_TRIGGERED` instead of passing.
 - Every faulted run has a healthy run right before it, on the same screen, and the report compares the two.
 - A result is a pass, a failure or inconclusive. A fault that never fired, an unstable baseline or a path it can't reach is inconclusive, never a pass.
 - Some findings, like `SILENT_EMPTY`, are leads. They tell you where to look, not that the code is wrong.
+- Exit codes: 0 passed, 1 a check failed, 2 needs review or inconclusive, 3 wrong usage or config, 4 couldn't run.
 
 ## Where it works
 
