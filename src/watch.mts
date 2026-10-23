@@ -21,8 +21,8 @@ const EDITOR_FILE =
   /(?:~|\.swp|\.swx|\.tmp)$|(?:^|[\\/])(?:\.#|#)[^\\/]*$|(?:^|[\\/])4913$/
 // Commands whose reports compare run to run; each needs --config.
 const CHECKS = ['ipc', 'observe', 'refresh', 'web', 'desktop']
-// Flags the watch sets itself, or that need a person at the keyboard.
-const NOT_IN_A_WATCH = ['--out', '--interactive', '--help', '--list']
+// Flags a rerun sets itself, or that need a person at the keyboard.
+const NOT_IN_A_RERUN = ['--out', '--interactive', '--help', '--list']
 const CLI = fileURLToPath(new URL('../bin/recovery-probe.mjs', import.meta.url))
 
 export interface SourceWatcher {
@@ -139,22 +139,22 @@ export async function watchSources(
 }
 
 /** Throws unless `args` is a check the watch can rerun into a new folder each time. */
-export function validateWatchCommand(args: string[]): void {
+export function validateCheckCommand(args: string[]): void {
   const [first] = args
   if (first !== '--config' && !CHECKS.includes(first))
     throw new Error(
-      `The watch reruns a check: --config FILE, or ${CHECKS.join(', ')} with --config FILE`,
+      `This reruns a check: --config FILE, or ${CHECKS.join(', ')} with --config FILE`,
     )
   if (!args.includes('--config'))
     throw new Error(
       'The check needs --config FILE, so that every run is the same check',
     )
-  const flag = args.find((arg) => NOT_IN_A_WATCH.includes(arg))
+  const flag = args.find((arg) => NOT_IN_A_RERUN.includes(arg))
   if (flag)
     throw new Error(
       flag === '--out'
-        ? 'Leave out --out: the watch gives each run its own folder'
-        : `${flag} does not work in a watch`,
+        ? 'Leave out --out: each run gets its own folder'
+        : `${flag} does not work in a rerun`,
     )
 }
 
@@ -176,6 +176,48 @@ export function runRecoveryProbe(args: string[]): Promise<CommandResult> {
     child.on('error', reject)
     child.on('close', (exitCode) => resolve({ exitCode, output }))
   })
+}
+
+export interface CheckResult {
+  exitCode: number | null
+  output: string
+  report?: string
+  evidence?: RunEvidence
+  /** Why the run has no comparable report. */
+  error?: string
+}
+
+const lastLine = (output: string) =>
+  output
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .at(-1)
+    ?.slice(0, 200)
+
+/** Runs a check once into `folder` and reads the report it wrote. */
+export async function runCheck(
+  command: string[],
+  folder: string,
+  runCommand: (args: string[]) => Promise<CommandResult> = runRecoveryProbe,
+): Promise<CheckResult> {
+  const { exitCode, output } = await runCommand([
+    ...command,
+    '--out',
+    command[0] === '--config' ? join(folder, 'report.json') : folder,
+  ])
+  const result: CheckResult = { exitCode, output }
+  const report = join(folder, 'report.json')
+  if (!existsSync(report))
+    result.error = lastLine(output) ?? `exit code ${exitCode}, and no report`
+  else
+    try {
+      result.evidence = await readRunEvidence(report)
+      result.report = report
+    } catch (error) {
+      result.error = (error as Error).message
+    }
+  return result
 }
 
 export interface WatchRun {
@@ -230,14 +272,6 @@ export interface WatchResult {
   /** The first run with a report compared with the last one. */
   latest?: Comparison
 }
-
-const lastLine = (output: string) =>
-  output
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .at(-1)
-    ?.slice(0, 200)
 
 const verdict = (comparison?: Comparison) =>
   comparison && {
@@ -303,7 +337,7 @@ export async function runWatch(
 ): Promise<WatchResult> {
   const paths = options.paths?.length ? options.paths : ['.']
   const command = options.command?.length ? options.command : undefined
-  if (command) validateWatchCommand(command)
+  if (command) validateCheckCommand(command)
   let scanSuspects = options.suspects !== false
   if (!command && !scanSuspects)
     throw new Error(
@@ -342,29 +376,16 @@ export async function runWatch(
     const number = runs.length + 1
     const folder = join(directory, `run-${number}`)
     emit({ type: 'running', run: number })
-    const { exitCode, output } = await runCommand([
-      ...command!,
-      '--out',
-      command![0] === '--config' ? join(folder, 'report.json') : folder,
-    ])
+    const { output, ...result } = await runCheck(command!, folder, runCommand)
     const run: WatchRun = {
       run: number,
       at: new Date().toISOString(),
       changed,
       directory: folder,
       log: join(directory, `run-${number}.log`),
-      exitCode,
+      ...result,
     }
     await writeFile(run.log, output, { mode: 0o600 })
-    const report = join(folder, 'report.json')
-    if (existsSync(report))
-      try {
-        run.evidence = await readRunEvidence(report)
-        run.report = report
-      } catch (error) {
-        run.error = (error as Error).message
-      }
-    else run.error = lastLine(output) ?? `exit code ${exitCode}, and no report`
     const reported = runs.filter((earlier) => earlier.evidence)
     const [start] = reported
     const previous = reported.at(-1)

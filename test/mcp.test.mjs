@@ -86,6 +86,7 @@ test('answers the MCP handshake and lists its tools', async () => {
         'stop_network_faults',
         'find_suspects',
         'compare_reports',
+        'verify_change',
         'run_recovery_probe',
       ],
     )
