@@ -2,11 +2,12 @@ import { screenshotsIn } from '../workflows/discover/screenshots.mjs'
 import { writeDiscoveryReport } from '../reports/discovery.mjs'
 import { writeActionReport } from '../reports/action.mjs'
 import { actionConfig, checkAction } from '../workflows/action.mjs'
-import { readFile, mkdir, writeFile, mkdtemp } from 'node:fs/promises'
-import { resolve, join } from 'node:path'
+import { readFile, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { discoverIpc, discoveryConfig } from '../workflows/discover/ipc.mjs'
 import { checkIpc } from '../workflows/check/ipc.mjs'
 import { renderTemplate } from '../reports/template.mjs'
+import { reportFolder } from '../reports/folder.mjs'
 
 interface IpcOptions {
   restoreWindow?: true
@@ -68,15 +69,7 @@ No HTTP/Rust transport faults or AI calls. See docs/ipc.md for installation and 
     : options.action
       ? actionConfig(rawConfig)
       : rawConfig
-  const parent = resolve('.recovery-probe')
-  let directory: string
-  if (options.out) {
-    directory = resolve(options.out)
-    await mkdir(directory, { mode: 0o700 })
-  } else {
-    await mkdir(parent, { recursive: true, mode: 0o700 })
-    directory = await mkdtemp(join(parent, 'ipc-'))
-  }
+  const directory = await reportFolder('ipc', options.out)
   if (options.action) {
     // checkAction validates the raw config itself; the early validation above only fails fast.
     const report = await checkAction(rawConfig)
@@ -93,7 +86,6 @@ No HTTP/Rust transport faults or AI calls. See docs/ipc.md for installation and 
     process.exitCode = report.ok ? 0 : 2 // Heuristic findings are leads, not proven failures.
     return
   }
-  await writeFile(join(directory, '.gitignore'), '*\n', { mode: 0o600 })
   const report = options.discover
     ? await discoverIpc(config, {
         screenshot: options.screenshots ? screenshotsIn(directory) : undefined,

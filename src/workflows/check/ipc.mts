@@ -1,14 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import type { Browser, Page } from 'playwright'
-import { connectDesktop, desktopPages } from '../../targets/cdp.mjs'
+import { connectDesktop } from '../../targets/cdp.mjs'
 import { connectIpcInspector } from '../../transports/ipc/inspector.mjs'
 import type { IpcInspector } from '../../transports/ipc/inspector.mjs'
-import {
-  confirmSameWindow,
-  resetIpcAndConfirm,
-} from '../../transports/ipc/control.mjs'
+import { resetIpcAndConfirm } from '../../transports/ipc/control.mjs'
 import type { IpcFault } from '../../transports/ipc/control.mjs'
 import type { IpcSnapshot } from '../../ipc-probe.cjs'
+import { attachIpcWindow } from '../../targets/ipc-window.mjs'
 
 export interface IpcCheckConfig {
   cdp: string
@@ -138,22 +136,11 @@ export async function checkIpc(
       'Tests renderer recovery after a synthetic IPC rejection or null result. Does not simulate HTTP, Rust transport, connection banners, token refresh or general application health.',
   }
   try {
-    const identity = await control.call('identify')
-    for (const channel of [config.channel, ...config.requiredChannels])
-      if (!identity.registered.includes(channel))
-        throw new Error(
-          'Required channel was not captured at registration: ' + channel,
-        )
     browser = await connectDesktop(config.cdp)
-    const pages = desktopPages(browser).filter(
-      (page) => page.url() === identity.pageUrl,
-    )
-    if (pages.length !== 1)
-      throw new Error(
-        'Keep exactly one matching target window open on the intended screen',
-      )
-    const page = pages[0]
-    await confirmSameWindow(page, control)
+    const { page, identity } = await attachIpcWindow(browser, control, [
+      config.channel,
+      ...config.requiredChannels,
+    ])
     await page.bringToFront()
     if ((await ui(page, config)).blocked)
       throw new Error('Target must be visible and online')

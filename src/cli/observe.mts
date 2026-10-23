@@ -1,14 +1,9 @@
 import { signals } from './until-stopped.mjs'
-import { readFile, mkdir, writeFile, mkdtemp, stat } from 'node:fs/promises'
+import { readFile, writeFile, stat } from 'node:fs/promises'
 import { resolve, join } from 'node:path'
-import { randomUUID } from 'node:crypto'
 import { createInterface, type Interface } from 'node:readline'
 import type { Browser, Page } from 'playwright'
-import {
-  connectDesktop,
-  selectDesktopPage,
-  desktopPages,
-} from '../targets/cdp.mjs'
+import { connectDesktop, selectDesktopPage } from '../targets/cdp.mjs'
 import {
   connectIpcInspector,
   type IpcInspector,
@@ -40,6 +35,8 @@ import {
   fileEvidence,
   applyFileEvidence,
 } from '../workflows/observe/files.mjs'
+import { attachIpcWindow } from '../targets/ipc-window.mjs'
+import { reportFolder } from '../reports/folder.mjs'
 
 type NetworkSteps = ReturnType<typeof networkSteps>
 type ObservationAdapter = Parameters<typeof runObservation>[2]
@@ -130,16 +127,7 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
     })
     network = networkSteps(networkControl)
   }
-  let directory: string
-  if (options.out) {
-    directory = resolve(options.out)
-    await mkdir(directory, { mode: 0o700 })
-  } else {
-    const parent = resolve('.recovery-probe')
-    await mkdir(parent, { recursive: true, mode: 0o700 })
-    directory = await mkdtemp(join(parent, 'observe-'))
-  }
-  await writeFile(join(directory, '.gitignore'), '*\n', { mode: 0o600 })
+  const directory = await reportFolder('observe', options.out)
   const abort = new AbortController()
   const stop = () => abort.abort()
   signals.on('SIGINT', stop)
@@ -163,35 +151,11 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
       // IPC observation always has an inspector address after validation.
       const inspector = await connectIpcInspector(config.inspector as string)
       control = inspector
-      const identity = await inspector.call('identify')
-      if (!identity.registered.includes(config.channel as string))
-        throw Error(
-          'Configured read channel was not registered through the development hook',
-        )
-      const pages = desktopPages(attached).filter(
-        (p) => p.url() === identity.pageUrl,
-      )
-      if (pages.length !== 1)
-        throw Error('Keep exactly one matching IPC target window open')
-      page = pages[0]
-      const nonce = randomUUID()
-      await page.evaluate((value) => {
-        if (Object.hasOwn(globalThis, '__recoveryProbeWindowNonce'))
-          throw Error('Existing window challenge')
-        Object.defineProperty(globalThis, '__recoveryProbeWindowNonce', {
-          value,
-          configurable: true,
-        })
-      }, nonce)
-      try {
-        await inspector.call('identify', nonce)
-      } finally {
-        await page.evaluate((value) => {
-          if (globalThis.__recoveryProbeWindowNonce === value)
-            delete globalThis.__recoveryProbeWindowNonce
-        }, nonce)
-      }
-      adapter = ipcObservationAdapter(inspector, config, identity.senderId)
+      const ipc = await attachIpcWindow(attached, inspector, [
+        config.channel as string,
+      ])
+      page = ipc.page
+      adapter = ipcObservationAdapter(inspector, config, ipc.identity.senderId)
     } else {
       page = selectDesktopPage(attached, config)
       adapter = httpObservationAdapter(page, config)
