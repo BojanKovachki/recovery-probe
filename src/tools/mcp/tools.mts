@@ -13,8 +13,8 @@ import { scanForSuspects } from '../suspects.mjs'
 import { compareReports } from '../compare.mjs'
 import { recordBaseline, verifyChange, verifyPlan } from '../verify.mjs'
 import { packageUrl } from '../../core/package.mjs'
+import { FAULT_KINDS } from '../../core/faults.mjs'
 
-const FAULTS = ['http-error', 'connection-failure', 'invalid-json']
 const MAX_OUTPUT = 50_000
 const MAX_SUSPECTS = 200
 // The old ipc, desktop and web spellings still run until 1.0.
@@ -172,8 +172,8 @@ const checkReadRecovery: McpTool = {
       },
       faults: {
         type: 'array',
-        items: { type: 'string', enum: FAULTS },
-        description: `Which faults to apply; all of ${FAULTS.join(', ')} by default.`,
+        items: { type: 'string', enum: FAULT_KINDS },
+        description: `Which faults to apply; all of ${FAULT_KINDS.join(', ')} by default.`,
       },
       times: {
         type: 'integer',

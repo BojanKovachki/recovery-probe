@@ -1,5 +1,5 @@
 import type { Page, Route } from 'playwright'
-import type { FaultKind } from '../../core/faults.mjs'
+import { isFaultKind, type FaultKind } from '../../core/faults.mjs'
 
 export interface FaultOptions {
   match: string | RegExp
@@ -16,11 +16,22 @@ export interface FaultStats {
   injectionErrors: number
 }
 
-const modes = new Set<string>([
-  'http-error',
-  'connection-failure',
-  'invalid-json',
-])
+/** Answers a request with the fault: an HTTP error, a dropped connection or broken JSON. */
+export async function fulfillFault(
+  route: Route,
+  kind: FaultKind,
+  status = 503,
+): Promise<void> {
+  if (kind === 'connection-failure') return route.abort('connectionfailed')
+  await route.fulfill({
+    status: kind === 'http-error' ? status : 200,
+    contentType: 'application/json',
+    body:
+      kind === 'invalid-json'
+        ? '{invalid-json'
+        : '{"error":"injected-test-fault"}',
+  })
+}
 
 export class ProbeError extends Error {
   code: string
@@ -51,7 +62,7 @@ function checkFault(options: FaultOptions) {
       'match must be a non-empty Playwright URL glob or RegExp',
     )
   }
-  if (!modes.has(options.kind)) throw new TypeError('Unsupported fault kind')
+  if (!isFaultKind(options.kind)) throw new TypeError('Unsupported fault kind')
   const count = options.count ?? 1
   if (!Number.isInteger(count) || count < 1 || count > 20)
     throw new TypeError('count must be an integer from 1 to 20')
@@ -97,21 +108,7 @@ export async function withFault(
     reserved += 1
     const operation = (async () => {
       try {
-        if (options.kind === 'connection-failure') {
-          await route.abort('connectionfailed')
-        } else if (options.kind === 'http-error') {
-          await route.fulfill({
-            status,
-            contentType: 'application/json',
-            body: '{"error":"injected-test-fault"}',
-          })
-        } else {
-          await route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: '{invalid-json',
-          })
-        }
+        await fulfillFault(route, options.kind, status)
         applied += 1
       } catch {
         injectionErrors += 1

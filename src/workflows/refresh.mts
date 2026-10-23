@@ -6,6 +6,7 @@ import {
   compareRegions,
   type RegionSummary,
 } from '../core/screen.mjs'
+import { FAULT_KINDS } from '../core/faults.mjs'
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 type Transport = 'http' | 'ipc'
@@ -96,9 +97,7 @@ export function refreshConfig(input: object): RefreshConfig {
   )
     throw Error('Boolean options required')
   const faults: RefreshFault[] =
-    c.transport === 'http'
-      ? ['http-error', 'connection-failure', 'invalid-json']
-      : ['rejection', 'null-result']
+    c.transport === 'http' ? [...FAULT_KINDS] : ['rejection', 'null-result']
   c.fault ??= faults[0]
   if (!faults.includes(c.fault as RefreshFault))
     throw Error('Unsupported fault for transport')

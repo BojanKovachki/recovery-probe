@@ -1,7 +1,7 @@
-import type { Page, Request, Response, Route } from 'playwright'
-import type { FaultKind } from '../../core/faults.mjs'
-import { defaultFaults } from '../../core/faults.mjs'
+import type { Page, Response } from 'playwright'
+import { FAULT_KINDS, isFaultKind, type FaultKind } from '../../core/faults.mjs'
 import { pageIdentity } from '../../core/urls.mjs'
+import { observeHttp } from '../../transports/http/observer.mjs'
 import { isReadRequest } from '../../transports/http/reads.mjs'
 
 export interface DesktopConfig {
@@ -65,8 +65,6 @@ export interface DesktopReport {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-const kinds = new Set<string>(defaultFaults.map((f) => f.kind))
-
 // Configurations also come from JSON files, so every field is checked at runtime.
 export function validateDesktopConfig(
   input: DesktopConfig,
@@ -75,7 +73,7 @@ export function validateDesktopConfig(
     times: 1,
     timeoutMs: 5000,
     recovery: 'retry',
-    faults: [...kinds],
+    faults: [...FAULT_KINDS],
     ...input,
   }
   for (const key of ['pageUrl', 'endpoint', 'readySelector']) {
@@ -130,7 +128,7 @@ export function validateDesktopConfig(
     !Array.isArray(faults) ||
     !faults.length ||
     new Set(faults).size !== faults.length ||
-    faults.some((f) => !kinds.has(f))
+    !faults.every(isFaultKind)
   )
     throw new Error('faults must contain unique supported fault kinds')
   const page = config.page
@@ -252,84 +250,36 @@ export async function checkDesktop(
       stop = true
       continue
     }
-    let reserved = 0
-    let injectedAt: number | undefined
-    let injected = false
-    let injectionError = false
+    let observer: Awaited<ReturnType<typeof observeHttp>> | undefined
     let stage: 'setup' | 'reload' | 'retry' | 'recovery' = 'setup'
-    let routeInstalled = false
-    const injectedRequests = new Set<Request>()
-    const pending = new Set<Promise<void>>()
-    const match = (url: URL) => pageIdentity(url.href) === config.endpoint
-    const handler = async (route: Route) => {
-      if (
-        reserved >= config.times ||
-        !isReadRequest(route.request(), page, config.endpoint)
-      )
-        return route.fallback()
-      reserved++
-      injectedAt ??= Date.now()
-      injectedRequests.add(route.request())
-      const op = (async () => {
-        try {
-          if (kind === 'connection-failure')
-            await route.abort('connectionfailed')
-          else
-            await route.fulfill({
-              status: kind === 'http-error' ? 503 : 200,
-              contentType: 'application/json',
-              body:
-                kind === 'invalid-json'
-                  ? '{invalid-json'
-                  : '{"error":"injected-test-fault"}',
-            })
-          row.applied++
-        } catch {
-          injectionError = true
-        } finally {
-          injected = row.applied === config.times || injectionError
-        }
-      })()
-      pending.add(op)
-      try {
-        await op
-      } finally {
-        pending.delete(op)
-      }
+    // The observer counts faults and the successful reads that started after them,
+    // leaving out the injected malformed-JSON response.
+    const progress = () => {
+      const snapshot = observer!.snapshot()
+      row.applied = snapshot.injected
+      row.successfulResponsesAfterFault = snapshot.successfulAfterFault
+      return snapshot
     }
-    // Track a successful request that started AFTER the injected request was reserved.
-    // Exclude the deliberately fulfilled malformed-JSON response (HTTP 200).
-    const candidates = new Set<Request>()
-    const requestListener = (request: Request) => {
-      if (!isReadRequest(request, page, config.endpoint)) return
-      if (reserved === config.times) candidates.add(request)
-    }
-    const responseListener = (response: Response) => {
-      if (
-        candidates.has(response.request()) &&
-        !injectedRequests.has(response.request())
-      ) {
-        candidates.delete(response.request())
-        if (response.ok()) row.successfulResponsesAfterFault++
-      }
-    }
-    const failedListener = (request: Request) => candidates.delete(request)
-    page.on('request', requestListener)
-    page.on('response', responseListener)
-    page.on('requestfailed', failedListener)
     try {
-      await page.route(match, handler)
-      routeInstalled = true
+      observer = await observeHttp(page, {
+        endpoint: config.endpoint,
+        fault: kind,
+        times: config.times,
+      })
       stage = 'reload'
       await page.reload({
         waitUntil: 'domcontentloaded',
         timeout: config.baselineTimeoutMs,
       })
       await page.bringToFront()
-      if (!(await waitUntil(() => injected, config.recoveryTimeoutMs))) {
+      const injected = () => {
+        const snapshot = progress()
+        return snapshot.injected === config.times || snapshot.injectionError
+      }
+      if (!(await waitUntil(injected, config.recoveryTimeoutMs))) {
         row.code = 'FAULT_NOT_TRIGGERED'
         stop = true
-      } else if (injectionError) {
+      } else if (progress().injectionError) {
         row.code = 'INJECTION_ERROR'
         stop = true
       } else {
@@ -342,8 +292,8 @@ export async function checkDesktop(
           row.retryClicked = true
         }
         stage = 'recovery'
-        // The fault was applied, so the handler stamped its time.
-        const startedAt = injectedAt!
+        // The fault was applied, so the observer stamped its time.
+        const startedAt = progress().injectedAt!
         const remainingMs = Math.max(
           0,
           config.recoveryTimeoutMs - (Date.now() - startedAt),
@@ -351,7 +301,7 @@ export async function checkDesktop(
         const recovered =
           (await waitUntil(
             async () =>
-              row.successfulResponsesAfterFault > 0 &&
+              progress().successfulAfterFault > 0 &&
               (await healthy(page, config)),
             remainingMs,
           )) && Date.now() - startedAt <= config.recoveryTimeoutMs
@@ -360,10 +310,8 @@ export async function checkDesktop(
         row.recoveryMs = recovered ? Date.now() - startedAt : null
       }
     } catch {
-      if (stage === 'setup') {
-        row.code = 'INJECTION_ERROR'
-        stop = true
-      } else if (injectionError) {
+      const snapshot = observer && progress()
+      if (stage === 'setup' || snapshot?.injectionError) {
         row.code = 'INJECTION_ERROR'
         stop = true
       } else if (row.applied !== config.times) {
@@ -381,16 +329,13 @@ export async function checkDesktop(
       }
     } finally {
       try {
-        if (routeInstalled) await page.unroute(match, handler)
+        // Removes its route, waits for its injected responses and stops listening.
+        if (observer) await observer.stop()
       } catch {
         row.outcome = 'inconclusive'
         row.code = 'CLEANUP_FAILED'
         stop = true
       }
-      await Promise.allSettled([...pending])
-      page.off('request', requestListener)
-      page.off('response', responseListener)
-      page.off('requestfailed', failedListener)
     }
     if (row.outcome !== 'pass' && onFailure) {
       try {

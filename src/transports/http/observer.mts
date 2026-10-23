@@ -2,6 +2,7 @@ import { performance } from 'node:perf_hooks'
 import type { Page, Request, Route } from 'playwright'
 import { pageIdentity } from '../../core/urls.mjs'
 import type { FaultKind } from '../../core/faults.mjs'
+import { fulfillFault } from './route.mjs'
 
 /** Read counters for one endpoint, in the same shape as an IPC channel row. */
 export interface ReadChannelStats {
@@ -173,17 +174,8 @@ export async function observeHttp(
     }
     const op = (async () => {
       try {
-        if (fault === 'connection-failure')
-          await route.abort('connectionfailed')
-        else
-          await route.fulfill({
-            status: fault === 'http-error' ? 503 : 200,
-            contentType: 'application/json',
-            body:
-              fault === 'invalid-json'
-                ? '{invalid-json'
-                : '{"error":"injected-test-fault"}',
-          })
+        // The handler is only installed when there is a fault.
+        await fulfillFault(route, fault!)
         applied++
       } catch {
         injectionError = true
