@@ -144,7 +144,7 @@ These options are opt-in and extend the same fault-free capture. They answer "ho
 
 ### Tracked rows
 
-`rows` follows each visible row in the region. The row key text is hashed (`key:` plus 16 hex characters) unless it exactly matches a configured alias, so the report can say "row ‘second’" without storing its text. The state element's text is recorded only if it is in the `states` allowlist; other text becomes `other`, and a missing state element becomes `none`. Row identity is only as stable as the key text you select: choose a name, not a progress value.
+`rows` follows each visible row in the region. The row key text is hashed (`key:` plus 16 hex characters) unless it exactly matches a configured alias, so the report can say "row ‘second’" without storing its text. The state element's text is recorded only if it is in the `states` allowlist; other text becomes `other`, and a missing state element becomes `none`. States shown by an icon can be named with [markers](#state-markers-and-unexpected_row_state-060-preview1). Row identity is only as stable as the key text you select: choose a name, not a progress value.
 
 ### Shared IPC channels and data events
 
@@ -165,6 +165,27 @@ installIpcProbe(ipcMain, {
 Reported when a tracked row kept an allowlisted state across at least `minUnchangedReads` completed selected reads and for at least `lagThresholdMs`, and then changed to another allowlisted state without a data event in the sampled change window. With `dataEvents` configured, the last data event must also be at least `lagThresholdMs` older than the change (basis `NO_DATA_EVENT_BEFORE_UI_CHANGE`). Without data events the basis is `UNCHANGED_ACROSS_READS`, because a later read could have carried the change. Confidence is medium only when data events are configured and the persisted state began within `lagThresholdMs` of a recorded action, the typical shape of optimistic UI state that outlives the real state; everything else is a low-confidence lead. A state driven by reads you did not select (for example per-item status calls) can also produce a low-confidence lead. The finding records the row, both states, how long the earlier state persisted, the completed reads and data events while it persisted, and the time since the last related action.
 
 This is a lead, not a verdict. Read contents are never recorded, so the tool cannot prove that the data said the new state earlier. Typical causes are optimistic UI state that outlives the real state, timers, or render paths that ignore fresh data. Changes are only evaluated between consecutive samples of a visible row.
+
+### State markers and `UNEXPECTED_ROW_STATE` (0.6.0-preview.1)
+
+Some screens show a row's state with an icon or badge rather than text. `rows.markers` names such states: each label maps to a selector inside the row, and a row's state is the label of the first marker with a visible match. Rows without a matching marker fall back to the `state` text, or `none`. Marker labels count as tracked states, so they appear in transitions, action effects and `DELAYED_UI_UPDATE` like text states. `state` and `states` become optional when `markers` is set.
+
+`rows.unexpected` lists states, from `states` or `markers`, that the region must never show. Use it for views that filter rows, such as an "installed" list that must not show items still downloading:
+
+```json
+{
+  "regionSelector": "#library:has(.installed-only:checked)",
+  "contentSelector": ".card",
+  "rows": {
+    "selector": ".card",
+    "key": ".card-title",
+    "markers": { "not installed": ".card-title ~ svg.download-icon" },
+    "unexpected": ["not installed"]
+  }
+}
+```
+
+Each stretch of samples in which a row shows an unexpected state adds one `UNEXPECTED_ROW_STATE` finding. It records the row, the state, the bounds of the first sample, the end of the last sample, the number of samples, and the last configured action before it. For example: "Row ‘queued’ showed not installed, which this region must not show, in 40 samples from 1.2–1.3 s to 6.0 s; first seen 0.1–0.2 s after action ‘show-installed’." The rule comes from your configuration, so check that it holds for every row the region can show. A state shown only between samples can be missed.
 
 ### Busy targets
 

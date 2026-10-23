@@ -17,6 +17,7 @@ import {
   type SummarizedRows,
   type TimelineEvent,
   type TrackedRow,
+  type UnexpectedRowStateFinding,
 } from './observation-report.mjs'
 import { performance } from 'node:perf_hooks'
 import { randomUUID, createHash } from 'node:crypto'
@@ -43,10 +44,21 @@ const NAME = /^[\w.-]{1,40}$/
 export interface RowsConfig {
   selector: SelectorSpec
   key?: SelectorSpec
-  state: SelectorSpec
+  /** The element whose text is the row's state; `states` allowlists that text. */
+  state?: SelectorSpec
   states: string[]
+  /** States shown by an element rather than text: label → selector inside the row. */
+  markers?: Record<string, SelectorSpec>
+  /** States this region must not show. */
+  unexpected?: string[]
   aliases: Record<string, string>
 }
+
+/** Every state label a row can have besides 'none' and 'other'. */
+const stateLabels = (r: Pick<RowsConfig, 'states' | 'markers'>) => [
+  ...Object.keys(r.markers ?? {}),
+  ...r.states,
+]
 
 export interface ObservationConfig {
   transport: 'http' | 'ipc'
@@ -241,23 +253,73 @@ function labels(value: unknown, key: string): string[] {
   return [...value]
 }
 
+const stateLabel = (s: unknown) =>
+  typeof s === 'string' && s.trim() !== '' && s.length <= 60
+
 function rowsConfig(input: unknown): RowsConfig {
   if (!input || typeof input !== 'object' || Array.isArray(input))
-    throw Error('rows must be { selector, key?, state, states, aliases? }')
+    throw Error(
+      'rows must be { selector, key?, state?, states?, markers?, unexpected?, aliases? }',
+    )
   const r = input as Record<string, unknown>
   for (const k of Object.keys(r))
-    if (!['selector', 'key', 'state', 'states', 'aliases'].includes(k))
+    if (
+      ![
+        'selector',
+        'key',
+        'state',
+        'states',
+        'markers',
+        'unexpected',
+        'aliases',
+      ].includes(k)
+    )
       throw Error(`Unsupported rows property: ${k}`)
-  const states = r.states
+  if (r.state === undefined && r.markers === undefined)
+    throw Error('rows needs state and states, markers, or both')
+  // A validated config has states: [] without state, so it validates again unchanged.
+  const states = r.states ?? []
+  if (!Array.isArray(states) || (r.state === undefined) !== !states.length)
+    throw Error('rows.state and rows.states go together')
   if (
-    !Array.isArray(states) ||
-    !states.length ||
     states.length > 20 ||
-    states.some((s) => typeof s !== 'string' || !s.trim() || s.length > 60) ||
+    !states.every(stateLabel) ||
     new Set(states).size !== states.length
   )
     throw Error(
       'rows.states must list 1–20 unique visible state labels (1–60 characters)',
+    )
+  const markers: Record<string, SelectorSpec> = {}
+  if (r.markers !== undefined) {
+    const entries =
+      r.markers && typeof r.markers === 'object' && !Array.isArray(r.markers)
+        ? Object.entries(r.markers)
+        : []
+    if (
+      !entries.length ||
+      entries.length > 20 ||
+      !entries.every(([label]) => stateLabel(label))
+    )
+      throw Error(
+        'rows.markers must map 1–20 state labels (1–60 characters) to selectors',
+      )
+    for (const [label, selector] of entries) {
+      if (states.includes(label))
+        throw Error(`rows.markers.${label} is also a text state`)
+      markers[label] = selectorSpec(selector, `rows.markers.${label}`)
+    }
+  }
+  const known = [...Object.keys(markers), ...states]
+  const unexpected = r.unexpected
+  if (
+    unexpected !== undefined &&
+    (!Array.isArray(unexpected) ||
+      !unexpected.length ||
+      new Set(unexpected).size !== unexpected.length ||
+      unexpected.some((s) => !known.includes(s)))
+  )
+    throw Error(
+      'rows.unexpected must list unique labels from rows.states or rows.markers',
     )
   const aliases = r.aliases ?? {}
   if (
@@ -279,8 +341,14 @@ function rowsConfig(input: unknown): RowsConfig {
   return {
     selector: selectorSpec(r.selector, 'rows.selector'),
     ...(r.key === undefined ? {} : { key: selectorSpec(r.key, 'rows.key') }),
-    state: selectorSpec(r.state, 'rows.state'),
+    ...(r.state === undefined
+      ? {}
+      : { state: selectorSpec(r.state, 'rows.state') }),
     states: [...states],
+    ...(r.markers === undefined ? {} : { markers }),
+    ...(unexpected === undefined
+      ? {}
+      : { unexpected: [...(unexpected as string[])] }),
     aliases: { ...(aliases as Record<string, string>) },
   }
 }
@@ -476,7 +544,7 @@ const rowKeyHash = (text: string) =>
 // Row keys are hashed; only allowlisted state labels and configured aliases are kept.
 export function summarizeRows(
   raw: RegionRead['rows'],
-  r: RowsConfig,
+  r: Pick<RowsConfig, 'states' | 'markers' | 'aliases'>,
 ): SummarizedRows | null {
   if (!raw) return null
   const aliasOf = new Map(
@@ -485,16 +553,20 @@ export function summarizeRows(
       alias,
     ]),
   )
+  const markers = Object.keys(r.markers ?? {})
   const seen = new Map<string, number>()
-  const items = raw.items.map(({ key, state }) => {
+  const items = raw.items.map(({ key, state, marker }) => {
     let id = aliasOf.get(key) ?? `key:${rowKeyHash(key)}`
     const n = (seen.get(id) ?? 0) + 1
     seen.set(id, n)
     if (n > 1) id += `#${n}`
+    // A matching marker names the state; otherwise the state element's text does.
+    const label = marker === undefined ? undefined : markers[marker]
     return {
       row: id,
       state:
-        state === null ? 'none' : r.states.includes(state) ? state : 'other',
+        label ??
+        (state === null ? 'none' : r.states.includes(state) ? state : 'other'),
     }
   })
   return { truncated: raw.truncated, items }
@@ -514,7 +586,8 @@ export interface RowSample {
 /**
  * Tracks allowlisted row states across samples. A state that survived several completed
  * selected reads and then changed with no data event to explain it is reported as
- * DELAYED_UI_UPDATE: an observation that needs review, not a defect verdict.
+ * DELAYED_UI_UPDATE: an observation that needs review, not a defect verdict. A row
+ * shown in a state configured as unexpected is reported as UNEXPECTED_ROW_STATE.
  */
 export function rowTracker(c: ObservationConfig) {
   const rows = new Map<
@@ -526,17 +599,55 @@ export function rowTracker(c: ObservationConfig) {
       current: { state: string; first: RowSample; last: RowSample }
     }
   >()
-  const findings: DelayedUiUpdateFinding[] = [],
+  const findings: (DelayedUiUpdateFinding | UnexpectedRowStateFinding)[] = [],
     actions: ObservedAction[] = []
-  const tracked = (state: string) => c.rows!.states.includes(state)
+  const labels = stateLabels(c.rows!)
+  const tracked = (state: string) => labels.includes(state)
+  const unexpected = new Set(c.rows!.unexpected ?? [])
+  // The open UNEXPECTED_ROW_STATE finding of each row, until the row shows another state.
+  const shown = new Map<string, UnexpectedRowStateFinding>()
   const lastActionBefore = (ms: number) =>
     actions.filter((a) => a.atMs <= ms).at(-1) ?? null
+  const showUnexpected = (row: string, state: string, s: RowSample) => {
+    const open = shown.get(row)
+    if (open?.state === state) {
+      open.lastSeenMs = s.toMs
+      open.samples++
+      return
+    }
+    shown.delete(row)
+    if (!unexpected.has(state)) return
+    const action = lastActionBefore(s.toMs)
+    const finding: UnexpectedRowStateFinding = {
+      code: 'UNEXPECTED_ROW_STATE',
+      kind: 'observation',
+      basis: 'CONFIGURED_UNEXPECTED_STATE',
+      interval: s.interval,
+      row,
+      state,
+      firstSeenMs: [s.fromMs, s.toMs],
+      lastSeenMs: s.toMs,
+      samples: 1,
+      afterAction: action && {
+        name: action.name,
+        atMs: action.atMs,
+        seenAfterActionMs: [
+          Math.max(0, s.fromMs - action.atMs),
+          s.toMs - action.atMs,
+        ],
+      },
+      note: 'The region showed a row in a state its configuration lists as unexpected. The rule comes from the configuration, so check that it holds for every row the region can show.',
+    }
+    shown.set(row, finding)
+    findings.push(finding)
+  }
   return {
     addActions(list: ObservedAction[]) {
       actions.push(...list)
     },
     add(s: RowSample) {
       for (const { row, state } of s.rows?.items ?? []) {
+        showUnexpected(row, state, s)
         const entry = rows.get(row)
         if (!entry) {
           const action = lastActionBefore(s.toMs)
@@ -640,7 +751,14 @@ export function rowTracker(c: ObservationConfig) {
         entry.current = { state, first: s, last: s }
       }
     },
-    snapshot(): { rows: TrackedRow[]; findings: DelayedUiUpdateFinding[] } {
+    snapshot(): {
+      rows: TrackedRow[]
+      findings: (DelayedUiUpdateFinding | UnexpectedRowStateFinding)[]
+    } {
+      // These findings grow while the row keeps the state, so their summaries are written last.
+      for (const finding of findings)
+        if (finding.code === 'UNEXPECTED_ROW_STATE')
+          finding.summary = observationSummary(finding)
       return {
         rows: [...rows.values()].map(
           ({ row, firstSeen, transitions, current }) => ({
@@ -842,6 +960,8 @@ export async function runObservation(
               selector: c.rows.selector,
               key: c.rows.key,
               state: c.rows.state,
+              // Only the selectors reach the page; it answers with an index into them.
+              markers: Object.values(c.rows.markers ?? {}),
             },
           }
         : {}),
@@ -851,7 +971,12 @@ export async function runObservation(
       c.regionSelector,
       c.contentSelector,
       ...(c.rows
-        ? [c.rows.selector, ...(c.rows.key ? [c.rows.key] : []), c.rows.state]
+        ? [
+            c.rows.selector,
+            ...(c.rows.key ? [c.rows.key] : []),
+            ...(c.rows.state ? [c.rows.state] : []),
+            ...Object.values(c.rows.markers ?? {}),
+          ]
         : []),
     ]
     const token = kitToken

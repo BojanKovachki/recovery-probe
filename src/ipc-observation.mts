@@ -8,7 +8,12 @@ export interface ObservationReadInput {
   contentSelector: SelectorSpec
   detail?: string
   kitToken?: string
-  rows?: { selector: SelectorSpec; key?: SelectorSpec; state: SelectorSpec }
+  rows?: {
+    selector: SelectorSpec
+    key?: SelectorSpec
+    state?: SelectorSpec
+    markers?: SelectorSpec[]
+  }
 }
 
 type Distributions = Record<string, Record<string, Record<string, number>>>
@@ -20,7 +25,8 @@ export interface RegionRead {
   content?: { texts: string[]; truncated: boolean }
   rows?: {
     truncated: boolean
-    items: { key: string; state: string | null }[]
+    /** `marker` is the index of the first configured marker found in the row. */
+    items: { key: string; state: string | null; marker?: number }[]
   }
   truncated?: boolean
   visible: boolean
@@ -155,7 +161,12 @@ export function readRegion(
           const keyElement = r.key
             ? select(element, r.key).find(visible)
             : element
-          const stateElement = select(element, r.state).find(visible)
+          const stateElement = r.state
+            ? select(element, r.state).find(visible)
+            : undefined
+          const marker = (r.markers ?? []).findIndex((spec) =>
+            select(element, spec).some(visible),
+          )
           return {
             key: keyElement
               ? normalize((keyElement as HTMLElement).innerText).slice(0, 500)
@@ -163,6 +174,7 @@ export function readRegion(
             state: stateElement
               ? normalize((stateElement as HTMLElement).innerText).slice(0, 100)
               : null,
+            ...(marker === -1 ? {} : { marker }),
           }
         }),
       }

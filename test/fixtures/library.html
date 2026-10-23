@@ -1,0 +1,25 @@
+<!doctype html><meta charset="utf-8"><title>Synthetic installed library fixture</title>
+<style>#installed-region{min-height:40px} svg.status{width:12px;height:12px}</style>
+<section id="catalog"><button data-start="item-a">Start A</button><button data-start="item-b">Start B</button></section>
+<section id="installed-region"><h2>Installed</h2><ul id="installed"></ul></section>
+<script>
+// Synthetic library: the server lists every item it tracks, installed or not. Items that are
+// not installed show a status icon instead of text. The broken variant lists them all in the
+// installed view; the fixed one lists only installed items.
+const fixed = new URLSearchParams(location.search).get('fixed') === 'true';
+const names = { ready: 'synthetic-private-ready', 'item-a': 'synthetic-private-item-a', 'item-b': 'synthetic-private-item-b' };
+let items = [];
+const render = () => {
+  document.querySelector('#installed').innerHTML = items
+    .filter(item => !fixed || item.installed)
+    .map(item => `<li data-item><span class="name">${names[item.id]}</span>${item.installed ? '' : '<svg class="status" viewBox="0 0 12 12"><path d="M6 0v9M2 5l4 4 4-4"/></svg>'}</li>`)
+    .join('');
+};
+const refresh = async () => { items = await fetch('/api/library').then(r => r.json()); render(); };
+document.querySelectorAll('[data-start]').forEach(button => button.addEventListener('click', async () => {
+  await fetch('/api/library/' + button.dataset.start, { method: 'POST' });
+  await refresh();
+}));
+setInterval(refresh, 300);
+refresh();
+</script>

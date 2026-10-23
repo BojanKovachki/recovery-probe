@@ -269,6 +269,32 @@ test('observation config validates selectors, rows, actions, methods and data ev
       JSON.stringify(bad),
     )
   }
+  const marked = observationConfig({
+    ...base,
+    rows: {
+      selector: 'li',
+      markers: { 'not installed': 'svg.status' },
+      unexpected: ['not installed'],
+    },
+  })
+  assert.deepEqual(marked.rows.states, [])
+  assert.equal(marked.rows.state, undefined)
+  assert.deepEqual(marked.rows.unexpected, ['not installed'])
+  for (const rows of [
+    { selector: 'li' },
+    { selector: 'li', state: 'b' },
+    { selector: 'li', states: ['A'] },
+    { selector: 'li', markers: {} },
+    { selector: 'li', markers: { A: 'svg' }, unexpected: ['B'] },
+    { selector: 'li', markers: { A: 'svg' }, unexpected: [] },
+    { selector: 'li', state: 'b', states: ['A'], markers: { A: 'svg' } },
+    { selector: 'li', markers: { A: { name: 'x' } } },
+  ])
+    assert.throws(
+      () => observationConfig({ ...base, rows }),
+      undefined,
+      JSON.stringify(rows),
+    )
   const http = {
     transport: 'http',
     endpoint: 'http://localhost/api',
@@ -300,6 +326,86 @@ test('row summaries hash keys, apply aliases and keep only allowlisted states', 
   assert.equal(rows.items[2].row, rows.items[0].row + '#2')
   assert.equal(rows.items[2].state, 'none')
   assert.ok(!JSON.stringify(rows).includes('synthetic-private'))
+})
+
+test('a matching marker names the row state before its text does', () => {
+  const rows = summarizeRows(
+    {
+      truncated: false,
+      items: [
+        { key: 'a', state: 'Pause', marker: 1 },
+        { key: 'b', state: 'Pause' },
+        { key: 'c', state: null, marker: 0 },
+        { key: 'd', state: null },
+      ],
+    },
+    {
+      states: ['Pause'],
+      markers: { queued: 'svg.queued', 'not installed': 'svg.status' },
+      aliases: {},
+    },
+  )
+  assert.deepEqual(
+    rows.items.map((item) => item.state),
+    ['not installed', 'Pause', 'queued', 'none'],
+  )
+})
+
+test('the row tracker reports each stretch of a row in an unexpected state once', () => {
+  const t = rowTracker({
+    rows: {
+      states: ['Pause'],
+      markers: { 'not installed': 'svg' },
+      unexpected: ['not installed'],
+    },
+    lagThresholdMs: 1000,
+    minUnchangedReads: 2,
+  })
+  t.addActions([{ name: 'start', atMs: 250 }])
+  const states = [
+    'none',
+    'not installed',
+    'not installed',
+    'not installed',
+    'Pause',
+    'not installed',
+  ]
+  states.forEach((state, i) => t.add(sample(i + 1, state, i)))
+  // Another row in an allowed state never produces a finding.
+  t.add({
+    ...sample(7, 'Pause', 7),
+    rows: { items: [{ row: 'x', state: 'Pause' }] },
+  })
+  const findings = t.snapshot().findings
+  assert.deepEqual(
+    findings.map((f) => [f.code, f.row, f.state, f.samples]),
+    [
+      ['UNEXPECTED_ROW_STATE', 'second', 'not installed', 3],
+      ['UNEXPECTED_ROW_STATE', 'second', 'not installed', 1],
+    ],
+  )
+  const [first] = findings
+  assert.deepEqual(first.firstSeenMs, [200, 250])
+  assert.equal(first.lastSeenMs, 450)
+  assert.equal(first.basis, 'CONFIGURED_UNEXPECTED_STATE')
+  assert.deepEqual(first.afterAction, {
+    name: 'start',
+    atMs: 250,
+    seenAfterActionMs: [0, 0],
+  })
+  assert.equal(
+    first.summary,
+    'Row ‘second’ showed not installed, which this region must not show, in 3 samples from 0.2–0.3 s to 0.5 s; first seen about 0.0 s after action ‘start’.',
+  )
+  assert.equal(findings[1].afterAction.name, 'start')
+  // Marker states are tracked like text states.
+  assert.deepEqual(
+    t
+      .snapshot()
+      .rows.find((r) => r.row === 'second')
+      .transitions.map((tr) => tr.to),
+    ['not installed', 'Pause', 'not installed'],
+  )
 })
 
 const trackerConfig = {
