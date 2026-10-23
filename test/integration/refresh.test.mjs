@@ -2,8 +2,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { chromium } from 'playwright'
-import { runRefresh } from '../../dist/refresh.mjs'
-import { httpRefreshAdapter } from '../../dist/refresh-adapters.mjs'
+import { runRefresh } from '../../dist/workflows/refresh.mjs'
+import { httpRefreshAdapter } from '../../dist/transports/session.mjs'
 
 function fixture(mode) {
   return `<!doctype html><main><h1>Catalog</h1><ul id="items"></ul><div id="error"></div></main><script>

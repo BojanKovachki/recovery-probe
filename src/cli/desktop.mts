@@ -4,12 +4,14 @@ import {
   connectDesktop,
   desktopPages,
   selectDesktopPage,
-  pageIdentity,
-  discoverDesktop,
+} from '../targets/cdp.mjs'
+import { pageIdentity } from '../core/urls.mjs'
+import { discoverDesktop } from '../workflows/reads.mjs'
+import {
   checkDesktop,
   validateDesktopConfig,
-} from '../desktop.mjs'
-import { writeDesktopReport } from '../desktop-report.mjs'
+} from '../workflows/check/http.mjs'
+import { writeDesktopReport } from '../reports/check.mjs'
 
 interface DesktopOptions {
   list?: true

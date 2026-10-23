@@ -1,8 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { installIpcProbe } from '../../dist/ipc-probe.cjs'
-import { actionConfig, classifyActionRuns } from '../../dist/ipc-action.mjs'
-import { observationSteps } from '../../dist/observe-steps.mjs'
+import {
+  actionConfig,
+  classifyActionRuns,
+} from '../../dist/workflows/action.mjs'
+import { observationSteps } from '../../dist/workflows/observe/steps.mjs'
 
 function hook() {
   const handlers = new Map()

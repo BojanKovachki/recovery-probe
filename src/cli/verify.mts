@@ -5,7 +5,7 @@ import {
   verifyChange,
   verifyPlan,
   type VerifyEvent,
-} from '../verify.mjs'
+} from '../tools/verify.mjs'
 
 const USAGE = 'recovery-probe verify [--baseline] [--plan FILE] [--out FOLDER]'
 

@@ -7,8 +7,8 @@ import {
   observationConfig,
   runObservation,
   httpObservationAdapter,
-} from '../../dist/observe.mjs'
-import { readRegion, summarizeRegion } from '../../dist/ipc-observation.mjs'
+} from '../../dist/workflows/observe/run.mjs'
+import { readRegion, summarizeRegion } from '../../dist/core/screen.mjs'
 import { observationTable } from '../fixtures/observation-table.mjs'
 
 let browser, server, origin

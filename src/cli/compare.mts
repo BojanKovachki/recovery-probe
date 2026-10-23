@@ -5,7 +5,7 @@ import {
   type ChangeStatus,
   type Comparison,
   type RunEvidence,
-} from '../compare.mjs'
+} from '../tools/compare.mjs'
 
 const USAGE =
   'recovery-probe compare --before REPORT... --after REPORT... [--before-label TEXT] [--after-label TEXT] [--markdown | --json]'

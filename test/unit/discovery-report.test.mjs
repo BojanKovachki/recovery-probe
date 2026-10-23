@@ -10,9 +10,9 @@ import {
   callsGap,
   findingId,
   laterCalls,
-  writeDiscoveryReport,
-} from '../../dist/discovery-report.mjs'
-import { retainPartialFindings } from '../../dist/discovery-control.mjs'
+} from '../../dist/workflows/discover/experiment.mjs'
+import { writeDiscoveryReport } from '../../dist/reports/discovery.mjs'
+import { retainPartialFindings } from '../../dist/workflows/discover/experiment.mjs'
 
 test('later calls are failed one by one only when every healthy load made as many', () => {
   assert.deepEqual(laterCalls([1, 1, 1]), [])

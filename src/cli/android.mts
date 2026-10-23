@@ -8,8 +8,8 @@ import {
   keepQuestAwake,
   type AndroidDevtoolsTarget,
   type KeptAwake,
-} from '../android.mjs'
-import { startCdpBridge, type CdpBridge } from '../cdp-bridge.mjs'
+} from '../targets/android.mjs'
+import { startCdpBridge, type CdpBridge } from '../targets/cdp-bridge.mjs'
 import { untilStopped } from './until-stopped.mjs'
 
 const USAGE =

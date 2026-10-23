@@ -10,7 +10,7 @@ import {
   androidDisplayState,
   displayProblems,
   keepQuestAwake,
-} from '../../dist/android.mjs'
+} from '../../dist/targets/android.mjs'
 
 // Shaped like a device's output; the same discovery chrome://inspect uses.
 const PROC_NET_UNIX = `Num       RefCount Protocol Flags    Type St Inode Path

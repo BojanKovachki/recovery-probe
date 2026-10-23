@@ -4,6 +4,12 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.6.0-preview.8 (2026-10-23)
+
+- The source is split into layers (core, transports, targets, reports, workflows, tools, cli), and a test keeps each layer from importing the ones above it. `desktop.mts`, which held the HTTP check, CDP attachment and endpoint listing, is now three modules, and `index.mts` no longer holds a check engine. The public imports (`recovery-probe`, `/fetch`, `/net`, `/desktop`, `/web`, `/ipc-inspector`, `/ipc`) and the hook's path are unchanged. Imports of other files inside `dist/` were never supported and now break.
+- Paths to files that ship with the package come from one place, `core/package.mts`.
+- Tests live in `test/unit`, `test/integration`, `test/electron` and `test/package`, and Electron tests share one launcher that stops the whole process tree.
+
 ## 0.6.0-preview.7 (2026-10-23)
 
 - New `recovery-probe init [URL]`. It finds what to test and runs a first check: the guided web check for a URL, the guided desktop check for an app on the debugging port, or IPC discovery when the app has the hook, after asking which channel loads the screen. Running it again repeats the check; `--fresh` sets it up again.

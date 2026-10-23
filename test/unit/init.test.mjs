@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { chooseIpcScenario, detectTarget } from '../../dist/init.mjs'
+import { chooseIpcScenario, detectTarget } from '../../dist/tools/init.mjs'
 
 const identity = {
   version: '0.0.0',

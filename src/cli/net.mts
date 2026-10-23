@@ -4,7 +4,7 @@ import {
   validateNetworkRules,
   type NetworkConnectionEvent,
   type NetworkFaultRule,
-} from '../net-fault.mjs'
+} from '../transports/net.mjs'
 import { untilStopped } from './until-stopped.mjs'
 
 const USAGE =

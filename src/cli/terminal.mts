@@ -1,5 +1,5 @@
 import { createInterface, type Interface } from 'node:readline/promises'
-import type { StartIo } from '../guided-start.mjs'
+import type { StartIo } from '../tools/guided-start.mjs'
 
 /** Questions and answers in the terminal; close it when done. */
 export function terminalIo(): StartIo & { close(): void } {

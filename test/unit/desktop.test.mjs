@@ -6,7 +6,7 @@ import {
   selectDesktopPage,
   connectDesktop,
 } from '../../dist/desktop.mjs'
-import { desktopReportHtml } from '../../dist/desktop-report.mjs'
+import { desktopReportHtml } from '../../dist/reports/check.mjs'
 const config = {
   pageUrl: 'http://localhost/app',
   endpoint: 'https://api.example.test/data',

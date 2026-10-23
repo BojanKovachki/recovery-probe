@@ -2,8 +2,9 @@ import { attachMain } from './attach.mjs'
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { resolve, dirname, join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
-import { openWeb, checkWeb, discoverWeb } from '../web.mjs'
-import { writeDesktopReport } from '../desktop-report.mjs'
+import { openWeb } from '../targets/browser.mjs'
+import { checkWeb, discoverWeb } from '../workflows/web.mjs'
+import { writeDesktopReport } from '../reports/check.mjs'
 
 interface WebOptions {
   login?: true

@@ -9,7 +9,7 @@ import {
   scanSource,
   sourceFiles,
   changedSourceFiles,
-} from '../../dist/suspects.mjs'
+} from '../../dist/tools/suspects.mjs'
 
 const scan = (code, file = 'store.ts') =>
   scanSource(ts, file, code).map(({ pattern, line, read }) => ({

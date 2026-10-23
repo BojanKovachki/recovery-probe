@@ -3,7 +3,11 @@ import assert from 'node:assert/strict'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { choose, parseStartArgs, runStart } from '../../dist/guided-start.mjs'
+import {
+  choose,
+  parseStartArgs,
+  runStart,
+} from '../../dist/tools/guided-start.mjs'
 
 test('guided CLI rejects ambiguous options and unsafe URLs before opening an app', async () => {
   assert.deepEqual(

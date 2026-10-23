@@ -7,14 +7,14 @@ import {
   runObservation,
   summarizeRows,
   rowTracker,
-} from '../../dist/observe.mjs'
+} from '../../dist/workflows/observe/run.mjs'
 import {
   observationSummary,
   actionEffects,
   actionSummary,
   comparisonDigest,
-} from '../../dist/observation-report.mjs'
-import { selectorSpec } from '../../dist/observation-kit.mjs'
+} from '../../dist/workflows/observe/report.mjs'
+import { selectorSpec } from '../../dist/workflows/observe/kit.mjs'
 
 function hookFixture(options = {}) {
   const handlers = new Map(),

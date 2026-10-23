@@ -4,7 +4,7 @@ import {
   observationConfig,
   ipcObservationAdapter,
   runObservation,
-} from '../../dist/observe.mjs'
+} from '../../dist/workflows/observe/run.mjs'
 import { installIpcProbe } from '../../dist/ipc-probe.cjs'
 
 function fixture() {

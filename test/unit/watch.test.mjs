@@ -10,7 +10,7 @@ import {
   runWatch,
   validateCheckCommand,
   watchSources,
-} from '../../dist/watch.mjs'
+} from '../../dist/tools/watch.mjs'
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const within = (promise, ms, what) =>

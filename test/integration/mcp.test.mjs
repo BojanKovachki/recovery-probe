@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { recoveryProbeTools } from '../../dist/mcp-tools.mjs'
+import { recoveryProbeTools } from '../../dist/tools/mcp/tools.mjs'
 import { startDemoServer } from '../../examples/demo-server.mjs'
 
 const tool = (name) => recoveryProbeTools.find((t) => t.name === name)

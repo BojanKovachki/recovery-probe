@@ -1,10 +1,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import { probeRecovery, type ProbeRow } from '../index.mjs'
-
-const { version } = JSON.parse(
-  await readFile(new URL('../../package.json', import.meta.url), 'utf8'),
-)
+import { packageUrl, version } from '../core/package.mjs'
+import { probeRecovery, type ProbeRow } from '../workflows/check/browser.mjs'
 
 interface DemoServer {
   url: string
@@ -14,9 +11,9 @@ interface DemoServer {
 // The examples stay plain JavaScript, so the demo server is loaded by URL when needed.
 const startDemoServer = async (): Promise<DemoServer> =>
   (
-    (await import(
-      new URL('../../examples/demo-server.mjs', import.meta.url).href
-    )) as { startDemoServer: () => Promise<DemoServer> }
+    (await import(packageUrl('examples/demo-server.mjs').href)) as {
+      startDemoServer: () => Promise<DemoServer>
+    }
   ).startDemoServer()
 
 interface CheckReport {

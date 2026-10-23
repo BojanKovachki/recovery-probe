@@ -1,8 +1,12 @@
 import { access, mkdir, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { CDP_FLAGS } from '../doctor.mjs'
-import { runStart } from '../guided-start.mjs'
-import { chooseIpcScenario, detectTarget, type InitTarget } from '../init.mjs'
+import { CDP_FLAGS } from '../tools/doctor.mjs'
+import { runStart } from '../tools/guided-start.mjs'
+import {
+  chooseIpcScenario,
+  detectTarget,
+  type InitTarget,
+} from '../tools/init.mjs'
 import { ipcMain } from './ipc.mjs'
 import { terminalIo } from './terminal.mjs'
 

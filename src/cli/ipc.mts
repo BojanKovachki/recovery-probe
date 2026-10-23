@@ -1,11 +1,12 @@
-import { screenshotsIn, writeDiscoveryReport } from '../discovery-report.mjs'
-import { writeActionReport } from '../action-report.mjs'
-import { actionConfig, checkAction } from '../ipc-action.mjs'
+import { screenshotsIn } from '../workflows/discover/screenshots.mjs'
+import { writeDiscoveryReport } from '../reports/discovery.mjs'
+import { writeActionReport } from '../reports/action.mjs'
+import { actionConfig, checkAction } from '../workflows/action.mjs'
 import { readFile, mkdir, writeFile, mkdtemp } from 'node:fs/promises'
 import { resolve, join } from 'node:path'
-import { discoverIpc, discoveryConfig } from '../ipc-discover.mjs'
-import { checkIpc } from '../ipc-check.mjs'
-import { renderTemplate } from '../report-template.mjs'
+import { discoverIpc, discoveryConfig } from '../workflows/discover/ipc.mjs'
+import { checkIpc } from '../workflows/check/ipc.mjs'
+import { renderTemplate } from '../reports/template.mjs'
 
 interface IpcOptions {
   restoreWindow?: true

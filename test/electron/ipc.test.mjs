@@ -1,5 +1,5 @@
-import { runRefresh } from '../../dist/refresh.mjs'
-import { ipcRefreshAdapter } from '../../dist/refresh-adapters.mjs'
+import { runRefresh } from '../../dist/workflows/refresh.mjs'
+import { ipcRefreshAdapter } from '../../dist/transports/session.mjs'
 import { test } from 'node:test'
 import { randomUUID } from 'node:crypto'
 import assert from 'node:assert/strict'
@@ -18,9 +18,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { attachWindow, launchElectron } from '../helpers/electron.mjs'
 import { connectIpcInspector } from '../../dist/ipc-inspector.mjs'
-import { prepareVisibility, windowVisibility } from '../../dist/visibility.mjs'
-import { discoverIpc } from '../../dist/ipc-discover.mjs'
-import { checkIpc } from '../../dist/ipc-check.mjs'
+import {
+  prepareVisibility,
+  windowVisibility,
+} from '../../dist/targets/visibility.mjs'
+import { discoverIpc } from '../../dist/workflows/discover/ipc.mjs'
+import { checkIpc } from '../../dist/workflows/check/ipc.mjs'
 const exec = promisify(execFile)
 
 test(

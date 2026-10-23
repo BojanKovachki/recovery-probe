@@ -1,4 +1,4 @@
-import { runDoctor } from '../doctor.mjs'
+import { runDoctor } from '../tools/doctor.mjs'
 
 const HELP = `recovery-probe doctor [--cdp URL] [--inspector URL] [--json]
 
