@@ -1,4 +1,4 @@
-import { writeDiscoveryReport } from '../discovery-report.mjs'
+import { screenshotsIn, writeDiscoveryReport } from '../discovery-report.mjs'
 import { writeActionReport } from '../action-report.mjs'
 import { actionConfig, checkAction } from '../ipc-action.mjs'
 import { readFile, mkdir, writeFile, mkdtemp } from 'node:fs/promises'
@@ -10,6 +10,7 @@ import { renderTemplate } from '../report-template.mjs'
 interface IpcOptions {
   restoreWindow?: true
   discover?: true
+  screenshots?: true
   action?: true
   config?: string
   out?: string
@@ -18,13 +19,15 @@ interface IpcOptions {
 export async function ipcMain(args: string[]) {
   if (!args.length || args.includes('--help')) {
     console.log(`Recovery Probe IPC preview
-  recovery-probe ipc --config ipc-scenario.json [--out NEW_DIRECTORY] [--discover | --action]
+  recovery-probe ipc --config ipc-scenario.json [--out NEW_DIRECTORY] [--discover [--screenshots] | --action]
 
 Requires a development-only main-process registration hook and two loopback ports:
 Electron CDP (usually 9222) and Node inspector (usually 9229).
 Default: verify one IPC rejection; null-result is explicitly optional.
 --discover: compare healthy controls with single/double rejection and null-result experiments.
 Discovery uses structural comparisons and language hints; findings require review. No readiness selector needed.
+  When healthy loads read the channel more than once, it also fails the 2nd, 3rd and 4th call on their own.
+  --screenshots saves the screen after the first baseline and each faulted run; they may show private content.
 --action: run scripted setup steps, then click the action while the hook answers its write channel:
   a simulated success, a simulated failure and a double-click. Nothing is written.
 No HTTP/Rust transport faults or AI calls. See docs/ipc.md for installation and scope.`)
@@ -37,7 +40,7 @@ No HTTP/Rust transport faults or AI calls. See docs/ipc.md for installation and 
       options.restoreWindow = true
       continue
     }
-    if (args[i] === '--discover' || args[i] === '--action') {
+    if (['--discover', '--screenshots', '--action'].includes(args[i])) {
       set[args[i].slice(2)] = true
       continue
     }
@@ -47,13 +50,15 @@ No HTTP/Rust transport faults or AI calls. See docs/ipc.md for installation and 
       args[i + 1].startsWith('--')
     )
       throw new Error(
-        'Use ipc --config FILE [--out NEW_DIRECTORY] [--discover | --action]',
+        'Use ipc --config FILE [--out NEW_DIRECTORY] [--discover [--screenshots] | --action]',
       )
     set[args[i].slice(2)] = args[++i]
   }
   if (!options.config) throw new Error('--config is required')
   if (options.discover && options.action)
     throw new Error('Use either --discover or --action')
+  if (options.screenshots && !options.discover)
+    throw new Error('--screenshots needs --discover')
   // Each check validates the configuration file it is given.
   const rawConfig = JSON.parse(await readFile(options.config, 'utf8'))
   if (options.restoreWindow) rawConfig.restoreWindow = true
@@ -89,7 +94,9 @@ No HTTP/Rust transport faults or AI calls. See docs/ipc.md for installation and 
   }
   await writeFile(join(directory, '.gitignore'), '*\n', { mode: 0o600 })
   const report = options.discover
-    ? await discoverIpc(config)
+    ? await discoverIpc(config, {
+        screenshot: options.screenshots ? screenshotsIn(directory) : undefined,
+      })
     : await checkIpc(config)
   await writeFile(
     join(directory, 'scenario.json'),

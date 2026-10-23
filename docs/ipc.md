@@ -130,7 +130,7 @@ Use the same development-only hook and loopback ports described above, but **res
 npx recovery-probe ipc --discover --config ./ipc-files.json
 ```
 
-The existing config is accepted. `readySelector`, `readyText`, `busySelector`, `faults`, `retryDelayMs` and `renderMarginMs` are ignored in discovery mode. It automatically runs exactly three experiments: one rejection, two consecutive rejections, and one null result. This is an explicit fault plan, not autonomous exploration. A minimal config is:
+The existing config is accepted. `readySelector`, `readyText`, `busySelector`, `faults`, `retryDelayMs` and `renderMarginMs` are ignored in discovery mode. It automatically runs three experiments: one rejection, two consecutive rejections, and one null result, plus one for each [later call](#later-calls-and-screenshots-060-preview5) of a load. This is an explicit fault plan, not autonomous exploration. A minimal config is:
 
 ```json
 {
@@ -144,7 +144,7 @@ The existing config is accepted. `readySelector`, `readyText`, `busySelector`, `
 
 Replace channels with the explicitly allowed read channels in your app. Dependencies must be listed: the tool cannot discover native/IPC semantics or infer that an operation is read-only. Defaults use CDP 9222 and inspector 9229. Three healthy reloads each run for the full `baselineTimeoutMs` window and must have matching stable end states; another healthy control precedes every faulted run. Default success-path workload is 22 reloads (3 baselines + 18 control/fault reloads + 1 cleanup). Failure observations can take several minutes in total. Observation windows are explicit budgets, not inferred guarantees about the app's retry policy.
 
-Reports contain UI counts, English loading/empty/error/retry indicators, text hashes, call counters and timing samples. Raw UI text is used transiently but not saved; no response bodies, screenshots, credentials or source uploads are collected. A text hash is not guaranteed anonymization. Reports and scenario configs remain private local files ignored by git; discovery saves only its supported configuration fields, dropping ignored selectors/text. Channel names and port configuration still appear in the report.
+Reports contain UI counts, English loading/empty/error/retry indicators, text hashes, call counters and timing samples. Raw UI text is used transiently but not saved; no response bodies, credentials or source uploads are collected, and screenshots only with `--screenshots`. A text hash is not guaranteed anonymization. Reports and scenario configs remain private local files ignored by git; discovery saves only its supported configuration fields, dropping ignored selectors/text. Channel names and port configuration still appear in the report.
 
 - `RECOVERED`: a later real read succeeded and stable UI text matched its healthy control.
 - `SILENT_EMPTY`: suspected failure-as-empty behaviour; review against product requirements. A legitimate empty healthy control does not trigger this lead.
@@ -187,6 +187,16 @@ This does not discover missing dependencies, fix application state carry-over or
 Calibration observes three full `baselineTimeoutMs` windows before injection: 45 seconds with the default 15-second window. It does not prefer a nonempty screen or a larger item count. A legitimately empty selected region is valid after successful target/dependency reads and a stable end state. Delayed content within the window is included in the baseline. `readiness.calibrationComplete` becomes true only when all three healthy end states agree; their bounded timelines remain in the report.
 
 Unstable or unfinished calibration stops fault experiments. Cleanup still removes faults and attempts a healthy reload, but `finalReset` remains `not-verified` without a trusted baseline. Later controls and cleanup can finish early once they match that baseline. Known dependencies must still be configured; content arriving after the calibration window remains untested.
+
+## Later calls and screenshots (0.6.0-preview.5)
+
+Calibration counts how often each healthy load reads the selected channel (`readiness.callsPerLoad`). When every load reads it the same number of times and more than once, discovery also fails the 2nd, 3rd and 4th call of a load on its own, with one rejection each. Their findings have ids such as `rejection-1-call2` and a `call` field. A screen that ignores a failed first read but shows a failed second read as an empty list is only found this way. When the counts differ between loads, or a load reads more than four times, `readiness.callsGap` says which calls were not failed on their own. Restart the app with the hook from this version: an older hook cannot let calls through before a fault, so discovery fails only the first call and says so in `callsGap`.
+
+`--screenshots` saves the screen after the first healthy baseline and after each faulted run as PNG files in the report folder, and shows them in `report.html`. They are off by default and may show private on-screen content.
+
+```bash
+npx recovery-probe ipc --discover --screenshots --config ./ipc-files.json
+```
 
 ## Action check
 

@@ -20,6 +20,13 @@
         white-space: pre-wrap;
         overflow-wrap: anywhere;
       }
+      img {
+        max-width: 100%;
+        border: 1px solid #ddd;
+      }
+      figcaption {
+        font-weight: 600;
+      }
     </style>
   </head>
   <body>
@@ -36,6 +43,7 @@
       </tr>
       {{{experiments}}}
     </table>
+    {{{screenshots}}}
     <h2>Run summary</h2>
     <pre>{{summary}}</pre>
     <details>

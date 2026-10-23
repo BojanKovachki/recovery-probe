@@ -5,7 +5,14 @@ import {
 import { performance } from 'node:perf_hooks'
 import type { Page } from 'playwright'
 import { pageIdentity } from './desktop.mjs'
-import type { DiscoveryFinding } from './discovery-report.mjs'
+import {
+  callsGap,
+  findingId,
+  laterCalls,
+  screenshotRun,
+  type DiscoveryFinding,
+  type DiscoveryScreenshot,
+} from './discovery-report.mjs'
 import type { FaultKind } from './fetch-fault.mjs'
 import {
   readRegion,
@@ -49,9 +56,20 @@ interface DiscoveryEvent {
   injected: number
 }
 
+interface Experiment {
+  fault: FaultKind
+  times: number
+  /** The read of the load to fail first, when it is not the first. */
+  call?: number
+}
+
 interface DiscoveryPhase {
   fault: FaultKind | 'healthy'
   times: number
+  /** The read of the load that failed, when it was not the first. */
+  call?: number
+  screenshot?: string
+  evidenceCaptureFailed?: true
   ready: boolean
   elapsedMs: number
   ui: RegionSummary
@@ -96,6 +114,9 @@ export interface HttpDiscoveryReport {
     calibrationComplete: boolean
     relevantEndpoints: string[]
     settleMs: number
+    /** How often each healthy calibration load read the selected endpoint. */
+    callsPerLoad?: number[]
+    callsGap?: string
     note: string
   }
   limitation: string
@@ -208,6 +229,7 @@ export function httpDiscoveryConfig(input: object): HttpDiscoveryConfig {
 export async function discoverHttp(
   page: Page,
   input: object,
+  { screenshot }: { screenshot?: DiscoveryScreenshot } = {},
 ): Promise<HttpDiscoveryReport> {
   const config = httpDiscoveryConfig(input)
   const initialUrl = page.url()
@@ -245,11 +267,11 @@ export async function discoverHttp(
   const onError = () => errors++
   page.on('pageerror', onError)
   const phase = async (
-    fault: FaultKind | undefined,
-    times = 1,
+    experiment: Experiment | undefined,
     expectedFingerprint?: string,
     calibrate = false,
   ): Promise<DiscoveryPhase> => {
+    const { fault, times = 1, call } = experiment ?? {}
     const started = performance.now(),
       initialErrors = errors,
       timeline: DiscoveryEvent[] = []
@@ -261,7 +283,12 @@ export async function discoverHttp(
       stableSince = started,
       firstInjection: number | undefined
     try {
-      observer = await observeHttp(page, { ...config, fault, times })
+      observer = await observeHttp(page, {
+        ...config,
+        fault,
+        times,
+        skip: call ? call - 1 : 0,
+      })
       await page.reload({
         waitUntil: 'domcontentloaded',
         timeout: config.baselineTimeoutMs,
@@ -333,6 +360,7 @@ export async function discoverHttp(
           return {
             fault: fault ?? 'healthy',
             times: fault ? times : 0,
+            ...(call ? { call } : {}),
             ready,
             elapsedMs: Math.round(performance.now() - started),
             ui: summary,
@@ -375,7 +403,12 @@ export async function discoverHttp(
     visibility = await prepareVisibility(page, config)
     report.window = { initial: visibility.initial }
     for (let i = 0; i < 3; i++) {
-      const baseline = await phase(undefined, 1, undefined, true)
+      const baseline = await phase(undefined, undefined, true)
+      if (i === 0)
+        Object.assign(
+          baseline,
+          await screenshotRun(screenshot, page, 'baseline'),
+        )
       report.baselines.push(baseline)
       if (!baseline.ready || baseline.newErrors)
         throw new Error('BASELINE_UNSTABLE')
@@ -388,10 +421,24 @@ export async function discoverHttp(
       throw new Error('BASELINE_UNSTABLE')
     trustedFingerprint = report.baselines[0].ui.fingerprint
     report.readiness.calibrationComplete = true
-    for (const fault of config.faults) {
+    const callsPerLoad = report.baselines.map(
+      (b) => b.snapshot.channels[config.endpoint].realCalls,
+    )
+    report.readiness.callsPerLoad = callsPerLoad
+    report.readiness.callsGap = callsGap(callsPerLoad)
+    const experiments: Experiment[] = [
+      ...config.faults.map((fault) => ({ fault, times: config.times })),
+      ...laterCalls(callsPerLoad).map((call) => ({
+        fault: config.faults[0],
+        times: 1,
+        call,
+      })),
+    ]
+    for (const experiment of experiments) {
+      const id = findingId(experiment)
       const runs: DiscoveryRun[] = []
       for (let i = 0; i < config.repeats; i++) {
-        const healthy = await phase(undefined, 1, trustedFingerprint)
+        const healthy = await phase(undefined, trustedFingerprint)
         if (
           !healthy.ready ||
           healthy.newErrors ||
@@ -409,7 +456,7 @@ export async function discoverHttp(
           }
           throw new Error('CONTROL_UNSTABLE')
         }
-        const result = await phase(fault, config.times)
+        const result = await phase(experiment)
         const run: DiscoveryRun = {
           ...result,
           control: { ui: healthy.ui, snapshot: healthy.snapshot },
@@ -424,10 +471,11 @@ export async function discoverHttp(
             baseline: healthy.ui,
             final: result.ui,
             injected: result.snapshot.injected,
-            expected: config.times,
+            expected: experiment.times,
             recovered: result.ready,
             newErrors: result.newErrors,
           }),
+          ...(await screenshotRun(screenshot, page, `${id}-run${i + 1}`)),
         }
         runs.push(run)
         report.results.push(run)
@@ -438,9 +486,8 @@ export async function discoverHttp(
           runs[0].interpretation.classification,
       )
       report.findings.push({
-        id: `${fault}-${config.times}`,
-        fault,
-        times: config.times,
+        id,
+        ...experiment,
         ...(consistent
           ? runs[0].interpretation
           : {
@@ -458,7 +505,7 @@ export async function discoverHttp(
     report.error = (error as Error).message
   } finally {
     try {
-      const cleanup = await phase(undefined, 1, trustedFingerprint)
+      const cleanup = await phase(undefined, trustedFingerprint)
       report.cleanup = cleanup
       report.finalReset =
         trustedFingerprint !== undefined &&
