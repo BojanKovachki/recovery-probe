@@ -3,7 +3,7 @@ import { relative, sep } from 'node:path'
 import type { RunEvidence } from '../compare.mjs'
 import {
   runWatch,
-  validateWatchCommand,
+  validateCheckCommand,
   type WatchEvent,
   type WatchOptions,
 } from '../watch.mjs'
@@ -55,7 +55,7 @@ function parseArgs(args: string[]): CliOptions {
     } else if (arg.startsWith('--')) throw Error(`Use ${USAGE}`)
     else options.paths.push(arg)
   }
-  if (options.command.length) validateWatchCommand(options.command)
+  if (options.command.length) validateCheckCommand(options.command)
   return options
 }
 

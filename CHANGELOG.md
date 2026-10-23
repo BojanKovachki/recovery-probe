@@ -4,6 +4,12 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.6.0-preview.3 (2026-10-23)
+
+- New `recovery-probe verify` and MCP tool `verify_change`. A plan lists the checks that prove a change; `--baseline` runs them before it, and `verify` runs them again, compares the runs and scans the lines changed since the base for suspects. The change is VERIFIED only when every check improved or stayed clean with complete runs on both sides and no changed line is a suspect.
+- `scanForSuspects` takes `changedLinesOnly`, which leaves out suspects on lines the change did not touch.
+- File names from `suspects --changed-since` keep the spelling of the working directory, such as a Windows short name, instead of appearing as `../../..` paths.
+
 ## 0.6.0-preview.2 (2026-10-23)
 
 - `UNEXPECTED_ROW_STATE` ends a stretch when the row leaves the region, so a row that comes back gets a new finding instead of extending the old one.

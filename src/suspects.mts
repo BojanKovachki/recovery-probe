@@ -450,6 +450,18 @@ export async function sourceFiles(
   return files
 }
 
+const git = (cwd: string, args: string[]) =>
+  promisify(execFile)('git', args, { cwd, maxBuffer: 16 * 1024 * 1024 }).then(
+    ({ stdout }) => stdout.split('\n').filter(Boolean),
+  )
+
+const untrackedFiles = (cwd: string) =>
+  git(cwd, ['ls-files', '--others', '--exclude-standard', '--full-name'])
+
+// Relative to cwd, so paths keep its spelling, such as a Windows short name.
+const repositoryRoot = async (cwd: string) =>
+  resolve(cwd, (await git(cwd, ['rev-parse', '--show-cdup']))[0] ?? '')
+
 /** Source files changed since `ref` in the Git work tree around `cwd`, including uncommitted and untracked ones. */
 export async function changedSourceFiles(
   ref: string,
@@ -458,23 +470,57 @@ export async function changedSourceFiles(
     includeTests = false,
   }: { cwd?: string; includeTests?: boolean } = {},
 ): Promise<string[]> {
-  const git = (args: string[]) =>
-    promisify(execFile)('git', args, { cwd, maxBuffer: 16 * 1024 * 1024 }).then(
-      ({ stdout }) => stdout.split('\n').filter(Boolean),
-    )
-  const [root] = await git(['rev-parse', '--show-toplevel'])
+  const root = await repositoryRoot(cwd)
   const changed = new Set([
-    ...(await git(['diff', '--name-only', '--diff-filter=ACMR', ref])),
-    ...(await git([
-      'ls-files',
-      '--others',
-      '--exclude-standard',
-      '--full-name',
-    ])),
+    ...(await git(cwd, ['diff', '--name-only', '--diff-filter=ACMR', ref])),
+    ...(await untrackedFiles(cwd)),
   ])
   return [...changed]
     .map((path) => resolve(root, path))
     .filter((path) => isScannable(path, includeTests) && existsSync(path))
+}
+
+/**
+ * The lines added or changed since `ref`, by absolute path, including
+ * uncommitted changes. `true` stands for an untracked file, new as a whole.
+ */
+export async function changedLines(
+  ref: string,
+  { cwd = process.cwd() }: { cwd?: string } = {},
+): Promise<Map<string, Set<number> | true>> {
+  const root = await repositoryRoot(cwd)
+  const diff = await git(cwd, [
+    '-c',
+    'core.quotePath=false',
+    'diff',
+    '--unified=0',
+    '--no-color',
+    '--no-ext-diff',
+    '--src-prefix=a/',
+    '--dst-prefix=b/',
+    '--diff-filter=ACMR',
+    ref,
+  ])
+  const changed = new Map<string, Set<number> | true>()
+  let lines: Set<number> | undefined
+  // "+++ " names the file only in a file header, never in a hunk.
+  let inHeader = false
+  for (const line of diff) {
+    if (line.startsWith('diff --git ')) inHeader = true
+    else if (inHeader && line.startsWith('+++ b/')) {
+      lines = new Set()
+      changed.set(resolve(root, line.slice('+++ b/'.length)), lines)
+    } else if (line.startsWith('@@ ')) {
+      inHeader = false
+      const [, start, count = '1'] =
+        /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/.exec(line) ?? []
+      for (let n = Number(start); n < Number(start) + Number(count); n++)
+        lines?.add(n)
+    }
+  }
+  for (const path of await untrackedFiles(cwd))
+    changed.set(resolve(root, path), true)
+  return changed
 }
 
 export interface SuspectScan {
@@ -487,17 +533,22 @@ export interface SuspectScan {
 /**
  * Scans the given files and directories (default: the working directory), or
  * only the files changed since `changedSince`; with both, the changed files
- * under the given paths.
+ * under the given paths. `changedLinesOnly` also leaves out suspects on lines
+ * the change did not touch.
  */
 export async function scanForSuspects({
   paths = [],
   changedSince,
+  changedLinesOnly = false,
   includeTests = false,
 }: {
   paths?: string[]
   changedSince?: string
+  changedLinesOnly?: boolean
   includeTests?: boolean
 } = {}): Promise<SuspectScan> {
+  if (changedLinesOnly && !changedSince)
+    throw new Error('changedLinesOnly needs changedSince')
   let files = changedSince
     ? await changedSourceFiles(changedSince, { includeTests })
     : await sourceFiles(paths.length ? paths : ['.'], { includeTests })
@@ -507,7 +558,15 @@ export async function scanForSuspects({
     )
     files = files.filter((path) => wanted.has(resolve(path)))
   }
-  const suspects = (await findSuspects(files)).map((suspect) => ({
+  let found = await findSuspects(files)
+  if (changedLinesOnly) {
+    const changed = await changedLines(changedSince!)
+    found = found.filter((suspect) => {
+      const lines = changed.get(resolve(suspect.file))
+      return lines === true || lines?.has(suspect.line)
+    })
+  }
+  const suspects = found.map((suspect) => ({
     ...suspect,
     file: relative('.', suspect.file).split(sep).join('/'),
   }))

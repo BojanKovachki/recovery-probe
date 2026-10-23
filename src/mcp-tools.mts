@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
@@ -11,6 +11,7 @@ import {
 import type { McpTool } from './mcp-server.mjs'
 import { scanForSuspects } from './suspects.mjs'
 import { compareReports } from './compare.mjs'
+import { recordBaseline, verifyChange, verifyPlan } from './verify.mjs'
 
 const FAULTS = ['http-error', 'connection-failure', 'invalid-json']
 const MAX_OUTPUT = 50_000
@@ -22,6 +23,7 @@ export const MCP_INSTRUCTIONS = `Recovery Probe shows what an app does when a da
 - FAULT_NOT_TRIGGERED, BASELINE_FAILED and other inconclusive codes are not passes. Fix the setup and run again.
 - Findings such as LOCAL_FILES_REMOVED or DELAYED_UI_UPDATE, and suspects from find_suspects, are leads to investigate, not verdicts.
 - Before you say a change fixed something, compare reports of the same check from before and after it with compare_reports, and quote its verdict. A run that stopped early is never evidence of a fix.
+- When the project has a verify plan (.recovery-probe/verify.json), call verify_change with baseline true before you change the code, and verify_change before you say the change is done. Do not call it done while the verdict is NOT_VERIFIED; resolve the reasons it gives.
 - Use development or test apps and accounts only: checks reload pages and fail their reads.`
 
 const text = (args: Record<string, unknown>, key: string, required = true) => {
@@ -519,12 +521,76 @@ const compareReportsTool: McpTool = {
     }),
 }
 
+const verifyChangeTool: McpTool = {
+  name: 'verify_change',
+  title: 'Verify a code change with before and after evidence',
+  description:
+    'Call with baseline true before changing the code, and without it before saying the change is done. The plan file lists the checks that prove the change. Verify reruns them, compares the runs with the baseline, and scans the lines changed since the plan base for suspects. VERIFIED needs every check improved or clean with complete runs on both sides, and no suspect on a changed line; otherwise the reasons say what to resolve. Do not call a change done while it is NOT_VERIFIED.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      baseline: {
+        type: 'boolean',
+        default: false,
+        description:
+          'Record the runs from before the change instead of verifying it.',
+      },
+      plan: {
+        type: 'string',
+        description:
+          'The plan file, relative to the working directory. Default: .recovery-probe/verify.json.',
+      },
+    },
+    additionalProperties: false,
+  },
+  annotations: { readOnlyHint: false, openWorldHint: false },
+  async run(args) {
+    if (args.baseline !== undefined && typeof args.baseline !== 'boolean')
+      throw new Error('baseline must be true or false')
+    const planFile =
+      text(args, 'plan', false) ?? join('.recovery-probe', 'verify.json')
+    const plan = verifyPlan(JSON.parse(await readFile(planFile, 'utf8')))
+    if (args.baseline) {
+      const runs = await recordBaseline({ plan })
+      return {
+        baseline: 'recorded',
+        runs: Object.fromEntries(
+          [...runs].map(([name, results]) => [
+            name,
+            results.map((run) =>
+              run.evidence
+                ? { complete: run.evidence.complete }
+                : { error: run.error },
+            ),
+          ]),
+        ),
+      }
+    }
+    const { verdict, reasons, checks, suspects, markdown } = await verifyChange(
+      { plan },
+    )
+    return {
+      verdict,
+      reasons,
+      checks: checks.map(({ name, verified, reason, comparison }) => ({
+        name,
+        verified,
+        ...(reason ? { reason } : {}),
+        ...(comparison ? { comparison: comparison.verdict } : {}),
+      })),
+      suspects: suspects.slice(0, MAX_SUSPECTS),
+      markdown,
+    }
+  },
+}
+
 export const recoveryProbeTools: McpTool[] = [
   findPageReads,
   checkReadRecovery,
   ...networkTools,
   findSuspectsTool,
   compareReportsTool,
+  verifyChangeTool,
   runCli,
 ]
 

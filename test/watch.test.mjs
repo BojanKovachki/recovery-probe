@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
-import { runWatch, validateWatchCommand, watchSources } from '../dist/watch.mjs'
+import { runWatch, validateCheckCommand, watchSources } from '../dist/watch.mjs'
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const within = (promise, ms, what) =>
@@ -228,9 +228,9 @@ test('accepts only a check it can rerun the same way', async () => {
     [['ipc', '--config', 'a.json', '--out', 'x'], /Leave out --out/],
     [['observe', '--config', 'a.json', '--interactive'], /--interactive/],
   ])
-    assert.throws(() => validateWatchCommand(command), message)
-  validateWatchCommand(['--config', 'scenario.json'])
-  validateWatchCommand(['observe', '--config', 'observe.json', '--steps', 's'])
+    assert.throws(() => validateCheckCommand(command), message)
+  validateCheckCommand(['--config', 'scenario.json'])
+  validateCheckCommand(['observe', '--config', 'observe.json', '--steps', 's'])
   await assert.rejects(
     runWatch({ suspects: false }),
     /Nothing to do on a change/,

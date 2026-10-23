@@ -45,6 +45,7 @@ Usage:
   recovery-probe suspects --help
   recovery-probe compare --help
   recovery-probe watch --help
+  recovery-probe verify --help
   recovery-probe android --help
   recovery-probe desktop --help
   recovery-probe web --help
@@ -115,6 +116,10 @@ async function main() {
   if (args[0] === 'watch') {
     const { watchMain } = await import('./watch.mjs')
     return watchMain(args.slice(1))
+  }
+  if (args[0] === 'verify') {
+    const { verifyMain } = await import('./verify.mjs')
+    return verifyMain(args.slice(1))
   }
   if (args[0] === 'mcp') {
     const { mcpMain } = await import('./mcp.mjs')
