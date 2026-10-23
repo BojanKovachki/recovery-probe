@@ -4,6 +4,7 @@ import type { FaultKind } from '../../core/faults.mjs'
 import { httpRefreshAdapter } from '../../transports/session.mjs'
 import { runDiscovery, type DiscoveryResult } from './run.mjs'
 import type { DiscoveryScreenshot } from './screenshots.mjs'
+import { FAULT_KINDS, isFaultKind } from '../../core/faults.mjs'
 
 export interface HttpDiscoveryConfig {
   endpoint: string
@@ -51,7 +52,7 @@ export function httpDiscoveryConfig(input: object): HttpDiscoveryConfig {
     page: undefined,
     pageUrl: undefined,
     times: 2,
-    faults: ['http-error', 'connection-failure', 'invalid-json'],
+    faults: [...FAULT_KINDS],
     baselineTimeoutMs: 15000,
     recoveryTimeoutMs: 8000,
     settleMs: 800,
@@ -105,9 +106,7 @@ export function httpDiscoveryConfig(input: object): HttpDiscoveryConfig {
   if (
     !Array.isArray(faults) ||
     !faults.length ||
-    faults.some(
-      (f) => !['http-error', 'connection-failure', 'invalid-json'].includes(f),
-    ) ||
+    !faults.every(isFaultKind) ||
     new Set(faults).size !== faults.length
   )
     throw new Error('Invalid faults')

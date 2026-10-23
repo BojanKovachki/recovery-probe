@@ -1,4 +1,4 @@
-import { type FaultKind } from '../core/faults.mjs'
+import { isFaultKind, type FaultKind } from '../core/faults.mjs'
 
 export interface FetchFaultOptions {
   url: string
@@ -20,12 +20,6 @@ export interface FaultFetch {
   summary(): FetchFaultStats
   assertApplied(): FetchFaultStats
 }
-
-const kinds = new Set<unknown>([
-  'http-error',
-  'connection-failure',
-  'invalid-json',
-])
 
 // A relative or malformed URL cannot be the absolute target, so it is never matched.
 const absoluteHref = (value: string | URL): string | null => {
@@ -55,7 +49,7 @@ export function createFaultFetch(
       'Use an absolute HTTP(S) URL without embedded credentials',
     )
   }
-  if (!kinds.has(options.kind)) throw new TypeError('Unsupported fault kind')
+  if (!isFaultKind(options.kind)) throw new TypeError('Unsupported fault kind')
   const count = options.count ?? 1
   const method = options.method ?? 'GET'
   const status = options.status ?? 503

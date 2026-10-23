@@ -4,6 +4,12 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.6.0-preview.13 (2026-10-23)
+
+- One fault layer. The fault kinds are listed once (`FAULT_KINDS` in `core/faults`), and one function answers a request with a fault for `withFault`, the HTTP observer and the HTTP check. The HTTP check fails its read through the same observer as discovery and observation, instead of its own copy of the route handler.
+- A successful read after a fault counts when its response finishes, not when its headers arrive, as in discovery.
+- The IPC check, the HTTP check and the JSON runner stay separate on purpose: they promise different things. The IPC check needs exact call counts and takes its deadline from the measured read; the HTTP check clicks Retry and waits for a ready marker; the runner opens a fresh browser for each fault.
+
 ## 0.6.0-preview.12 (2026-10-23)
 
 - Every `report.json` has an `evidence` block in one shape: workflow, transport, target, problems, outcomes, what the run checked and why parts don't count. `compare`, `watch` and `verify` read it; older reports are read from their other fields as before.
