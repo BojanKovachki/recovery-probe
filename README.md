@@ -15,7 +15,7 @@ Most apps don't crash when a read fails. The list goes empty, the spinner never 
 You need Node.js 22 or newer.
 
 ```bash
-npm install --save-dev --save-exact recovery-probe@0.6.0 playwright@1.62.1
+npm install --save-dev recovery-probe playwright
 npx playwright install chromium
 npx recovery-probe demo
 ```
