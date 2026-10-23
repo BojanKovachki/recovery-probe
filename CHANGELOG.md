@@ -4,6 +4,13 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.6.0-preview.6 (2026-10-23)
+
+- A shorter README, and MCP setup for any agent instead of one client.
+- Discovery over IPC and HTTP is described once, in `docs/discovery.md`. The docs describe current behaviour; version history stays in this changelog.
+- The package ships every doc, including `docs/verify.md`, which was missing.
+- A docs test checks that relative links and headings resolve.
+
 ## 0.6.0-preview.5 (2026-10-23)
 
 - IPC and HTTP discovery count how often each healthy load reads the target. When every load reads it the same number of times, they also fail the 2nd, 3rd and 4th call of a load on its own, as findings such as `rejection-1-call2` with a `call` field. `readiness.callsGap` says when later calls were not failed on their own. IPC discovery needs the hook from this version for these experiments; restart the app after upgrading.

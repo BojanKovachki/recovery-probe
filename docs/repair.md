@@ -1,6 +1,6 @@
 # Web and Electron repair (experimental)
 
-The opt-in repair workflow has been included since 0.3.0 and remains experimental. For recovery testing without source upload or model credentials, use [guided start](start.md).
+The opt-in repair workflow is experimental. For recovery testing without source upload or model credentials, use [guided start](start.md).
 
 ## What it actually does
 
@@ -22,7 +22,7 @@ Node 22+, Git and Playwright Chromium are required. You do not have to modify yo
 mkdir recovery-probe-tools
 cd recovery-probe-tools
 npm init -y
-npm install --save-dev recovery-probe@0.5.0 playwright@1.62.1
+npm install --save-dev --save-exact recovery-probe playwright
 npx playwright install chromium
 npx recovery-probe --version
 ```

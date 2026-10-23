@@ -9,6 +9,7 @@ import {
   rm,
   access,
   readFile,
+  readdir,
   symlink,
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -93,6 +94,11 @@ test(
           path,
         )
       assert.ok(packed.files.some((file) => file.path === 'CHANGELOG.md'))
+      for (const doc of await readdir(join(root, 'docs')))
+        assert.ok(
+          packed.files.some((file) => file.path === `docs/${doc}`),
+          `docs/${doc}`,
+        )
       assert.ok(
         packed.files.every(
           (file) =>

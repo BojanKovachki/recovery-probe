@@ -1,6 +1,6 @@
 # Attach to a desktop app or web browser
 
-For the guided workflow without window-index lookup or JSON editing, see [guided start](start.md). The explicit configuration workflow below remains supported.
+The quickest way in is the [guided start](start.md). This page is the manual setup.
 
 This workflow attaches to a running **Electron development app or authorized Chromium-based test browser**. It discovers renderer GET JSON requests, then tests one selected endpoint against a UI assertion you configure once. It does not scan source code, patch files, or add runtime recovery to the application.
 
@@ -35,15 +35,10 @@ Set `RECOVERY_PROBE=1` using your existing cross-platform development tooling, t
 Install the exact version in a separate tester folder:
 
 ```bash
-mkdir recovery-probe-desktop-test
-cd recovery-probe-desktop-test
-npm init -y
-npm view recovery-probe@0.5.0 version
-npm install --save-dev --save-exact recovery-probe@0.5.0 playwright@1.62.1
+mkdir recovery-probe-tools && cd recovery-probe-tools
+npm install --save-dev recovery-probe playwright
 npx recovery-probe desktop --list
 ```
-
-If the version is not published yet, use the [source installation](../CONTRIBUTING.md#install-an-unpublished-source-preview). GitHub and npm releases are separate; the exact npm version keeps later runs reproducible.
 
 No Chromium download is needed: the tester connects to the Chromium already running inside your Electron app. `--list` prints window indexes and page URLs with query strings/fragments omitted. If there are multiple windows, select the intended one explicitly.
 
@@ -141,67 +136,21 @@ npm run test:desktop:electron
 
 Actual compatibility with your application's Electron version and its startup/network design still needs your first local run.
 
-## Repeated HTTP faults and browser attachment (preview.7)
+## Repeated faults
 
-The existing explicit verifier accepts `times` (integer 1–10, default 1), `baselineTimeoutMs` and `recoveryTimeoutMs` (default to the existing `timeoutMs`). All requested faults must be consumed; a partially consumed plan is `FAULT_NOT_TRIGGERED`, never a pass. Every injected malformed JSON HTTP-200 response is excluded from later successful responses. Successful checks now report sampled `recoveryMs` from the first injection.
+The check also takes `times` (1–10, default 1), `baselineTimeoutMs` and `recoveryTimeoutMs` (both default to `timeoutMs`). Every planned fault must fire, or the result is `FAULT_NOT_TRIGGERED`. An injected malformed JSON response never counts as the successful read after a fault. A passing check reports `recoveryMs` from the first fault.
 
-For an already authorized, separately configured Chromium/Edge test session, use the browser name rather than `desktop`:
+## Attach to a browser
+
+For a Chromium or Edge test session you're allowed to automate, started with a local debugging port, use `web --attach` instead of `desktop`:
 
 ```bash
+npx recovery-probe web --attach --list --cdp http://127.0.0.1:9223
 npx recovery-probe web --attach --config ./scenario.json --cdp http://127.0.0.1:9223
 ```
 
-This reuses the live page and its sessionStorage through reloads. It does not export credentials, create a managed device identity or bypass sign-in policy. CDP must be loopback-only. Sign in normally in a testing session you are permitted to automate. The tool disconnects at the end and leaves the browser open. List windows with `web --attach --list --cdp URL`. Observe endpoints with `web --attach --discover --page N --cdp URL` (no config); a config switches discovery to fault experiments. The older desktop spellings still work.
+It keeps the live page and its sessionStorage login through reloads, and leaves the browser open at the end. It doesn't export credentials or get around sign-in policy. `web --attach --discover --page N` lists the page's reads like `desktop --discover`.
 
-### Structural HTTP discovery
+## Discovery
 
-```bash
-npx recovery-probe web --attach --discover --config ./scenario.json --cdp http://127.0.0.1:9223
-```
-
-Minimal scenario:
-
-```json
-{
-  "endpoint": "http://localhost:3000/api/items",
-  "pageUrl": "http://localhost:3000/items",
-  "times": 2,
-  "faults": ["http-error", "connection-failure", "invalid-json"],
-  "requiredEndpoints": [],
-  "baselineTimeoutMs": 15000,
-  "recoveryTimeoutMs": 8000,
-  "settleMs": 800,
-  "repeats": 3
-}
-```
-
-The selected request must be a read-only renderer GET fetch/XHR. Query variants share its origin/path budget. No form actions, navigation or mutation injection is performed. Persistent faults and timed outages are not implemented. Discovery uses `times` for each listed fault, does not infer the retry policy, and does not click Retry. For retry-button assertions use the existing explicit verifier.
-
-Three healthy baselines each run for the full `baselineTimeoutMs` window and must have matching stable end states before experiments begin. A healthy control precedes every faulted reload and a healthy cleanup follows. Default three-fault/three-repeat plan uses 22 reloads. Existing readiness selectors/text are ignored and omitted from saved discovery scenarios. Use `requiredEndpoints` for known relevant dependencies. Other observed traffic is recorded under `coverage` without gating readiness. Non-GET requests are explicitly unsupported; unselected GETs are untested. Paths may be sensitive even when query values and bodies are omitted. No service-worker, native or unobserved traffic coverage is implied.
-
-Reports share the preview.7 IPC observation/interpretation fields; see [structural discovery](ipc.md#structural-discovery-preview7). Distribution shifts and structural replacement candidates are observations, not determinations of correct roles, permissions or semantics. Evidence includes fault counts and sampled recovery time; time windows cannot establish that an app will never heal. Baseline timing is measured separately. Request duration is measured from request to completion using a monotonic clock, including body transfer.
-
-`--restore-window` opts into reversible un-minimizing. Keep non-minimized windows uncovered. Exit 0 means informational results and healthy cleanup; exit 2 means findings need review or the run is inconclusive. Heuristics never use exit 1 as a verified bug verdict. Repeat the same command with the saved `scenario.json` after a proposed local fix.
-
-Git Bash may rewrite URL fragments such as `#/route`; pass them in JSON configuration or use `MSYS_NO_PATHCONV=1` when invoking a command that accepts them. Do not change routes solely to make assertions pass.
-
-
-## Healthy controls and partial experiments (preview.8)
-
-After the three initial baselines agree, each later healthy control and the final cleanup must match the established fingerprint as well as satisfy the existing dependency and stability checks. A stable intermediate screen is observed until it matches or the existing `baselineTimeoutMs` expires. The timeout is not increased. Persistent mismatches retain their timeline and differences and stop the run; fault injection does not proceed after a failed control.
-
-If an experiment stops after some completed faulted runs, `findings` includes an `INCOMPLETE_EXPERIMENT` entry with `kind: inconclusive`, `partial: true`, `completedRuns`, `plannedRuns`, `observedInterpretation` and `repeatConfirmed: false`. HTML and terminal summaries expose this partial evidence. It is not a completed experiment or a confirmed defect, even when the completed runs agree.
-
-This does not discover missing dependencies, fix application state carry-over or guarantee that the initial baselines captured all content. Known relevant dependencies must still be configured. Unchanged time windows bound the observation; later recovery remains untested.
-
-## Initial baseline calibration (preview.11)
-
-Calibration observes three full `baselineTimeoutMs` windows before injection: 45 seconds with the default 15-second window. It does not prefer a nonempty screen or a larger item count. A legitimately empty selected region is valid after successful target/dependency reads and a stable end state. Delayed content within the window is included in the baseline. `readiness.calibrationComplete` becomes true only when all three healthy end states agree; their bounded timelines remain in the report.
-
-Unstable or unfinished calibration stops fault experiments. Cleanup still removes faults and attempts a healthy reload, but `finalReset` remains `not-verified` without a trusted baseline. Later controls and cleanup can finish early once they match that baseline. Known dependencies must still be configured; content arriving after the calibration window remains untested.
-
-## Later reads and screenshots (0.6.0-preview.5)
-
-Calibration counts how often each healthy load reads the selected endpoint (`readiness.callsPerLoad`). When every load reads it the same number of times and more than once, discovery also fails the 2nd, 3rd and 4th read of a load on its own, once each with the first listed fault. Their findings have ids such as `http-error-1-call2` and a `call` field. Query variants count as reads of the endpoint. When the counts differ between loads, or a load reads more than four times, `readiness.callsGap` says which reads were not failed on their own.
-
-`web --attach --discover --screenshots` saves the screen after the first healthy baseline and after each faulted run as PNG files in the report folder, and shows them in `report.html`. They are off by default and may show private on-screen content.
+`web --attach --discover --config FILE` fails the selected read in a few fixed ways and compares the screen with healthy runs, without a ready selector. See [Discovery](discovery.md).

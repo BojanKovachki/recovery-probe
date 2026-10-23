@@ -1,4 +1,4 @@
-# Refresh experiments (preview.9)
+# Refresh experiments
 
 Opt-in experiments on an already populated screen, using one explicitly named synthetic window event. The current implementation does **not** toggle connectivity, freeze pages, simulate OS sleep/resume, refresh tokens, invoke global functions or accelerate timers. An `online` event tests the event handler while `navigator.onLine` stays unchanged. Use an authorized development/testing session: handlers can cause writes or other side effects even though the selected fault target is a read.
 
@@ -85,6 +85,6 @@ Own HTTP routes are removed; IPC plans use scoped verified reset and bounded TTL
 
 HTTP controls use the selected origin/path across query variants; IPC controls use the allowed main-frame sender/channel. Neither tests native transport failures. Initial baseline completeness, changing live data, hidden windows and unknown dependencies remain limitations. No mobile WebView compatibility claim is made without testing. Saved endpoint paths, channels and event names may be private; UI text/payloads are not saved, and hashed summaries are not anonymization.
 
-## Initial readiness (preview.10)
+## Calibration
 
-Calibration adds three full bounded observation windows before injection. It compares end states without preferring nonempty screens or higher item counts: legitimate empty results remain valid. Each baseline retains elapsed time and its bounded timeline. A mismatch or unsettled final state stops the experiment before injection. No baseline is trusted until all three agree, so an unsuccessful calibration cannot claim verified final UI restoration; fault reset is reported separately. Content arriving after the window and unknown dependencies remain limitations. This generic policy is shared by HTTP and IPC refresh experiments. Since preview.11, HTTP and IPC initial-load discovery also use bounded end-state calibration; see their guides for the discovery report fields.
+Calibration adds three full bounded observation windows before injection. It compares end states without preferring nonempty screens or higher item counts: legitimate empty results remain valid. Each baseline retains elapsed time and its bounded timeline. A mismatch or unsettled final state stops the experiment before injection. No baseline is trusted until all three agree, so an unsuccessful calibration cannot claim verified final UI restoration; fault reset is reported separately. Content arriving after the window and unknown dependencies remain limitations. HTTP and IPC refresh experiments and [discovery](discovery.md) calibrate the same way.

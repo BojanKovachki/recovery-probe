@@ -1,7 +1,5 @@
 # Verify a change
 
-Available since **0.6.0-preview.3**.
-
 "Fixed" should mean the check that showed the problem no longer shows it, nothing else got worse, and the new code does not add the failure handling Recovery Probe looks for. `recovery-probe verify` checks all three in one step and says VERIFIED or NOT VERIFIED, so a developer or an AI coding agent has a clear bar to clear before calling a change done.
 
 ## The plan
