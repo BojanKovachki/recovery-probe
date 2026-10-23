@@ -55,7 +55,7 @@ npx playwright install chromium
 | `find_suspects` | Reads the project's JavaScript and TypeScript, or only what changed since a Git reference, for error handling that can lose data. Each suspect names the read to fail and how to check it. See [Suspect scanner](suspects.md). |
 | `compare_reports` | Compares reports of the same check from before and after a change and returns a verdict, what happened to each problem, and a Markdown block for the pull request. A problem counts as gone only when a complete run after the change checked it. See [Before and after](compare.md). |
 | `verify_change` | Records the checks of a [verify plan](verify.md) before a change (`baseline: true`), and afterwards reruns them, compares the runs and scans the changed lines for suspects. It answers VERIFIED or NOT_VERIFIED with the reasons. |
-| `run_recovery_probe` | Runs `observe`, `ipc`, `refresh`, `desktop`, `web` or `android --list` with your arguments, for checks that need a configuration file. Examples are observation with network steps or `--files`, and IPC discovery in an Electron app. |
+| `run_recovery_probe` | Runs `observe`, `ipc`, `refresh`, `desktop`, `web`, `android --list` or `doctor` with your arguments, for checks that need a configuration file. Examples are observation with network steps or `--files`, and IPC discovery in an Electron app. |
 
 A typical loop for a screen that loads data:
 
@@ -72,6 +72,7 @@ The server gives the agent these rules when it connects:
 
 - A passing check covers only the configured read and screen marker. It is not proof that the app is resilient.
 - `FAULT_NOT_TRIGGERED`, `BASELINE_FAILED` and other inconclusive codes are not passes. Fix the setup and run again.
+- When a check can't attach to the app or the IPC hook doesn't answer, run `doctor --json` and follow its fixes.
 - Findings such as `LOCAL_FILES_REMOVED` or `DELAYED_UI_UPDATE`, and suspects from `find_suspects`, are leads to investigate, not verdicts.
 - Before saying a change fixed something, compare reports of the same check from before and after it with `compare_reports`, and quote its verdict. A run that stopped early is never evidence of a fix.
 - With a verify plan, call `verify_change` with `baseline: true` before changing the code, and `verify_change` before saying the change is done; a NOT_VERIFIED change is not done.

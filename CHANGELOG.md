@@ -4,6 +4,13 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.6.0-preview.7 (2026-10-23)
+
+- New `recovery-probe init [URL]`. It finds what to test and runs a first check: the guided web check for a URL, the guided desktop check for an app on the debugging port, or IPC discovery when the app has the hook, after asking which channel loads the screen. Running it again repeats the check; `--fresh` sets it up again.
+- New `recovery-probe doctor`. It checks Node.js, Playwright, Chromium, the app on the debugging port and the IPC hook, and prints the fix for anything missing, including the hook code with the path to load it from. `--json` prints the report.
+- The IPC hook's `identify()` returns `channels`, the channels it may fail. `doctor` names the ones the app never registered, which usually means a typo or a hook loaded after the handlers.
+- Agents can run `doctor` through the MCP tool `run_recovery_probe`, and the server tells them to when a check can't attach.
+
 ## 0.6.0-preview.6 (2026-10-23)
 
 - A shorter README, and MCP setup for any agent instead of one client.

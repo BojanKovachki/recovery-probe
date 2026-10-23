@@ -6,6 +6,10 @@ This adapter tests renderer recovery after bounded **rejected IPC invocations** 
 
 Unlike renderer HTTP routing, this boundary requires a small main-process hook. The local agent can perform the setup below; no interactive picker is required. Do not edit generated client files or access Electron's private handler map.
 
+## Quick setup
+
+`npx recovery-probe doctor` prints the hook code below with the path to load it from, and checks the setup once the app runs. Then `npx recovery-probe init` lists the channels the hook can fail, asks which one loads the screen and which others it needs, and runs [discovery](discovery.md). It saves the choice in `.recovery-probe/init/ipc/discover.json` and reuses it next time; `--fresh` asks again. The steps below are the manual setup and the explicit check.
+
 ## 1. Install in a separate tools folder
 
 Node 22+ is required for the CLI. Electron 29's bundled Node can load the small CommonJS hook; it does not load Playwright into your main process.

@@ -27,16 +27,16 @@ The demo runs two versions of a small app. Both load fine. Only the fixed one su
 **Web app.** Start it, then run:
 
 ```bash
-npx recovery-probe start web http://localhost:3000
+npx recovery-probe init http://localhost:3000
 ```
 
 A browser opens. Sign in, go to the screen you care about, and click something that only shows up once its data has loaded. Recovery Probe finds the request behind it, fails it three ways, and tells you whether the data came back.
 
-**Electron app.** Start it with `--remote-debugging-port=9222`, then run `npx recovery-probe start desktop`.
+**Electron app.** Start it with `--remote-debugging-address=127.0.0.1 --remote-debugging-port=9222`, then run `npx recovery-probe init`.
 
-**Electron app that loads data over IPC.** Add a small development-only hook to the main process, see [IPC](docs/ipc.md).
+**Electron app that loads data over IPC.** Load the small development-only hook in the main process. `npx recovery-probe doctor` prints the code and the path to load it from. Restart the app with the inspector on, then run `npx recovery-probe init`: it lists the hook's channels, asks which one loads the screen, and fails it in a few ways.
 
-Each run saves an HTML and JSON report, a script that reproduces it, and a short brief for whoever fixes it. Next time, `npx recovery-probe start web` reruns the same check.
+Each run saves an HTML and JSON report. Run the same command again to repeat the check, or add `--fresh` to set it up again. If something's missing, `npx recovery-probe doctor` says what and how to fix it.
 
 ## More
 

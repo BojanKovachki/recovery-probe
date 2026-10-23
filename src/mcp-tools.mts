@@ -16,11 +16,20 @@ import { recordBaseline, verifyChange, verifyPlan } from './verify.mjs'
 const FAULTS = ['http-error', 'connection-failure', 'invalid-json']
 const MAX_OUTPUT = 50_000
 const MAX_SUSPECTS = 200
-const CLI_COMMANDS = ['observe', 'ipc', 'refresh', 'desktop', 'web', 'android']
+const CLI_COMMANDS = [
+  'observe',
+  'ipc',
+  'refresh',
+  'desktop',
+  'web',
+  'android',
+  'doctor',
+]
 
 export const MCP_INSTRUCTIONS = `Recovery Probe shows what an app does when a data read fails. Use it to check a claim about error handling before you make it, and quote its results as they are.
 - A passing check covers only the configured read and screen marker; it is not proof that the app is resilient.
 - FAULT_NOT_TRIGGERED, BASELINE_FAILED and other inconclusive codes are not passes. Fix the setup and run again.
+- When a check can't attach to the app or the IPC hook doesn't answer, run doctor --json through run_recovery_probe and follow its fixes.
 - Findings such as LOCAL_FILES_REMOVED or DELAYED_UI_UPDATE, and suspects from find_suspects, are leads to investigate, not verdicts.
 - Before you say a change fixed something, compare reports of the same check from before and after it with compare_reports, and quote its verdict. A run that stopped early is never evidence of a fix.
 - When the project has a verify plan (.recovery-probe/verify.json), call verify_change with baseline true before you change the code, and verify_change before you say the change is done. Do not call it done while the verdict is NOT_VERIFIED; resolve the reasons it gives.
@@ -338,7 +347,7 @@ const networkTools: McpTool[] = [
 const runCli: McpTool = {
   name: 'run_recovery_probe',
   title: 'Run a Recovery Probe command',
-  description: `Runs a Recovery Probe command that has no dedicated tool, such as observe (with --steps, --network or --files), ipc discovery, refresh, desktop attachment or android --list, and returns its exit code and output. Commands: ${CLI_COMMANDS.join(', ')}. Pass --json where the command supports it. See the package docs for each command's configuration.`,
+  description: `Runs a Recovery Probe command that has no dedicated tool, such as observe (with --steps, --network or --files), ipc discovery, refresh, desktop attachment, android --list or doctor (setup checks), and returns its exit code and output. Commands: ${CLI_COMMANDS.join(', ')}. Pass --json where the command supports it. See the package docs for each command's configuration.`,
   inputSchema: {
     type: 'object',
     properties: {

@@ -7,7 +7,14 @@ import { createRequire } from 'node:module'
 import { spawn, execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
-import { mkdtemp, writeFile, readFile, readdir, rm } from 'node:fs/promises'
+import {
+  mkdtemp,
+  mkdir,
+  writeFile,
+  readFile,
+  readdir,
+  rm,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { freePort } from './repair-fixture.mjs'
@@ -451,6 +458,29 @@ test(
           'must-not-persist',
         ),
       )
+      // init finds the hook and reruns the channels saved by an earlier setup.
+      const initDir = join(dir, 'init')
+      await mkdir(initDir)
+      await writeFile(
+        join(initDir, 'discover.json'),
+        JSON.stringify({ ...discoveryConfig, repeats: 1 }),
+      )
+      const init = await exec(
+        process.execPath,
+        [
+          fileURLToPath(new URL('../bin/recovery-probe.mjs', import.meta.url)),
+          'init',
+          '--cdp',
+          cdp,
+          '--inspector',
+          inspector,
+          '--dir',
+          initDir,
+        ],
+        { timeout: 30000 },
+      )
+      assert.match(init.stdout, /Using the channels saved/)
+      assert.match(init.stdout, /rejection-1 — RECOVERED/)
       assert.equal((await control.call('snapshot')).armed, null)
       assert.equal(app.exitCode, null)
     } finally {

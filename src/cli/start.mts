@@ -1,5 +1,5 @@
-import { createInterface, type Interface } from 'node:readline/promises'
-import { parseStartArgs, runStart, type StartIo } from '../guided-start.mjs'
+import { parseStartArgs, runStart } from '../guided-start.mjs'
+import { terminalIo } from './terminal.mjs'
 
 export async function startMain(args: string[]) {
   if (!args.length || args.includes('--help')) {
@@ -16,23 +16,10 @@ Local checks only: no source upload or AI repair. Native/Rust/IPC traffic is not
     return
   }
   const options = parseStartArgs(args)
-  let terminal: Interface | undefined
-  const io: StartIo = {
-    interactive: Boolean(process.stdin.isTTY),
-    log: (text) => console.log(text),
-    ask: async (prompt) => {
-      if (!process.stdin.isTTY)
-        throw new Error('This choice requires an interactive terminal.')
-      terminal ??= createInterface({
-        input: process.stdin,
-        output: process.stdout,
-      })
-      return terminal.question(prompt)
-    },
-  }
+  const io = terminalIo()
   try {
     process.exitCode = (await runStart(options, io)).exitCode
   } finally {
-    terminal?.close()
+    io.close()
   }
 }

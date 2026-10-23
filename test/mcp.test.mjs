@@ -155,6 +155,18 @@ test('runs a Recovery Probe command for the agent', async () => {
     assert.equal(result.isError, false)
     assert.equal(result.structuredContent.exitCode, 0)
     assert.match(result.structuredContent.stdout, /recovery-probe observe/)
+    const doctor = await call(server, 'run_recovery_probe', {
+      args: [
+        'doctor',
+        '--json',
+        '--cdp',
+        'http://127.0.0.1:1',
+        '--inspector',
+        'http://127.0.0.1:1',
+      ],
+    })
+    assert.equal(doctor.structuredContent.exitCode, 0)
+    assert.equal(JSON.parse(doctor.structuredContent.stdout).ok, true)
   } finally {
     server.child.stdin.end()
   }

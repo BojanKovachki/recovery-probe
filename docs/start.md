@@ -1,5 +1,7 @@
 # Guided start
 
+`npx recovery-probe init` finds what to test and starts the right guided check: a web app when you give it a URL, an Electron app or browser on the debugging port, or IPC discovery when the app has the [IPC hook](ipc.md). This page covers the web and Electron checks, which you can also start directly with `start web` and `start desktop`. `npx recovery-probe doctor` checks the setup and says how to fix what's missing.
+
 Start your app using its normal development command. Recovery Probe does not need its repository or production dependencies. Node 22+ is required. Use a development/test account and backend: a locally running app can still call remote services.
 
 ## Three commands for a web app

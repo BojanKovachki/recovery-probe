@@ -71,6 +71,8 @@ export interface IpcIdentity {
   runtime: { node: string; electron: string | null; chrome: string | null }
   senderId: number
   pageUrl: string
+  /** The channels the hook may fault. Older hooks leave it out. */
+  channels?: string[]
   registered: string[]
   pushChannels: string[]
   capabilities: {
@@ -226,6 +228,7 @@ export function installIpcProbe(
       },
       senderId: contents.id,
       pageUrl: contents.getURL(),
+      channels: [...allowed],
       registered: [...registered],
       pushChannels: [...allowedPushes],
       capabilities: capabilities(),
