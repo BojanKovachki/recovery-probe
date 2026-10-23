@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises'
 import { relative, sep } from 'node:path'
 import {
   recordBaseline,
@@ -6,6 +5,7 @@ import {
   verifyPlan,
   type VerifyEvent,
 } from '../tools/verify.mjs'
+import { parseOptions, readConfig, text } from './args.mjs'
 
 const USAGE = 'recovery-probe verify [--baseline] [--plan FILE] [--out FOLDER]'
 
@@ -44,18 +44,17 @@ export async function verifyMain(args: string[]) {
     console.log(HELP)
     return
   }
-  let baseline = false,
-    planFile = '.recovery-probe/verify.json',
-    directory: string | undefined
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i]
-    if (arg === '--baseline') baseline = true
-    else if ((arg === '--plan' || arg === '--out') && args[i + 1]) {
-      if (arg === '--plan') planFile = args[++i]
-      else directory = args[++i]
-    } else throw new Error(`Use ${USAGE}`)
-  }
-  const plan = verifyPlan(JSON.parse(await readFile(planFile, 'utf8')))
+  const { values } = parseOptions(args, {
+    baseline: { type: 'boolean' },
+    plan: { type: 'string' },
+    out: { type: 'string' },
+  })
+  const baseline = values.baseline === true
+  const directory = text(values, 'out')
+  const plan = await readConfig(
+    text(values, 'plan') ?? '.recovery-probe/verify.json',
+    verifyPlan,
+  )
   const options = { plan, directory, onEvent: print }
   if (baseline) {
     await recordBaseline(options)

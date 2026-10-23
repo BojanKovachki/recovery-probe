@@ -323,7 +323,7 @@ export async function runStart(
         attached = await (dependencies.connectDesktop ?? connectDesktop)(cdp)
       } catch (error) {
         throw new Error(
-          `Cannot attach to Electron at ${cdp}. Start its development build with --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 (or use --cdp for your port). The flags must reach Electron, not only its frontend server. ${(error as Error).message}`,
+          `${(error as Error).message} The flags must reach Electron itself, not only its frontend server; use --cdp for another port.`,
           { cause: error },
         )
       }

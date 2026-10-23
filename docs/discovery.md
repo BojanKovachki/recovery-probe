@@ -2,11 +2,10 @@
 
 Discovery fails the read behind a screen in a few fixed ways and compares the screen with a healthy run each time. You don't write a ready selector or expected text: it learns what the healthy screen looks like first.
 
-It works over IPC in an Electron app and over HTTP in a browser or an Electron renderer:
+It works over IPC in an Electron app, when the config names a `channel`, and over HTTP in a browser or an Electron renderer, when it names an `endpoint`:
 
 ```bash
-npx recovery-probe ipc --discover --config ./discover.json
-npx recovery-probe web --attach --discover --config ./discover.json --cdp http://127.0.0.1:9222
+npx recovery-probe discover --config ./discover.json
 ```
 
 For IPC, set up the hook and debugging ports first, as in [IPC](ipc.md). For HTTP, start the app or browser with a local debugging port, as in [Desktop and browsers](desktop.md).

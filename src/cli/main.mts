@@ -1,250 +1,225 @@
-import { readFile, writeFile, mkdir } from 'node:fs/promises'
-import { dirname } from 'node:path'
-import { packageUrl, version } from '../core/package.mjs'
-import { probeRecovery, type ProbeRow } from '../workflows/check/browser.mjs'
+import type { ParseArgsOptionsConfig } from 'node:util'
+import { version } from '../core/package.mjs'
+import { parseOptions, UsageError, type Values } from './args.mjs'
+import { legacyHelp, translateLegacy } from './legacy.mjs'
 
-interface DemoServer {
-  url: string
-  close(): Promise<void>
+/** A command whose flags main parses from its option spec. */
+interface ParsedCommand {
+  usage: string
+  options: ParseArgsOptionsConfig
+  positionals?: number
+  run(values: Values, positionals: string[]): Promise<void>
 }
 
-// The examples stay plain JavaScript, so the demo server is loaded by URL when needed.
-const startDemoServer = async (): Promise<DemoServer> =>
-  (
-    (await import(packageUrl('examples/demo-server.mjs').href)) as {
-      startDemoServer: () => Promise<DemoServer>
-    }
-  ).startDemoServer()
+// Commands that still read their own arguments, including --help.
+type RawCommand = (args: string[]) => Promise<void>
 
-interface CheckReport {
-  tool: string
-  version: string
-  generatedAt: string
-  environment: { node: string; platform: string; chromium: string }
-  mode: string
-  apps: { name: string; ok: boolean; results: ProbeRow[] }[]
-  expectedDemonstrationVerified?: boolean
+interface Entry {
+  summary: string
+  load: () => Promise<ParsedCommand | RawCommand>
 }
 
-function printHelp() {
-  console.log(`Recovery Probe ${version}
+const raw =
+  <K extends string>(
+    load: () => Promise<Record<K, RawCommand>>,
+    name: K,
+  ): (() => Promise<RawCommand>) =>
+  async () =>
+    (await load())[name]
 
-Usage:
-  recovery-probe --demo [--out report.json] [--json]
-  recovery-probe --config scenario.json [--out report.json] [--json]
-  recovery-probe init [URL]
-  recovery-probe doctor
-  recovery-probe start web http://localhost:3000
-  recovery-probe start desktop
-  recovery-probe refresh --help
-  recovery-probe observe --help
-  recovery-probe ipc --help
-  recovery-probe net --help
-  recovery-probe mcp --help
-  recovery-probe suspects --help
-  recovery-probe compare --help
-  recovery-probe watch --help
-  recovery-probe verify --help
-  recovery-probe android --help
-  recovery-probe desktop --help
-  recovery-probe web --help
-  recovery-probe repair --help
-  recovery-probe --version
+const groups: [string, Record<string, Entry>][] = [
+  [
+    'Get started',
+    {
+      init: {
+        summary: 'Find what to test and run a first check',
+        load: raw(() => import('./init.mjs'), 'initMain'),
+      },
+      doctor: {
+        summary: "Check the setup and say how to fix what's missing",
+        load: raw(() => import('./doctor.mjs'), 'doctorMain'),
+      },
+      demo: {
+        summary: 'Run the built-in broken and fixed app',
+        load: () => import('./demo.mjs'),
+      },
+      start: {
+        summary: 'Guided check of a web app or an Electron window',
+        load: raw(() => import('./start.mjs'), 'startMain'),
+      },
+    },
+  ],
+  [
+    'Test recovery',
+    {
+      check: {
+        summary: 'Fail one read and check that the screen comes back',
+        load: () => import('./check.mjs'),
+      },
+      discover: {
+        summary: 'Fail a read in a few ways and compare with healthy runs',
+        load: () => import('./discover.mjs'),
+      },
+      refresh: {
+        summary: 'Fail a read when a loaded screen refreshes',
+        load: raw(() => import('./refresh.mjs'), 'refreshMain'),
+      },
+      observe: {
+        summary: 'Watch reads and the screen without faults',
+        load: raw(() => import('./observe.mjs'), 'observeMain'),
+      },
+      action: {
+        summary: 'Check what users see when a save or send fails',
+        load: () => import('./action.mjs'),
+      },
+      net: {
+        summary: "Fail an app's own HTTPS connections, such as an SDK's",
+        load: raw(() => import('./net.mjs'), 'netMain'),
+      },
+    },
+  ],
+  [
+    'Find what to test',
+    {
+      windows: {
+        summary: 'List the windows on a debugging port',
+        load: () => import('./windows.mjs'),
+      },
+      reads: {
+        summary: 'List the JSON reads a page makes while it loads',
+        load: () => import('./reads.mjs'),
+      },
+      login: {
+        summary: 'Save a browser login for later checks',
+        load: () => import('./login.mjs'),
+      },
+      android: {
+        summary: 'Make an Android WebView reachable on a local port',
+        load: raw(() => import('./android.mjs'), 'androidMain'),
+      },
+    },
+  ],
+  [
+    'Work on a fix',
+    {
+      suspects: {
+        summary: 'Find code that turns a failed read into "no data"',
+        load: raw(() => import('./suspects.mjs'), 'suspectsMain'),
+      },
+      compare: {
+        summary: 'Compare the same check from before and after a change',
+        load: raw(() => import('./compare.mjs'), 'compareMain'),
+      },
+      watch: {
+        summary: 'Rerun a check and the suspect scan on every save',
+        load: raw(() => import('./watch.mjs'), 'watchMain'),
+      },
+      verify: {
+        summary: 'Say whether a change is done',
+        load: raw(() => import('./verify.mjs'), 'verifyMain'),
+      },
+      repair: {
+        summary: 'Propose and verify a source change with a model (opt-in)',
+        load: raw(() => import('./repair.mjs'), 'repairMain'),
+      },
+    },
+  ],
+  [
+    'Agents',
+    {
+      mcp: {
+        summary: 'Serve the checks to coding agents over MCP',
+        load: raw(() => import('./mcp.mjs'), 'mcpMain'),
+      },
+    },
+  ],
+]
+const commands: Record<string, Entry> = Object.assign(
+  {},
+  ...groups.map(([, entries]) => entries),
+)
 
-Options:
-  --demo           Run the included broken-versus-fixed browser demonstration.
-  --config <file>  Check one JSON-configured recovery scenario.
-  --out <file>     Save the full machine-readable report.
-  --json           Print the full JSON report instead of a terminal summary.
-  --help           Show this help.
+function help(): string {
+  const width = Math.max(...Object.keys(commands).map((name) => name.length))
+  const sections = groups.map(
+    ([title, entries]) =>
+      `${title}\n${Object.entries(entries)
+        .map(([name, { summary }]) => `  ${name.padEnd(width)}  ${summary}`)
+        .join('\n')}`,
+  )
+  return `Recovery Probe ${version}
 
-Use only development or test targets you control.`)
+Usage: recovery-probe <command> [options]
+
+${sections.join('\n\n')}
+
+Examples:
+  recovery-probe init http://localhost:3000
+  recovery-probe check --config scenario.json
+  recovery-probe discover --config discover.json --screenshots
+
+Run recovery-probe <command> --help for its options.
+Exit codes: 0 passed, 1 a check failed, 2 needs review or inconclusive,
+3 wrong usage or config, 4 couldn't run.`
 }
 
-function marker(outcome: string) {
-  if (outcome === 'pass') return 'PASS'
-  if (outcome === 'fail') return 'CAUGHT'
-  return outcome.toUpperCase()
-}
-
-function printSummary(report: CheckReport) {
-  console.log(`Recovery Probe ${report.version} — ${report.mode}\n`)
-  for (const app of report.apps) {
-    console.log(app.name)
-    for (const row of app.results) {
-      const injected = row.applied ? `, injected ${row.applied}` : ''
-      console.log(
-        `  ${marker(row.outcome).padEnd(12)} ${row.scenario} (${row.code}${injected})`,
-      )
-    }
-    console.log('')
-  }
-  if (report.mode === 'controlled demonstration') {
-    console.log(
-      report.expectedDemonstrationVerified
-        ? 'Demo verified: the happy path passes, the broken recovery is caught, and the fixed app recovers.'
-        : 'Demo failed: the expected broken-versus-fixed distinction was not observed.',
-    )
-  } else {
-    console.log(
-      report.apps.every((app) => app.ok)
-        ? 'Recovery check passed.'
-        : 'Recovery check did not pass.',
-    )
-  }
-}
-
-async function main() {
-  const args = process.argv.slice(2)
-  if (args[0] === 'observe') {
-    const { observeMain } = await import('./observe.mjs')
-    return observeMain(args.slice(1))
-  }
-  if (args[0] === 'refresh') {
-    const { refreshMain } = await import('./refresh.mjs')
-    return refreshMain(args.slice(1))
-  }
-  if (args[0] === 'suspects') {
-    const { suspectsMain } = await import('./suspects.mjs')
-    return suspectsMain(args.slice(1))
-  }
-  if (args[0] === 'compare') {
-    const { compareMain } = await import('./compare.mjs')
-    return compareMain(args.slice(1))
-  }
-  if (args[0] === 'watch') {
-    const { watchMain } = await import('./watch.mjs')
-    return watchMain(args.slice(1))
-  }
-  if (args[0] === 'verify') {
-    const { verifyMain } = await import('./verify.mjs')
-    return verifyMain(args.slice(1))
-  }
-  if (args[0] === 'mcp') {
-    const { mcpMain } = await import('./mcp.mjs')
-    return mcpMain(args.slice(1))
-  }
-  if (args[0] === 'android') {
-    const { androidMain } = await import('./android.mjs')
-    return androidMain(args.slice(1))
-  }
-  if (args[0] === 'net') {
-    const { netMain } = await import('./net.mjs')
-    return netMain(args.slice(1))
-  }
-  if (args[0] === 'ipc') {
-    const { ipcMain } = await import('./ipc.mjs')
-    return ipcMain(args.slice(1))
-  }
-  if (args[0] === 'init') {
-    const { initMain } = await import('./init.mjs')
-    return initMain(args.slice(1))
-  }
-  if (args[0] === 'doctor') {
-    const { doctorMain } = await import('./doctor.mjs')
-    return doctorMain(args.slice(1))
-  }
-  if (args[0] === 'start') {
-    const { startMain } = await import('./start.mjs')
-    return startMain(args.slice(1))
-  }
-  if (args[0] === 'web') {
-    const { webMain } = await import('./web.mjs')
-    return webMain(args.slice(1))
-  }
-  if (args[0] === 'repair') {
-    const { repairMain } = await import('./repair.mjs')
-    return repairMain(args.slice(1))
-  }
-  if (args[0] === 'desktop') {
-    const { desktopMain } = await import('./desktop.mjs')
-    return desktopMain(args.slice(1))
-  }
-  if (args.includes('--help') || !args.length) {
-    printHelp()
+async function runCommand(name: string, args: string[]): Promise<void> {
+  const command = await commands[name].load()
+  if (typeof command === 'function') return command(args)
+  if (args.includes('--help')) {
+    console.log(command.usage)
     return
   }
-  if (args.length === 1 && args[0] === '--version') {
+  const { values, positionals } = parseOptions(
+    args,
+    command.options,
+    command.positionals,
+  )
+  return command.run(values, positionals)
+}
+
+// Old spellings keep their old exit code for errors: 2.
+let legacy = false
+
+async function main(argv: string[]): Promise<void> {
+  if (
+    !argv.length ||
+    (argv.length === 1 && ['--help', '-h'].includes(argv[0]))
+  ) {
+    console.log(help())
+    return
+  }
+  if (argv.length === 1 && argv[0] === '--version') {
     console.log(version)
     return
   }
-  let demo = false
-  let json = false
-  let configPath
-  let output
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i]
-    if (arg === '--demo') demo = true
-    else if (arg === '--json') json = true
-    else if (arg === '--config' || arg === '--out') {
-      const value = args[++i]
-      if (!value || value.startsWith('--'))
-        throw new Error(`${arg} needs a value`)
-      if (arg === '--config') configPath = value
-      else output = value
-    } else throw new Error(`Unknown argument: ${arg}`)
+  if (Object.hasOwn(commands, argv[0]))
+    return runCommand(argv[0], argv.slice(1))
+  if (
+    Object.hasOwn(legacyHelp, argv[0]) &&
+    (argv.length === 1 || argv.includes('--help'))
+  ) {
+    console.log(`${legacyHelp[argv[0]]}\nThe old spelling works until 1.0.`)
+    return
   }
-  if (demo === Boolean(configPath))
-    throw new Error('Choose exactly one of --demo or --config')
-
-  const config = configPath
-    ? JSON.parse(await readFile(configPath, 'utf8'))
-    : null
-  const { chromium } = await import('playwright')
-  const browser = await chromium.launch({ headless: true })
-  let server: DemoServer | undefined
-  let report: CheckReport
-  try {
-    const apps = []
-    if (demo) {
-      server = await startDemoServer()
-      for (const variant of ['broken', 'fixed']) {
-        apps.push(
-          await probeRecovery(browser, {
-            name: `${variant} synthetic fixture`,
-            url: `${server.url}/${variant}`,
-            requestPattern: '**/api/profile',
-            readySelector: '#profile',
-            retrySelector: '#retry',
-            timeoutMs: 1200,
-          }),
-        )
-      }
-    } else apps.push(await probeRecovery(browser, config))
-    report = {
-      tool: 'Recovery Probe',
-      version,
-      generatedAt: new Date().toISOString(),
-      environment: {
-        node: process.version,
-        platform: process.platform,
-        chromium: browser.version(),
-      },
-      mode: demo ? 'controlled demonstration' : 'configured recovery check',
-      apps,
-    }
-    if (demo) {
-      report.expectedDemonstrationVerified =
-        apps[0].results[0].outcome === 'pass' &&
-        apps[0].results
-          .slice(1)
-          .every((row) => row.outcome === 'fail' && row.applied === 1) &&
-        apps[1].ok
-      process.exitCode = report.expectedDemonstrationVerified ? 0 : 1
-    } else process.exitCode = apps.every((app) => app.ok) ? 0 : 1
-  } finally {
-    await browser.close()
-    if (server) await server.close()
-  }
-  if (json) console.log(JSON.stringify(report, null, 2))
-  else printSummary(report)
-  if (output) {
-    await mkdir(dirname(output), { recursive: true })
-    await writeFile(output, JSON.stringify(report, null, 2) + '\n')
-  }
+  legacy = argv[0].startsWith('--') || Object.hasOwn(legacyHelp, argv[0])
+  const translation = translateLegacy(argv)
+  if (!translation)
+    throw new UsageError(
+      `Unknown command: ${argv[0]}. Run recovery-probe --help.`,
+    )
+  if (!translation.values.json)
+    console.error(
+      `Note: "recovery-probe ${translation.was}" is now "recovery-probe ${translation.now}"; the old spelling works until 1.0.`,
+    )
+  const command = (await commands[translation.command].load()) as ParsedCommand
+  return command.run(translation.values, [])
 }
 
-main().catch((error) => {
-  console.error(`Recovery Probe: ${error.message}`)
-  process.exitCode = 2
-})
+try {
+  await main(process.argv.slice(2))
+} catch (error) {
+  console.error(`Recovery Probe: ${(error as Error).message}`)
+  if (legacy) process.exitCode = 2
+  else process.exitCode = error instanceof UsageError ? 3 : 4
+}

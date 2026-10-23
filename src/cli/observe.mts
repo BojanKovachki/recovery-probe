@@ -1,5 +1,5 @@
 import { signals } from './until-stopped.mjs'
-import { readFile, writeFile, stat } from 'node:fs/promises'
+import { writeFile, stat } from 'node:fs/promises'
 import { resolve, join } from 'node:path'
 import { createInterface, type Interface } from 'node:readline'
 import type { Browser, Page } from 'playwright'
@@ -37,13 +37,14 @@ import {
 } from '../workflows/observe/files.mjs'
 import { attachIpcWindow } from '../targets/ipc-window.mjs'
 import { reportFolder } from '../reports/folder.mjs'
+import { parseOptions, readConfig, UsageError } from './args.mjs'
 
 type NetworkSteps = ReturnType<typeof networkSteps>
 type ObservationAdapter = Parameters<typeof runObservation>[2]
 
 interface ObserveOptions {
-  json?: true
-  interactive?: true
+  json?: boolean
+  interactive?: boolean
   config?: string
   out?: string
   steps?: string
@@ -76,29 +77,22 @@ removed or shrank (LOCAL_FILES_REMOVED, a lead). Paths stay in a private files.j
 IPC requires the observation-capable development hook. See docs/observe.md.`)
     return
   }
-  const options: ObserveOptions = {}
-  const set = options as Record<string, string | true>
-  for (let i = 0; i < args.length; i++) {
-    if (['--json', '--interactive'].includes(args[i]))
-      set[args[i].slice(2)] = true
-    else if (
-      ['--config', '--out', '--steps', '--network', '--files'].includes(
-        args[i],
-      ) &&
-      args[i + 1] &&
-      !args[i + 1].startsWith('--')
-    )
-      set[args[i].slice(2)] = args[++i]
-    else throw Error(`Use ${USAGE}`)
-  }
-  if (!options.config) throw Error('--config is required')
-  const config = observationConfig(
-    JSON.parse(await readFile(options.config, 'utf8')),
-  )
+  const { values } = parseOptions(args, {
+    config: { type: 'string' },
+    out: { type: 'string' },
+    steps: { type: 'string' },
+    network: { type: 'string' },
+    files: { type: 'string' },
+    json: { type: 'boolean' },
+    interactive: { type: 'boolean' },
+  })
+  const options = values as ObserveOptions
+  if (!options.config) throw new UsageError('--config is required')
+  const config = await readConfig(options.config, observationConfig)
   const steps = options.steps
-    ? observationSteps(JSON.parse(await readFile(options.steps, 'utf8')), {
-        network: Boolean(options.network),
-      })
+    ? await readConfig(options.steps, (list) =>
+        observationSteps(list, { network: Boolean(options.network) }),
+      )
     : null
   let filesDirectory: string | undefined
   const fileSnapshots: {
@@ -108,7 +102,7 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
   if (options.files) {
     filesDirectory = resolve(options.files)
     if (!(await stat(filesDirectory).catch(() => null))?.isDirectory())
-      throw Error('--files must name an existing directory')
+      throw new UsageError('--files must name an existing directory')
   }
   // Started without waiting: walking a large directory must not delay sampling.
   const takeFileSnapshot = (interval: number) => {

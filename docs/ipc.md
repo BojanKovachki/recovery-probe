@@ -89,7 +89,7 @@ The recovery deadline is measured from the injected result and calculated as `re
 From the tools folder:
 
 ```bash
-npx recovery-probe ipc --config ./ipc-scenario.json
+npx recovery-probe check --config ./ipc-scenario.json
 ```
 
 A fresh private report directory is created automatically. Repeat the same command for another run. `--out NEW_DIRECTORY` chooses an explicit output folder. Reports include baseline invocation counts, real-handler timings, injected count, successful real calls after injection, dependency results, and cleanup. Files are `report.html`, `report.json`, `scenario.json`, plus a local ignore rule.
@@ -127,11 +127,11 @@ All reports remain local. No AI service or source upload is used. The app still 
 
 ## Discovery
 
-`ipc --discover` fails the selected channel in a few fixed ways and compares the screen with healthy runs, without a ready selector. See [Discovery](discovery.md).
+`discover` fails the selected channel in a few fixed ways and compares the screen with healthy runs, without a ready selector. See [Discovery](discovery.md).
 
 ## Action check
 
-`ipc --action` checks what the user sees after an action that writes, such as Send or Save. Add the write channel to the hook's `channels`, open the screen, then run:
+`action` checks what the user sees after an action that writes, such as Send or Save. Add the write channel to the hook's `channels`, open the screen, then run:
 
 ```json
 {
@@ -147,7 +147,7 @@ All reports remain local. No AI service or source upload is used. The app still 
 ```
 
 ```sh
-npx recovery-probe ipc --action --config ./action.json
+npx recovery-probe action --config ./action.json
 ```
 
 Each run reloads the screen, runs `setup` (start with a `waitFor`, because it begins right after the reload), clicks `action` and samples the screen for `observationMs` (default 6000). The hook answers every request on `channel` after `latencyMs` (default 400), so nothing is written:

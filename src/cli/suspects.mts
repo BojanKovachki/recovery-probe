@@ -1,4 +1,5 @@
 import { scanForSuspects, type SuspectPattern } from '../tools/suspects.mjs'
+import { parseOptions, text } from './args.mjs'
 
 const USAGE =
   'recovery-probe suspects [PATH...] [--changed-since REF] [--include-tests] [--json]'
@@ -29,19 +30,21 @@ interface SuspectsOptions {
 }
 
 function parseArgs(args: string[]): SuspectsOptions {
-  const options: SuspectsOptions = { paths: [] }
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i]
-    if (arg === '--json') options.json = true
-    else if (arg === '--include-tests') options.includeTests = true
-    else if (arg === '--changed-since') {
-      if (!args[i + 1] || args[i + 1].startsWith('--'))
-        throw Error('--changed-since needs a Git reference, such as main')
-      options.changedSince = args[++i]
-    } else if (arg.startsWith('--')) throw Error(`Use ${USAGE}`)
-    else options.paths.push(arg)
+  const { values, positionals } = parseOptions(
+    args,
+    {
+      json: { type: 'boolean' },
+      'include-tests': { type: 'boolean' },
+      'changed-since': { type: 'string' },
+    },
+    Infinity,
+  )
+  return {
+    paths: positionals,
+    json: values.json === true,
+    includeTests: values['include-tests'] === true,
+    changedSince: text(values, 'changed-since'),
   }
-  return options
 }
 
 export async function suspectsMain(args: string[]) {

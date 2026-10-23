@@ -5,6 +5,7 @@ import {
   closeRecoveryProbeTools,
   MCP_INSTRUCTIONS,
 } from '../tools/mcp/tools.mjs'
+import { UsageError } from './args.mjs'
 
 const HELP = `recovery-probe mcp
 
@@ -18,7 +19,7 @@ export async function mcpMain(args: string[]) {
     console.log(HELP)
     return
   }
-  if (args.length) throw Error('Use recovery-probe mcp')
+  if (args.length) throw new UsageError('Use recovery-probe mcp')
   try {
     await serveMcp({
       name: 'recovery-probe',

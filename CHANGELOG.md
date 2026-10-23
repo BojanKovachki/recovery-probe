@@ -4,6 +4,16 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.6.0-preview.11 (2026-10-23)
+
+- One set of commands. `check`, `discover` and `action` read what to do from the config: a `channel` means IPC, an `endpoint` means HTTP, and `check` attaches when given `--cdp` or a config with `cdp` or `page`, otherwise it opens Chromium. `windows`, `reads`, `login` and `demo` replace `--list`, `--discover` without a config, `--login` and `--demo`.
+- The old spellings (`--demo`, `--config`, `desktop`, `web`, `web --attach`, `ipc`) run the new commands with the same options, print one line saying what replaced them, and keep exit code 2 for errors. They work until 1.0.
+- `recovery-probe --help` lists every command with what it does, and `recovery-probe <command> --help` its options. Every command parses its options the same way.
+- Exit codes: 0 passed, 1 a check failed, 2 needs review or inconclusive, 3 wrong usage or config, 4 couldn't run. Before, usage and setup errors exited with 2.
+- `check`, `discover`, `action`, `reads` and `windows` take `--json`. `check` takes `--screenshots` in a browser it opens too.
+- When nothing answers on a debugging port, the error says how to start the app instead of showing Playwright's connection log.
+- `demo --out` and `check --out` with a JSON-runner config name a new folder for report.json, like every other command; the old spellings still write one file.
+
 ## 0.6.0-preview.10 (2026-10-23)
 
 - One function finds the IPC hook's window and proves the debugging port and the hook reach the same one. It replaces five copies in the IPC check, discovery, the action check, observe and refresh, which had different error messages and, in refresh, removed any window challenge instead of only its own.

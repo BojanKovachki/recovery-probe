@@ -11,6 +11,7 @@ import {
 } from '../targets/android.mjs'
 import { startCdpBridge, type CdpBridge } from '../targets/cdp-bridge.mjs'
 import { untilStopped } from './until-stopped.mjs'
+import { integerOption, parseOptions, text } from './args.mjs'
 
 const USAGE =
   'recovery-probe android [--list] [--serial SERIAL] [--package NAME] [--port N] [--duration MS] [--keep-awake] [--adb PATH]'
@@ -40,30 +41,24 @@ interface AndroidOptions {
 }
 
 function parseArgs(args: string[]): AndroidOptions {
-  const options: Record<string, string | number | true> = {}
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i]
-    const value = args[i + 1]
-    if (arg === '--list') options.list = true
-    else if (arg === '--keep-awake') options.keepAwake = true
-    else if (
-      ['--serial', '--package', '--port', '--duration', '--adb'].includes(
-        arg,
-      ) &&
-      value &&
-      !value.startsWith('--')
-    ) {
-      options[arg.slice(2)] = value
-      i++
-    } else throw Error(`Use ${USAGE}`)
+  const { values } = parseOptions(args, {
+    list: { type: 'boolean' },
+    'keep-awake': { type: 'boolean' },
+    serial: { type: 'string' },
+    package: { type: 'string' },
+    adb: { type: 'string' },
+    port: { type: 'string' },
+    duration: { type: 'string' },
+  })
+  return {
+    ...(values['list'] ? { list: true as const } : {}),
+    ...(values['keep-awake'] ? { keepAwake: true as const } : {}),
+    serial: text(values, 'serial'),
+    package: text(values, 'package'),
+    adb: text(values, 'adb'),
+    port: integerOption(values, 'port', [0, 65535]),
+    duration: integerOption(values, 'duration', [0, Number.MAX_SAFE_INTEGER]),
   }
-  for (const key of ['port', 'duration'])
-    if (options[key] !== undefined) {
-      options[key] = Number(options[key])
-      if (!Number.isInteger(options[key]) || (options[key] as number) < 0)
-        throw Error(`--${key} must be a whole number`)
-    }
-  return options as AndroidOptions
 }
 
 const describe = (target: AndroidDevtoolsTarget) =>

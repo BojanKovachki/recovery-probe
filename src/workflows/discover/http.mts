@@ -168,7 +168,7 @@ export async function discoverHttp(
       })),
       laterCallFault: config.faults[0],
       verification:
-        'Rerun the saved scenario with web --attach --discover after the local change. Compare this experiment and its healthy controls; a disappeared warning alone does not prove a fix.',
+        'Rerun the saved scenario with recovery-probe discover after the local change. Compare this experiment and its healthy controls; a disappeared warning alone does not prove a fix.',
     },
     { ...config, observationMs: config.recoveryTimeoutMs },
     report,

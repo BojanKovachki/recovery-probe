@@ -5,7 +5,7 @@ import {
   type NetworkFaultRule,
 } from '../../transports/net.mjs'
 
-// Opt-in scripted operator for `observe --steps` and `ipc --action`. Steps act on the
+// Opt-in scripted operator for `observe --steps` and `action`. Steps act on the
 // app (same-document navigation, clicks, typing, key presses, waits and interval marks)
 // or, for observe, on its network through `recovery-probe net`; observation itself
 // never acts. Typed values are never written to reports.

@@ -1,4 +1,5 @@
 import { runDoctor } from '../tools/doctor.mjs'
+import { parseOptions, text } from './args.mjs'
 
 const HELP = `recovery-probe doctor [--cdp URL] [--inspector URL] [--json]
 
@@ -12,16 +13,15 @@ export async function doctorMain(args: string[]) {
     console.log(HELP)
     return
   }
-  const options: { cdp?: string; inspector?: string } = {}
-  let json = false
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i]
-    if (arg === '--json') json = true
-    else if (arg === '--cdp' || arg === '--inspector') {
-      if (!args[i + 1] || args[i + 1].startsWith('--'))
-        throw new Error(`${arg} needs a value`)
-      options[arg.slice(2) as 'cdp' | 'inspector'] = args[++i]
-    } else throw new Error(`Unknown doctor option: ${arg}`)
+  const { values } = parseOptions(args, {
+    json: { type: 'boolean' },
+    cdp: { type: 'string' },
+    inspector: { type: 'string' },
+  })
+  const json = values.json === true
+  const options = {
+    cdp: text(values, 'cdp'),
+    inspector: text(values, 'inspector'),
   }
   const report = await runDoctor(options)
   process.exitCode = report.ok ? 0 : 2

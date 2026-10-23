@@ -7,13 +7,13 @@ A fix is easier to trust with evidence: the same check showing the problem witho
 1. On main, start the app and run the check, saving its report:
 
    ```bash
-   npx recovery-probe ipc --action --config action.json --out .recovery-probe/before
+   npx recovery-probe action --config action.json --out .recovery-probe/before
    ```
 
 2. Switch to the branch, rebuild and start the app the same way, and run the same configuration:
 
    ```bash
-   npx recovery-probe ipc --action --config action.json --out .recovery-probe/after
+   npx recovery-probe action --config action.json --out .recovery-probe/after
    ```
 
 3. Compare the two:
@@ -32,9 +32,11 @@ Give several runs per side when a problem does not show every time, as observati
 The default output is a terminal summary. `--markdown` prints the block for a pull request, and `--json` prints the whole comparison.
 
 It reads the reports of:
-- recovery checks: `--config`, `web`, `desktop`, `ipc`, guided start and attached checks;
-- discovery: `ipc --discover` and `web --attach --discover`;
-- `ipc --action`, `refresh` and `observe`.
+- `check`, `init` and guided start;
+- `discover`;
+- `action`, `refresh` and `observe`.
+
+Reports from the old `--config`, `web`, `desktop` and `ipc` spellings work too.
 
 Both sides must come from the same kind of check on the same target, which is an endpoint, an IPC channel or an observed read. Otherwise the result is `NOT_COMPARABLE`.
 

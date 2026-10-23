@@ -7,6 +7,7 @@ import {
   type WatchEvent,
   type WatchOptions,
 } from '../tools/watch.mjs'
+import { integerOption, parseOptions, text, validated } from './args.mjs'
 
 const USAGE =
   'recovery-probe watch [PATH...] [--settle MS] [--no-suspects] [--max-runs N] [--out NEW_DIRECTORY] [-- CHECK...]'
@@ -17,7 +18,7 @@ Watches source files while you work. After each change it scans the changed
 files for suspects and, with a check after --, reruns the check and compares
 the run with the first one and the one before. For example:
 
-  recovery-probe watch src -- ipc --action --config action.json
+  recovery-probe watch src -- action --config action.json
 
 The check runs once at the start for the starting point. --settle waits until
 the files have been quiet for MS (1500 by default), so a dev server can reload
@@ -33,30 +34,26 @@ type CliOptions = WatchOptions & { paths: string[]; command: string[] }
 
 function parseArgs(args: string[]): CliOptions {
   const split = args.indexOf('--')
-  const own = split === -1 ? args : args.slice(0, split)
-  const options: CliOptions = {
-    paths: [],
-    command: split === -1 ? [] : args.slice(split + 1),
+  const { values, positionals } = parseOptions(
+    split === -1 ? args : args.slice(0, split),
+    {
+      'no-suspects': { type: 'boolean' },
+      settle: { type: 'string' },
+      'max-runs': { type: 'string' },
+      out: { type: 'string' },
+    },
+    Infinity,
+  )
+  const command = split === -1 ? [] : args.slice(split + 1)
+  if (command.length) validated(() => validateCheckCommand(command))
+  return {
+    paths: positionals,
+    command,
+    ...(values['no-suspects'] ? { suspects: false } : {}),
+    settleMs: integerOption(values, 'settle', [0, 600000]),
+    maxRuns: integerOption(values, 'max-runs', [1, 10000]),
+    out: text(values, 'out'),
   }
-  const number = (arg: string, value: string, min: number) => {
-    const parsed = Number(value)
-    if (!Number.isInteger(parsed) || parsed < min)
-      throw Error(`${arg} needs a whole number of at least ${min}`)
-    return parsed
-  }
-  for (let i = 0; i < own.length; i++) {
-    const arg = own[i]
-    if (arg === '--no-suspects') options.suspects = false
-    else if (arg === '--settle') options.settleMs = number(arg, own[++i], 0)
-    else if (arg === '--max-runs') options.maxRuns = number(arg, own[++i], 1)
-    else if (arg === '--out') {
-      if (!own[i + 1]) throw Error('--out needs a new folder')
-      options.out = own[++i]
-    } else if (arg.startsWith('--')) throw Error(`Use ${USAGE}`)
-    else options.paths.push(arg)
-  }
-  if (options.command.length) validateCheckCommand(options.command)
-  return options
 }
 
 const problemsOf = (evidence: RunEvidence) =>

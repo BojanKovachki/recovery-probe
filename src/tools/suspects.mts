@@ -36,7 +36,7 @@ const WHY: Record<string, string> = {
 
 const CHECK: Record<SuspectPattern, string> = {
   UNKNOWN_AS_EMPTY:
-    'Fail this read once. Content that disappears (check_read_recovery, ipc --discover) or files removed from disk (observe --files) confirm it.',
+    'Fail this read once. Content that disappears (check_read_recovery, discover) or files removed from disk (observe --files) confirm it.',
   FAILURE_ONLY_LOGGED:
     'Fail this read once. If its data never comes back and no error shows (check_read_recovery reports RECOVERY_NOT_OBSERVED), the failure is only logged.',
 }

@@ -55,7 +55,7 @@ npx playwright install chromium
 | `find_suspects` | Reads the project's JavaScript and TypeScript, or only what changed since a Git reference, for error handling that can lose data. Each suspect names the read to fail and how to check it. See [Suspect scanner](suspects.md). |
 | `compare_reports` | Compares reports of the same check from before and after a change and returns a verdict, what happened to each problem, and a Markdown block for the pull request. A problem counts as gone only when a complete run after the change checked it. See [Before and after](compare.md). |
 | `verify_change` | Records the checks of a [verify plan](verify.md) before a change (`baseline: true`), and afterwards reruns them, compares the runs and scans the changed lines for suspects. It answers VERIFIED or NOT_VERIFIED with the reasons. |
-| `run_recovery_probe` | Runs `observe`, `ipc`, `refresh`, `desktop`, `web`, `android --list` or `doctor` with your arguments, for checks that need a configuration file. Examples are observation with network steps or `--files`, and IPC discovery in an Electron app. |
+| `run_recovery_probe` | Runs `check`, `discover`, `action`, `observe`, `refresh`, `reads`, `windows`, `android --list` or `doctor` with your arguments, for checks that need a configuration file. Examples are discovery in an Electron app and observation with network steps or `--files`. |
 
 A typical loop for a screen that loads data:
 

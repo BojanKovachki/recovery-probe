@@ -17,7 +17,17 @@ export async function connectDesktop(
   // Attach without overriding the application's download, focus or media settings.
   // Older Electron releases reject Playwright's default Browser.setDownloadBehavior
   // call with a browserContextId (for example Electron 29).
-  return chromium.connectOverCDP(cdp, { timeout: 10000, noDefaults: true })
+  try {
+    return await chromium.connectOverCDP(cdp, {
+      timeout: 10000,
+      noDefaults: true,
+    })
+  } catch (error) {
+    throw new Error(
+      `Nothing answered on ${cdp}. Start the app or browser with --remote-debugging-address=127.0.0.1 --remote-debugging-port=${url.port || '9222'}; recovery-probe doctor checks the setup.`,
+      { cause: error },
+    )
+  }
 }
 
 export function desktopPages(browser: Browser): Page[] {
@@ -34,9 +44,13 @@ export function selectDesktopPage(
   const pages = desktopPages(browser)
   if (index !== undefined) {
     if (!Number.isInteger(index) || index < 0 || !pages[index])
-      throw new Error('Page index not found; run desktop --list again')
+      throw new Error(
+        'Window index not found; run recovery-probe windows again',
+      )
     if (pageUrl && pageIdentity(pages[index].url()) !== pageIdentity(pageUrl))
-      throw new Error('Page identity changed; run desktop --list again')
+      throw new Error(
+        'The window shows another page now; run recovery-probe windows again',
+      )
     return pages[index]
   }
   const matches = pageUrl
@@ -44,7 +58,7 @@ export function selectDesktopPage(
     : pages
   if (matches.length !== 1)
     throw new Error(
-      'Select exactly one app window with --page (see desktop --list)',
+      'Choose one window with --page; recovery-probe windows lists them',
     )
   return matches[0]
 }

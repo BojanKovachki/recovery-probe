@@ -56,10 +56,10 @@ test('never silently picks between multiple app windows', () => {
   const a = { url: () => 'http://localhost/app' }
   const b = { url: () => 'http://localhost/app' }
   const browser = { contexts: () => [{ pages: () => [a, b] }] }
-  assert.throws(() => selectDesktopPage(browser), /exactly one/)
+  assert.throws(() => selectDesktopPage(browser), /Choose one window/)
   assert.throws(
     () => selectDesktopPage(browser, { pageUrl: a.url() }),
-    /exactly one/,
+    /Choose one window/,
   )
   assert.equal(selectDesktopPage(browser, { page: 1, pageUrl: a.url() }), b)
   assert.throws(
@@ -68,7 +68,7 @@ test('never silently picks between multiple app windows', () => {
         page: 1,
         pageUrl: 'http://localhost/wrong',
       }),
-    /identity/,
+    /another page/,
   )
 })
 test('reports escape application metadata and reject unsafe screenshot paths', () => {

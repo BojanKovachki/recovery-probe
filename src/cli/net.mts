@@ -6,6 +6,7 @@ import {
   type NetworkFaultRule,
 } from '../transports/net.mjs'
 import { untilStopped } from './until-stopped.mjs'
+import { integerOption, parseOptions, text } from './args.mjs'
 
 const USAGE =
   'recovery-probe net [--rules FILE] [--port N] [--duration MS] [--out FILE] [--json]'
@@ -39,28 +40,20 @@ interface NetOptions {
 }
 
 function parseArgs(args: string[]): NetOptions {
-  const options: Record<string, string | number | true> = {}
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i]
-    const value = args[i + 1]
-    if (arg === '--json') options.json = true
-    else if (
-      ['--rules', '--port', '--duration', '--out'].includes(arg) &&
-      value &&
-      !value.startsWith('--')
-    ) {
-      options[arg.slice(2)] = value
-      i++
-    } else throw Error(`Use ${USAGE}`)
+  const { values } = parseOptions(args, {
+    json: { type: 'boolean' },
+    rules: { type: 'string' },
+    out: { type: 'string' },
+    port: { type: 'string' },
+    duration: { type: 'string' },
+  })
+  return {
+    ...(values['json'] ? { json: true as const } : {}),
+    rules: text(values, 'rules'),
+    out: text(values, 'out'),
+    port: integerOption(values, 'port', [0, 65535]),
+    duration: integerOption(values, 'duration', [0, Number.MAX_SAFE_INTEGER]),
   }
-
-  for (const key of ['port', 'duration'])
-    if (options[key] !== undefined) {
-      options[key] = Number(options[key])
-      if (!Number.isInteger(options[key]) || (options[key] as number) < 0)
-        throw Error(`--${key} must be a whole number`)
-    }
-  return options as NetOptions
 }
 
 function hostCounts(events: NetworkConnectionEvent[]) {

@@ -1,5 +1,6 @@
 import { parseStartArgs, runStart } from '../tools/guided-start.mjs'
 import { terminalIo } from './terminal.mjs'
+import { validated } from './args.mjs'
 
 export async function startMain(args: string[]) {
   if (!args.length || args.includes('--help')) {
@@ -15,7 +16,7 @@ Electron must already expose its loopback development debugging port.
 Local checks only: no source upload or AI repair. Native/Rust/IPC traffic is not covered.`)
     return
   }
-  const options = parseStartArgs(args)
+  const options = validated(() => parseStartArgs(args))
   const io = terminalIo()
   try {
     process.exitCode = (await runStart(options, io)).exitCode

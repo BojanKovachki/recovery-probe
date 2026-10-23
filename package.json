@@ -1,6 +1,6 @@
 {
   "name": "recovery-probe",
-  "version": "0.6.0-preview.10",
+  "version": "0.6.0-preview.11",
   "type": "module",
   "description": "Test whether web and Electron desktop apps show the right data when a read fails, from the command line, your tests or an AI coding agent.",
   "license": "MIT",
@@ -133,7 +133,7 @@
     "test:all": "npm run test:unit && npm run test:package && npm run test:integration && npm run test:ci-example",
     "prepublishOnly": "npm run test:unit && npm run test:package",
     "demo": "npm run build --silent && node dist/cli/core-demo.mjs",
-    "demo:browser": "npm run build --silent && node bin/recovery-probe.mjs --demo --out artifacts/browser-demo.json",
+    "demo:browser": "npm run build --silent && node bin/recovery-probe.mjs demo",
     "benchmark:observe": "npm run build --silent && node scripts/benchmark-observe.mjs"
   }
 }

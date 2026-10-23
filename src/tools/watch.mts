@@ -20,8 +20,10 @@ import { packageUrl } from '../core/package.mjs'
 // Editor swap, backup and lock files change without the source changing.
 const EDITOR_FILE =
   /(?:~|\.swp|\.swx|\.tmp)$|(?:^|[\\/])(?:\.#|#)[^\\/]*$|(?:^|[\\/])4913$/
-// Commands whose reports compare run to run; each needs --config.
-const CHECKS = ['ipc', 'observe', 'refresh', 'web', 'desktop']
+// Commands whose reports compare run to run; each needs --config. The old
+// ipc, web and desktop spellings still run until 1.0.
+const CHECKS = ['check', 'discover', 'action', 'observe', 'refresh']
+const OLD_CHECKS = ['ipc', 'web', 'desktop']
 // Flags a rerun sets itself, or that need a person at the keyboard.
 const NOT_IN_A_RERUN = ['--out', '--interactive', '--help', '--list']
 // Each check runs as its own CLI process, so a hung or crashing check can be stopped
@@ -144,9 +146,13 @@ export async function watchSources(
 /** Throws unless `args` is a check the watch can rerun into a new folder each time. */
 export function validateCheckCommand(args: string[]): void {
   const [first] = args
-  if (first !== '--config' && !CHECKS.includes(first))
+  if (
+    first !== '--config' &&
+    !CHECKS.includes(first) &&
+    !OLD_CHECKS.includes(first)
+  )
     throw new Error(
-      `This reruns a check: --config FILE, or ${CHECKS.join(', ')} with --config FILE`,
+      `This reruns a check: ${CHECKS.join(', ')} with --config FILE`,
     )
   if (!args.includes('--config'))
     throw new Error(
@@ -254,7 +260,7 @@ export type WatchEvent =
 export interface WatchOptions {
   /** Files and folders to watch; the working directory by default. */
   paths?: string[]
-  /** Recovery Probe arguments of the check to rerun, such as ["ipc", "--action", "--config", "action.json"]. */
+  /** Recovery Probe arguments of the check to rerun, such as ["action", "--config", "action.json"]. */
   command?: string[]
   /** How long the files must be quiet before a run, so a dev server can reload first. */
   settleMs?: number

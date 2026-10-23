@@ -18,7 +18,7 @@ npx recovery-probe android --package com.example.app
 `--list` shows each WebView with the app that owns it, and Chrome. Without `--list`, the command forwards a port to the app's DevTools socket, checks that DevTools answers there, and serves it on a loopback URL (`--port N` chooses the port). The forward stays until Ctrl+C or `--duration MS`, then it is removed. When several devices are connected, choose one with `--serial`. Use the URL like any desktop endpoint:
 
 ```bash
-npx recovery-probe desktop --cdp http://127.0.0.1:PORT --list
+npx recovery-probe windows --cdp http://127.0.0.1:PORT
 ```
 
 or as `cdp` in an `observe` or `desktop` config.
@@ -60,8 +60,8 @@ Recovery Probe reports this in two places:
 
 The tests ran against the WebView UI of a production app, signed in with a test account.
 
-- **Attaching:** `android --list` lists the app's WebView, and `desktop --list` attaches through the bridge.
-- **Discovery:** `desktop --discover` found the 17 JSON reads behind the home screen.
+- **Attaching:** `android --list` lists the app's WebView, and `windows` attaches through the bridge.
+- **Reads:** `reads` found the 17 JSON reads behind the home screen.
 - **A recovery check:** failing the read behind the home screen once with each fault kind (`http-error`, `connection-failure`, `invalid-json`), the screen recovered by itself every time.
 - **Unworn headset:** the page reported `visible` with no frames. Clicks timed out, and the diagnosis says `visible-not-rendering`. With `--keep-awake` the page drew frames, clicks worked, and the headset was back to its own settings when the forward stopped.
 - **Slow first reload:** once, the first reload after signing in took longer than the 15-second wait. Running the command again worked.
