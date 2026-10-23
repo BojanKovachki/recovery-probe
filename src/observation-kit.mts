@@ -175,17 +175,34 @@ export function installObserverKit({
     select(document, spec)
   const buffer: RecordedAction[] = []
   let polledAt = Date.now()
+  // A click on a label makes the browser click its control too, in the same task.
+  // Actions the label click recorded are not recorded again for that second click.
+  let forwarded: { control: Element; actions: Set<string> } | undefined
   const onClick = (event: MouseEvent) => {
     const target = event.target instanceof Element ? event.target : null
     if (!target) return
+    const repeated =
+      forwarded?.control === target ? forwarded.actions : new Set<string>()
+    forwarded = undefined
+    const matched = new Set<string>()
     for (const action of actions) {
       if (!closest(target, action.selector)) continue
+      matched.add(action.name)
+      if (repeated.has(action.name)) continue
       buffer.push({
         name: action.name,
         at: Date.now(),
         trusted: event.isTrusted,
       })
       if (buffer.length > 500) buffer.shift()
+    }
+    const control = target.closest('label')?.control
+    if (matched.size && control && !control.contains(target)) {
+      const current = { control, actions: matched }
+      forwarded = current
+      setTimeout(() => {
+        if (forwarded === current) forwarded = undefined
+      })
     }
   }
   if (actions.length) document.addEventListener('click', onClick, true)

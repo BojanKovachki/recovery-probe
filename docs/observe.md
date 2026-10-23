@@ -140,7 +140,7 @@ These options are opt-in and extend the same fault-free capture. They answer "ho
 
 ### Actions
 
-`actions` records clicks on configured elements during the capture: the configured action name, the time, and whether the browser marked the event as real user input (`trusted`). No other event data is stored. Each report action lists the tracked rows that appeared or changed afterwards, relative to the action (`actionEffects`). Times come from the page and observer wall clocks on the same machine.
+`actions` records clicks on configured elements during the capture: the configured action name, the time, and whether the browser marked the event as real user input (`trusted`). No other event data is stored. A click on a label counts once, although the browser also clicks the label's control. Each report action lists the tracked rows that appeared or changed afterwards, relative to the action (`actionEffects`). Times come from the page and observer wall clocks on the same machine.
 
 ### Tracked rows
 
