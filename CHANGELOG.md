@@ -4,6 +4,19 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.6.0 (2026-10-23)
+
+Promotes previews 1–13 to the stable npm `latest` channel without additional runtime changes.
+
+- Add `init` for guided first checks and `doctor` for setup diagnostics, including IPC hook channels.
+- Unify CLI commands around `check`, `discover`, `action`, `windows`, `reads`, `login` and `demo`, with consistent option parsing and JSON output where supported.
+- Add `verify` and the MCP `verify_change` tool to compare checks before and after a change and scan changed lines for suspects.
+- Add row-state markers and `UNEXPECTED_ROW_STATE` observations, plus discovery experiments that fail later calls separately and optional screenshots.
+- Share discovery, read sessions, HTTP fault handling, target identification and report-folder creation across workflows. Reports expose one evidence shape for comparison, watching and verification, while older reports remain readable.
+- Organize source into tested architectural layers, consolidate documentation and validate documentation links.
+
+Upgrading from 0.5.0: public package exports and the IPC hook path are unchanged; restart the development app so its hook matches the CLI. Old CLI spellings remain supported until 1.0 and retain exit code 2 for errors. New commands use 0 for passed, 1 for failed, 2 for inconclusive or needs review, 3 for usage/config errors and 4 when a run could not start. Update scripts that interpret these codes. For `demo` and JSON-runner `check`, `--out` names a new report folder; old spellings retain file output. Unsupported imports into internal `dist/` files may break after the source reorganization. Experimental workflows remain experimental.
+
 ## 0.6.0-preview.13 (2026-10-23)
 
 - One fault layer. The fault kinds are listed once (`FAULT_KINDS` in `core/faults`), and one function answers a request with a fault for `withFault`, the HTTP observer and the HTTP check. The HTTP check fails its read through the same observer as discovery and observation, instead of its own copy of the route handler.
