@@ -103,7 +103,8 @@ jobs:
   browser:
     name: Browser integration
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    # Installing system packages on the runner sometimes takes 10 minutes on its own.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with:
@@ -149,7 +150,8 @@ jobs:
       matrix:
         electron: ['29.0.1', '44.5.1']
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    # Installing system packages on the runner sometimes takes 10 minutes on its own.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with:

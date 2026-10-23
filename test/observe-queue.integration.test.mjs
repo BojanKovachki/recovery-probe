@@ -10,6 +10,7 @@ import {
 } from '../dist/observe.mjs'
 import { observationSteps, runSteps } from '../dist/observe-steps.mjs'
 import { actionSummary } from '../dist/observation-report.mjs'
+import { installObserverKit } from '../dist/observation-kit.mjs'
 
 let browser,
   server,
@@ -221,6 +222,41 @@ test(
       assert.ok(report.coverage.gaps.includes('OPERATOR_STEPS_INCOMPLETE'))
       assert.equal(report.captureComplete, false)
       assert.equal(jobs.length, 0, 'an ambiguous step never clicks')
+    } finally {
+      await page.close()
+    }
+  },
+)
+
+test(
+  'a click on a label is recorded once, although the browser also clicks its control',
+  { timeout: 30000 },
+  async () => {
+    const page = await browser.newPage()
+    try {
+      await page.setContent(
+        '<label class="switch"><input type="checkbox"><span>Show installed</span></label>',
+      )
+      await page.evaluate(installObserverKit, {
+        token: 'labels',
+        actions: [
+          { name: 'toggle', selector: 'label.switch' },
+          { name: 'box', selector: 'input' },
+        ],
+        validate: [],
+      })
+      const recorded = () =>
+        page.evaluate(() =>
+          globalThis.__recoveryProbeObserve
+            .drainActions()
+            .map((action) => action.name)
+            .sort(),
+        )
+      await page.click('text=Show installed')
+      assert.deepEqual(await recorded(), ['box', 'toggle'])
+      await page.click('input')
+      assert.deepEqual(await recorded(), ['box', 'toggle'])
+      assert.equal(await page.isChecked('input'), false)
     } finally {
       await page.close()
     }

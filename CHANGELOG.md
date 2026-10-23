@@ -4,6 +4,10 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.6.0-preview.4 (2026-10-23)
+
+- A click on a `<label>` records its action once. The browser also clicks the label's control, which counted as a second click on the same action.
+
 ## 0.6.0-preview.3 (2026-10-23)
 
 - New `recovery-probe verify` and MCP tool `verify_change`. A plan lists the checks that prove a change; `--baseline` runs them before it, and `verify` runs them again, compares the runs and scans the lines changed since the base for suspects. The change is VERIFIED only when every check improved or stayed clean with complete runs on both sides and no changed line is a suspect.
