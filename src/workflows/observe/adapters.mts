@@ -1,6 +1,9 @@
 import type { Page } from 'playwright'
 import { randomUUID } from 'node:crypto'
-import { observeHttp } from '../../transports/http/observer.mjs'
+import {
+  observeHttp,
+  type HttpObserver,
+} from '../../transports/http/observer.mjs'
 import type { IpcInspector } from '../../transports/ipc/inspector.mjs'
 import type { IpcIdentity, IpcSnapshot } from '../../ipc-probe.cjs'
 import type { ObservationConfig } from './config.mjs'
@@ -141,7 +144,7 @@ export function httpObservationAdapter(
   page: Page,
   config: ObservationConfig,
 ): ObservationAdapter {
-  let observer: Awaited<ReturnType<typeof observeHttp>> | undefined
+  let observer: HttpObserver | undefined
   return {
     async start() {
       observer = await observeHttp(page, { endpoint: config.endpoint! })

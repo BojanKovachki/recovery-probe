@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { performance } from 'node:perf_hooks'
+import { setTimeout as sleep } from 'node:timers/promises'
 import type { Browser, Page } from 'playwright'
 import { connectDesktop } from '../targets/cdp.mjs'
 import { connectIpcInspector } from '../transports/ipc/inspector.mjs'
@@ -88,8 +89,6 @@ export interface IpcActionReport {
 const DEV_OVERLAYS =
   '#webpack-dev-server-client-overlay, vite-error-overlay, nextjs-portal'
 const MAX_REQUESTS = 10
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 export function actionConfig(input: unknown): IpcActionConfig {
   if (!input || typeof input !== 'object' || Array.isArray(input))

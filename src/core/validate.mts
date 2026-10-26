@@ -1,6 +1,10 @@
-/** Throws `message` unless `condition` holds. */
-export function ensure(condition: unknown, message: string): asserts condition {
-  if (!condition) throw Error(message)
+/** Throws an `ErrorType` with `message` unless `condition` holds. */
+export function ensure(
+  condition: unknown,
+  message: string,
+  ErrorType: ErrorConstructor = Error,
+): asserts condition {
+  if (!condition) throw new ErrorType(message)
 }
 
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -57,9 +61,13 @@ const outOfRange = (key: string, low: number, high: number) =>
   `${key} must be ${low}–${high}`
 
 /** Throws `message` for the first option that is not an integer in its range. */
-export function ensureRanges(
-  options: Record<string, unknown>,
-  ranges: readonly (readonly [key: string, low: number, high: number])[],
+export function ensureRanges<T extends object>(
+  options: T,
+  ranges: readonly (readonly [
+    key: keyof T & string,
+    low: number,
+    high: number,
+  ])[],
   message = outOfRange,
 ) {
   for (const [key, low, high] of ranges)

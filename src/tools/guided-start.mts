@@ -6,11 +6,11 @@ import type { Browser, BrowserContext, Page } from 'playwright'
 import { connectDesktop, desktopPages } from '../targets/cdp.mjs'
 import { pageIdentity } from '../core/urls.mjs'
 import { discoverDesktop } from '../workflows/reads.mjs'
+import type { DesktopConfig } from '../workflows/check/http/config.mjs'
 import {
   checkDesktop,
-  type DesktopConfig,
   type DesktopReport,
-} from '../workflows/check/http.mjs'
+} from '../workflows/check/http/run.mjs'
 import { writeDesktopReport } from '../reports/check.mjs'
 import { pickMarker, type PickedMarker } from './pick-marker.mjs'
 

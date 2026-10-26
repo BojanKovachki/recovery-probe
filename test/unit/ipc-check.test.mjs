@@ -1,0 +1,69 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { phaseVerdict } from '../../dist/workflows/check/ipc/verdict.mjs'
+
+const channels = { channel: 'items', requiredChannels: ['user'] }
+const row = (counts = {}) => ({
+  calls: 1,
+  successes: 1,
+  errors: 0,
+  pending: 0,
+  ...counts,
+})
+const verdict = ({
+  fault,
+  target = {},
+  user = {},
+  injected = 0,
+  successfulAfterFault = 0,
+  ready = true,
+  expired = false,
+} = {}) =>
+  phaseVerdict(channels, {
+    fault,
+    snapshot: {
+      injected,
+      successfulAfterFault,
+      channels: { items: row(target), user: row(user) },
+    },
+    ready,
+    expired,
+  })
+const recovered = { injected: 1, successfulAfterFault: 1 }
+
+test('a phase passes once its read, dependencies and screen are ready', () => {
+  assert.deepEqual(verdict(), { outcome: 'pass', code: 'BASELINE_READY' })
+  assert.deepEqual(
+    verdict({ fault: 'rejection', target: { calls: 2 }, ...recovered }),
+    { outcome: 'pass', code: 'RECOVERED' },
+  )
+  assert.equal(verdict({ ready: false }), undefined)
+  assert.equal(verdict({ target: { pending: 1 } }), undefined)
+  assert.equal(verdict({ user: { pending: 1 } }), undefined)
+})
+
+test('extra traffic or a failed dependency makes the phase inconclusive', () => {
+  assert.equal(verdict({ target: { calls: 2 } }).code, 'BASELINE_AMBIGUOUS')
+  assert.equal(
+    verdict({ fault: 'rejection', target: { calls: 3 } }).code,
+    'TRAFFIC_AMBIGUOUS',
+  )
+  assert.deepEqual(verdict({ user: { errors: 1 }, target: { calls: 5 } }), {
+    outcome: 'inconclusive',
+    code: 'DEPENDENCY_FAILED',
+  })
+})
+
+test('an expired phase says what was missing', () => {
+  const expired = (state) => verdict({ expired: true, ready: false, ...state })
+  assert.equal(expired().code, 'BASELINE_FAILED')
+  assert.equal(expired({ fault: 'null-result' }).code, 'FAULT_NOT_TRIGGERED')
+  assert.equal(
+    expired({ fault: 'rejection', injected: 1, user: { successes: 0 } }).code,
+    'DEPENDENCY_NOT_READY',
+  )
+  assert.deepEqual(expired({ fault: 'rejection', ...recovered }), {
+    outcome: 'fail',
+    code: 'RECOVERY_NOT_OBSERVED',
+  })
+})

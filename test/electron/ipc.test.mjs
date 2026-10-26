@@ -23,7 +23,7 @@ import {
   windowVisibility,
 } from '../../dist/targets/visibility.mjs'
 import { discoverIpc } from '../../dist/workflows/discover/ipc.mjs'
-import { checkIpc } from '../../dist/workflows/check/ipc.mjs'
+import { checkIpc } from '../../dist/workflows/check/ipc/run.mjs'
 import { assertReportShape } from '../helpers/report-shape.mjs'
 const exec = promisify(execFile)
 

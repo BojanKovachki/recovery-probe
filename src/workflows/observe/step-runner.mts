@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from 'node:timers/promises'
 import type { Locator, Page } from 'playwright'
 import type { SelectorSpec } from '../../core/selector.mjs'
 import type {
@@ -129,10 +130,7 @@ async function runStep(
       )
       return
     case 'wait':
-      await abortable(
-        new Promise((resolve) => setTimeout(resolve, step.ms)),
-        signal,
-      )
+      await abortable(sleep(step.ms), signal)
       return
     case 'network':
       if (!network) throw Error('NETWORK_CONTROL_MISSING')

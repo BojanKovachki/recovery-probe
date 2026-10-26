@@ -28,6 +28,8 @@ export interface HttpObserverOptions {
   skip?: number
 }
 
+export type HttpObserver = Awaited<ReturnType<typeof observeHttp>>
+
 interface RequestMeta {
   row: ReadChannelStats
   start: number

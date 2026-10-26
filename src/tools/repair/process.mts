@@ -1,5 +1,6 @@
 import { spawn, execFile } from 'node:child_process'
 import { promisify } from 'node:util'
+import { setTimeout as sleep } from 'node:timers/promises'
 const exec = promisify(execFile)
 
 export interface CommandResult {
@@ -78,10 +79,7 @@ export function startCommand(
       try {
         process.kill(-pid, 'SIGTERM')
       } catch {}
-      await Promise.race([
-        finished,
-        new Promise((resolve) => setTimeout(resolve, 500)),
-      ])
+      await Promise.race([finished, sleep(500)])
       try {
         process.kill(-pid, 'SIGKILL')
       } catch {}

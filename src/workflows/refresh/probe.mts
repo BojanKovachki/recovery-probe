@@ -1,4 +1,5 @@
 import { performance } from 'node:perf_hooks'
+import { setTimeout as sleep } from 'node:timers/promises'
 import type { Page } from 'playwright'
 import { readRegion, summarizeRegion } from '../../core/screen.mjs'
 import type { RefreshConfig } from './config.mjs'
@@ -13,8 +14,6 @@ import type {
 
 const POLL_MS = 50
 const MAX_EVENTS = 100
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 export const settled = (s: RefreshSnapshot) =>
   Object.values(s.channels).every((r) => r.pending === 0)

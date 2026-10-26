@@ -10,7 +10,12 @@ import {
 test('ensure throws its message when the condition fails', () => {
   assert.doesNotThrow(() => ensure(1, 'unused'))
   assert.throws(() => ensure(0, 'sampleMs must be 50–1000'), {
+    name: 'Error',
     message: 'sampleMs must be 50–1000',
+  })
+  assert.throws(() => ensure(0, 'url is required', TypeError), {
+    name: 'TypeError',
+    message: 'url is required',
   })
 })
 

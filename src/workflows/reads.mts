@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from 'node:timers/promises'
 import type { Page, Response } from 'playwright'
 import { pageIdentity } from '../core/urls.mjs'
 import { isReadRequest } from '../transports/http/reads.mjs'
@@ -12,8 +13,6 @@ export interface DesktopDiscovery {
   }[]
   limitation: string
 }
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /** Reload the current renderer and observe metadata only. No faults are injected. */
 export async function discoverDesktop(

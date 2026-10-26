@@ -1,5 +1,6 @@
 import type { Browser, Page } from 'playwright'
 import { defaultFaults } from '../../core/faults.mjs'
+import { ensure, isIntegerIn, isNonEmptyString } from '../../core/validate.mjs'
 import { ProbeError, withFault } from '../../transports/http/route.mjs'
 
 export interface RecoveryConfig {
@@ -18,6 +19,9 @@ export interface ProbeRow {
   applied: number
 }
 
+type Fault = (typeof defaultFaults)[number]
+type InFreshPage = <T>(fn: (page: Page) => Promise<T>) => Promise<T>
+
 function checkScenario(config: RecoveryConfig) {
   const fields = config as unknown as Record<string, unknown> | undefined
   for (const name of [
@@ -25,19 +29,25 @@ function checkScenario(config: RecoveryConfig) {
     'requestPattern',
     'readySelector',
     'retrySelector',
-  ]) {
-    const value = fields?.[name]
-    if (typeof value !== 'string' || !value.trim())
-      throw new TypeError(`${name} is required`)
-  }
+  ])
+    ensure(isNonEmptyString(fields?.[name]), `${name} is required`, TypeError)
   const parsed = new URL(config.url)
-  if (!['http:', 'https:'].includes(parsed.protocol))
-    throw new TypeError('url must use HTTP or HTTPS')
-  if (parsed.username || parsed.password)
-    throw new TypeError('Credentials in the URL are unsupported')
+  ensure(
+    ['http:', 'https:'].includes(parsed.protocol),
+    'url must use HTTP or HTTPS',
+    TypeError,
+  )
+  ensure(
+    !parsed.username && !parsed.password,
+    'Credentials in the URL are unsupported',
+    TypeError,
+  )
   const timeoutMs = config.timeoutMs ?? 3000
-  if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 60000)
-    throw new TypeError('timeoutMs must be 100–60000')
+  ensure(
+    isIntegerIn(timeoutMs, 100, 60000),
+    'timeoutMs must be 100–60000',
+    TypeError,
+  )
   return timeoutMs
 }
 
@@ -46,9 +56,37 @@ export async function probeRecovery(
   browser: Browser,
   config: RecoveryConfig,
 ): Promise<{ name: string; ok: boolean; results: ProbeRow[] }> {
-  const timeoutMs = checkScenario(config)
-  const results: ProbeRow[] = []
-  const inPage = async <T,>(fn: (page: Page) => Promise<T>): Promise<T> => {
+  const inPage = freshPages(browser, checkScenario(config))
+  const loaded = await loads(inPage, config)
+  const results: ProbeRow[] = [
+    {
+      scenario: 'Normal connection',
+      outcome: loaded ? 'pass' : 'inconclusive',
+      code: loaded ? 'OK' : 'BASELINE_FAILED',
+      applied: 0,
+    },
+  ]
+  for (const fault of defaultFaults)
+    results.push(
+      loaded
+        ? await faultRow(inPage, config, fault)
+        : {
+            scenario: fault.name,
+            outcome: 'skipped',
+            code: 'BASELINE_FAILED',
+            applied: 0,
+          },
+    )
+  return {
+    name: config.name ?? 'Recovery check',
+    ok: results.every((row) => row.outcome === 'pass'),
+    results,
+  }
+}
+
+/** Runs each attempt in a new context, so none inherits another's cache or state. */
+function freshPages(browser: Browser, timeoutMs: number): InFreshPage {
+  return async (fn) => {
     const context = await browser.newContext({ serviceWorkers: 'block' })
     try {
       const page = await context.newPage()
@@ -59,73 +97,52 @@ export async function probeRecovery(
       await context.close()
     }
   }
+}
 
-  let baselineError: unknown
+async function loads(inPage: InFreshPage, config: RecoveryConfig) {
   try {
     await inPage(async (page) => {
       await page.goto(config.url, { waitUntil: 'domcontentloaded' })
       await page.locator(config.readySelector).waitFor({ state: 'visible' })
     })
-  } catch (error) {
-    baselineError = error
+    return true
+  } catch {
+    return false
   }
-  results.push({
-    scenario: 'Normal connection',
-    outcome: baselineError ? 'inconclusive' : 'pass',
-    code: baselineError ? 'BASELINE_FAILED' : 'OK',
-    applied: 0,
-  })
+}
 
-  if (baselineError) {
-    for (const fault of defaultFaults)
-      results.push({
-        scenario: fault.name,
-        outcome: 'skipped',
-        code: 'BASELINE_FAILED',
-        applied: 0,
-      })
-  } else {
-    for (const fault of defaultFaults) {
-      try {
-        const stats = await inPage((page) =>
-          withFault(
-            page,
-            { ...fault, match: config.requestPattern },
-            async () => {
-              await page.goto(config.url, { waitUntil: 'domcontentloaded' })
-              await page
-                .locator(config.retrySelector)
-                .waitFor({ state: 'visible' })
-              await page.locator(config.retrySelector).click()
-              await page
-                .locator(config.readySelector)
-                .waitFor({ state: 'visible' })
-            },
-          ),
-        )
-        results.push({
-          scenario: fault.name,
-          outcome: 'pass',
-          code: 'OK',
-          applied: stats.applied,
-        })
-      } catch (error) {
-        const failure = error as Partial<ProbeError>
-        results.push({
-          scenario: fault.name,
-          outcome:
-            failure.code === 'RECOVERY_ASSERTION_FAILED'
-              ? 'fail'
-              : 'inconclusive',
-          code: failure.code ?? 'RUNNER_ERROR',
-          applied: failure.stats?.applied ?? 0,
-        })
-      }
+async function faultRow(
+  inPage: InFreshPage,
+  config: RecoveryConfig,
+  fault: Fault,
+): Promise<ProbeRow> {
+  try {
+    const stats = await inPage((page) =>
+      withFault(page, { ...fault, match: config.requestPattern }, () =>
+        retryRecovers(page, config),
+      ),
+    )
+    return {
+      scenario: fault.name,
+      outcome: 'pass',
+      code: 'OK',
+      applied: stats.applied,
+    }
+  } catch (error) {
+    const failure = error as Partial<ProbeError>
+    return {
+      scenario: fault.name,
+      outcome:
+        failure.code === 'RECOVERY_ASSERTION_FAILED' ? 'fail' : 'inconclusive',
+      code: failure.code ?? 'RUNNER_ERROR',
+      applied: failure.stats?.applied ?? 0,
     }
   }
-  return {
-    name: config.name ?? 'Recovery check',
-    ok: results.every((row) => row.outcome === 'pass'),
-    results,
-  }
+}
+
+async function retryRecovers(page: Page, config: RecoveryConfig) {
+  await page.goto(config.url, { waitUntil: 'domcontentloaded' })
+  await page.locator(config.retrySelector).waitFor({ state: 'visible' })
+  await page.locator(config.retrySelector).click()
+  await page.locator(config.readySelector).waitFor({ state: 'visible' })
 }

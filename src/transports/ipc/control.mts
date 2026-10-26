@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { setTimeout as sleep } from 'node:timers/promises'
 import type { Page } from 'playwright'
 import type { IpcInspector } from './inspector.mjs'
 import type { IpcSnapshot } from '../../ipc-probe.cjs'
@@ -60,7 +61,7 @@ export async function waitForSettledCalls(
     )
       return
     if (Date.now() >= deadline) throw new Error('IPC_PREVIOUS_CALLS_PENDING')
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    await sleep(50)
   }
 }
 
