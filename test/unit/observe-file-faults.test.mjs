@@ -11,7 +11,7 @@ import {
   writeFile,
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import {
   observationSteps,
   runSteps,
@@ -222,6 +222,29 @@ test('an empty file can be removed but not truncated or corrupted', async () => 
   }
 })
 
+test('a file that cannot be checked keeps its original, and the report gets only the error code', async () => {
+  const directory = await installation({ 'api.dll': 'original' })
+  let backup
+  try {
+    const damage = fileFaults(directory)
+    await damage.damage('api.dll', 'remove', 0)
+    // What the app put in its place cannot be read as a file.
+    await mkdir(join(directory, 'api.dll'))
+
+    const evidence = await damage.finish()
+    backup = evidence.paths[0].backup
+
+    assert.deepEqual(evidence.faults, [
+      { step: 0, fault: 'remove', error: 'EISDIR' },
+    ])
+    assert.match(evidence.paths[0].error, /EISDIR/)
+    assert.equal(await readFile(backup, 'utf8'), 'original')
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+    if (backup) await rm(dirname(backup), { recursive: true, force: true })
+  }
+})
+
 test('files the steps damaged are left out of the snapshot comparison', () => {
   const snapshot = (entries) => ({
     files: new Map(entries),
@@ -333,6 +356,8 @@ test('a damage that fails is not reported, and the file is left as it was', asyn
       () => true,
     )
     if (!failed) {
+      // Puts the file back and removes the backup.
+      await damage.finish()
       t.skip('this platform let the removal through')
       return
     }

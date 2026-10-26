@@ -256,7 +256,7 @@ With `--files DIR`, steps can also damage a file under that directory, the way a
 - `path` is relative to `--files DIR` and cannot leave it. `fault` is `remove`, `truncate` (cut to half its size) or `corrupt` (4 KB in the middle changed, the size kept). A step fails if there is no regular file there, or if an earlier step damaged it.
 - The original is copied to a private temporary folder first. When the capture ends, after its last snapshot, each file is checked: `repaired` (the app put the original content back), `damaged` (still as the step left it) or `changed` (the app wrote something else, or removed it, such as a download still in progress).
 - A file that is not `repaired` adds `LOCAL_FILE_NOT_REPAIRED` in the interval of its step. It is a lead: an app may repair only on its next start, so capture long enough for what you expect.
-- A file left damaged or missing is put back from its copy; one the app rewrote is left as the app has it. A file that cannot be checked or put back adds the `FILE_FAULTS_NOT_RESTORED` coverage gap, and its copy is kept and named in `files.json`.
+- A file left damaged or missing is put back from its copy; one the app rewrote is left as the app has it. A file that cannot be checked or put back, for example because the app still holds it open, adds the `FILE_FAULTS_NOT_RESTORED` coverage gap. The report gets only the error code, such as `EBUSY`; `files.json` names the kept copy and gives the full error.
 - The report's mode becomes `observation with file faults`, and `fileFaults` lists each step's fault and outcome. Paths stay in the private `files.json`, and damaged files are left out of the snapshot comparison, so the step's own damage is not reported as `LOCAL_FILES_REMOVED`.
 
 ## Interpretation
