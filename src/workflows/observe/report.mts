@@ -288,7 +288,7 @@ export interface FileFaultRecord {
   outcome?: FileFaultOutcome
   /** Recovery Probe put the original back, because the app had not. */
   restored?: true
-  /** Why the file could not be checked or put back; its original is kept. */
+  /** The error code, such as `EBUSY`, when the file could not be checked or put back; its original is kept. */
   error?: string
 }
 

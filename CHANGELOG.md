@@ -4,6 +4,10 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.7.0-preview.2 (2026-10-26)
+
+- A file step whose file could not be checked or put back no longer writes the error message to the report. The message names local paths, which belong in the private `files.json`, so the report now gets only the error code, such as `EBUSY`, and `files.json` gets the message next to the kept copy.
+
 ## 0.7.0-preview.1 (2026-10-26)
 
 - File steps. With `observe --files DIR`, a step can remove, truncate or corrupt a file under that directory, the way an interrupted download or an antivirus quarantine does. When the capture ends, each file is reported as repaired by the app, still damaged, or changed; a file the app did not restore adds `LOCAL_FILE_NOT_REPAIRED` and is put back from a private copy. The step's own damage is left out of the `LOCAL_FILES_REMOVED` comparison.

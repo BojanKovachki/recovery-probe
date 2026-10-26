@@ -24,8 +24,8 @@ import type { FileStepControl } from './steps.mjs'
 export interface FileFaultEvidence {
   /** For the report, which never names files. */
   faults: FileFaultRecord[]
-  /** For the private files.json. `backup` is set when an original had to be kept. */
-  paths: { step: number; path: string; backup?: string }[]
+  /** For the private files.json. `backup` and `error` are set when an original had to be kept. */
+  paths: { step: number; path: string; backup?: string; error?: string }[]
 }
 
 // Enough to break any checksum or decoder, small enough to leave the size alone.
@@ -74,6 +74,8 @@ export function fileFaults(directory: string): FileStepControl & {
     original: string | null
     /** The damaged file's hash, `null` once removed; unset until the damage is done. */
     left?: string | null
+    /** The error message, which names local paths. */
+    detail?: string
   })[] = []
   // Steps run one at a time, so the folder is never created twice.
   let backups: string | undefined
@@ -133,7 +135,8 @@ export function fileFaults(directory: string): FileStepControl & {
             record.restored = true
           }
         } catch (error) {
-          record.error = (error as Error).message.split('\n')[0].slice(0, 300)
+          record.error = (error as NodeJS.ErrnoException).code ?? 'ERROR'
+          record.detail = (error as Error).message.split('\n')[0].slice(0, 300)
         }
       }
       const kept = records.some((record) => record.error)
@@ -150,10 +153,10 @@ export function fileFaults(directory: string): FileStepControl & {
           ...(restored ? { restored } : {}),
           ...(error ? { error } : {}),
         })),
-        paths: reported.map(({ step, path, backup, error }) => ({
+        paths: reported.map(({ step, path, backup, detail }) => ({
           step,
           path,
-          ...(error ? { backup } : {}),
+          ...(detail ? { backup, error: detail } : {}),
         })),
       }
     },
