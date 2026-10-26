@@ -238,17 +238,6 @@
       "count": 1
     }
   },
-  "src/workflows/action.mts": {
-    "complexity": {
-      "count": 3
-    },
-    "max-lines": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 3
-    }
-  },
   "src/workflows/observe/kit.mts": {
     "complexity": {
       "count": 1

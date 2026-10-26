@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { IpcActionReport } from '../workflows/action.mjs'
+import type { IpcActionReport } from '../workflows/action/types.mjs'
 import { escapeHtml, renderTemplate } from './template.mjs'
 import { withEvidence } from './evidence.mjs'
 

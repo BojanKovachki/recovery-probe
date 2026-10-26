@@ -110,6 +110,14 @@ export async function windowVisibility(
   }
 }
 
+export type PreparedVisibility = Awaited<ReturnType<typeof prepareVisibility>>
+
+/** The window's state before a run, and what restoring it did. */
+export interface WindowReport {
+  initial: WindowVisibility
+  restoration?: Awaited<ReturnType<PreparedVisibility['revert']>>
+}
+
 export async function prepareVisibility(
   page: Page,
   {

@@ -4,6 +4,15 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.8.0-preview.7 (2026-10-26)
+
+The action check, restructured. No change to the CLI, the library or the reports.
+
+- `workflows/action.mts` (470 lines, with a 197-line `checkAction`) is a `workflows/action/` folder: the config as short rules, the report types, the findings as plain functions, reading and watching the screen (the only code that runs in the page), and a small `ActionCheck` class that attaches, prepares and performs each run, reloads and releases.
+- `runSnapshot` in `transports/ipc/control.mts` reads the hook's state of one run and fails if another run or window took over. The IPC check and the action check share it.
+- `targets/visibility.mts` exports the prepared-window and window-report types that discovery, refresh and the action check each declared.
+- The size-limit violations listed in `eslint-suppressions.json` drop from 97 to 90.
+
 ## 0.8.0-preview.6 (2026-10-26)
 
 The recovery checks, restructured. No change to the CLI, the library or the reports.

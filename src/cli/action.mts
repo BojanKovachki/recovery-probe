@@ -1,7 +1,8 @@
 import { join } from 'node:path'
 import { reportFolder } from '../reports/folder.mjs'
 import { writeActionReport } from '../reports/action.mjs'
-import { actionConfig, checkAction } from '../workflows/action.mjs'
+import { actionConfig } from '../workflows/action/config.mjs'
+import { checkAction } from '../workflows/action/run.mjs'
 import {
   readConfig,
   text,

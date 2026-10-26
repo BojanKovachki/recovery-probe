@@ -3,7 +3,8 @@ import { connectDesktop, selectDesktopPage } from '../../targets/cdp.mjs'
 import { attachIpcWindow } from '../../targets/ipc-window.mjs'
 import {
   prepareVisibility,
-  type WindowVisibility,
+  type PreparedVisibility,
+  type WindowReport,
 } from '../../targets/visibility.mjs'
 import {
   connectIpcInspector,
@@ -22,8 +23,6 @@ import type {
   RefreshRun,
 } from './types.mjs'
 
-type PreparedVisibility = Awaited<ReturnType<typeof prepareVisibility>>
-
 /** The experiment's report, or a minimal one when setup failed, plus what the session adds. */
 export type RefreshSessionReport = (
   | RefreshReport
@@ -38,10 +37,7 @@ export type RefreshSessionReport = (
       findings: RefreshFinding[]
     }
 ) & {
-  window?: {
-    initial: WindowVisibility
-    restoration?: Awaited<ReturnType<PreparedVisibility['revert']>>
-  }
+  window?: WindowReport
   error?: string
   windowRestoreError?: string
   disconnectError?: string

@@ -65,6 +65,18 @@ export async function waitForSettledCalls(
   }
 }
 
+/** The hook's state of run `id`; throws if another run replaced it or the window changed. */
+export async function runSnapshot(
+  control: IpcInspector,
+  id: string,
+  senderId: number,
+): Promise<IpcSnapshot> {
+  const snapshot = await control.call('snapshot')
+  if (snapshot?.id !== id || snapshot.senderId !== senderId)
+    throw new Error('Probe run or target changed')
+  return snapshot
+}
+
 /** Confirms both debugger ports reach the same renderer, not merely two apps
  * showing the same URL. Removes the temporary challenge afterwards.
  */
