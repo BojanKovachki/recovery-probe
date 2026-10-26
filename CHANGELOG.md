@@ -4,6 +4,16 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.8.0-preview.3 (2026-10-26)
+
+The rest of the observation workflow, restructured. No change to the CLI, the library or the reports.
+
+- `workflows/observe/report.mts` (833 lines) keeps the report's types; sampling metrics, content comparisons, summaries, action effects and the HTML report each have their own module. Sampling metrics share one accumulator instead of three copies of the same bookkeeping, and the HTML report is built from one small function per section.
+- Step validation is a parser per step kind in `steps.mts`; running steps moved to `step-runner.mts`.
+- File steps run through a `FileFaults` class, and the content comparison tracker is a `ContentComparisons` class.
+- `selectorSpec` and its type moved to `core/selector.mts`, so the core layer no longer imports them from a workflow.
+- The size-limit violations listed in `eslint-suppressions.json` drop from 153 to 134.
+
 ## 0.8.0-preview.2 (2026-10-26)
 
 The observation engine, restructured. No change to the CLI, the library or the reports.

@@ -11,13 +11,12 @@ import {
   selectedReads,
   type ReadSnapshot,
 } from './reads.mjs'
+import { actionEffects } from './action-effects.mjs'
+import { ContentComparisons } from './comparisons.mjs'
+import { samplingMetrics, type SamplingTimings } from './sampling.mjs'
 import {
-  actionEffects,
-  contentComparisons,
-  samplingMetrics,
   type ObservationInterval,
   type ObservedAction,
-  type SamplingTimings,
   type SummarizedRows,
   type TimelineEvent,
 } from './report.mjs'
@@ -51,7 +50,7 @@ export class ObservationRecorder {
   readonly report: CaptureReport
   readonly #config: ObservationConfig
   readonly #metrics: ReturnType<typeof samplingMetrics>
-  readonly #comparisons = contentComparisons()
+  readonly #comparisons = new ContentComparisons()
   readonly #tracker: RowTracker | null
   #interval?: ObservationInterval
   #previousSignature?: string

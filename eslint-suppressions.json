@@ -38,11 +38,6 @@
       "count": 1
     }
   },
-  "src/cli/observe.mts": {
-    "complexity": {
-      "count": 1
-    }
-  },
   "src/cli/reads.mts": {
     "complexity": {
       "count": 1
@@ -340,42 +335,12 @@
       "count": 2
     }
   },
-  "src/workflows/observe/file-faults.mts": {
-    "complexity": {
-      "count": 2
-    },
-    "max-lines-per-function": {
-      "count": 1
-    }
-  },
   "src/workflows/observe/kit.mts": {
     "complexity": {
-      "count": 2
-    },
-    "max-lines-per-function": {
-      "count": 1
-    }
-  },
-  "src/workflows/observe/report.mts": {
-    "complexity": {
-      "count": 3
-    },
-    "max-lines": {
       "count": 1
     },
     "max-lines-per-function": {
-      "count": 4
-    }
-  },
-  "src/workflows/observe/steps.mts": {
-    "complexity": {
-      "count": 2
-    },
-    "max-lines": {
       "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 3
     }
   },
   "src/workflows/refresh.mts": {

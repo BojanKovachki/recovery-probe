@@ -5,8 +5,8 @@ import {
   type ObservationConfig,
   type RowsConfig,
 } from './config.mjs'
+import { observationSummary } from './summaries.mjs'
 import {
-  observationSummary,
   type DelayedUiUpdateFinding,
   type ObservedAction,
   type RowTransition,

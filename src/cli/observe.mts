@@ -13,13 +13,17 @@ import {
 } from '../workflows/observe/session.mjs'
 import {
   observationSummary,
-  renderObservationReport,
-  type ObservationReport,
   actionSummary,
-  comparisonDigest,
   networkStepSummary,
   fileFaultSummary,
+} from '../workflows/observe/summaries.mjs'
+import { renderObservationReport } from '../workflows/observe/render.mjs'
+import type {
+  ObservationFinding,
+  ObservationInterval,
+  ObservationReport,
 } from '../workflows/observe/report.mjs'
+import { comparisonDigest } from '../workflows/observe/comparisons.mjs'
 import {
   observationSteps,
   type ObservationStep,
@@ -223,18 +227,14 @@ function printObservation(
   config: ObservationConfig,
   directory: string,
 ) {
-  for (const i of report.intervals)
-    console.log(
-      `Interval ${i.index}: ${i.reads?.calls ?? '?'} reads, ${i.reads?.successes ?? '?'} successes, ${i.reads?.errors ?? '?'} errors${i.findings.length ? '; ' + i.findings.join(', ') : ''}`,
-    )
-  for (const finding of report.findings)
-    console.log(
-      `Interval ${finding.interval}: ${NAMED_FINDINGS.includes(finding.code) ? `${finding.code} — ` : ''}${observationSummary(finding)}`,
-    )
-  for (const effect of report.actionEffects ?? [])
-    console.log(actionSummary(effect))
-  for (const line of comparisonDigest(report)) console.log(line)
-  for (const note of report.notes ?? []) console.log(`Note: ${note.note}`)
+  const lines = [
+    ...report.intervals.map(intervalLine),
+    ...report.findings.map(findingLine),
+    ...(report.actionEffects ?? []).map(actionSummary),
+    ...comparisonDigest(report),
+    ...(report.notes ?? []).map((note) => `Note: ${note.note}`),
+  ]
+  for (const line of lines) console.log(line)
   printStepOutcomes(report)
   console.log(
     `Sampling: ${config.detail}; requested delay ${config.sampleMs} ms; measured mean cadence ${report.sampling!.startToStart.meanMs ?? 'unavailable'} ms.`,
@@ -243,6 +243,16 @@ function printObservation(
   console.log(
     `Capture: ${report.status} (not a health verdict)\nReport: ${join(directory, 'report.html')}`,
   )
+}
+
+function intervalLine({ index, reads, findings }: ObservationInterval) {
+  const raised = findings.length ? '; ' + findings.join(', ') : ''
+  return `Interval ${index}: ${reads?.calls ?? '?'} reads, ${reads?.successes ?? '?'} successes, ${reads?.errors ?? '?'} errors${raised}`
+}
+
+function findingLine(finding: ObservationFinding) {
+  const code = NAMED_FINDINGS.includes(finding.code) ? `${finding.code} — ` : ''
+  return `Interval ${finding.interval}: ${code}${observationSummary(finding)}`
 }
 
 function printStepOutcomes(report: ObservationReport) {

@@ -1,10 +1,7 @@
 // In-page helpers for fault-free observation. Installed once per capture without
 // reloading; removed at the end. Records only configured action names, times and
 // whether the browser marked the click as a real user input.
-
-/** A CSS selector, or an element matched by CSS and/or ARIA role, name and text. */
-export type SelectorSpec =
-  string | { css?: string; role?: string; name?: string; text?: string }
+import type { SelectorSpec } from '../../core/selector.mjs'
 
 export interface ObservedActionConfig {
   name: string
@@ -29,47 +26,6 @@ export interface ObserverKit {
 declare global {
   // The in-page kit for the capture that owns this page.
   var __recoveryProbeObserve: ObserverKit | undefined
-}
-
-const SELECTOR_KEYS: readonly string[] = ['css', 'role', 'name', 'text']
-
-/** Node-side validation of a CSS string or { css, role, name, text } selector. */
-export function selectorSpec(value: unknown, key: string): SelectorSpec {
-  if (typeof value === 'string') {
-    if (!value.trim()) throw Error(`${key} must be a non-empty CSS selector`)
-    return value
-  }
-  if (!value || typeof value !== 'object' || Array.isArray(value))
-    throw Error(
-      `${key} must be a CSS selector string or { css, role, name, text }`,
-    )
-  const spec = value as Record<string, unknown>
-  for (const property of Object.keys(spec))
-    if (!SELECTOR_KEYS.includes(property))
-      throw Error(`Unsupported ${key} property: ${property}`)
-  if (spec.css === undefined && spec.role === undefined)
-    throw Error(`${key} needs css or role`)
-  if (
-    spec.css !== undefined &&
-    (typeof spec.css !== 'string' || !spec.css.trim())
-  )
-    throw Error(`${key}.css must be a non-empty CSS selector`)
-  if (
-    spec.role !== undefined &&
-    (typeof spec.role !== 'string' || !/^[a-z]{2,30}$/.test(spec.role))
-  )
-    throw Error(`${key}.role must be an ARIA role name`)
-  for (const property of ['name', 'text']) {
-    const text = spec[property]
-    if (
-      text !== undefined &&
-      (typeof text !== 'string' || !text.trim() || text.length > 200)
-    )
-      throw Error(`${key}.${property} must be 1–200 characters`)
-  }
-  if (spec.name !== undefined && spec.role === undefined)
-    throw Error(`${key}.name requires role`)
-  return { ...spec } as SelectorSpec
 }
 
 // Runs in the page. Self-contained: page.evaluate serializes this function.

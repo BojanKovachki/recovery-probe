@@ -1,5 +1,5 @@
+import { observationSummary } from './summaries.mjs'
 import {
-  observationSummary,
   type ContentBeforeReadFinding,
   type ObservationInterval,
   type TimelineEvent,
