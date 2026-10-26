@@ -4,6 +4,15 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.8.0-preview.2 (2026-10-26)
+
+The observation engine, restructured. No change to the CLI, the library or the reports.
+
+- `workflows/observe/run.mts` (1,294 lines) is now one module per job: configuration, read counters, the IPC and HTTP adapters, row tracking, the capture loop, the recorder that turns samples into the report, and what the page is given. The capture loop is a small class instead of a 451-line function.
+- The `observe` command's setup (files, network faults, steps, attaching to the target and the evidence they add) moved out of the CLI into `workflows/observe/session.mts`; the CLI keeps terminal input, the report files and the console output.
+- `core/validate.mts` holds the checks configuration validators share, starting with observation configs, and keeps every error message the same.
+- The size-limit violations listed in `eslint-suppressions.json` drop from 169 to 153.
+
 ## 0.8.0-preview.1 (2026-10-26)
 
 The first step towards 1.0: checks that let the code be restructured without changing what it does. No change to the CLI, the library or the reports.

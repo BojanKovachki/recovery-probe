@@ -41,12 +41,6 @@
   "src/cli/observe.mts": {
     "complexity": {
       "count": 1
-    },
-    "max-lines": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 1
     }
   },
   "src/cli/reads.mts": {
@@ -371,20 +365,6 @@
     },
     "max-lines-per-function": {
       "count": 4
-    }
-  },
-  "src/workflows/observe/run.mts": {
-    "complexity": {
-      "count": 6
-    },
-    "max-depth": {
-      "count": 1
-    },
-    "max-lines": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 6
     }
   },
   "src/workflows/observe/steps.mts": {

@@ -1,10 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import {
-  observationConfig,
-  ipcObservationAdapter,
-  runObservation,
-} from '../../dist/workflows/observe/run.mjs'
+import { observationConfig } from '../../dist/workflows/observe/config.mjs'
+import { runObservation } from '../../dist/workflows/observe/capture.mjs'
+import { ipcObservationAdapter } from '../../dist/workflows/observe/adapters.mjs'
 import { installIpcProbe } from '../../dist/ipc-probe.cjs'
 
 function fixture() {

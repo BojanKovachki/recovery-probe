@@ -1,13 +1,13 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { installIpcProbe } from '../../dist/ipc-probe.cjs'
+import { observationConfig } from '../../dist/workflows/observe/config.mjs'
+import { runObservation } from '../../dist/workflows/observe/capture.mjs'
+import { ipcObservationAdapter } from '../../dist/workflows/observe/adapters.mjs'
 import {
-  observationConfig,
-  ipcObservationAdapter,
-  runObservation,
   summarizeRows,
-  rowTracker,
-} from '../../dist/workflows/observe/run.mjs'
+  RowTracker,
+} from '../../dist/workflows/observe/rows.mjs'
 import {
   observationSummary,
   actionEffects,
@@ -353,7 +353,7 @@ test('a matching marker names the row state before its text does', () => {
 })
 
 test('the row tracker reports each stretch of a row in an unexpected state once', () => {
-  const t = rowTracker({
+  const t = new RowTracker({
     rows: {
       states: ['Pause'],
       markers: { 'not installed': 'svg' },
@@ -428,7 +428,7 @@ const sample = (index, state, completed, data = null) => ({
 })
 
 test('the row tracker reports a state that outlived completed reads and changed without a data event', () => {
-  const t = rowTracker(trackerConfig)
+  const t = new RowTracker(trackerConfig)
   t.addActions([{ name: 'start', atMs: 0 }])
   for (let i = 1; i <= 30; i++)
     t.add(
@@ -451,7 +451,7 @@ test('the row tracker reports a state that outlived completed reads and changed 
 })
 
 test('a stale state that did not begin right after an action is only a low-confidence lead', () => {
-  const t = rowTracker(trackerConfig)
+  const t = new RowTracker(trackerConfig)
   t.addActions([{ name: 'start', atMs: 0 }])
   // The row first shows Move up, later switches to Pause on its own, then back after many reads.
   for (let i = 1; i <= 60; i++)
@@ -507,11 +507,11 @@ test('the row tracker stays quiet when a data event explains the change, reads d
     ],
   ]
   for (const [name, make] of cases) {
-    const t = rowTracker(trackerConfig)
+    const t = new RowTracker(trackerConfig)
     for (let i = 1; i <= 30; i++) t.add(make(i))
     assert.equal(t.snapshot().findings.length, 0, name)
   }
-  const reads = rowTracker(trackerConfig)
+  const reads = new RowTracker(trackerConfig)
   for (let i = 1; i <= 30; i++)
     reads.add(sample(i, i < 30 ? 'Pause' : 'Move up', Math.floor(i / 4), null))
   assert.equal(reads.snapshot().findings[0].basis, 'UNCHANGED_ACROSS_READS')
