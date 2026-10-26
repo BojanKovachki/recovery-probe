@@ -23,6 +23,8 @@ import {
   actionSummary,
   comparisonDigest,
   networkStepSummary,
+  fileFaultSummary,
+  applyExpectationEvidence,
 } from '../workflows/observe/report.mjs'
 import { observationSteps, runSteps } from '../workflows/observe/steps.mjs'
 import { connectNetworkFaults } from '../transports/net.mjs'
@@ -35,12 +37,17 @@ import {
   fileEvidence,
   applyFileEvidence,
 } from '../workflows/observe/files.mjs'
+import {
+  fileFaults,
+  applyFileFaultEvidence,
+} from '../workflows/observe/file-faults.mjs'
 import { attachIpcWindow } from '../targets/ipc-window.mjs'
 import { reportFolder } from '../reports/folder.mjs'
 import { parseOptions, readConfig, UsageError } from './args.mjs'
 import { withEvidence } from '../reports/evidence.mjs'
 
 type NetworkSteps = ReturnType<typeof networkSteps>
+type FileFaults = ReturnType<typeof fileFaults>
 type ObservationAdapter = Parameters<typeof runObservation>[2]
 
 interface ObserveOptions {
@@ -62,19 +69,22 @@ export async function observeMain(args: string[]) {
 
 Observation of an existing browser or Electron renderer.
 No reload, navigation, focus change or final UI reset, and no faults except
-explicit network steps.
+explicit network and file steps.
 Choose transport: http or ipc and explicit regionSelector/contentSelector CSS markers.
 Sampling defaults to detail: "content"; use "region" for full DOM diagnostics.
 Navigate manually during the bounded capture. Enter marks a new interval in an
 interactive terminal; --interactive also enables newline markers on piped input.
 Ctrl+C saves partial evidence. CONTENT_BEFORE_READ and DELAYED_UI_UPDATE are observations, not defects.
 UNEXPECTED_ROW_STATE reports a tracked row shown in a state listed in rows.unexpected.
---steps runs an explicit, opt-in list of same-document navigations, clicks, waits and
-interval marks during the capture. Steps act on the app: use a test account.
+--steps runs an explicit, opt-in list of same-document navigations, clicks, waits,
+expectations and interval marks during the capture. Steps act on the app: use a
+test account. An expect step that sees nothing in time adds EXPECTATION_NOT_MET.
 --network names a running recovery-probe net, so network steps can fail the app's
 own HTTPS connections; they are removed when the capture ends.
 --files compares a directory's files at each interval and reports files the app
 removed or shrank (LOCAL_FILES_REMOVED, a lead). Paths stay in a private files.json.
+File steps remove, truncate or corrupt a file under it; a file the app has not
+restored by the end adds LOCAL_FILE_NOT_REPAIRED and is put back.
 IPC requires the observation-capable development hook. See docs/observe.md.`)
     return
   }
@@ -92,10 +102,15 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
   const config = await readConfig(options.config, observationConfig)
   const steps = options.steps
     ? await readConfig(options.steps, (list) =>
-        observationSteps(list, { network: Boolean(options.network) }),
+        observationSteps(list, {
+          network: Boolean(options.network),
+          files: Boolean(options.files),
+        }),
       )
     : null
   let filesDirectory: string | undefined
+  let damage: FileFaults | undefined
+  let fileFaultEvidence: Awaited<ReturnType<FileFaults['finish']>> | undefined
   const fileSnapshots: {
     interval: number
     snapshot: ReturnType<typeof snapshotFiles>
@@ -104,6 +119,8 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
     filesDirectory = resolve(options.files)
     if (!(await stat(filesDirectory).catch(() => null))?.isDirectory())
       throw new UsageError('--files must name an existing directory')
+    if (steps?.some((step) => step.kind === 'file'))
+      damage = fileFaults(filesDirectory)
   }
   // Started without waiting: walking a large directory must not delay sampling.
   const takeFileSnapshot = (interval: number) => {
@@ -189,6 +206,7 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
                 signal,
                 elapsed,
                 network,
+                files: damage,
                 log: (r) =>
                   console.error(
                     `Step ${r.index} ${r.kind}${r.name ? ' ' + r.name : ''}: ${r.status} at ${((r.endedMs as number) / 1000).toFixed(1)} s${r.error ? ' — ' + r.error : ''}`,
@@ -214,9 +232,13 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
   } finally {
     // The capture or its catch has set the report by now.
     const current = report!
-    // Taken before the network is restored: the state the capture ended in.
+    // Taken before the network and files are restored: the state the capture ended in.
     if (fileSnapshots.length) takeFileSnapshot(0)
     if (network) networkEvidence = await network.finish()
+    if (damage) {
+      await fileSnapshots.at(-1)?.snapshot
+      fileFaultEvidence = await damage.finish()
+    }
     if (input) {
       input.close()
       process.stdin.pause()
@@ -233,6 +255,8 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
     signals.off('SIGTERM', stop)
   }
   if (networkEvidence) applyNetworkEvidence(report, networkEvidence)
+  if (fileFaultEvidence) applyFileFaultEvidence(report, fileFaultEvidence)
+  applyExpectationEvidence(report)
   let filePaths
   if (fileSnapshots.length) {
     const evidence = fileEvidence(
@@ -242,6 +266,8 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
           snapshot: await snapshot,
         })),
       ),
+      // What the steps did to these files is reported on its own.
+      damage?.damaged(),
     )
     applyFileEvidence(report, evidence)
     filePaths = evidence.paths
@@ -257,7 +283,11 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
     await writeFile(
       join(directory, 'files.json'),
       JSON.stringify(
-        { directory: filesDirectory, intervals: filePaths },
+        {
+          directory: filesDirectory,
+          intervals: filePaths,
+          ...(fileFaultEvidence ? { faults: fileFaultEvidence.paths } : {}),
+        },
         null,
         2,
       ),
@@ -297,7 +327,7 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
       )
     for (const finding of report.findings)
       console.log(
-        `Interval ${finding.interval}: ${['DELAYED_UI_UPDATE', 'UNEXPECTED_ROW_STATE'].includes(finding.code) ? `${finding.code} — ` : ''}${observationSummary(finding)}`,
+        `Interval ${finding.interval}: ${['DELAYED_UI_UPDATE', 'UNEXPECTED_ROW_STATE', 'LOCAL_FILE_NOT_REPAIRED', 'EXPECTATION_NOT_MET'].includes(finding.code) ? `${finding.code} — ` : ''}${observationSummary(finding)}`,
       )
     for (const effect of report.actionEffects ?? [])
       console.log(actionSummary(effect))
@@ -313,6 +343,8 @@ IPC requires the observation-capable development hook. See docs/observe.md.`)
       console.error(
         `Network faults were not removed: ${report.network.restoreError}. Stop recovery-probe net to restore the app's network.`,
       )
+    for (const record of report.fileFaults ?? [])
+      console.log(fileFaultSummary(record))
     console.log(
       `Sampling: ${config.detail}; requested delay ${config.sampleMs} ms; measured mean cadence ${report.sampling!.startToStart.meanMs ?? 'unavailable'} ms.`,
     )

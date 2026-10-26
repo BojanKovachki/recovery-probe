@@ -267,3 +267,37 @@ test(
     }
   },
 )
+
+test(
+  'an expect step that sees nothing in time is unmet, and the script goes on',
+  { timeout: 20000 },
+  async () => {
+    const page = await browser.newPage()
+    try {
+      await page.goto(origin + '/')
+      const results = await runSteps(
+        page,
+        observationSteps([
+          { expect: { css: '#catalog button', text: 'Start A' } },
+          { expect: '#never-shown', timeoutMs: 300, name: 'missing' },
+          { wait: 0 },
+        ]),
+        {
+          mark: async () => null,
+          signal: new AbortController().signal,
+          elapsed: () => 0,
+        },
+      )
+      assert.deepEqual(
+        results.map((r) => r.status),
+        ['done', 'unmet', 'done'],
+      )
+      assert.equal(
+        results[1].error,
+        'EXPECTATION_NOT_MET: no visible match within 300 ms',
+      )
+    } finally {
+      await page.close()
+    }
+  },
+)

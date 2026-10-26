@@ -70,7 +70,7 @@ Reports from before this block are read from their other fields.
 ## How it decides
 
 - **Problems** are suspected defects and leads.
-  - Suspected defects include failed checks, `CONTENT_LOSS` and `SILENT_FAILURE`.
+  - Suspected defects include failed checks, `CONTENT_LOSS`, `SILENT_FAILURE` and an `expect` step the app did not meet (`EXPECTATION_NOT_MET`).
   - Leads are findings that need a decision, such as `UNCLEAR_FEEDBACK`, and observation findings, such as `DELAYED_UI_UPDATE` or `LOCAL_FILES_REMOVED`.
   - Other outcomes, such as `RECOVERED` or `FEEDBACK_SHOWN`, are listed but not compared.
 - **Found** counts from any run, even one that stopped early.

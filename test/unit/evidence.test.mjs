@@ -111,3 +111,33 @@ test('experiments that fail the same fault in different ways stay apart', () => 
     ['GONE SILENT_EMPTY rejection-2', 'NEW SILENT_EMPTY rejection-1'],
   )
 })
+
+test('an expect step the app did not meet is a failed check; other observation findings are leads', () => {
+  const observation = (codes) => ({
+    mode: 'observation with file faults',
+    transport: 'ipc',
+    status: 'complete',
+    captureComplete: true,
+    coverage: { gaps: [] },
+    findings: codes.map((code) => ({ code, interval: 2 })),
+  })
+  assert.deepEqual(
+    evidenceOf(
+      observation([
+        'EXPECTATION_NOT_MET',
+        'LOCAL_FILE_NOT_REPAIRED',
+        'DELAYED_UI_UPDATE',
+      ]),
+    ).problems,
+    [
+      { code: 'EXPECTATION_NOT_MET', severity: 'defect' },
+      { code: 'LOCAL_FILE_NOT_REPAIRED', severity: 'lead' },
+      { code: 'DELAYED_UI_UPDATE', severity: 'lead' },
+    ],
+  )
+  const fixed = compare(
+    observation(['EXPECTATION_NOT_MET', 'LOCAL_FILE_NOT_REPAIRED']),
+    observation([]),
+  )
+  assert.equal(fixed.verdict, 'IMPROVED')
+})

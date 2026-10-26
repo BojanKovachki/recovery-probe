@@ -72,9 +72,11 @@ export async function snapshotFiles(
   }
 }
 
+/** `ignored` paths are left out, such as the files observe's own steps damaged. */
 export function compareSnapshots(
   before: FileSnapshot,
   after: FileSnapshot,
+  ignored: ReadonlySet<string> = new Set(),
 ): FileChanges {
   const changes: FileChanges = {
     removed: 0,
@@ -86,6 +88,7 @@ export function compareSnapshots(
     shrunkPaths: [],
   }
   for (const [path, size] of before.files) {
+    if (ignored.has(path)) continue
     const now = after.files.get(path)
     if (now === undefined) {
       changes.removed += 1
@@ -99,16 +102,17 @@ export function compareSnapshots(
     } else if (now > size) changes.grown += 1
   }
   for (const path of after.files.keys())
-    if (!before.files.has(path)) changes.added += 1
+    if (!before.files.has(path) && !ignored.has(path)) changes.added += 1
   return changes
 }
 
 /**
  * Compares the snapshots taken as each interval opened, and the last one, so each
- * interval gets what changed on disk while it was open.
+ * interval gets what changed on disk while it was open. `ignored` paths are left out.
  */
 export function fileEvidence(
   snapshots: { interval: number; snapshot: FileSnapshot }[],
+  ignored?: ReadonlySet<string>,
 ): FileEvidence {
   const evidence: FileEvidence = { intervals: [], paths: [] }
   for (let i = 0; i + 1 < snapshots.length; i++) {
@@ -117,6 +121,7 @@ export function fileEvidence(
     const { removedPaths, shrunkPaths, ...counts } = compareSnapshots(
       before,
       after,
+      ignored,
     )
     const incomplete =
       before.truncated || after.truncated || before.error || after.error

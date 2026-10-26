@@ -114,7 +114,11 @@ export function actionConfig(input: unknown): IpcActionConfig {
     throw Error(
       'channel is required: the IPC channel the action writes through',
     )
-  c.setup = c.setup === undefined ? [] : observationSteps(c.setup)
+  const setup = c.setup === undefined ? [] : observationSteps(c.setup)
+  // Setup results are not reported, so an expectation there could fail unseen.
+  if (setup.some((step) => step.kind === 'expect'))
+    throw Error('setup steps cannot use expect; use waitFor')
+  c.setup = setup
   c.action = selectorSpec(c.action, 'action')
   for (const [key, low, high] of [
     ['latencyMs', 0, 5000],

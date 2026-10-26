@@ -200,7 +200,13 @@ If the selected target completes more than two reads per sample on average, per-
 ]
 ```
 
-Each step has exactly one of `mark` (start a new interval and wait for it), `navigate` (same-document `#fragment` only; a document load would reset the state under observation), `click` (exactly one visible match, real input events through Playwright), `waitFor` (first visible match) or `wait` (milliseconds). `name` and `timeoutMs` are optional. Steps start once the capture is observing, run in order, and stop when the capture ends. A failed or unfinished script is reported in `operator` and adds the `OPERATOR_STEPS_INCOMPLETE` coverage gap. The validated steps are saved as a private `steps.json` next to the report. Without `--steps`, observation still never acts.
+Each step has exactly one of `mark` (start a new interval and wait for it), `navigate` (same-document `#fragment` only; a document load would reset the state under observation), `click` (exactly one visible match, real input events through Playwright), `waitFor` (first visible match), `expect` (see below) or `wait` (milliseconds). `name` and `timeoutMs` are optional. Steps start once the capture is observing, run in order, and stop when the capture ends. A failed or unfinished script is reported in `operator` and adds the `OPERATOR_STEPS_INCOMPLETE` coverage gap. The validated steps are saved as a private `steps.json` next to the report. Without `--steps`, observation still never acts.
+
+`expect` waits like `waitFor` (15 s unless `timeoutMs` says otherwise), but what it checks is the app: when nothing matching is visible in time, the step is `unmet`, the script goes on, and the report gets an `EXPECTATION_NOT_MET` finding naming the step, not the selector. Use it for what the app must show after a fault, such as a message or a retry button:
+
+```json
+{ "expect": { "role": "alert" }, "name": "repair-message", "timeoutMs": 10000 }
+```
 
 ### Network steps
 
@@ -232,6 +238,26 @@ A failed read can cost more than a blank screen: an app that treats an unknown f
 - An interval that lost files gets `LOCAL_FILES_REMOVED`. It is a lead, not a verdict: a legitimate update also removes files. Mark an interval around the step you suspect, such as a network fault, to see where the loss happened.
 - The removed and shrunk paths (up to 200 of each per interval) are kept only in a private `files.json` next to the report.
 - Snapshots are compared per interval: a file removed and restored within one interval is not seen. They stop at 50,000 files and do not follow symbolic links. A partial or unreadable snapshot adds the `FILE_SNAPSHOT_INCOMPLETE` coverage gap.
+
+### File steps
+
+With `--files DIR`, steps can also damage a file under that directory, the way an interrupted download, a disk cleanup or an antivirus quarantine does, and the capture shows what the app did about it: whether it noticed, what it showed, and whether it put the file back.
+
+```json
+[
+  { "mark": true },
+  { "file": { "path": "Binaries/Win64/api.dll", "fault": "remove" } },
+  { "click": { "role": "button", "name": "Play" } },
+  { "expect": { "role": "alertdialog" }, "name": "repair-message" },
+  { "wait": 60000 }
+]
+```
+
+- `path` is relative to `--files DIR` and cannot leave it. `fault` is `remove`, `truncate` (cut to half its size) or `corrupt` (4 KB in the middle changed, the size kept). A step fails if there is no regular file there, or if an earlier step damaged it.
+- The original is copied to a private temporary folder first. When the capture ends, after its last snapshot, each file is checked: `repaired` (the app put the original content back), `damaged` (still as the step left it) or `changed` (the app wrote something else, or removed it, such as a download still in progress).
+- A file that is not `repaired` adds `LOCAL_FILE_NOT_REPAIRED` in the interval of its step. It is a lead: an app may repair only on its next start, so capture long enough for what you expect.
+- A file left damaged or missing is put back from its copy; one the app rewrote is left as the app has it. A file that cannot be checked or put back adds the `FILE_FAULTS_NOT_RESTORED` coverage gap, and its copy is kept and named in `files.json`.
+- The report's mode becomes `observation with file faults`, and `fileFaults` lists each step's fault and outcome. Paths stay in the private `files.json`, and damaged files are left out of the snapshot comparison, so the step's own damage is not reported as `LOCAL_FILES_REMOVED`.
 
 ## Interpretation
 

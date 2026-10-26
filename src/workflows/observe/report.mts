@@ -2,6 +2,7 @@ import { version } from '../../core/package.mjs'
 import { escapeHtml, renderTemplate } from '../../reports/template.mjs'
 import type { NetworkRuleSummary } from '../../transports/net.mjs'
 import type { IntervalFileChanges } from './files.mjs'
+import type { FileFault, StepResult } from './steps.mjs'
 
 export interface ObservationMetadata {
   recoveryProbeVersion: string
@@ -242,7 +243,7 @@ export interface ObservationNote {
 export interface ObservationOperator {
   status: string
   error?: string
-  steps?: unknown[]
+  steps?: StepResult[]
 }
 
 export interface NetworkStepRecord {
@@ -269,6 +270,72 @@ export const networkStepSummary = (record: NetworkStepRecord): string => {
         `Step ${record.step}: ${rule.fault} ${rule.host} faulted ${rule.applied} of ${rule.matching} matching connection(s)`,
     )
     .join('; ')
+}
+
+/** What became of a damaged file by the end of the capture. */
+export type FileFaultOutcome =
+  /** The app put the original content back. */
+  | 'repaired'
+  /** The file was as the step left it. */
+  | 'damaged'
+  /** The app changed or removed it, but it did not hold the original content. */
+  | 'changed'
+
+export interface FileFaultRecord {
+  /** Index of the step that damaged the file. */
+  step: number
+  fault: FileFault
+  outcome?: FileFaultOutcome
+  /** Recovery Probe put the original back, because the app had not. */
+  restored?: true
+  /** Why the file could not be checked or put back; its original is kept. */
+  error?: string
+}
+
+export const DAMAGED: Record<FileFault, string> = {
+  remove: 'removed',
+  truncate: 'truncated',
+  corrupt: 'corrupted',
+}
+
+export function fileFaultSummary(record: FileFaultRecord): string {
+  const damaged = DAMAGED[record.fault]
+  const putBack = record.restored ? '; Recovery Probe put it back' : ''
+  if (record.error)
+    return `Step ${record.step}: the ${damaged} file could not be checked or put back (${record.error}); its original is kept, see files.json`
+  if (record.outcome === 'repaired')
+    return `Step ${record.step}: the app restored the file the step ${damaged}`
+  if (record.outcome === 'damaged')
+    return `Step ${record.step}: the file the step ${damaged} was still ${record.fault === 'remove' ? 'missing' : damaged} when the capture ended${putBack}`
+  return `Step ${record.step}: the app changed the file the step ${damaged}, but it did not hold the original content when the capture ended${putBack}`
+}
+
+/** The index of the interval that was open at `ms` into the capture. */
+export const intervalAt = (
+  report: Pick<ObservationReport, 'intervals'>,
+  ms: number,
+): number =>
+  (
+    [...report.intervals].reverse().find((i) => i.startMs <= ms) ??
+    report.intervals[0]
+  )?.index ?? 1
+
+/** Adds an `EXPECTATION_NOT_MET` finding for each `expect` step that saw no visible match in time. */
+export function applyExpectationEvidence(report: ObservationReport): void {
+  for (const step of report.operator?.steps ?? []) {
+    if (step.status !== 'unmet') continue
+    const interval = intervalAt(report, step.startedMs)
+    const waited = (step.endedMs ?? step.startedMs) - step.startedMs
+    report.findings.push({
+      code: 'EXPECTATION_NOT_MET',
+      basis: 'SCRIPTED_EXPECTATION',
+      interval,
+      summary: `Step ${step.index} (expect${step.name ? ` ‘${step.name}’` : ''}) saw no visible match in ${seconds(waited)} s.`,
+    })
+    report.intervals
+      .find((i) => i.index === interval)
+      ?.findings.push('EXPECTATION_NOT_MET')
+  }
 }
 
 /** An observation report. Optional fields may be missing from older or failed captures. */
@@ -303,6 +370,8 @@ export interface ObservationReport {
   network?: ObservationNetwork
   /** What changed on disk in each interval, from `observe --files`. */
   files?: { intervals: IntervalFileChanges[] }
+  /** What became of each file a step damaged. */
+  fileFaults?: FileFaultRecord[]
   injected?: number
   reloads?: number
   cleanup?: string
@@ -572,7 +641,15 @@ export function observationSummary(finding: ObservationFinding): string {
       : ''
     return `${capitalizedRowName(finding.row)} showed ${finding.state}, which this region must not show, in ${finding.samples} sample${finding.samples === 1 ? '' : 's'} from ${range(finding.firstSeenMs)} to ${seconds(finding.lastSeenMs)} s${action}.`
   }
-  if (finding.code === 'LOCAL_FILES_REMOVED' && finding.summary)
+  // These are summarized where they are found.
+  if (
+    [
+      'LOCAL_FILES_REMOVED',
+      'LOCAL_FILE_NOT_REPAIRED',
+      'EXPECTATION_NOT_MET',
+    ].includes(finding.code) &&
+    finding.summary
+  )
     return finding.summary
   if (finding.basis === 'NO_READ_OBSERVED_IN_INTERVAL')
     return 'Content was visible without a new selected read in this interval.'
@@ -718,6 +795,9 @@ export function renderObservationReport(report: ObservationReport): string {
   const networkHtml = report.network
     ? `<ul>${report.network.faults.map((record) => `<li>${escapeHtml(networkStepSummary(record))}</li>`).join('')}</ul>${report.network.restoreError ? `<p>Network faults were not removed: ${escapeHtml(report.network.restoreError)}</p>` : ''}`
     : ''
+  const fileFaultsHtml = report.fileFaults?.length
+    ? `<ul>${report.fileFaults.map((record) => `<li>${escapeHtml(fileFaultSummary(record))}</li>`).join('')}</ul>`
+    : ''
   const samplingHtml = sampling
     ? `<p>Configured delay: ${sampling.requestedDelayMs} ms. Completed samples: ${sampling.completedSamples}. Mean sample duration: ${sampling.sampleDuration.meanMs ?? 'unavailable'} ms. Mean start-to-start cadence: ${sampling.startToStart.meanMs ?? 'unavailable'} ms (maximum ${sampling.startToStart.maxMs ?? 'unavailable'} ms).</p><p>${escapeHtml(sampling.note)}</p>`
     : ''
@@ -742,7 +822,7 @@ export function renderObservationReport(report: ObservationReport): string {
     limitation: report.limitation ?? report.error,
     intervals,
     findings,
-    operator: operatorHtml + networkHtml,
+    operator: operatorHtml + networkHtml + fileFaultsHtml,
     actions: actionsHtml,
     trackedRows,
     notes,
