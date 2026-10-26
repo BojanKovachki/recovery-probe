@@ -52,51 +52,65 @@ export async function run(values: Values): Promise<void> {
   const path = text(values, 'config')
   if (!path) throw new UsageError('--config is required')
   const raw = await readConfig(path)
+  const input = withFlags(raw, values)
+  const directory = await reportFolder('discover', text(values, 'out'))
+  const screenshot = values.screenshots ? screenshotsIn(directory) : undefined
+  const { config, report } =
+    typeof raw.channel === 'string'
+      ? await discoverOverIpc(input, screenshot)
+      : await discoverOverHttp(input, screenshot)
+  await writeDiscoveryReport(directory, report, config)
+  // Heuristic findings are leads to review, never verified failures.
+  process.exitCode = report.ok ? 0 : 2
+  if (values.json) console.log(JSON.stringify(report, null, 2))
+  else printDiscovery(report, directory)
+}
+
+type Screenshot = ReturnType<typeof screenshotsIn> | undefined
+type Report = Awaited<ReturnType<typeof discoverHttp | typeof discoverIpc>>
+
+/** The config file's options with the command line's on top. */
+function withFlags(raw: Record<string, unknown>, values: Values) {
   const cdp = text(values, 'cdp')
   const page = integerOption(values, 'page', [0, 1000])
-  const input = {
+  return {
     ...raw,
     ...(cdp ? { cdp } : {}),
     ...(page !== undefined ? { page } : {}),
     ...(text(values, 'inspector') ? { inspector: values.inspector } : {}),
     ...(values['restore-window'] ? { restoreWindow: true } : {}),
   }
-  const directory = await reportFolder('discover', text(values, 'out'))
-  const screenshot = values.screenshots ? screenshotsIn(directory) : undefined
-  let config: object
-  let report
-  if (typeof raw.channel === 'string') {
-    config = validated(() =>
-      discoveryConfig(input as Parameters<typeof discoveryConfig>[0]),
-    )
-    report = await discoverIpc(config as Parameters<typeof discoverIpc>[0], {
-      screenshot,
-    })
-  } else {
-    const http = validated(() => httpDiscoveryConfig(input))
-    config = http
-    // Closing a CDP connection disconnects this client; it doesn't close the app.
-    const browser = await connectDesktop(http.cdp)
-    try {
-      report = await discoverHttp(selectDesktopPage(browser, http), http, {
-        screenshot,
-      })
-    } finally {
-      await browser.close()
-    }
+}
+
+async function discoverOverIpc(input: object, screenshot: Screenshot) {
+  const config = validated(() =>
+    discoveryConfig(input as Parameters<typeof discoveryConfig>[0]),
+  )
+  return { config, report: await discoverIpc(config, { screenshot }) }
+}
+
+async function discoverOverHttp(input: object, screenshot: Screenshot) {
+  const config = validated(() => httpDiscoveryConfig(input))
+  // Closing a CDP connection disconnects this client; it doesn't close the app.
+  const browser = await connectDesktop(config.cdp)
+  try {
+    const page = selectDesktopPage(browser, config)
+    return { config, report: await discoverHttp(page, config, { screenshot }) }
+  } finally {
+    await browser.close()
   }
-  await writeDiscoveryReport(directory, report, config)
-  // Heuristic findings are leads to review, never verified failures.
-  process.exitCode = report.ok ? 0 : 2
-  if (values.json) {
-    console.log(JSON.stringify(report, null, 2))
-    return
-  }
-  for (const finding of report.findings)
+}
+
+function printDiscovery(report: Report, directory: string) {
+  for (const finding of report.findings) {
+    // A partial finding always carries the interpretation it observed.
+    const partial = finding.partial
+      ? `/${finding.plannedRuns} partial; observed=${finding.observedInterpretation!.classification}`
+      : ''
     console.log(
-      // A partial finding always carries the interpretation it observed.
-      `${finding.kind.toUpperCase()}: ${finding.id} — ${finding.classification}; runs=${finding.confirmations}${finding.partial ? `/${finding.plannedRuns} partial; observed=${finding.observedInterpretation!.classification}` : ''}`,
+      `${finding.kind.toUpperCase()}: ${finding.id} — ${finding.classification}; runs=${finding.confirmations}${partial}`,
     )
+  }
   if (report.error) console.error(`Discovery stopped: ${report.error}`)
   if (report.cleanupError) console.error(`Cleanup: ${report.cleanupError}`)
   console.log(

@@ -1,15 +1,3 @@
-import { performance } from 'node:perf_hooks'
-import type { Page } from 'playwright'
-import {
-  callsGap,
-  findingId,
-  laterCalls,
-  matchesHealthyControl,
-  retainPartialFindings,
-  type DiscoveryExperiment,
-  type DiscoveryFinding,
-} from './experiment.mjs'
-import { screenshotRun, type DiscoveryScreenshot } from './screenshots.mjs'
 import {
   classifyObservation,
   compareRegions,
@@ -20,166 +8,27 @@ import {
 import {
   prepareVisibility,
   windowVisibility,
-  type WindowVisibility,
 } from '../../targets/visibility.mjs'
-import type { IpcInspector } from '../../transports/ipc/inspector.mjs'
+import {
+  callsGap,
+  findingId,
+  laterCalls,
+  retainPartialFindings,
+  type DiscoveryExperiment,
+} from './experiment.mjs'
+import { load, type LoadContext, type LoadPlan } from './load.mjs'
+import { screenshotRun, type DiscoveryScreenshot } from './screenshots.mjs'
+import type {
+  DiscoveryPhase,
+  DiscoveryResult,
+  DiscoveryRun,
+  DiscoverySetup,
+  DiscoveryTiming,
+  PreparedVisibility,
+  ReadSnapshot,
+} from './types.mjs'
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
-interface ReadStats {
-  realCalls: number
-  successes: number
-  errors: number
-  pending: number
-}
-
-/** Call counters of one load, in the shape both transports report. */
-export interface ReadSnapshot {
-  injected: number
-  injectedAt: number | null
-  successfulAfterFault: number
-  injectionError?: boolean
-  channels: Record<string, ReadStats>
-}
-
-/** Arms a plan for the next load and reports its calls; see transports/session.mts. */
-export interface ReadSession<
-  Fault extends string,
-  Snapshot extends ReadSnapshot,
-> {
-  begin(plan: { fault?: Fault; times?: number; skip?: number }): Promise<void>
-  snapshot(): Snapshot | Promise<Snapshot>
-  stop(): Promise<unknown>
-}
-
-export interface DiscoverySetup<
-  Fault extends string,
-  Snapshot extends ReadSnapshot,
-> {
-  page: Page
-  session: ReadSession<Fault, Snapshot>
-  /** The selected read and the others the screen needs, as named in snapshots. */
-  read: string
-  dependencies: string[]
-  /** What this transport calls a read in reports. */
-  readKind: 'channel' | 'endpoint'
-  /** The error when a real read of the target fails. */
-  readFailed: string
-  experiments: DiscoveryExperiment<Fault>[]
-  /** The fault for the later-call experiments; none when the transport can't let calls through. */
-  laterCallFault?: Fault
-  /** Gives the IPC hook's view of the window when the app has one. */
-  control?: IpcInspector
-  /** How to rerun the same experiments after a fix. */
-  verification: string
-}
-
-export interface DiscoveryTiming {
-  baselineTimeoutMs: number
-  /** How long a faulted load is watched after the first fault. */
-  observationMs: number
-  settleMs: number
-  repeats: number
-  regionSelector?: string
-  restoreWindow: boolean
-}
-
-export interface DiscoveryEvent<Snapshot extends ReadSnapshot> {
-  elapsedMs: number
-  injected: number
-  channels: Snapshot['channels']
-  ui: RegionSummary
-  uncaughtErrors: number
-}
-
-export interface DiscoveryPhase<
-  Fault extends string,
-  Snapshot extends ReadSnapshot,
-> {
-  elapsedMs: number
-  fault: Fault | 'healthy'
-  times: number
-  /** The call of the load that failed, when it was not the first. */
-  call?: number
-  screenshot?: string
-  evidenceCaptureFailed?: true
-  ready: boolean
-  ui: RegionSummary
-  snapshot: Snapshot
-  timeline: DiscoveryEvent<Snapshot>[]
-  newErrors: number
-  recoveryDetectedAt: number | null
-  recoveryMs: number | null
-  timingNote: string
-  repeatedReads: ({
-    code: 'REPEATED_READS'
-    count: number
-    redundant: 'not-established'
-  } & Partial<Record<'channel' | 'endpoint', string>>)[]
-}
-
-type Assessment = ReturnType<typeof classifyObservation>
-
-export interface DiscoveryRun<
-  Fault extends string,
-  Snapshot extends ReadSnapshot,
-> extends DiscoveryPhase<Fault, Snapshot> {
-  control: { ui: RegionSummary; snapshot: Snapshot }
-  /** The same as interpretation; kept for reports that read it. */
-  assessment: Assessment
-  observation: ReturnType<typeof compareRegions> & {
-    injected: number
-    channels: Snapshot['channels']
-    recoveryMs: number | null
-    repeatedReads: DiscoveryPhase<Fault, Snapshot>['repeatedReads']
-  }
-  interpretation: Assessment
-}
-
-type PreparedVisibility = Awaited<ReturnType<typeof prepareVisibility>>
-
-/** The fields discovery fills in; each transport adds its own around them. */
-export interface DiscoveryResult<
-  Fault extends string,
-  Snapshot extends ReadSnapshot,
-> {
-  baselines: DiscoveryPhase<Fault, Snapshot>[]
-  results: DiscoveryRun<Fault, Snapshot>[]
-  findings: DiscoveryFinding[]
-  finalReset: 'healthy' | 'not-verified'
-  ok: boolean
-  readiness: {
-    calibrationComplete: boolean
-    /** How often each healthy calibration load read the target. */
-    callsPerLoad?: number[]
-    callsGap?: string
-  }
-  window?: {
-    initial: WindowVisibility
-    restoration?: Awaited<ReturnType<PreparedVisibility['revert']>>
-  }
-  environment?: WindowVisibility & { online: boolean; ui: RegionSummary }
-  stoppedObservation?: {
-    reason: string
-    fault: Fault | 'healthy'
-    times: number
-    snapshot: Snapshot | undefined
-    ui: RegionSummary | undefined
-    timeline: DiscoveryEvent<Snapshot>[]
-  }
-  failedControl?: DiscoveryPhase<Fault, Snapshot> & {
-    reasons: {
-      notReady: boolean
-      newErrors: number
-      fingerprintChanged: boolean
-    }
-    diff: ReturnType<typeof compareRegions>
-  }
-  cleanup?: DiscoveryPhase<Fault, Snapshot>
-  error?: string
-  cleanupError?: string
-  windowRestoreError?: string
-}
+const CALIBRATION_LOADS = 3
 
 const advice = (classification: string) =>
   classification === 'SILENT_EMPTY'
@@ -199,156 +48,103 @@ export async function runDiscovery<
   report: DiscoveryResult<Fault, Snapshot>,
   { screenshot }: { screenshot?: DiscoveryScreenshot } = {},
 ): Promise<void> {
-  const { page, session, read, dependencies, control } = setup
-  const { baselineTimeoutMs, observationMs, settleMs } = timing
-  const initialUrl = page.url()
-  let errors = 0,
-    trustedFingerprint: string | undefined,
-    visibility: PreparedVisibility | undefined
-  const onError = () => errors++
-  page.on('pageerror', onError)
+  await new Discovery(setup, timing, report, screenshot).run()
+}
 
-  const screen = async () => {
+class Discovery<Fault extends string, Snapshot extends ReadSnapshot> {
+  readonly #setup: DiscoverySetup<Fault, Snapshot>
+  readonly #timing: DiscoveryTiming
+  readonly #report: DiscoveryResult<Fault, Snapshot>
+  readonly #screenshot?: DiscoveryScreenshot
+  readonly #initialUrl: string
+  readonly #loads: LoadContext<Fault, Snapshot>
+  #errors = 0
+  #trustedFingerprint?: string
+  #visibility?: PreparedVisibility
+  #countError = () => this.#errors++
+
+  constructor(
+    setup: DiscoverySetup<Fault, Snapshot>,
+    timing: DiscoveryTiming,
+    report: DiscoveryResult<Fault, Snapshot>,
+    screenshot: DiscoveryScreenshot | undefined,
+  ) {
+    this.#setup = setup
+    this.#timing = timing
+    this.#report = report
+    this.#screenshot = screenshot
+    this.#initialUrl = setup.page.url()
+    this.#loads = {
+      setup,
+      timing,
+      report,
+      screen: () => this.#screen(),
+      errors: () => this.#errors,
+      trustedFingerprint: () => this.#trustedFingerprint,
+    }
+  }
+
+  async run() {
+    const { page, control } = this.#setup
+    page.on('pageerror', this.#countError)
+    try {
+      this.#visibility = await prepareVisibility(page, {
+        restoreWindow: this.#timing.restoreWindow,
+        control,
+      })
+      this.#report.window = { initial: this.#visibility.initial }
+      await this.#screen()
+      await this.#experimentThenReset()
+    } catch (error) {
+      this.#report.error ??= (error as Error).message
+    } finally {
+      await this.#release()
+    }
+    this.#conclude()
+  }
+
+  #load(plan?: LoadPlan<Fault>) {
+    return load(this.#loads, plan)
+  }
+
+  async #screen(): Promise<RegionSummary> {
+    const { page, control } = this.#setup
     const summary = summarizeRegion(
-      await page.evaluate(readRegion, timing.regionSelector),
+      await page.evaluate(readRegion, this.#timing.regionSelector),
     )
     if (!summary.visible || !summary.online) {
-      report.environment = {
+      this.#report.environment = {
         ...(await windowVisibility(page, control)),
         online: summary.online,
         ui: summary,
       }
-      throw new Error('ENVIRONMENT_BLOCKED: ' + report.environment.diagnosis)
+      throw new Error(
+        'ENVIRONMENT_BLOCKED: ' + this.#report.environment.diagnosis,
+      )
     }
-    if (page.url() !== initialUrl) throw new Error('TARGET_NAVIGATED')
+    if (page.url() !== this.#initialUrl) throw new Error('TARGET_NAVIGATED')
     return summary
   }
 
-  // One reload: healthy, or with the experiment's faults armed.
-  const load = async (
-    experiment: DiscoveryExperiment<Fault> | undefined,
-    expectedFingerprint?: string,
-    calibrate = false,
-  ): Promise<DiscoveryPhase<Fault, Snapshot>> => {
-    const { fault, times = 1, call } = experiment ?? {}
-    const started = performance.now()
-    const initialErrors = errors
-    const timeline: DiscoveryEvent<Snapshot>[] = []
-    let stableSince = started,
-      previous: string | undefined,
-      previousEvent: string | undefined,
-      snapshot: Snapshot | undefined,
-      summary: RegionSummary | undefined,
-      firstInjection: number | undefined
+  async #experimentThenReset() {
     try {
-      await session.begin(
-        fault ? { fault, times, ...(call ? { skip: call - 1 } : {}) } : {},
-      )
-      await page.reload({
-        waitUntil: 'domcontentloaded',
-        timeout: baselineTimeoutMs,
-      })
-      while (true) {
-        const current = await session.snapshot()
-        snapshot = current
-        if (current.injectionError) throw new Error('INJECTION_ERROR')
-        if (current.injected && firstInjection === undefined)
-          firstInjection = performance.now()
-        const ui = await screen()
-        summary = ui
-        const signature = JSON.stringify(ui)
-        if (signature !== previous) {
-          previous = signature
-          stableSince = performance.now()
-        }
-        const event = {
-          elapsedMs: Math.round(performance.now() - started),
-          injected: current.injected,
-          channels: current.channels,
-          ui,
-          uncaughtErrors: errors - initialErrors,
-        }
-        // Bound reports without capturing payloads, filenames, error messages or stacks.
-        const eventSignature = JSON.stringify({ ...event, elapsedMs: 0 })
-        if (timeline.length < 100 && eventSignature !== previousEvent) {
-          timeline.push(event)
-          previousEvent = eventSignature
-        }
-        const target = current.channels[read]
-        const needed = dependencies.map((d) => current.channels[d])
-        if (needed.some((row) => row.errors))
-          throw new Error('DEPENDENCY_FAILED')
-        if (target.errors) throw new Error(setup.readFailed)
-        const settled =
-          target.pending === 0 &&
-          needed.every((row) => row.successes > 0 && row.pending === 0)
-        const ready =
-          matchesHealthyControl(ui, expectedFingerprint) &&
-          settled &&
-          !ui.loading &&
-          performance.now() - stableSince >= settleMs &&
-          target.successes > 0 &&
-          (!fault ||
-            (current.injected === times &&
-              current.successfulAfterFault > 0 &&
-              ui.fingerprint === trustedFingerprint))
-        const elapsed = performance.now() - (firstInjection ?? started)
-        if (
-          (!calibrate && ready) ||
-          elapsed >=
-            (firstInjection === undefined ? baselineTimeoutMs : observationMs)
-        ) {
-          const detectedAt = Date.now()
-          const recovered = Boolean(fault) && ready
-          return {
-            elapsedMs: Math.round(performance.now() - started),
-            fault: fault ?? 'healthy',
-            times: fault ? times : 0,
-            ...(call ? { call } : {}),
-            ready,
-            ui,
-            snapshot: current,
-            timeline,
-            newErrors: errors - initialErrors,
-            recoveryDetectedAt: recovered ? detectedAt : null,
-            recoveryMs: recovered
-              ? detectedAt - (current.injectedAt ?? detectedAt)
-              : null,
-            timingNote: `Sampled recovery with ${settleMs}ms UI stability; bounded observation starts at first observed injection.`,
-            repeatedReads: Object.entries(current.channels)
-              .filter(([, row]) => row.realCalls > 1)
-              .map(([name, row]) => ({
-                code: 'REPEATED_READS' as const,
-                [setup.readKind]: name,
-                count: row.realCalls,
-                redundant: 'not-established' as const,
-              })),
-          }
-        }
-        await sleep(100)
-      }
+      await this.#calibrate()
+      for (const planned of this.#planned()) await this.#experiment(planned)
     } catch (error) {
-      report.stoppedObservation ??= {
-        reason: (error as Error).message,
-        fault: fault ?? 'healthy',
-        times,
-        snapshot,
-        ui: summary,
-        timeline,
-      }
-      throw error
+      this.#report.error = (error as Error).message
     } finally {
-      await session.stop()
+      await this.#reset()
     }
   }
 
-  const calibrate = async () => {
-    for (let i = 0; i < 3; i++) {
-      const baseline = await load(undefined, undefined, true)
+  async #calibrate() {
+    const report = this.#report
+    for (let i = 0; i < CALIBRATION_LOADS; i++) {
+      const baseline = await this.#load({ calibrate: true })
       if (i === 0)
         Object.assign(
           baseline,
-          await screenshotRun(screenshot, page, 'baseline'),
+          await screenshotRun(this.#screenshot, this.#setup.page, 'baseline'),
         )
       report.baselines.push(baseline)
       if (!baseline.ready || baseline.newErrors)
@@ -359,21 +155,38 @@ export async function runDiscovery<
       !report.baselines.every((b) => b.ui.fingerprint === first.ui.fingerprint)
     )
       throw new Error('BASELINE_UNSTABLE')
-    trustedFingerprint = first.ui.fingerprint
+    this.#trustedFingerprint = first.ui.fingerprint
     report.readiness.calibrationComplete = true
     const callsPerLoad = report.baselines.map(
-      (b) => b.snapshot.channels[read].realCalls,
+      (b) => b.snapshot.channels[this.#setup.read].realCalls,
     )
     report.readiness.callsPerLoad = callsPerLoad
     report.readiness.callsGap = callsGap(
       callsPerLoad,
-      setup.laterCallFault !== undefined,
+      this.#setup.laterCallFault !== undefined,
     )
   }
 
+  /** The configured experiments, then one per later call when the transport can fail those. */
+  #planned(): DiscoveryExperiment<Fault>[] {
+    const fault = this.#setup.laterCallFault
+    const later =
+      fault === undefined
+        ? []
+        : laterCalls(this.#report.readiness.callsPerLoad!).map((call) => ({
+            fault,
+            times: 1,
+            call,
+          }))
+    return [...this.#setup.experiments, ...later]
+  }
+
   // A healthy control before every faulted load also clears the previous state.
-  const healthyControl = async () => {
-    const healthy = await load(undefined, trustedFingerprint)
+  async #healthyControl() {
+    const report = this.#report
+    const healthy = await this.#load({
+      expectedFingerprint: this.#trustedFingerprint,
+    })
     const fingerprintChanged =
       healthy.ui.fingerprint !== report.baselines[0].ui.fingerprint
     if (!healthy.ready || healthy.newErrors || fingerprintChanged) {
@@ -391,114 +204,123 @@ export async function runDiscovery<
     return healthy
   }
 
-  const experiment = async (planned: DiscoveryExperiment<Fault>) => {
+  async #experiment(planned: DiscoveryExperiment<Fault>) {
     const id = findingId(planned)
     const runs: DiscoveryRun<Fault, Snapshot>[] = []
-    for (let i = 0; i < timing.repeats; i++) {
-      const healthy = await healthyControl()
-      const result = await load(planned)
-      const assessment = classifyObservation({
-        baseline: healthy.ui,
-        final: result.ui,
-        injected: result.snapshot.injected,
-        expected: planned.times,
-        recovered: result.ready,
-        newErrors: result.newErrors,
-      })
-      const run: DiscoveryRun<Fault, Snapshot> = {
-        ...result,
-        control: { ui: healthy.ui, snapshot: healthy.snapshot },
-        assessment,
-        observation: {
-          ...compareRegions(healthy.ui, result.ui),
-          injected: result.snapshot.injected,
-          channels: result.snapshot.channels,
-          recoveryMs: result.recoveryMs,
-          repeatedReads: result.repeatedReads,
-        },
-        interpretation: assessment,
-        ...(await screenshotRun(screenshot, page, `${id}-run${i + 1}`)),
+    for (let i = 0; i < this.#timing.repeats; i++) {
+      const healthy = await this.#healthyControl()
+      const result = await this.#load({ experiment: planned })
+      const run = {
+        ...faultedRun(planned, healthy, result),
+        ...(await screenshotRun(
+          this.#screenshot,
+          this.#setup.page,
+          `${id}-run${i + 1}`,
+        )),
       }
       runs.push(run)
-      report.results.push(run)
+      this.#report.results.push(run)
     }
+    this.#report.findings.push(this.#finding(id, planned, runs))
+  }
+
+  #finding(
+    id: string,
+    planned: DiscoveryExperiment<Fault>,
+    runs: DiscoveryRun<Fault, Snapshot>[],
+  ) {
     const consistent = runs.every(
       (r) => r.assessment.classification === runs[0].assessment.classification,
     )
     const assessment = consistent
       ? runs[0].assessment
       : { classification: 'UNSTABLE', kind: 'inconclusive', confidence: 'low' }
-    report.findings.push({
+    return {
       id,
       ...planned,
       ...assessment,
       confirmations: runs.length,
       repeatConfirmed: consistent && runs.length >= 3,
-      observationMs,
+      observationMs: this.#timing.observationMs,
       advice: advice(assessment.classification),
-      verification: setup.verification,
-    })
+      verification: this.#setup.verification,
+    }
   }
 
-  try {
-    visibility = await prepareVisibility(page, {
-      restoreWindow: timing.restoreWindow,
-      control,
-    })
-    report.window = { initial: visibility.initial }
-    await screen()
+  /** One last healthy load, so the app is left as it was found. */
+  async #reset() {
+    const report = this.#report
+    const trusted = this.#trustedFingerprint
     try {
-      await calibrate()
-      const callsPerLoad = report.readiness.callsPerLoad!
-      const later =
-        setup.laterCallFault === undefined
-          ? []
-          : laterCalls(callsPerLoad).map((call) => ({
-              fault: setup.laterCallFault!,
-              times: 1,
-              call,
-            }))
-      for (const planned of [...setup.experiments, ...later])
-        await experiment(planned)
+      const cleanup = await this.#load({ expectedFingerprint: trusted })
+      report.cleanup = cleanup
+      report.finalReset =
+        trusted !== undefined &&
+        cleanup.ready &&
+        !cleanup.newErrors &&
+        cleanup.ui.fingerprint === trusted
+          ? 'healthy'
+          : 'not-verified'
     } catch (error) {
-      report.error = (error as Error).message
-    } finally {
-      try {
-        const cleanup = await load(undefined, trustedFingerprint)
-        report.cleanup = cleanup
-        report.finalReset =
-          trustedFingerprint !== undefined &&
-          cleanup.ready &&
-          !cleanup.newErrors &&
-          cleanup.ui.fingerprint === trustedFingerprint
-            ? 'healthy'
-            : 'not-verified'
-      } catch (error) {
-        report.cleanupError = (error as Error).message
-      }
+      report.cleanupError = (error as Error).message
     }
-  } catch (error) {
-    report.error ??= (error as Error).message
-  } finally {
+  }
+
+  async #release() {
+    const report = this.#report
     try {
-      await session.stop()
+      await this.#setup.session.stop()
     } catch (error) {
       report.finalReset = 'not-verified'
       report.cleanupError ??= (error as Error).message
     }
     try {
       // The window state is recorded as soon as visibility is prepared.
-      if (visibility) report.window!.restoration = await visibility.revert()
+      if (this.#visibility)
+        report.window!.restoration = await this.#visibility.revert()
     } catch (error) {
       report.windowRestoreError = (error as Error).message
     }
-    page.off('pageerror', onError)
+    this.#setup.page.off('pageerror', this.#countError)
   }
-  report.ok =
-    !report.error &&
-    !report.cleanupError &&
-    !report.windowRestoreError &&
-    report.finalReset === 'healthy' &&
-    report.findings.every((f) => f.kind === 'observation')
-  retainPartialFindings(report, timing.repeats)
+
+  #conclude() {
+    const report = this.#report
+    report.ok =
+      !report.error &&
+      !report.cleanupError &&
+      !report.windowRestoreError &&
+      report.finalReset === 'healthy' &&
+      report.findings.every((f) => f.kind === 'observation')
+    retainPartialFindings(report, this.#timing.repeats)
+  }
+}
+
+/** A faulted load, compared with the healthy control before it. */
+function faultedRun<Fault extends string, Snapshot extends ReadSnapshot>(
+  planned: DiscoveryExperiment<Fault>,
+  healthy: DiscoveryPhase<Fault, Snapshot>,
+  result: DiscoveryPhase<Fault, Snapshot>,
+): DiscoveryRun<Fault, Snapshot> {
+  const assessment = classifyObservation({
+    baseline: healthy.ui,
+    final: result.ui,
+    injected: result.snapshot.injected,
+    expected: planned.times,
+    recovered: result.ready,
+    newErrors: result.newErrors,
+  })
+  return {
+    ...result,
+    control: { ui: healthy.ui, snapshot: healthy.snapshot },
+    assessment,
+    observation: {
+      ...compareRegions(healthy.ui, result.ui),
+      injected: result.snapshot.injected,
+      channels: result.snapshot.channels,
+      recoveryMs: result.recoveryMs,
+      repeatedReads: result.repeatedReads,
+    },
+    interpretation: assessment,
+  }
 }

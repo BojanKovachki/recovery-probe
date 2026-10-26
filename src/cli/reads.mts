@@ -56,62 +56,81 @@ export async function run(values: Values): Promise<void> {
   const directory = await reportFolder('reads', text(values, 'out'), {
     reuse: values.reuseOut === true,
   })
-  let discovery: DesktopDiscovery
-  let scenario: Record<string, unknown>
-  if (url) {
-    const state = text(values, 'state')
-    const session = {
-      pageUrl: url,
-      ...(state ? { storageState: resolve(state) } : {}),
-    }
-    discovery = await discoverWeb(
-      { ...session, headless: !values.headed },
-      { durationMs },
-    )
-    scenario = { ...session, recovery: 'automatic' }
-  } else {
-    const cdp = text(values, 'cdp') ?? 'http://127.0.0.1:9222'
-    const page = integerOption(values, 'page', [0, 1000])
-    // Closing a CDP connection disconnects this client; it doesn't close the app.
-    const browser = await connectDesktop(cdp)
-    try {
-      const target = selectDesktopPage(browser, { page })
-      discovery = await discoverDesktop(target, { durationMs })
-      scenario = {
-        cdp,
-        page: desktopPages(browser).indexOf(target),
-        recovery: 'retry',
-        retrySelector: '',
-      }
-    } finally {
-      await browser.close()
-    }
+  const { discovery, scenario } = url
+    ? await readsInBrowser(url, values, durationMs)
+    : await readsOverCdp(values, durationMs)
+  await writeReads(directory, discovery, scenario)
+  if (values.json) console.log(JSON.stringify(discovery, null, 2))
+  else printReads(discovery, directory)
+}
+
+interface Reads {
+  discovery: DesktopDiscovery
+  /** The scenario fields that depend on how the page was reached. */
+  scenario: Record<string, unknown>
+}
+
+async function readsInBrowser(
+  url: string,
+  values: Values,
+  durationMs: number,
+): Promise<Reads> {
+  const state = text(values, 'state')
+  const session = {
+    pageUrl: url,
+    ...(state ? { storageState: resolve(state) } : {}),
   }
+  const discovery = await discoverWeb(
+    { ...session, headless: !values.headed },
+    { durationMs },
+  )
+  return { discovery, scenario: { ...session, recovery: 'automatic' } }
+}
+
+async function readsOverCdp(
+  values: Values,
+  durationMs: number,
+): Promise<Reads> {
+  const cdp = text(values, 'cdp') ?? 'http://127.0.0.1:9222'
+  const page = integerOption(values, 'page', [0, 1000])
+  // Closing a CDP connection disconnects this client; it doesn't close the app.
+  const browser = await connectDesktop(cdp)
+  try {
+    const target = selectDesktopPage(browser, { page })
+    const discovery = await discoverDesktop(target, { durationMs })
+    const scenario = {
+      cdp,
+      page: desktopPages(browser).indexOf(target),
+      recovery: 'retry',
+      retrySelector: '',
+    }
+    return { discovery, scenario }
+  } finally {
+    await browser.close()
+  }
+}
+
+async function writeReads(
+  directory: string,
+  discovery: DesktopDiscovery,
+  scenario: Record<string, unknown>,
+) {
+  const write = (name: string, value: unknown) =>
+    writeFile(join(directory, name), JSON.stringify(value, null, 2) + '\n', {
+      mode: 0o600,
+    })
   const [only] = discovery.endpoints
-  await writeFile(
-    join(directory, 'discovery.json'),
-    JSON.stringify(discovery, null, 2) + '\n',
-    { mode: 0o600 },
-  )
-  await writeFile(
-    join(directory, 'scenario.json'),
-    JSON.stringify(
-      {
-        ...scenario,
-        pageUrl: discovery.pageUrl,
-        endpoint: discovery.endpoints.length === 1 ? only.endpoint : '',
-        readySelector: '',
-        timeoutMs: 5000,
-      },
-      null,
-      2,
-    ) + '\n',
-    { mode: 0o600 },
-  )
-  if (values.json) {
-    console.log(JSON.stringify(discovery, null, 2))
-    return
-  }
+  await write('discovery.json', discovery)
+  await write('scenario.json', {
+    ...scenario,
+    pageUrl: discovery.pageUrl,
+    endpoint: discovery.endpoints.length === 1 ? only.endpoint : '',
+    readySelector: '',
+    timeoutMs: 5000,
+  })
+}
+
+function printReads(discovery: DesktopDiscovery, directory: string) {
   discovery.endpoints.forEach((row, index) =>
     console.log(
       `${index + 1}. GET ${row.endpoint} (${row.observed} response(s), query values omitted)`,

@@ -4,6 +4,15 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.8.0-preview.4 (2026-10-26)
+
+Discovery, restructured. No change to the CLI, the library or the reports.
+
+- `runDiscovery` (302 lines) is a small `Discovery` class: calibrate, healthy control, experiment, reset and release are separate methods. One reload, watched until it is ready or out of time, is its own `load.mts`, and the engine's types are in `types.mts`.
+- The HTTP and IPC discovery configs are short rule lists on `core/validate.mts`, which gains `overDefaults` and `ensureRanges`; the observation config uses `ensureRanges` too. Each config gets its own default arrays.
+- The `discover` and `reads` commands are split into small steps: input, run, write, print.
+- The size-limit violations listed in `eslint-suppressions.json` drop from 134 to 119.
+
 ## 0.8.0-preview.3 (2026-10-26)
 
 The rest of the observation workflow, restructured. No change to the CLI, the library or the reports.

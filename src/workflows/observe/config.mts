@@ -1,5 +1,6 @@
 import {
   ensure,
+  ensureRanges,
   isIntegerIn,
   isNonEmptyString,
   isRecord,
@@ -100,8 +101,7 @@ export function observationConfig(input: unknown): ObservationConfig {
     'regionSelector must be an explicit CSS selector',
   )
   c.contentSelector = selectorSpec(c.contentSelector, 'contentSelector')
-  for (const [key, low, high] of RANGES)
-    ensure(isIntegerIn(c[key], low, high), `${key} must be ${low}–${high}`)
+  ensureRanges(c, RANGES)
   ensure(
     c.page === undefined || isIntegerIn(c.page, 0, Infinity),
     'page must be a non-negative integer',
