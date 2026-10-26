@@ -205,3 +205,122 @@ test(
     }
   },
 )
+
+test(
+  'file steps damage a file under --files, report what the app did with it and put it back',
+  { timeout: 60000 },
+  async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'observe-file-faults-electron-'))
+    try {
+      const cacheDir = join(dir, 'cache')
+      await mkdir(cacheDir)
+      await writeFile(join(cacheDir, 'job-a.cache'), 'a'.repeat(100))
+      const { browser, page, cdp, inspector, stop } = await launch(
+        false,
+        cacheDir,
+      )
+      let cli
+      try {
+        await page.locator('[data-start="job-b"]').waitFor()
+        const configPath = join(dir, 'config.json'),
+          stepsPath = join(dir, 'steps.json'),
+          out = join(dir, 'report')
+        await writeFile(
+          configPath,
+          JSON.stringify({
+            transport: 'ipc',
+            cdp,
+            inspector,
+            channel: 'fixture:invoke',
+            methods: ['read'],
+            regionSelector: '#catalog',
+            contentSelector: '#catalog button',
+            sampleMs: 100,
+            observationMs: 4000,
+          }),
+        )
+        // The fixture never repairs files, and never shows a message about them.
+        await writeFile(
+          stepsPath,
+          JSON.stringify([
+            { mark: true },
+            { file: { path: 'job-a.cache', fault: 'remove' } },
+            { expect: '#repairing', timeoutMs: 500, name: 'repairing' },
+            { wait: 1000 },
+          ]),
+        )
+        cli = spawn(
+          process.execPath,
+          [
+            fileURLToPath(
+              new URL('../../bin/recovery-probe.mjs', import.meta.url),
+            ),
+            'observe',
+            '--config',
+            configPath,
+            '--steps',
+            stepsPath,
+            '--out',
+            out,
+            '--files',
+            cacheDir,
+          ],
+          { stdio: ['ignore', 'pipe', 'pipe'] },
+        )
+        let output = '',
+          errors = ''
+        cli.stdout.on('data', (b) => {
+          output += b
+        })
+        cli.stderr.on('data', (b) => {
+          errors += b
+        })
+        const [code] = await once(cli, 'exit')
+        cli = undefined
+        assert.equal(code, 0, errors + output)
+        const report = JSON.parse(
+          await readFile(join(out, 'report.json'), 'utf8'),
+        )
+        assert.equal(report.captureComplete, true, JSON.stringify(report))
+        assert.equal(report.mode, 'observation with file faults')
+        assert.deepEqual(report.fileFaults, [
+          { step: 1, fault: 'remove', outcome: 'damaged', restored: true },
+        ])
+        // The static catalog is also content shown before a read.
+        assert.deepEqual(
+          report.findings
+            .filter(({ code }) => code !== 'CONTENT_BEFORE_READ')
+            .map(({ code, interval }) => [code, interval]),
+          [
+            ['LOCAL_FILE_NOT_REPAIRED', 2],
+            ['EXPECTATION_NOT_MET', 2],
+          ],
+          'the removal by the step is not reported as LOCAL_FILES_REMOVED',
+        )
+        assert.match(
+          output,
+          /Interval 2: EXPECTATION_NOT_MET — Step 2 \(expect ‘repairing’\) saw no visible match in 0\.5 s\./,
+        )
+        assert.match(
+          output,
+          /Step 1: the file the step removed was still missing when the capture ended; Recovery Probe put it back/,
+        )
+        assert.equal(
+          await readFile(join(cacheDir, 'job-a.cache'), 'utf8'),
+          'a'.repeat(100),
+        )
+        assert.ok(!JSON.stringify(report).includes('job-a.cache'))
+        assert.deepEqual(
+          JSON.parse(await readFile(join(out, 'files.json'), 'utf8')).faults,
+          [{ step: 1, path: 'job-a.cache' }],
+        )
+      } finally {
+        cli?.kill()
+        await browser.close()
+        await stop()
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  },
+)

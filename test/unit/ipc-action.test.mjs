@@ -106,6 +106,10 @@ test('action config requires a channel and an action, and rejects unknown option
       /value must be text/,
     ],
     [
+      { channel: 'write', action: '#send', setup: [{ expect: '#sent' }] },
+      /setup steps cannot use expect/,
+    ],
+    [
       { channel: 'write', action: '#send', regionSelector: ' ' },
       /regionSelector/,
     ],

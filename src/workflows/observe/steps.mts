@@ -7,8 +7,8 @@ import {
 
 // Opt-in scripted operator for `observe --steps` and `action`. Steps act on the
 // app (same-document navigation, clicks, typing, key presses, waits and interval marks)
-// or, for observe, on its network through `recovery-probe net`; observation itself
-// never acts. Typed values are never written to reports.
+// or, for observe, on its network through `recovery-probe net` and on its files under
+// `--files`; observation itself never acts. Typed values are never written to reports.
 const NAME = /^[\w.-]{1,40}$/
 const KEY = /^[A-Za-z0-9+]{1,40}$/
 const KINDS = [
@@ -18,9 +18,16 @@ const KINDS = [
   'fill',
   'press',
   'waitFor',
+  'expect',
   'wait',
   'network',
+  'file',
 ] as const
+
+/** How a file step damages a file: deletes it, cuts it to half its size, or changes bytes in its middle. */
+export const FILE_FAULTS = ['remove', 'truncate', 'corrupt'] as const
+export type FileFault = (typeof FILE_FAULTS)[number]
+
 // The extra property a kind needs besides its selector.
 const ARGUMENTS: Partial<Record<(typeof KINDS)[number], string>> = {
   fill: 'value',
@@ -31,11 +38,17 @@ export type ObservationStep = { name?: string } & (
   | { kind: 'mark' }
   | { kind: 'navigate'; target: string }
   | { kind: 'wait'; ms: number }
-  | { kind: 'click' | 'waitFor'; target: SelectorSpec; timeoutMs: number }
+  | {
+      kind: 'click' | 'waitFor' | 'expect'
+      target: SelectorSpec
+      timeoutMs: number
+    }
   | { kind: 'fill'; target: SelectorSpec; value: string; timeoutMs: number }
   | { kind: 'press'; target: SelectorSpec; key: string; timeoutMs: number }
   // `null` restores the network.
   | { kind: 'network'; rules: NetworkFaultRule[] | null }
+  // `path` is relative to the `--files` directory, with `/` separators.
+  | { kind: 'file'; path: string; fault: FileFault }
 )
 
 /** Applies network steps; `step` is the index of the step that asked. */
@@ -44,20 +57,42 @@ export interface NetworkStepControl {
   restore(step: number): Promise<void>
 }
 
+/** Applies file steps; `step` is the index of the step that asked. */
+export interface FileStepControl {
+  damage(path: string, fault: FileFault, step: number): Promise<void>
+}
+
 export interface StepResult {
   index: number
   kind: ObservationStep['kind']
   name?: string
   startedMs: number
   interval?: number | null
-  status?: 'done' | 'failed'
+  /** `unmet`: an `expect` step saw no visible match in time; the script went on. */
+  status?: 'done' | 'failed' | 'unmet'
   error?: string
   endedMs?: number
 }
 
+/**
+ * A path relative to the `--files` directory, with `/` separators, or `undefined`
+ * when it is absolute or climbs out of the directory.
+ */
+function pathInDirectory(value: unknown): string | undefined {
+  if (typeof value !== 'string' || !value || value.length > 500) return
+  const parts = value.split(/[\\/]/)
+  // An empty part is a leading separator (an absolute path), a doubled or a trailing one.
+  if (/^[A-Za-z]:/.test(value) || parts.some((p) => p === '..' || p === ''))
+    return
+  return parts.filter((part) => part !== '.').join('/') || undefined
+}
+
 export function observationSteps(
   input: unknown,
-  { network = false }: { network?: boolean } = {},
+  {
+    network = false,
+    files = false,
+  }: { network?: boolean; files?: boolean } = {},
 ): ObservationStep[] {
   const steps = Array.isArray(input)
     ? input
@@ -80,7 +115,9 @@ export function observationSteps(
       (typeof step.name !== 'string' || !NAME.test(step.name))
     )
       throw Error(`steps[${i}].name must match ${NAME}`)
-    const timeoutMs = step.timeoutMs ?? (kind === 'waitFor' ? 15000 : 10000)
+    const timeoutMs =
+      step.timeoutMs ??
+      (kind === 'waitFor' || kind === 'expect' ? 15000 : 10000)
     if (
       typeof timeoutMs !== 'number' ||
       !Number.isInteger(timeoutMs) ||
@@ -109,6 +146,24 @@ export function observationSteps(
           cause: error,
         })
       }
+    }
+    if (kind === 'file') {
+      if (!files)
+        throw Error(`steps[${i}].file needs a directory: observe --files DIR`)
+      const file = step.file as Record<string, unknown> | null
+      if (!file || typeof file !== 'object' || Array.isArray(file))
+        throw Error(`steps[${i}].file must be an object`)
+      for (const key of Object.keys(file))
+        if (key !== 'path' && key !== 'fault')
+          throw Error(`Unsupported steps[${i}].file property: ${key}`)
+      const path = pathInDirectory(file.path)
+      if (!path)
+        throw Error(
+          `steps[${i}].file.path must be a relative path inside the --files directory`,
+        )
+      if (!FILE_FAULTS.includes(file.fault as FileFault))
+        throw Error(`steps[${i}].file.fault must be ${FILE_FAULTS.join(', ')}`)
+      return { kind, path, fault: file.fault as FileFault, ...named }
     }
     if (kind === 'navigate') {
       // Same-document fragment navigation only: a document load would reset the state under observation.
@@ -188,6 +243,16 @@ function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   })
 }
 
+/** `false` when Playwright gave up waiting; any other error still fails the step. */
+const shownInTime = (waiting: Promise<void>): Promise<boolean> =>
+  waiting.then(
+    () => true,
+    (error: Error) => {
+      if (error.name === 'TimeoutError') return false
+      throw error
+    },
+  )
+
 /** Runs steps in order. Clicks, typing and key presses require exactly one visible match and use real input events. */
 export async function runSteps(
   page: Page,
@@ -198,12 +263,14 @@ export async function runSteps(
     elapsed,
     log = () => {},
     network,
+    files,
   }: {
     mark: () => Promise<number | null>
     signal: AbortSignal
     elapsed: () => number
     log?: (result: StepResult) => void
     network?: NetworkStepControl
+    files?: FileStepControl
   },
 ): Promise<StepResult[]> {
   const results: StepResult[] = []
@@ -236,15 +303,22 @@ export async function runSteps(
           step.rules ? network.arm(step.rules, index) : network.restore(index),
           signal,
         )
-      } else if (step.kind === 'waitFor')
-        await abortable(
-          locate(page, step.target)
-            .filter({ visible: true })
-            .first()
-            .waitFor({ state: 'visible', timeout: step.timeoutMs }),
-          signal,
-        )
-      else {
+      } else if (step.kind === 'file') {
+        if (!files) throw Error('FILE_CONTROL_MISSING')
+        await abortable(files.damage(step.path, step.fault, index), signal)
+      } else if (step.kind === 'waitFor' || step.kind === 'expect') {
+        const visible = locate(page, step.target)
+          .filter({ visible: true })
+          .first()
+          .waitFor({ state: 'visible', timeout: step.timeoutMs })
+        if (step.kind === 'waitFor') await abortable(visible, signal)
+        // What the app failed to show is a result, so the script goes on.
+        else if (!(await abortable(shownInTime(visible), signal))) {
+          result.status = 'unmet'
+          result.error = `EXPECTATION_NOT_MET: no visible match within ${step.timeoutMs} ms`
+          continue
+        }
+      } else {
         const target = locate(page, step.target).filter({ visible: true })
         const count = await abortable(target.count(), signal)
         if (count !== 1)

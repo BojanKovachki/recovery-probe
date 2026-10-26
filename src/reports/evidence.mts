@@ -68,6 +68,8 @@ const KINDS: Record<string, Kind> = {
   'refresh experiment': { workflow: 'refresh' },
   'fault-free observation': { workflow: 'observe' },
   'observation with network faults': { workflow: 'observe' },
+  'observation with file faults': { workflow: 'observe' },
+  'observation with network and file faults': { workflow: 'observe' },
 }
 
 /** What a report is, from its evidence block or, for older reports, its mode. */
@@ -153,7 +155,8 @@ function fromFindings(report: Report, evidence: Evidence) {
   if (!conclusive) evidence.complete = false
 }
 
-// Observation findings are all leads; any coverage gap makes the run partial.
+// Observation findings are leads, except an expect step the app did not meet, which is
+// a failed check; any coverage gap makes the run partial.
 function fromObservation(report: Report, evidence: Evidence) {
   if (report.status !== 'complete' || report.captureComplete === false) {
     evidence.gaps.push(`capture ${string(report.status) ?? 'incomplete'}`)
@@ -167,7 +170,10 @@ function fromObservation(report: Report, evidence: Evidence) {
   for (const finding of list(report.findings)) {
     const code = string(finding.code) ?? 'UNKNOWN'
     if (!evidence.problems.some((problem) => problem.code === code))
-      evidence.problems.push({ code, severity: 'lead' })
+      evidence.problems.push({
+        code,
+        severity: code === 'EXPECTATION_NOT_MET' ? 'defect' : 'lead',
+      })
   }
 }
 
