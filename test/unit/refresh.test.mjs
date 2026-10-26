@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { refreshConfig } from '../../dist/workflows/refresh.mjs'
+import { refreshConfig } from '../../dist/workflows/refresh/config.mjs'
 import { ipcRefreshAdapter } from '../../dist/transports/session.mjs'
 test('refresh configuration requires explicit event and compatible read/fault scope', () => {
   const c = {

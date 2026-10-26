@@ -1,4 +1,4 @@
-import { runRefresh } from '../../dist/workflows/refresh.mjs'
+import { runRefresh } from '../../dist/workflows/refresh/run.mjs'
 import { ipcRefreshAdapter } from '../../dist/transports/session.mjs'
 import { test } from 'node:test'
 import { randomUUID } from 'node:crypto'

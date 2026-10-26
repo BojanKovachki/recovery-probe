@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { chromium } from 'playwright'
-import { runRefresh } from '../../dist/workflows/refresh.mjs'
+import { runRefresh } from '../../dist/workflows/refresh/run.mjs'
 import { httpRefreshAdapter } from '../../dist/transports/session.mjs'
 import { assertReportShape } from '../helpers/report-shape.mjs'
 

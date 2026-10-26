@@ -4,6 +4,15 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.8.0-preview.5 (2026-10-26)
+
+The refresh experiment, restructured. No change to the CLI, the library or the reports.
+
+- `workflows/refresh.mts` (605 lines, with a 327-line `runRefresh` of complexity 50) is now a `workflows/refresh/` folder: the config, the types, the outcome classification as plain functions, a `RefreshProbe` that reloads, watches and triggers the page, and a small `RefreshExperiment` class with one method per phase.
+- The `refresh` command's setup moved out of the CLI into `workflows/refresh/session.mts`; the CLI keeps signals, the report files and the console output.
+- `ensureRanges` takes an optional message, for configs that word range errors their own way.
+- The size-limit violations listed in `eslint-suppressions.json` drop from 119 to 111.
+
 ## 0.8.0-preview.4 (2026-10-26)
 
 Discovery, restructured. No change to the CLI, the library or the reports.

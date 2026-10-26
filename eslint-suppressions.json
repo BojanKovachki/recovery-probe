@@ -30,14 +30,6 @@
       "count": 1
     }
   },
-  "src/cli/refresh.mts": {
-    "complexity": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 1
-    }
-  },
   "src/cli/repair.mts": {
     "complexity": {
       "count": 1
@@ -298,17 +290,6 @@
     },
     "max-lines-per-function": {
       "count": 1
-    }
-  },
-  "src/workflows/refresh.mts": {
-    "complexity": {
-      "count": 3
-    },
-    "max-lines": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 2
     }
   }
 }

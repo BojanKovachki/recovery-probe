@@ -1,64 +1,25 @@
 import { signals } from './until-stopped.mjs'
 import { writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import { connectDesktop, selectDesktopPage } from '../targets/cdp.mjs'
-import type { Browser, Page } from 'playwright'
-import {
-  connectIpcInspector,
-  type IpcInspector,
-} from '../transports/ipc/inspector.mjs'
-import {
-  prepareVisibility,
-  type WindowVisibility,
-} from '../targets/visibility.mjs'
 import {
   refreshConfig,
-  runRefresh,
-  type RefreshAdapter,
-  type RefreshFinding,
-  type RefreshReport,
-  type RefreshRun,
-} from '../workflows/refresh.mjs'
+  type RefreshConfig,
+} from '../workflows/refresh/config.mjs'
 import {
-  httpRefreshAdapter,
-  ipcRefreshAdapter,
-} from '../transports/session.mjs'
+  refreshSession,
+  type RefreshSessionReport,
+} from '../workflows/refresh/session.mjs'
 import { escapeHtml, renderTemplate } from '../reports/template.mjs'
-import { attachIpcWindow } from '../targets/ipc-window.mjs'
 import { reportFolder } from '../reports/folder.mjs'
 import { parseOptions, readConfig, text, UsageError } from './args.mjs'
 import { withEvidence } from '../reports/evidence.mjs'
 
-type PreparedVisibility = Awaited<ReturnType<typeof prepareVisibility>>
-
-// The experiment's report, or a minimal one when setup failed, plus what the CLI adds.
-type CliReport = (
-  | RefreshReport
-  | {
-      schemaVersion: number
-      mode: string
-      ok: boolean
-      finalReset: string
-      faultReset?: string
-      limitation?: string
-      results: RefreshRun[]
-      findings: RefreshFinding[]
-    }
-) & {
-  window?: {
-    initial: WindowVisibility
-    restoration?: Awaited<ReturnType<PreparedVisibility['revert']>>
-  }
-  error?: string
-  windowRestoreError?: string
-  disconnectError?: string
-}
+const HELP =
+  'recovery-probe refresh --config FILE [--out NEW_DIRECTORY] [--json]\nOpt-in synthetic window-event refresh experiments. No network outage or OS resume. See docs/refresh.md.'
 
 export async function refreshMain(args: string[]) {
   if (args.includes('--help')) {
-    console.log(
-      'recovery-probe refresh --config FILE [--out NEW_DIRECTORY] [--json]\nOpt-in synthetic window-event refresh experiments. No network outage or OS resume. See docs/refresh.md.',
-    )
+    console.log(HELP)
     return
   }
   const { values } = parseOptions(args, {
@@ -66,96 +27,52 @@ export async function refreshMain(args: string[]) {
     out: { type: 'string' },
     json: { type: 'boolean' },
   })
-  const options = {
-    json: values.json === true,
-    config: text(values, 'config'),
-    out: text(values, 'out'),
-  }
-  if (!options.config) throw new UsageError('--config is required')
-  const c = await readConfig(options.config, refreshConfig)
-  const directory = await reportFolder('refresh', options.out)
+  const path = text(values, 'config')
+  if (!path) throw new UsageError('--config is required')
+  const config = await readConfig(path, refreshConfig)
+  const directory = await reportFolder('refresh', text(values, 'out'))
   const abort = new AbortController()
   const onSignal = () => abort.abort()
   signals.on('SIGINT', onSignal)
   signals.on('SIGTERM', onSignal)
-  let browser: Browser | undefined,
-    control: IpcInspector | undefined,
-    visibility: PreparedVisibility | undefined
-  let report: CliReport | undefined
+  let report: RefreshSessionReport
   try {
-    const attached = await connectDesktop(c.cdp)
-    browser = attached
-    let page: Page, adapter: RefreshAdapter
-    if (c.transport === 'ipc') {
-      const inspector = await connectIpcInspector(c.inspector)
-      control = inspector
-      const ipc = await attachIpcWindow(attached, inspector, [
-        c.channel,
-        ...c.requiredChannels,
-      ])
-      if (c.times > ipc.identity.capabilities?.maxFaultCount)
-        throw Error('IPC hook does not support requested fault count')
-      page = ipc.page
-      adapter = ipcRefreshAdapter(inspector, c, ipc.identity.senderId)
-    } else {
-      page = selectDesktopPage(attached, c)
-      adapter = httpRefreshAdapter(page, c)
-    }
-    visibility = await prepareVisibility(page, {
-      ...c,
-      control,
+    report = await refreshSession(config, {
+      signal: abort.signal,
       announce: console.error,
     })
-    report = await runRefresh(page, c, adapter, { signal: abort.signal })
-    report.window = { initial: visibility.initial }
-  } catch (error) {
-    report ??= {
-      schemaVersion: 1,
-      mode: 'refresh experiment',
-      ok: false,
-      finalReset: 'not-verified',
-      results: [],
-      findings: [],
-    }
-    report.error = (error as Error).message
   } finally {
-    // The run or its catch has set the report by now.
-    const current = report!
-    try {
-      if (visibility) {
-        current.window ??= { initial: visibility.initial }
-        current.window.restoration = await visibility.revert()
-      }
-    } catch (error) {
-      current.ok = false
-      current.windowRestoreError = (error as Error).message
-    }
-    control?.close()
-    try {
-      if (browser) await browser.close()
-    } catch (error) {
-      current.ok = false
-      current.disconnectError = (error as Error).message
-    }
     signals.off('SIGINT', onSignal)
     signals.off('SIGTERM', onSignal)
   }
-  await writeFile(
-    resolve(directory, 'scenario.json'),
-    JSON.stringify(c, null, 2),
-    { mode: 0o600 },
-  )
-  await writeFile(
-    resolve(directory, 'report.json'),
+  await writeRefresh(directory, config, report)
+  if (values.json === true)
+    console.log(JSON.stringify(summaryOf(report, directory)))
+  else printRefresh(report, directory)
+  process.exitCode = report.ok ? 0 : 2
+}
+
+async function writeRefresh(
+  directory: string,
+  config: RefreshConfig,
+  report: RefreshSessionReport,
+) {
+  const write = (name: string, text: string) =>
+    writeFile(resolve(directory, name), text, { mode: 0o600 })
+  await write('scenario.json', JSON.stringify(config, null, 2))
+  await write(
+    'report.json',
     JSON.stringify(
-      withEvidence(report, { workflow: 'refresh', transport: c.transport }),
+      withEvidence(report, {
+        workflow: 'refresh',
+        transport: config.transport,
+      }),
       null,
       2,
     ),
-    { mode: 0o600 },
   )
-  await writeFile(
-    resolve(directory, 'report.html'),
+  await write(
+    'report.html',
     renderTemplate('refresh', {
       limitation: report.limitation ?? report.error,
       results: report.results
@@ -163,9 +80,11 @@ export async function refreshMain(args: string[]) {
         .join(''),
       evidence: JSON.stringify(report, null, 2),
     }),
-    { mode: 0o600 },
   )
-  const summary = {
+}
+
+function summaryOf(report: RefreshSessionReport, directory: string) {
+  return {
     ok: report.ok,
     error: report.error,
     findings: report.findings,
@@ -173,14 +92,13 @@ export async function refreshMain(args: string[]) {
     faultReset: report.faultReset,
     report: resolve(directory, 'report.json'),
   }
-  if (options.json) console.log(JSON.stringify(summary))
-  else {
-    for (const row of report.results)
-      console.log(row.summary ?? row.code ?? row.stage)
-    if (report.error) console.error(report.error)
-    console.log(
-      `Final reload: ${report.finalReset}\nReport: ${directory}/report.html`,
-    )
-  }
-  process.exitCode = report.ok ? 0 : 2
+}
+
+function printRefresh(report: RefreshSessionReport, directory: string) {
+  for (const row of report.results)
+    console.log(row.summary ?? row.code ?? row.stage)
+  if (report.error) console.error(report.error)
+  console.log(
+    `Final reload: ${report.finalReset}\nReport: ${directory}/report.html`,
+  )
 }

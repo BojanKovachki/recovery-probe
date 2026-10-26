@@ -1,6 +1,6 @@
 {
   "name": "recovery-probe",
-  "version": "0.8.0-preview.4",
+  "version": "0.8.0-preview.5",
   "type": "module",
   "description": "Test whether web and Electron desktop apps show the right data when a read fails, from the command line, your tests or an AI coding agent.",
   "license": "MIT",

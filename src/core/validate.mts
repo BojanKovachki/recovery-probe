@@ -53,14 +53,15 @@ export function overDefaults<T extends Record<string, unknown>>(
   return options as T
 }
 
-/** Throws `${key} must be ${low}–${high}` for the first option that is not an integer in its range. */
+const outOfRange = (key: string, low: number, high: number) =>
+  `${key} must be ${low}–${high}`
+
+/** Throws `message` for the first option that is not an integer in its range. */
 export function ensureRanges(
   options: Record<string, unknown>,
   ranges: readonly (readonly [key: string, low: number, high: number])[],
+  message = outOfRange,
 ) {
   for (const [key, low, high] of ranges)
-    ensure(
-      isIntegerIn(options[key], low, high),
-      `${key} must be ${low}–${high}`,
-    )
+    ensure(isIntegerIn(options[key], low, high), message(key, low, high))
 }
