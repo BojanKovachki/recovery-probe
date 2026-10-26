@@ -82,5 +82,23 @@ export default [
       ],
     },
   },
+  {
+    // Violations that predate these limits are listed in eslint-suppressions.json;
+    // `npm run lint` fails on new ones and on entries that no longer apply.
+    files: ['src/**/*.{mts,cts}'],
+    rules: {
+      'max-lines': [
+        'error',
+        { max: 300, skipBlankLines: true, skipComments: true },
+      ],
+      'max-lines-per-function': [
+        'error',
+        { max: 50, skipBlankLines: true, skipComments: true },
+      ],
+      complexity: ['error', 12],
+      'max-depth': ['error', 4],
+      'max-params': ['error', 4],
+    },
+  },
   prettier,
 ]

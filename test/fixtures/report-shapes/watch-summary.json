@@ -1,0 +1,21 @@
+[
+  "$",
+  "$.command",
+  "$.command[]",
+  "$.latest",
+  "$.latest.summary",
+  "$.latest.verdict",
+  "$.runs",
+  "$.runs[]",
+  "$.runs[].at",
+  "$.runs[].changed",
+  "$.runs[].changed[]",
+  "$.runs[].complete",
+  "$.runs[].exitCode",
+  "$.runs[].gaps",
+  "$.runs[].log",
+  "$.runs[].problems",
+  "$.runs[].problems[]",
+  "$.runs[].report",
+  "$.runs[].run"
+]

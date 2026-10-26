@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { attachWindow, launchElectron } from '../helpers/electron.mjs'
 import { connectIpcInspector } from '../../dist/ipc-inspector.mjs'
+import { assertReportShape } from '../helpers/report-shape.mjs'
 
 async function launch(fixed, cacheDir) {
   const electron = await launchElectron(
@@ -122,6 +123,10 @@ test(
             report.captureComplete,
             true,
             JSON.stringify(report.coverage),
+          )
+          await assertReportShape(
+            report,
+            fixed ? 'observe-ipc-rows-fixed' : 'observe-ipc-rows-broken',
           )
           assert.equal(report.operator.status, 'complete')
           assert.match(errors, /Running 5 scripted steps; they act on the app/)
@@ -282,6 +287,7 @@ test(
           await readFile(join(out, 'report.json'), 'utf8'),
         )
         assert.equal(report.captureComplete, true, JSON.stringify(report))
+        await assertReportShape(report, 'observe-ipc-file-faults')
         assert.equal(report.mode, 'observation with file faults')
         assert.deepEqual(report.fileFaults, [
           { step: 1, fault: 'remove', outcome: 'damaged', restored: true },

@@ -4,6 +4,7 @@ import { createServer } from 'node:http'
 import { chromium } from 'playwright'
 import { runRefresh } from '../../dist/workflows/refresh.mjs'
 import { httpRefreshAdapter } from '../../dist/transports/session.mjs'
+import { assertReportShape } from '../helpers/report-shape.mjs'
 
 function fixture(mode) {
   return `<!doctype html><main><h1>Catalog</h1><ul id="items"></ul><div id="error"></div></main><script>
@@ -53,6 +54,7 @@ test(
     }
     try {
       let r = await run()
+      await assertReportShape(r, 'refresh-http')
       assert.equal(r.error, undefined, JSON.stringify(r))
       assert.equal(r.results[0].code, 'CONTENT_LOSS_ON_REFRESH')
       assert.equal(r.results[0].observation.before.items, 4)

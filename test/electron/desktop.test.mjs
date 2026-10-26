@@ -9,6 +9,7 @@ import { promisify } from 'node:util'
 import { startDemoServer } from '../../examples/demo-server.mjs'
 import { checkDesktop, discoverDesktop } from '../../dist/desktop.mjs'
 import { attachWindow, launchElectron } from '../helpers/electron.mjs'
+import { assertReportShape } from '../helpers/report-shape.mjs'
 const exec = promisify(execFile)
 let app
 let browser
@@ -106,6 +107,7 @@ test('catches the stuck retry in Electron for all three faults, and reload rescu
 test('corrected Electron app recovers from all faults with subsequent real requests', async () => {
   await page.goto(`${server.url}/fixed`)
   const report = await checkDesktop(page, config('fixed'))
+  await assertReportShape(report, 'check-desktop-http')
   assert.equal(report.ok, true, JSON.stringify(report))
   assert.ok(
     report.results.every(

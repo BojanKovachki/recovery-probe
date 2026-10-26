@@ -8,6 +8,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { checkWeb, discoverWeb } from '../../dist/web.mjs'
+import { assertReportShape } from '../helpers/report-shape.mjs'
 const exec = promisify(execFile)
 
 test(
@@ -88,6 +89,10 @@ test(
         { timeout: 20000 },
       )
       assert.match(result.stdout, /PASS/)
+      await assertReportShape(
+        JSON.parse(await readFile(join(output, 'report.json'), 'utf8')),
+        'check-web',
+      )
       assert.match(
         await readFile(join(output, 'report.html'), 'utf8'),
         /WEB PREVIEW/,
