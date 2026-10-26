@@ -15,7 +15,7 @@ const inPageModules = [
   'src/workflows/check/ipc.mts',
   'src/workflows/observe/kit.mts',
   'src/workflows/observe/steps.mts',
-  'src/workflows/refresh.mts',
+  'src/workflows/refresh/probe.mts',
 ]
 
 export default [
