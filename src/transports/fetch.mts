@@ -1,4 +1,11 @@
-import { isFaultKind, type FaultKind } from '../core/faults.mjs'
+import {
+  checkFaultCount,
+  checkFaultKind,
+  checkFaultMethod,
+  checkFaultStatus,
+  type FaultKind,
+} from '../core/faults.mjs'
+import { ensure } from '../core/validate.mjs'
 
 export interface FetchFaultOptions {
   url: string
@@ -21,6 +28,8 @@ export interface FaultFetch {
   assertApplied(): FetchFaultStats
 }
 
+const JSON_HEADERS = { 'Content-Type': 'application/json' }
+
 // A relative or malformed URL cannot be the absolute target, so it is never matched.
 const absoluteHref = (value: string | URL): string | null => {
   try {
@@ -30,44 +39,86 @@ const absoluteHref = (value: string | URL): string | null => {
   }
 }
 
+function checkOptions(baseFetch: unknown, options: FetchFaultOptions) {
+  ensure(
+    typeof baseFetch === 'function',
+    'baseFetch must be a function',
+    TypeError,
+  )
+  ensure(
+    typeof options?.url === 'string',
+    'url must be an absolute HTTP(S) URL',
+    TypeError,
+  )
+  const target = new URL(options.url)
+  ensure(
+    ['http:', 'https:'].includes(target.protocol) &&
+      !target.username &&
+      !target.password,
+    'Use an absolute HTTP(S) URL without embedded credentials',
+    TypeError,
+  )
+  checkFaultKind(options.kind)
+  const count = options.count ?? 1
+  const method = options.method ?? 'GET'
+  const status = options.status ?? 503
+  checkFaultCount(count)
+  checkFaultMethod(method)
+  checkFaultStatus(options.kind, status)
+  return { target: target.href, count, method, status }
+}
+
+/** A fetch call's URL, method and signal, whether it was given a Request or a URL. */
+function callOf(input: Parameters<typeof fetch>[0], init?: RequestInit) {
+  if (input instanceof Request)
+    return {
+      url: input.url,
+      method: (init?.method ?? input.method).toUpperCase(),
+      signal: init?.signal ?? input.signal,
+    }
+  return {
+    url: input,
+    method: (init?.method ?? 'GET').toUpperCase(),
+    signal: init?.signal,
+  }
+}
+
+/** Whether a call is the faulted one: the target URL and method, not yet aborted. */
+function isTarget(
+  input: Parameters<typeof fetch>[0],
+  init: RequestInit | undefined,
+  { target, method }: { target: string; method: string },
+) {
+  const call = callOf(input, init)
+  return (
+    absoluteHref(call.url) === target &&
+    call.method === method &&
+    !call.signal?.aborted
+  )
+}
+
+function injectedResponse(kind: FaultKind, status: number) {
+  if (kind === 'connection-failure')
+    throw new TypeError('Injected fetch connection failure')
+  if (kind === 'http-error')
+    return new Response('{"error":"injected-test-fault"}', {
+      status,
+      headers: JSON_HEADERS,
+    })
+  return new Response('{invalid-json', { status: 200, headers: JSON_HEADERS })
+}
+
 /** Fault-injected fetch for an exact, absolute URL. Each instance is isolated. */
 export function createFaultFetch(
   baseFetch: typeof fetch,
   options: FetchFaultOptions,
 ): FaultFetch {
-  if (typeof baseFetch !== 'function')
-    throw new TypeError('baseFetch must be a function')
-  if (typeof options?.url !== 'string')
-    throw new TypeError('url must be an absolute HTTP(S) URL')
-  const target = new URL(options.url)
-  if (
-    !['http:', 'https:'].includes(target.protocol) ||
-    target.username ||
-    target.password
-  ) {
-    throw new TypeError(
-      'Use an absolute HTTP(S) URL without embedded credentials',
-    )
-  }
-  if (!isFaultKind(options.kind)) throw new TypeError('Unsupported fault kind')
-  const count = options.count ?? 1
-  const method = options.method ?? 'GET'
-  const status = options.status ?? 503
-  if (!Number.isInteger(count) || count < 1 || count > 20)
-    throw new TypeError('count must be an integer from 1 to 20')
-  if (!/^[A-Z]+$/.test(method))
-    throw new TypeError('method must be an uppercase HTTP method')
-  if (
-    options.kind === 'http-error' &&
-    (!Number.isInteger(status) || status < 400 || status > 599)
-  ) {
-    throw new TypeError('HTTP fault status must be from 400 to 599')
-  }
+  const settings = checkOptions(baseFetch, options)
   let applied = 0
   let matchingRequests = 0
   const summary = (): FetchFaultStats => ({
     kind: options.kind,
-    requested: count,
+    requested: settings.count,
     applied,
     matchingRequests,
   })
@@ -75,44 +126,23 @@ export function createFaultFetch(
   return {
     summary,
     assertApplied() {
-      if (applied !== count) {
+      if (applied !== settings.count) {
         throw Object.assign(
-          new Error(`Expected ${count} fault(s); observed ${applied}.`),
+          new Error(
+            `Expected ${settings.count} fault(s); observed ${applied}.`,
+          ),
           { code: 'FAULT_NOT_TRIGGERED', stats: summary() },
         )
       }
       return summary()
     },
     async fetch(input, init) {
-      const inputUrl = input instanceof Request ? input.url : input
-      const requestMethod = (
-        init?.method ?? (input instanceof Request ? input.method : 'GET')
-      ).toUpperCase()
-      const signal =
-        init?.signal ?? (input instanceof Request ? input.signal : undefined)
-      if (
-        absoluteHref(inputUrl) !== target.href ||
-        requestMethod !== method ||
-        signal?.aborted
-      ) {
-        return baseFetch(input, init)
-      }
+      if (!isTarget(input, init, settings)) return baseFetch(input, init)
       matchingRequests += 1
-      if (applied >= count) return baseFetch(input, init)
+      if (applied >= settings.count) return baseFetch(input, init)
       // Reserve before any await so concurrent calls cannot over-inject.
       applied += 1
-      if (options.kind === 'connection-failure')
-        throw new TypeError('Injected fetch connection failure')
-      if (options.kind === 'http-error') {
-        return new Response('{"error":"injected-test-fault"}', {
-          status,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      }
-      return new Response('{invalid-json', {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
+      return injectedResponse(options.kind, settings.status)
     },
   }
 }

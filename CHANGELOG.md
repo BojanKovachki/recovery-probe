@@ -4,6 +4,15 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.8.0-preview.8 (2026-10-27)
+
+The HTTP and network fault layer, restructured. No change to the CLI, the library or the reports.
+
+- `transports/net.mts` (453 lines, with a 233-line `startNetworkFaultProxy`) is a `transports/net/` folder: the public types (free of Node types, so consumers type-check without `@types/node`), the rules and which one applies, the open tunnels, the control API, its client, and the proxy. The proxy keeps its state in a small class behind the same plain object, so its methods can still be passed around unbound.
+- `createFaultFetch` and `withFault` share the count, status, method and kind rules from `core/faults.mts`; each still checks them in its own order. `withFault`'s route handler is a small class, and the result is checked by one plain function.
+- The HTTP observer is a class with one method per event.
+- The size-limit violations listed in `eslint-suppressions.json` drop from 90 to 81.
+
 ## 0.8.0-preview.7 (2026-10-26)
 
 The action check, restructured. No change to the CLI, the library or the reports.

@@ -1,10 +1,10 @@
 import { readFile, writeFile } from 'node:fs/promises'
-import {
-  startNetworkFaultProxy,
-  validateNetworkRules,
-  type NetworkConnectionEvent,
-  type NetworkFaultRule,
-} from '../transports/net.mjs'
+import { startNetworkFaultProxy } from '../transports/net/proxy.mjs'
+import { validateNetworkRules } from '../transports/net/rules.mjs'
+import type {
+  NetworkConnectionEvent,
+  NetworkFaultRule,
+} from '../transports/net/types.mjs'
 import { untilStopped } from './until-stopped.mjs'
 import { integerOption, parseOptions, text } from './args.mjs'
 

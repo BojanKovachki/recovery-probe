@@ -196,41 +196,9 @@
       "count": 2
     }
   },
-  "src/transports/fetch.mts": {
-    "complexity": {
-      "count": 2
-    },
-    "max-lines-per-function": {
-      "count": 1
-    }
-  },
-  "src/transports/http/observer.mts": {
-    "max-lines-per-function": {
-      "count": 1
-    }
-  },
-  "src/transports/http/route.mts": {
-    "complexity": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 1
-    }
-  },
   "src/transports/ipc/inspector.mts": {
     "max-lines-per-function": {
       "count": 2
-    }
-  },
-  "src/transports/net.mts": {
-    "complexity": {
-      "count": 1
-    },
-    "max-lines": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 1
     }
   },
   "src/transports/session.mts": {
