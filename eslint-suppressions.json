@@ -17,28 +17,12 @@
       "count": 2
     }
   },
-  "src/cli/discover.mts": {
-    "complexity": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 1
-    }
-  },
   "src/cli/main.mts": {
     "complexity": {
       "count": 1
     }
   },
   "src/cli/net.mts": {
-    "complexity": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 1
-    }
-  },
-  "src/cli/reads.mts": {
     "complexity": {
       "count": 1
     },
@@ -302,33 +286,6 @@
       "count": 3
     },
     "max-depth": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 2
-    }
-  },
-  "src/workflows/discover/http.mts": {
-    "complexity": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 2
-    }
-  },
-  "src/workflows/discover/ipc.mts": {
-    "complexity": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 2
-    }
-  },
-  "src/workflows/discover/run.mts": {
-    "complexity": {
-      "count": 2
-    },
-    "max-lines": {
       "count": 1
     },
     "max-lines-per-function": {
