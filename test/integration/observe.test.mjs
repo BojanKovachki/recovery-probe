@@ -3,11 +3,9 @@ import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
 import { chromium } from 'playwright'
-import {
-  observationConfig,
-  runObservation,
-  httpObservationAdapter,
-} from '../../dist/workflows/observe/run.mjs'
+import { observationConfig } from '../../dist/workflows/observe/config.mjs'
+import { runObservation } from '../../dist/workflows/observe/capture.mjs'
+import { httpObservationAdapter } from '../../dist/workflows/observe/adapters.mjs'
 import { readRegion, summarizeRegion } from '../../dist/core/screen.mjs'
 import { observationTable } from '../fixtures/observation-table.mjs'
 import { assertReportShape } from '../helpers/report-shape.mjs'
