@@ -1,7 +1,7 @@
 import type {
   NetworkFaultControl,
   NetworkFaultRule,
-} from '../../transports/net.mjs'
+} from '../../transports/net/types.mjs'
 import type {
   NetworkStepRecord,
   ObservationNetwork,

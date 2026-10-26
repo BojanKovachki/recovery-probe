@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import { setTimeout as sleep } from 'node:timers/promises'
 import type { Page } from 'playwright'
-import { observeHttp, type HttpObserver } from './http/observer.mjs'
+import {
+  observeHttp,
+  type HttpObserver,
+  type ReadCoverage,
+} from './http/observer.mjs'
 import { resetIpcAndConfirm } from './ipc/control.mjs'
 import type { FaultKind } from '../core/faults.mjs'
 import type { IpcInspector } from './ipc/inspector.mjs'
@@ -19,10 +23,7 @@ export function httpRefreshAdapter(
 ) {
   let current: HttpObserver | undefined
   let stopped = false
-  const coverage = new Map<
-    string,
-    ReturnType<HttpObserver['coverage']>[number]
-  >()
+  const coverage = new Map<string, ReadCoverage>()
   // Keeps the requests an observer saw, then stops it.
   const retire = async () => {
     if (!current || stopped) return

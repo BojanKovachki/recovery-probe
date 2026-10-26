@@ -3,11 +3,9 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
-import {
-  startNetworkFaultProxy,
-  validateNetworkRules,
-  type NetworkFaultProxy,
-} from '../../transports/net.mjs'
+import { startNetworkFaultProxy } from '../../transports/net/proxy.mjs'
+import type { NetworkFaultProxy } from '../../transports/net/types.mjs'
+import { validateNetworkRules } from '../../transports/net/rules.mjs'
 import type { McpTool } from './server.mjs'
 import { scanForSuspects } from '../suspects.mjs'
 import { compareReports } from '../compare.mjs'

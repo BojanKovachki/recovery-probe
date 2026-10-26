@@ -5,7 +5,7 @@ import {
   connectIpcInspector,
   type IpcInspector,
 } from '../../transports/ipc/inspector.mjs'
-import { connectNetworkFaults } from '../../transports/net.mjs'
+import { connectNetworkFaults } from '../../transports/net/client.mjs'
 import {
   httpObservationAdapter,
   ipcObservationAdapter,

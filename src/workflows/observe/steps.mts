@@ -1,9 +1,7 @@
 import { selectorSpec, type SelectorSpec } from '../../core/selector.mjs'
 import { ensure, isIntegerIn, isRecord } from '../../core/validate.mjs'
-import {
-  validateNetworkRules,
-  type NetworkFaultRule,
-} from '../../transports/net.mjs'
+import { validateNetworkRules } from '../../transports/net/rules.mjs'
+import type { NetworkFaultRule } from '../../transports/net/types.mjs'
 
 // Opt-in scripted operator for `observe --steps` and `action`. Steps act on the
 // app (same-document navigation, clicks, typing, key presses, waits and interval marks)

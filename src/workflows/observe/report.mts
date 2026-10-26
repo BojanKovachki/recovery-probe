@@ -1,5 +1,5 @@
 import { version } from '../../core/package.mjs'
-import type { NetworkRuleSummary } from '../../transports/net.mjs'
+import type { NetworkRuleSummary } from '../../transports/net/types.mjs'
 import type { ActionEffect } from './action-effects.mjs'
 import type { ContentComparison } from './comparisons.mjs'
 import type { IntervalFileChanges } from './files.mjs'
