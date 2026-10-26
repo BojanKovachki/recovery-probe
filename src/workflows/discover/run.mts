@@ -8,6 +8,7 @@ import {
 import {
   prepareVisibility,
   windowVisibility,
+  type PreparedVisibility,
 } from '../../targets/visibility.mjs'
 import {
   callsGap,
@@ -24,7 +25,6 @@ import type {
   DiscoveryRun,
   DiscoverySetup,
   DiscoveryTiming,
-  PreparedVisibility,
   ReadSnapshot,
 } from './types.mjs'
 

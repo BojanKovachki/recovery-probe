@@ -5,7 +5,7 @@ import type {
   RegionSummary,
 } from '../../core/screen.mjs'
 import type {
-  prepareVisibility,
+  WindowReport,
   WindowVisibility,
 } from '../../targets/visibility.mjs'
 import type { IpcInspector } from '../../transports/ipc/inspector.mjs'
@@ -121,8 +121,6 @@ export interface DiscoveryRun<
   interpretation: Assessment
 }
 
-export type PreparedVisibility = Awaited<ReturnType<typeof prepareVisibility>>
-
 /** The fields discovery fills in; each transport adds its own around them. */
 export interface DiscoveryResult<
   Fault extends string,
@@ -139,10 +137,7 @@ export interface DiscoveryResult<
     callsPerLoad?: number[]
     callsGap?: string
   }
-  window?: {
-    initial: WindowVisibility
-    restoration?: Awaited<ReturnType<PreparedVisibility['revert']>>
-  }
+  window?: WindowReport
   environment?: WindowVisibility & { online: boolean; ui: RegionSummary }
   stoppedObservation?: {
     reason: string

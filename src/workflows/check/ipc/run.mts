@@ -4,11 +4,13 @@ import type { Browser, Page } from 'playwright'
 import type { IpcIdentity } from '../../../ipc-probe.cjs'
 import { connectDesktop } from '../../../targets/cdp.mjs'
 import { attachIpcWindow } from '../../../targets/ipc-window.mjs'
-import { resetIpcAndConfirm } from '../../../transports/ipc/control.mjs'
-import type { IpcFault } from '../../../transports/ipc/control.mjs'
+import {
+  resetIpcAndConfirm,
+  runSnapshot,
+  type IpcFault,
+} from '../../../transports/ipc/control.mjs'
 import { connectIpcInspector } from '../../../transports/ipc/inspector.mjs'
 import type { IpcInspector } from '../../../transports/ipc/inspector.mjs'
-import { ensure } from '../../../core/validate.mjs'
 import {
   validateIpcConfig,
   type IpcCheckConfig,
@@ -196,10 +198,10 @@ class IpcCheck {
     started: number,
     deadlineMs: number,
   ): Promise<IpcPhaseResult | undefined> {
-    const snapshot = await this.#control.call('snapshot')
-    ensure(
-      snapshot?.id === id && snapshot.senderId === this.#identity.senderId,
-      'Probe run or target changed',
+    const snapshot = await runSnapshot(
+      this.#control,
+      id,
+      this.#identity.senderId,
     )
     if (this.#page.url() !== this.#identity.pageUrl)
       return { outcome: 'inconclusive', code: 'TARGET_NAVIGATED', snapshot }
