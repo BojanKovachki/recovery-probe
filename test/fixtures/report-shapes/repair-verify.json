@@ -1,0 +1,11 @@
+[
+  "$",
+  "$.baseCommit",
+  "$.error",
+  "$.limitation",
+  "$.scenarioPassed",
+  "$.schemaVersion",
+  "$.status",
+  "$.summary",
+  "$.testsPassed"
+]

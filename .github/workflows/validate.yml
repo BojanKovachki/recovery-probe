@@ -35,6 +35,8 @@ jobs:
         run: npm run lint
       - name: Type-check
         run: npm run typecheck
+      - name: Check the public API report
+        run: npm run api:check
       - name: Unit tests
         run: npm run test:unit
       - name: Verify isolated package installation and TypeScript imports

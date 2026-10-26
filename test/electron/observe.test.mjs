@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { attachWindow, launchElectron } from '../helpers/electron.mjs'
 import { connectIpcInspector } from '../../dist/ipc-inspector.mjs'
+import { assertReportShape } from '../helpers/report-shape.mjs'
 
 test(
   'real Electron observation CLI preserves cache across identity changes and leaves no active observer',
@@ -103,6 +104,7 @@ test(
         const report = JSON.parse(
           await readFile(join(out, 'report.json'), 'utf8'),
         )
+        await assertReportShape(report, 'observe-ipc')
         assert.equal(report.captureComplete, true, JSON.stringify(report))
         assert.equal(
           report.metadata.recoveryProbeVersion,

@@ -9,6 +9,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { freePort } from '../helpers/ports.mjs'
+import { assertReportShape } from '../helpers/report-shape.mjs'
 const exec = promisify(execFile)
 test(
   'web attach CLI preserves a sessionStorage login without exporting it',
@@ -80,6 +81,7 @@ test(
       const report = JSON.parse(
         await readFile(join(out, 'report.json'), 'utf8'),
       )
+      await assertReportShape(report, 'discover-http')
       assert.equal(report.ok, true)
       assert.equal(report.evidence.workflow, 'discover')
       assert.equal(report.evidence.transport, 'http')

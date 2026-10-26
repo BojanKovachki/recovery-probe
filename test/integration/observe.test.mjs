@@ -10,6 +10,7 @@ import {
 } from '../../dist/workflows/observe/run.mjs'
 import { readRegion, summarizeRegion } from '../../dist/core/screen.mjs'
 import { observationTable } from '../fixtures/observation-table.mjs'
+import { assertReportShape } from '../helpers/report-shape.mjs'
 
 let browser, server, origin
 before(async () => {
@@ -85,6 +86,7 @@ test('fresh cached content is observed without a reload or read; absence during 
         },
       },
     )
+    await assertReportShape(report, 'observe-http')
     assert.equal(report.captureComplete, true, JSON.stringify(report))
     assert.equal(report.snapshot.channels[c.endpoint].calls, 0)
     assert.equal(report.timeline[0].ui.presence, 'absent')

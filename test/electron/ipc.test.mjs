@@ -24,6 +24,7 @@ import {
 } from '../../dist/targets/visibility.mjs'
 import { discoverIpc } from '../../dist/workflows/discover/ipc.mjs'
 import { checkIpc } from '../../dist/workflows/check/ipc.mjs'
+import { assertReportShape } from '../helpers/report-shape.mjs'
 const exec = promisify(execFile)
 
 test(
@@ -73,6 +74,7 @@ test(
       }
       const report = await checkIpc(config)
       assert.equal(report.ok, true, JSON.stringify(report))
+      await assertReportShape(report, 'check-ipc')
       assert.equal(
         await page.evaluate(() =>
           Object.hasOwn(globalThis, '__recoveryProbeWindowNonce'),

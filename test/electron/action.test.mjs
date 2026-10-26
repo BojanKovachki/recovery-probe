@@ -9,6 +9,7 @@ import { join } from 'node:path'
 import { attachWindow, launchElectron } from '../helpers/electron.mjs'
 import { connectIpcInspector } from '../../dist/ipc-inspector.mjs'
 import { checkAction } from '../../dist/workflows/action.mjs'
+import { assertReportShape } from '../helpers/report-shape.mjs'
 const exec = promisify(execFile)
 
 const classes = (report) =>
@@ -47,6 +48,7 @@ test(
         await page.goto(`${baseUrl}?mode=${mode}`)
         await page.locator('#send').waitFor()
         const report = await checkAction(config)
+        await assertReportShape(report, `action-${mode}`)
         assert.equal(report.error, undefined, report.error)
         assert.equal(report.finalReset, 'healthy')
         assert.ok(report.runs.every((run) => run.realRequests === 0))

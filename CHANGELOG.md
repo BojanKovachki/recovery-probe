@@ -4,6 +4,14 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.8.0-preview.1 (2026-10-26)
+
+The first step towards 1.0: checks that let the code be restructured without changing what it does. No change to the CLI, the library or the reports.
+
+- ESLint limits the size of `src` code: functions to 50 lines, files to 300, complexity to 12, nesting to 4 levels and parameters to 4. The 169 places that exceed them are listed in `eslint-suppressions.json`, so new code meets them and the list only shrinks.
+- `api/recovery-probe.api.md` records the public API from the built type declarations, and `npm run api:check` fails in CI when it changes without the file being updated.
+- Integration and Electron tests check each workflow's report against the fields listed in `test/fixtures/report-shapes`, so a restructured workflow cannot drop or rename a report field unnoticed.
+
 ## 0.7.0-preview.2 (2026-10-26)
 
 - A file step whose file could not be checked or put back no longer writes the error message to the report. The message names local paths, which belong in the private `files.json`, so the report now gets only the error code, such as `EBUSY`, and `files.json` gets the message next to the kept copy.

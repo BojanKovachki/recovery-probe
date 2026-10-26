@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { startDemoServer } from '../../examples/demo-server.mjs'
+import { assertReportShape } from '../helpers/report-shape.mjs'
 
 let server
 before(async () => {
@@ -77,6 +78,7 @@ test('reruns a check when a file changes and reports what the change fixed', asy
     const summary = JSON.parse(
       await readFile(join(folder, 'summary.json'), 'utf8'),
     )
+    await assertReportShape(summary, 'watch-summary')
     assert.deepEqual(
       summary.runs.map((run) => run.report),
       ['run-1/report.json', 'run-2/report.json'],

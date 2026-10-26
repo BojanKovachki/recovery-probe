@@ -10,6 +10,7 @@ import {
   verifyRepair,
 } from '../../dist/tools/repair/run.mjs'
 import { fixture, mockProvider, fixtureProposal } from '../helpers/repair.mjs'
+import { assertReportShape } from '../helpers/report-shape.mjs'
 const exec = promisify(execFile)
 
 test(
@@ -47,6 +48,7 @@ test(
       const result = await verifyRepair(run, { allowExecution: true })
       assert.equal(result.status, 'verified-candidate', JSON.stringify(result))
       assert.equal(result.testsPassed, true)
+      await assertReportShape(result, 'repair-verify')
       const after = JSON.parse(await readFile(join(run, 'after.json'), 'utf8'))
       assert.ok(
         after.results.every(
