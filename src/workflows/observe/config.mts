@@ -6,11 +6,8 @@ import {
   isUnique,
   withDefaults,
 } from '../../core/validate.mjs'
-import {
-  selectorSpec,
-  type ObservedActionConfig,
-  type SelectorSpec,
-} from './kit.mjs'
+import { selectorSpec, type SelectorSpec } from '../../core/selector.mjs'
+import type { ObservedActionConfig } from './kit.mjs'
 
 const LABEL = /^[\w.:/-]{1,100}$/
 const NAME = /^[\w.-]{1,40}$/

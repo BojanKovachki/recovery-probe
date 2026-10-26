@@ -1,13 +1,13 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { observationMetadata } from '../../dist/workflows/observe/report.mjs'
+import { samplingMetrics } from '../../dist/workflows/observe/sampling.mjs'
+import { observationSummary } from '../../dist/workflows/observe/summaries.mjs'
+import { renderObservationReport } from '../../dist/workflows/observe/render.mjs'
 import {
-  observationMetadata,
-  samplingMetrics,
-  observationSummary,
-  renderObservationReport,
-  contentComparisons,
+  ContentComparisons,
   comparisonFollowUpSummary,
-} from '../../dist/workflows/observe/report.mjs'
+} from '../../dist/workflows/observe/comparisons.mjs'
 import { createRequire } from 'node:module'
 
 test('sampling measures actual durations and start cadence, including unchanged samples', () => {
@@ -62,7 +62,7 @@ const sample = (
   reads: { calls: successes + errors, pendingAtStart: 0 },
 })
 test('content comparisons wait for a sample after completion and separate changed, unchanged and failed reads', () => {
-  const tracker = contentComparisons()
+  const tracker = new ContentComparisons()
   assert.deepEqual(tracker.add(sample(0)), [])
   assert.deepEqual(tracker.add(sample(0, { during: 1, text: 'ambiguous' })), [])
   const [same] = tracker.add(sample(1))
@@ -75,7 +75,7 @@ test('content comparisons wait for a sample after completion and separate change
   assert.deepEqual(failed.completions, { successes: 0, errors: 1 })
 })
 test('interval return compares last content and unavailable or truncated evidence never becomes unchanged', () => {
-  const tracker = contentComparisons()
+  const tracker = new ContentComparisons()
   tracker.add(sample(1))
   tracker.add(sample(1, { count: 0, presence: 'absent' }))
   const [returned] = tracker.add(sample(1, { interval: 2 }))
@@ -110,7 +110,7 @@ test('sample phase metrics include repeated samples without leaking timing into 
 })
 
 test('return follow-up preserves the initial difference, later match, latest divergence and interval boundary', () => {
-  const tracker = contentComparisons()
+  const tracker = new ContentComparisons()
   let clock = 0
   const add = (options) =>
     tracker.add({
@@ -141,7 +141,7 @@ test('return follow-up preserves the initial difference, later match, latest div
 })
 
 test('hidden, absent and truncated follow-up samples cannot establish a baseline match', () => {
-  const tracker = contentComparisons()
+  const tracker = new ContentComparisons()
   tracker.add(sample(0))
   const [comparison] = tracker.add(sample(1, { text: 'different' }))
   for (const options of [
@@ -164,7 +164,7 @@ test('hidden, absent and truncated follow-up samples cannot establish a baseline
 })
 
 test('an unchanged first comparison can diverge later; an incomplete baseline stays unavailable', () => {
-  const tracker = contentComparisons()
+  const tracker = new ContentComparisons()
   tracker.add(sample(0))
   const [same] = tracker.add(sample(1))
   tracker.add(sample(1, { text: 'different' }))
@@ -179,7 +179,7 @@ test('an unchanged first comparison can diverge later; an incomplete baseline st
 })
 
 test('follow-up tracking is bounded by the report comparison cap', () => {
-  const tracker = contentComparisons()
+  const tracker = new ContentComparisons()
   tracker.add(sample(0))
   let first, last
   for (let i = 1; i <= 1001; i++) {
@@ -217,7 +217,7 @@ test('report explanations distinguish no read from no completion and preserve sa
   assert.ok(!html.includes('<script>'))
   assert.match(html, /&lt;script&gt;/)
   assert.match(html, /unavailable/)
-  const tracker = contentComparisons()
+  const tracker = new ContentComparisons()
   tracker.add(sample(0))
   const [comparison] = tracker.add(sample(1, { text: 'different' }))
   tracker.add(sample(1))

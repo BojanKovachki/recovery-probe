@@ -12,18 +12,14 @@ import {
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { observationSteps } from '../../dist/workflows/observe/steps.mjs'
+import { runSteps } from '../../dist/workflows/observe/step-runner.mjs'
 import {
-  observationSteps,
-  runSteps,
-} from '../../dist/workflows/observe/steps.mjs'
-import {
-  fileFaults,
+  FileFaults,
   applyFileFaultEvidence,
 } from '../../dist/workflows/observe/file-faults.mjs'
-import {
-  applyExpectationEvidence,
-  fileFaultSummary,
-} from '../../dist/workflows/observe/report.mjs'
+import { applyExpectationEvidence } from '../../dist/workflows/observe/report.mjs'
+import { fileFaultSummary } from '../../dist/workflows/observe/summaries.mjs'
 import { fileEvidence } from '../../dist/workflows/observe/files.mjs'
 
 const runOptions = (files) => ({
@@ -139,7 +135,7 @@ test('damages files and reports what the app did with them', async () => {
     'deleted.pak': original,
   })
   try {
-    const damage = fileFaults(directory)
+    const damage = new FileFaults(directory)
     await damage.damage('restored.dll', 'remove', 0)
     await damage.damage('untouched.pak', 'truncate', 1)
     await damage.damage('rewritten.bin', 'corrupt', 2)
@@ -206,7 +202,7 @@ test('damages files and reports what the app did with them', async () => {
 test('an empty file can be removed but not truncated or corrupted', async () => {
   const directory = await installation({ 'empty.txt': '' })
   try {
-    const damage = fileFaults(directory)
+    const damage = new FileFaults(directory)
     await assert.rejects(
       damage.damage('empty.txt', 'truncate', 0),
       /FILE_EMPTY: an empty file cannot be truncated/,
@@ -226,7 +222,7 @@ test('a file that cannot be checked keeps its original, and the report gets only
   const directory = await installation({ 'api.dll': 'original' })
   let backup
   try {
-    const damage = fileFaults(directory)
+    const damage = new FileFaults(directory)
     await damage.damage('api.dll', 'remove', 0)
     // What the app put in its place cannot be read as a file.
     await mkdir(join(directory, 'api.dll'))
@@ -350,7 +346,7 @@ test('a damage that fails is not reported, and the file is left as it was', asyn
   await chmod(join(locked, 'api.dll'), 0o444)
   await chmod(locked, 0o555)
   try {
-    const damage = fileFaults(directory)
+    const damage = new FileFaults(directory)
     const failed = await damage.damage('locked/api.dll', 'remove', 0).then(
       () => false,
       () => true,

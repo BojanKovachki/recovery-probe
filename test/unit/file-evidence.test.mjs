@@ -9,7 +9,7 @@ import {
   fileEvidence,
   applyFileEvidence,
 } from '../../dist/workflows/observe/files.mjs'
-import { observationSummary } from '../../dist/workflows/observe/report.mjs'
+import { observationSummary } from '../../dist/workflows/observe/summaries.mjs'
 
 async function contentDirectory() {
   const directory = await mkdtemp(join(tmpdir(), 'recovery-probe-files-'))

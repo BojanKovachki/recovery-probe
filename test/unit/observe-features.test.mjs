@@ -10,11 +10,11 @@ import {
 } from '../../dist/workflows/observe/rows.mjs'
 import {
   observationSummary,
-  actionEffects,
   actionSummary,
-  comparisonDigest,
-} from '../../dist/workflows/observe/report.mjs'
-import { selectorSpec } from '../../dist/workflows/observe/kit.mjs'
+} from '../../dist/workflows/observe/summaries.mjs'
+import { actionEffects } from '../../dist/workflows/observe/action-effects.mjs'
+import { comparisonDigest } from '../../dist/workflows/observe/comparisons.mjs'
+import { selectorSpec } from '../../dist/core/selector.mjs'
 
 function hookFixture(options = {}) {
   const handlers = new Map(),

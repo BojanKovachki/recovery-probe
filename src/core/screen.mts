@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
-import type { RecordedAction, SelectorSpec } from '../workflows/observe/kit.mjs'
+import type { RecordedAction } from '../workflows/observe/kit.mjs'
+import type { SelectorSpec } from './selector.mjs'
 const hash = (value: string) => createHash('sha256').update(value).digest('hex')
 
 /** What an observation reads; a plain region selector reads the region alone. */

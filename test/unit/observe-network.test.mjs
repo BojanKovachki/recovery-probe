@@ -1,10 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { request } from 'node:http'
-import {
-  observationSteps,
-  runSteps,
-} from '../../dist/workflows/observe/steps.mjs'
+import { observationSteps } from '../../dist/workflows/observe/steps.mjs'
+import { runSteps } from '../../dist/workflows/observe/step-runner.mjs'
 import {
   startNetworkFaultProxy,
   connectNetworkFaults,
@@ -13,7 +11,7 @@ import {
   networkSteps,
   applyNetworkEvidence,
 } from '../../dist/workflows/observe/network.mjs'
-import { networkStepSummary } from '../../dist/workflows/observe/report.mjs'
+import { networkStepSummary } from '../../dist/workflows/observe/summaries.mjs'
 
 const refuse = { host: 'api.example.test', fault: 'refuse' }
 

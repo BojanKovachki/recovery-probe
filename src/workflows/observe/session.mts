@@ -15,7 +15,7 @@ import { runObservation, type ObservationHooks } from './capture.mjs'
 import type { ObservationConfig } from './config.mjs'
 import {
   applyFileFaultEvidence,
-  fileFaults,
+  FileFaults,
   type FileFaultEvidence,
 } from './file-faults.mjs'
 import {
@@ -28,10 +28,11 @@ import { applyNetworkEvidence, networkSteps } from './network.mjs'
 import {
   applyExpectationEvidence,
   observationMetadata,
-  samplingMetrics,
   type ObservationReport,
 } from './report.mjs'
-import { runSteps, type ObservationStep, type StepResult } from './steps.mjs'
+import { samplingMetrics } from './sampling.mjs'
+import { runSteps } from './step-runner.mjs'
+import type { ObservationStep, StepResult } from './steps.mjs'
 
 type NetworkSteps = ReturnType<typeof networkSteps>
 
@@ -93,7 +94,7 @@ function fileRecorder(
     snapshots,
     damage:
       directory && steps?.some((step) => step.kind === 'file')
-        ? fileFaults(directory)
+        ? new FileFaults(directory)
         : undefined,
     // Started without waiting: walking a large directory must not delay sampling.
     take(interval: number) {

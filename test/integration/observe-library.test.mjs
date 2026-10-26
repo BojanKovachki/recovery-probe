@@ -6,11 +6,9 @@ import { chromium } from 'playwright'
 import { observationConfig } from '../../dist/workflows/observe/config.mjs'
 import { runObservation } from '../../dist/workflows/observe/capture.mjs'
 import { httpObservationAdapter } from '../../dist/workflows/observe/adapters.mjs'
-import {
-  observationSteps,
-  runSteps,
-} from '../../dist/workflows/observe/steps.mjs'
-import { observationSummary } from '../../dist/workflows/observe/report.mjs'
+import { observationSteps } from '../../dist/workflows/observe/steps.mjs'
+import { runSteps } from '../../dist/workflows/observe/step-runner.mjs'
+import { observationSummary } from '../../dist/workflows/observe/summaries.mjs'
 import { runEvidence, compareRuns } from '../../dist/tools/compare.mjs'
 
 let browser,
