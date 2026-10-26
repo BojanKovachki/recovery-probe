@@ -1,11 +1,10 @@
 import { randomUUID } from 'node:crypto'
+import { setTimeout as sleep } from 'node:timers/promises'
 import type { Page } from 'playwright'
-import { observeHttp } from './http/observer.mjs'
+import { observeHttp, type HttpObserver } from './http/observer.mjs'
 import { resetIpcAndConfirm } from './ipc/control.mjs'
 import type { FaultKind } from '../core/faults.mjs'
 import type { IpcInspector } from './ipc/inspector.mjs'
-
-type HttpObserver = Awaited<ReturnType<typeof observeHttp>>
 
 /** Faults for one HTTP read: `skip` lets that many matching reads through first. */
 export interface HttpPlan {
@@ -91,7 +90,7 @@ export function ipcRefreshAdapter(
         )
           break
         if (Date.now() >= deadline) throw Error('IPC_PREVIOUS_CALLS_PENDING')
-        await new Promise((resolve) => setTimeout(resolve, 50))
+        await sleep(50)
       }
       id = randomUUID() // Assign before mutation: a lost reply still requires reset.
       await control.call('begin', {

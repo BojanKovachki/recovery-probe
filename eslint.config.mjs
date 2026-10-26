@@ -12,7 +12,7 @@ const inPageModules = [
   'src/targets/visibility.mts',
   'src/tools/pick-marker.mts',
   'src/workflows/action.mts',
-  'src/workflows/check/ipc.mts',
+  'src/workflows/check/ipc/run.mts',
   'src/workflows/observe/kit.mts',
   'src/workflows/observe/steps.mts',
   'src/workflows/refresh/probe.mts',

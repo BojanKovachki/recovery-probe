@@ -4,6 +4,17 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.8.0-preview.6 (2026-10-26)
+
+The recovery checks, restructured. No change to the CLI, the library or the reports.
+
+- `workflows/check/http.mts` (356 lines, with a 153-line `checkDesktop`) is a `workflows/check/http/` folder: the config as short rules, the screen health helpers, and a `FaultTrial` class that takes one fault through arming, reload, Retry and recovery. `checkDesktop` is a short loop over those trials.
+- `workflows/check/ipc.mts` (with a 182-line `checkIpc`) is a `workflows/check/ipc/` folder: the config, the phase verdict as a plain function with its own unit test, and a small `IpcCheck` class that attaches, runs the phases, reloads and disconnects. An unreachable branch of the timed-out verdict is gone.
+- `probeRecovery` is split into small steps. `ensure` takes an optional error class, so the library's input checks still throw `TypeError`, and `ensureRanges` checks its keys against the config's type.
+- The `check` command writes the IPC report through `reports/check.mts`, like the desktop report.
+- `sleep` from `node:timers/promises` replaces eight copies of the same helper and five inline timer promises. The HTTP observer exports its type instead of three modules each deriving it.
+- The size-limit violations listed in `eslint-suppressions.json` drop from 111 to 97.
+
 ## 0.8.0-preview.5 (2026-10-26)
 
 The refresh experiment, restructured. No change to the CLI, the library or the reports.

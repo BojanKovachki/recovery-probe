@@ -7,11 +7,6 @@
       "count": 1
     }
   },
-  "src/cli/check.mts": {
-    "max-lines-per-function": {
-      "count": 1
-    }
-  },
   "src/cli/compare.mts": {
     "complexity": {
       "count": 2
@@ -252,36 +247,6 @@
     },
     "max-lines-per-function": {
       "count": 3
-    }
-  },
-  "src/workflows/check/browser.mts": {
-    "complexity": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 1
-    }
-  },
-  "src/workflows/check/http.mts": {
-    "complexity": {
-      "count": 2
-    },
-    "max-lines": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 2
-    }
-  },
-  "src/workflows/check/ipc.mts": {
-    "complexity": {
-      "count": 3
-    },
-    "max-depth": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 2
     }
   },
   "src/workflows/observe/kit.mts": {

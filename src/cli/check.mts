@@ -1,24 +1,24 @@
-import { writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import type { Page } from 'playwright'
 import { connectDesktop, selectDesktopPage } from '../targets/cdp.mjs'
 import { prepareVisibility } from '../targets/visibility.mjs'
 import { reportFolder } from '../reports/folder.mjs'
-import { writeDesktopReport } from '../reports/check.mjs'
-import { renderTemplate } from '../reports/template.mjs'
+import { writeDesktopReport, writeIpcReport } from '../reports/check.mjs'
 import type { RecoveryConfig } from '../workflows/check/browser.mjs'
 import {
-  checkDesktop,
   validateDesktopConfig,
   type DesktopConfig,
-  type DesktopReport,
-  type DesktopRow,
-} from '../workflows/check/http.mjs'
+} from '../workflows/check/http/config.mjs'
+import type { DesktopRow } from '../workflows/check/http/fault.mjs'
 import {
-  checkIpc,
+  checkDesktop,
+  type DesktopReport,
+} from '../workflows/check/http/run.mjs'
+import {
   validateIpcConfig,
   type IpcCheckInput,
-} from '../workflows/check/ipc.mjs'
+} from '../workflows/check/ipc/config.mjs'
+import { checkIpc, type IpcCheckReport } from '../workflows/check/ipc/run.mjs'
 import { checkWeb, type WebConfig } from '../workflows/web.mjs'
 import {
   integerOption,
@@ -29,7 +29,6 @@ import {
   type Values,
 } from './args.mjs'
 import { runBrowserCheck } from './runner.mjs'
-import { withEvidence } from '../reports/evidence.mjs'
 
 export const usage = `recovery-probe check --config FILE [options]
 
@@ -202,37 +201,13 @@ async function checkIpcRead(raw: Record<string, unknown>, values: Values) {
   )
   const directory = await openFolder(values)
   const report = await checkIpc(config)
-  await writeFile(
-    join(directory, 'scenario.json'),
-    JSON.stringify(config, null, 2),
-    { mode: 0o600 },
-  )
-  await writeFile(
-    join(directory, 'report.json'),
-    JSON.stringify(
-      withEvidence(report, { workflow: 'check', transport: 'ipc' }),
-      null,
-      2,
-    ),
-    { mode: 0o600 },
-  )
-  await writeFile(
-    join(directory, 'report.html'),
-    renderTemplate('ipc', {
-      heading: report.ok
-        ? 'Selected IPC experiments completed without findings requiring review'
-        : 'IPC recovery needs investigation',
-      limitation: report.limitation,
-      finalReset: report.finalReset,
-      evidence: JSON.stringify(report, null, 2),
-    }),
-    { mode: 0o600 },
-  )
+  await writeIpcReport(directory, report, config)
   process.exitCode = exitCodeOf(report)
-  if (values.json) {
-    console.log(JSON.stringify(report, null, 2))
-    return
-  }
+  if (values.json) console.log(JSON.stringify(report, null, 2))
+  else printIpcReport(report, directory)
+}
+
+function printIpcReport(report: IpcCheckReport, directory: string) {
   console.log(
     `Baseline: ${report.baseline?.code ?? report.error ?? 'not established'}`,
   )

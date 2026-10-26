@@ -1,6 +1,7 @@
 import type { Page } from 'playwright'
 import { performance } from 'node:perf_hooks'
 import { randomUUID } from 'node:crypto'
+import { setTimeout as sleep } from 'node:timers/promises'
 import {
   readRegion,
   summarizeRegion,
@@ -187,7 +188,7 @@ class Capture {
         return
       }
       const waitMs = Math.min(sampleMs, Math.max(0, observationMs - runMs))
-      await new Promise((resolve) => setTimeout(resolve, waitMs))
+      await sleep(waitMs)
     }
   }
 

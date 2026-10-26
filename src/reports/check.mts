@@ -1,6 +1,8 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { resolve, join } from 'node:path'
-import type { DesktopReport } from '../workflows/check/http.mjs'
+import type { DesktopReport } from '../workflows/check/http/run.mjs'
+import type { IpcCheckConfig } from '../workflows/check/ipc/config.mjs'
+import type { IpcCheckReport } from '../workflows/check/ipc/run.mjs'
 import { escapeHtml, renderTemplate } from './template.mjs'
 import { withEvidence } from './evidence.mjs'
 
@@ -78,4 +80,29 @@ export async function writeDesktopReport(
     await writeFile(join(dir, name), value, { mode: 0o600 })
   }
   return dir
+}
+
+export async function writeIpcReport(
+  directory: string,
+  report: IpcCheckReport,
+  config: IpcCheckConfig,
+): Promise<void> {
+  const files = {
+    'scenario.json': JSON.stringify(config, null, 2),
+    'report.json': JSON.stringify(
+      withEvidence(report, { workflow: 'check', transport: 'ipc' }),
+      null,
+      2,
+    ),
+    'report.html': renderTemplate('ipc', {
+      heading: report.ok
+        ? 'Selected IPC experiments completed without findings requiring review'
+        : 'IPC recovery needs investigation',
+      limitation: report.limitation,
+      finalReset: report.finalReset,
+      evidence: JSON.stringify(report, null, 2),
+    }),
+  }
+  for (const [name, value] of Object.entries(files))
+    await writeFile(join(directory, name), value, { mode: 0o600 })
 }

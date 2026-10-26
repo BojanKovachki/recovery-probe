@@ -10,6 +10,7 @@ import {
 } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
+import { setTimeout as sleep } from 'node:timers/promises'
 import { createHash } from 'node:crypto'
 import { createInterface } from 'node:readline/promises'
 import { connect as netConnect } from 'node:net'
@@ -17,12 +18,14 @@ import type { Browser, Page } from 'playwright'
 import { checkWeb, type WebConfig } from '../../workflows/web.mjs'
 import { connectDesktop, selectDesktopPage } from '../../targets/cdp.mjs'
 import {
-  checkDesktop,
   validateDesktopConfig,
   type DesktopConfig,
-  type DesktopReport,
   type ValidDesktopConfig,
-} from '../../workflows/check/http.mjs'
+} from '../../workflows/check/http/config.mjs'
+import {
+  checkDesktop,
+  type DesktopReport,
+} from '../../workflows/check/http/run.mjs'
 import {
   proposeRepair,
   type RepairEdit,
@@ -109,7 +112,6 @@ const save = (directory: string, name: string, value: unknown) =>
   writeFile(join(directory, name), JSON.stringify(value, null, 2) + '\n', {
     mode: 0o600,
   })
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 // Resolve existing ancestor symlinks before creating anything near the source tree.
 async function canonicalDestination(path: string) {
@@ -286,7 +288,7 @@ export async function observeRepairTarget(
         ready = true
         break
       }
-      await delay(100)
+      await sleep(100)
     }
     if (!ready)
       throw new Error(
@@ -315,7 +317,7 @@ export async function observeRepairTarget(
         page = selectDesktopPage(attached, config.scenario)
         break
       } catch {}
-      await delay(100)
+      await sleep(100)
     }
     if (!page)
       throw new Error(

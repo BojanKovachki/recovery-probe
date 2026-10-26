@@ -1,4 +1,5 @@
 import { performance } from 'node:perf_hooks'
+import { setTimeout as sleep } from 'node:timers/promises'
 import type { RegionSummary } from '../../core/screen.mjs'
 import {
   matchesHealthyControl,
@@ -15,8 +16,6 @@ import type {
 
 const POLL_MS = 100
 const MAX_EVENTS = 100
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /** What a load needs from the discovery that runs it. */
 export interface LoadContext<

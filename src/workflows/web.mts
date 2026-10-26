@@ -1,10 +1,7 @@
 import type { Page } from 'playwright'
-import {
-  checkDesktop,
-  type DesktopConfig,
-  type DesktopReport,
-  type DesktopRow,
-} from './check/http.mjs'
+import type { DesktopConfig } from './check/http/config.mjs'
+import type { DesktopRow } from './check/http/fault.mjs'
+import { checkDesktop, type DesktopReport } from './check/http/run.mjs'
 import { discoverDesktop, type DesktopDiscovery } from './reads.mjs'
 import { openWeb, type BrowserSession } from '../targets/browser.mjs'
 

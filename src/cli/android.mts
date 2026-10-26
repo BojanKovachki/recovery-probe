@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from 'node:timers/promises'
 import {
   adbRunner,
   androidDevices,
@@ -27,8 +28,6 @@ while the display sleeps or a system dialog is in front; the command warns when 
 sees either. On a Meta Quest, --keep-awake keeps the display awake and pauses the
 Guardian boundary until the forward stops, so nobody has to wear the headset.
 See docs/android.md.`
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 interface AndroidOptions {
   list?: true
