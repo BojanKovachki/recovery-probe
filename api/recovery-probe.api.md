@@ -71,6 +71,7 @@ export interface ProbeRow {
     scenario: string;
     outcome: 'pass' | 'fail' | 'inconclusive' | 'skipped';
     code: string;
+    reason?: string;
     applied: number;
 }
 
@@ -154,6 +155,8 @@ export interface DesktopRow {
     kind: FaultKind;
     outcome: 'pass' | 'fail' | 'inconclusive' | 'skipped';
     code: string;
+    reason?: string;
+    screenText?: string;
     applied: number;
     successfulResponsesAfterFault: number;
     retryClicked: boolean;

@@ -99,7 +99,8 @@ test('catches the stuck retry in Electron for all three faults, and reload rescu
       (r) =>
         r.applied === 1 &&
         r.retryClicked &&
-        r.successfulResponsesAfterFault === 0,
+        r.successfulResponsesAfterFault === 0 &&
+        r.screenText === 'error\nRetry',
     ),
   )
   assert.equal(report.finalReset, 'healthy')
@@ -123,15 +124,19 @@ test('corrected Electron app recovers from all faults with subsequent real reque
   )
 })
 test('wrong endpoint and wrong health marker are inconclusive, never app failures', async () => {
-  for (const extra of [
-    { endpoint: `${server.url}/absent` },
-    { readySelector: '#absent' },
+  for (const [extra, reason] of [
+    [
+      { endpoint: `${server.url}/absent` },
+      'no successful response from the endpoint within 200 ms',
+    ],
+    [{ readySelector: '#absent' }, 'the ready selector matched 0 elements'],
   ]) {
     const report = await checkDesktop(
       page,
       config('fixed', { ...extra, timeoutMs: 200 }),
     )
     assert.equal(report.results[0].code, 'BASELINE_FAILED')
+    assert.equal(report.results[0].reason, reason)
     assert.ok(
       report.results.every((r) => r.applied === 0 && r.outcome !== 'fail'),
     )

@@ -48,7 +48,7 @@ export const checkReadRecovery: McpTool = {
   name: 'check_read_recovery',
   title: 'Check that a page recovers when a read fails',
   description:
-    'Loads the page healthy, then fails one GET endpoint with each fault kind and checks that the ready marker comes back: by itself (recovery "automatic") or after clicking retrySelector ("retry"). Returns an outcome per fault and the report folder, which includes fix-brief.md and reproduce.mjs.',
+    'Loads the page healthy, then fails one GET endpoint with each fault kind and checks that the ready marker comes back: by itself (recovery "automatic") or after clicking retrySelector ("retry"). Returns an outcome per fault, why the healthy baseline failed if it did, the text the screen showed under a fault it did not recover from, and the report folder, which includes fix-brief.md and reproduce.mjs.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -64,7 +64,7 @@ export const checkReadRecovery: McpTool = {
       readySelector: {
         type: 'string',
         description:
-          'CSS selector of an element that is visible only once that read has rendered its data.',
+          'CSS selector of the one element that is visible only once that read has rendered its data. It must match exactly one element: for a list, choose its container or a single item, not a selector every item matches.',
       },
       readyText: {
         type: 'string',
@@ -140,10 +140,12 @@ export const checkReadRecovery: McpTool = {
     return {
       ok: report.ok,
       results: report.results.map(
-        ({ kind, outcome, code, applied, recoveryMs }) => ({
+        ({ kind, outcome, code, reason, screenText, applied, recoveryMs }) => ({
           kind,
           outcome,
           code,
+          ...(reason === undefined ? {} : { reason }),
+          ...(screenText === undefined ? {} : { screenText }),
           applied,
           ...(recoveryMs === undefined ? {} : { recoveryMs }),
         }),

@@ -67,7 +67,7 @@ test(
       res.setHeader('Content-Type', 'text/html')
       res.end(`<p data-testid="profile"></p><script>
       fetch('/api/unrelated');
-      async function load(){try{const r=await fetch('/api/profile?secret=omit');if(!r.ok)throw Error();const d=await r.json();document.querySelector('p').textContent=d.name}catch{${req.url === '/broken' ? '' : 'setTimeout(load,30)'}}}load();
+      async function load(){try{const r=await fetch('/api/profile?secret=omit');if(!r.ok)throw Error();const d=await r.json();document.querySelector('p').textContent=d.name}catch{${req.url === '/broken' ? "document.body.insertAdjacentHTML('beforeend','<div role=alert>Could not load your profile</div>')" : 'setTimeout(load,30)'}}}load();
     </script>`)
     })
     await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -140,7 +140,10 @@ test(
           { timeout: 15000 },
         ),
         (error) =>
-          error.code === 1 && /RECOVERY_NOT_OBSERVED/.test(error.stdout),
+          error.code === 1 &&
+          /RECOVERY_NOT_OBSERVED\n {2}Screen showed: "Could not load your profile"/.test(
+            error.stdout,
+          ),
       )
     } finally {
       if (browser?.isConnected()) await browser.close()

@@ -16,7 +16,7 @@ const verdict = ({
   user = {},
   injected = 0,
   successfulAfterFault = 0,
-  ready = true,
+  readyProblem,
   expired = false,
 } = {}) =>
   phaseVerdict(channels, {
@@ -26,7 +26,7 @@ const verdict = ({
       successfulAfterFault,
       channels: { items: row(target), user: row(user) },
     },
-    ready,
+    readyProblem,
     expired,
   })
 const recovered = { injected: 1, successfulAfterFault: 1 }
@@ -37,7 +37,10 @@ test('a phase passes once its read, dependencies and screen are ready', () => {
     verdict({ fault: 'rejection', target: { calls: 2 }, ...recovered }),
     { outcome: 'pass', code: 'RECOVERED' },
   )
-  assert.equal(verdict({ ready: false }), undefined)
+  assert.equal(
+    verdict({ readyProblem: 'the ready element is hidden' }),
+    undefined,
+  )
   assert.equal(verdict({ target: { pending: 1 } }), undefined)
   assert.equal(verdict({ user: { pending: 1 } }), undefined)
 })
@@ -55,7 +58,8 @@ test('extra traffic or a failed dependency makes the phase inconclusive', () => 
 })
 
 test('an expired phase says what was missing', () => {
-  const expired = (state) => verdict({ expired: true, ready: false, ...state })
+  const expired = (state) =>
+    verdict({ expired: true, readyProblem: 'hidden', ...state })
   assert.equal(expired().code, 'BASELINE_FAILED')
   assert.equal(expired({ fault: 'null-result' }).code, 'FAULT_NOT_TRIGGERED')
   assert.equal(
@@ -66,4 +70,28 @@ test('an expired phase says what was missing', () => {
     outcome: 'fail',
     code: 'RECOVERY_NOT_OBSERVED',
   })
+})
+
+test('a failed baseline says the first thing that was missing', () => {
+  const reason = (state) => verdict({ expired: true, ...state }).reason
+  assert.equal(
+    reason({ target: { calls: 0, successes: 0 } }),
+    'the app made no items call',
+  )
+  assert.equal(
+    reason({ target: { pending: 1, successes: 0 } }),
+    "the items call didn't finish",
+  )
+  assert.equal(
+    reason({ target: { successes: 0 } }),
+    "the items call didn't succeed",
+  )
+  assert.equal(
+    reason({ user: { successes: 0 }, readyProblem: 'hidden' }),
+    "the required user call didn't succeed",
+  )
+  assert.equal(
+    reason({ readyProblem: 'the ready selector matched 2 elements' }),
+    'the ready selector matched 2 elements',
+  )
 })

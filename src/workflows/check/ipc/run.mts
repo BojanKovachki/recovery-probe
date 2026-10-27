@@ -11,6 +11,7 @@ import {
 } from '../../../transports/ipc/control.mjs'
 import { connectIpcInspector } from '../../../transports/ipc/inspector.mjs'
 import type { IpcInspector } from '../../../transports/ipc/inspector.mjs'
+import { readyProblem, screenLines, screenQuote } from '../screen.mjs'
 import {
   validateIpcConfig,
   type IpcCheckConfig,
@@ -26,7 +27,11 @@ export interface IpcCheckReport {
   baseline?: IpcPhaseResult
   baselineReadMs?: number
   deadlineMs?: number
-  results: (IpcPhaseResult & { fault: IpcFault })[]
+  results: (IpcPhaseResult & {
+    fault: IpcFault
+    /** Text the screen showed under the fault that the healthy screen didn't. */
+    screenText?: string
+  })[]
   cleanup?: IpcPhaseResult
   finalReset: 'not-run' | 'healthy' | 'not-verified'
   ok: boolean
@@ -129,14 +134,31 @@ class IpcCheck {
         )
       report.baselineReadMs = baselineReadMs
       report.deadlineMs = deadlineMs
+      const healthyScreen = await screenLines(this.#page).catch(() => undefined)
       for (const fault of config.faults) {
-        const result = await this.#phase(fault, deadlineMs)
-        report.results.push({ fault, ...result })
-        if (result.outcome === 'inconclusive') break
+        const { snapshot, ...verdict } = await this.#phase(fault, deadlineMs)
+        const quote =
+          verdict.outcome !== 'pass' && snapshot.injected
+            ? await this.#quote(healthyScreen)
+            : undefined
+        report.results.push({
+          fault,
+          ...verdict,
+          ...(quote === undefined ? {} : { screenText: quote }),
+          snapshot,
+        })
+        if (verdict.outcome === 'inconclusive') break
       }
     } catch (error) {
       report.error = (error as Error).message
     }
+  }
+
+  /** The text new on the screen since it was healthy; none when either can't be read. */
+  async #quote(healthyScreen: string[] | undefined) {
+    if (!healthyScreen) return undefined
+    const lines = await screenLines(this.#page).catch(() => undefined)
+    return lines && screenQuote(lines, healthyScreen)
   }
 
   // Only reload after disarm has been independently verified.
@@ -215,7 +237,7 @@ class IpcCheck {
     const verdict = phaseVerdict(this.#config, {
       fault,
       snapshot,
-      ready: status.ready,
+      readyProblem: status.readyProblem,
       expired,
     })
     return verdict && { ...verdict, snapshot }
@@ -240,17 +262,6 @@ async function ui(page: Page, config: IpcCheckConfig) {
     online: navigator.onLine,
   }))
   if (!environment.visible || !environment.online)
-    return { blocked: true, ready: false }
-  const marker = page.locator(config.readySelector)
-  const busy = config.busySelector
-    ? await page.locator(config.busySelector).all()
-    : []
-  return {
-    blocked: false,
-    ready:
-      (await marker.count()) === 1 &&
-      (await marker.isVisible()) &&
-      (await marker.innerText()).includes(config.readyText) &&
-      !(await Promise.all(busy.map((item) => item.isVisible()))).some(Boolean),
-  }
+    return { blocked: true, readyProblem: 'the window is hidden or offline' }
+  return { blocked: false, readyProblem: await readyProblem(page, config) }
 }

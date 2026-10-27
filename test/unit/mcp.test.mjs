@@ -94,6 +94,12 @@ test('answers the MCP handshake and lists its tools', async () => {
       assert.equal(tool.inputSchema.type, 'object', tool.name)
       assert.ok(tool.description.length > 40, tool.name)
     }
+    // A selector every list item matches never counts as the data on screen.
+    const check = listed.tools.find((t) => t.name === 'check_read_recovery')
+    assert.match(
+      check.inputSchema.properties.readySelector.description,
+      /must match exactly one element/,
+    )
 
     assert.deepEqual((await server.request('ping')).result, {})
     assert.equal((await server.request('resources/list')).error.code, -32601)

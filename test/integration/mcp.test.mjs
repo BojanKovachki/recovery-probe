@@ -35,6 +35,28 @@ test('finds the read behind a page', async () => {
   )
 })
 
+test('says why the healthy baseline failed', async () => {
+  const report = await tool('check_read_recovery').run(
+    {
+      url: `${server.url}/fixed`,
+      endpoint: `${server.url}/api/profile`,
+      readySelector: 'p',
+      faults: ['http-error'],
+      timeoutMs: 300,
+    },
+    context,
+  )
+  assert.deepEqual(
+    report.results.map(({ code, reason }) => ({ code, reason })),
+    [
+      {
+        code: 'BASELINE_FAILED',
+        reason: 'the ready selector matched 2 elements',
+      },
+    ],
+  )
+})
+
 test('tells a page that recovers from one that does not', async () => {
   const check = (page) =>
     tool('check_read_recovery').run(
@@ -62,6 +84,8 @@ test('tells a page that recovers from one that does not', async () => {
   const broken = await check('broken')
   assert.equal(broken.ok, false)
   assert.equal(broken.results[0].outcome, 'fail')
+  // The broken page shows its error and a Retry button that does nothing.
+  assert.equal(broken.results[0].screenText, 'error\nRetry')
   assert.match(broken.limitation, /not proof of overall app health/)
   assert.match(
     await readFile(broken.fixBrief, 'utf8'),

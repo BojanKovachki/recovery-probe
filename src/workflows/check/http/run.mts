@@ -2,13 +2,14 @@ import type { Page } from 'playwright'
 import type { FaultKind } from '../../../core/faults.mjs'
 import { pageIdentity } from '../../../core/urls.mjs'
 import { ensure } from '../../../core/validate.mjs'
+import { screenLines, screenQuote } from '../screen.mjs'
 import {
   validateDesktopConfig,
   type DesktopConfig,
   type ValidDesktopConfig,
 } from './config.mjs'
 import { FaultTrial, type DesktopRow } from './fault.mjs'
-import { baseline } from './health.mjs'
+import { baselineFailure } from './health.mjs'
 
 export interface DesktopReport {
   schemaVersion: number
@@ -46,23 +47,23 @@ export async function checkDesktop(
       row.outcome = 'skipped'
       continue
     }
-    if (!(await baseline(page, config))) {
+    const failure = await baselineFailure(page, config)
+    if (failure) {
+      row.reason = failure
       blocked = true
       continue
     }
+    // If the healthy text can't be read, the row gets no quote: there'd be nothing to compare.
+    const healthyScreen = await screenLines(page).catch(() => undefined)
     blocked = await new FaultTrial(page, config, row).run()
-    if (row.outcome !== 'pass' && onFailure) {
-      try {
-        await onFailure(page, row)
-      } catch {
-        row.evidenceCaptureFailed = true
-      }
-    }
+    if (row.outcome !== 'pass')
+      await recordEvidence(page, row, healthyScreen, onFailure)
   }
   // A reload rescue is cleanup, not a successful Retry result.
-  report.finalReset = (await baseline(page, config))
-    ? 'healthy'
-    : 'not-verified'
+  report.finalReset =
+    (await baselineFailure(page, config)) === undefined
+      ? 'healthy'
+      : 'not-verified'
   report.ok =
     report.results.every((row) => row.outcome === 'pass') &&
     report.finalReset === 'healthy'
@@ -86,6 +87,24 @@ async function prepare(page: Page, config: ValidDesktopConfig) {
   // CDP can attach to a background Electron window. Activate the selected page
   // so real actionability checks receive animation frames; never force clicks.
   await page.bringToFront()
+}
+
+/** Quotes the screen under an applied fault and runs the caller's capture; neither changes the outcome. */
+async function recordEvidence(
+  page: Page,
+  row: DesktopRow,
+  healthyScreen: string[] | undefined,
+  onFailure: ((page: Page, row: DesktopRow) => Promise<void>) | undefined,
+) {
+  try {
+    if (row.applied && healthyScreen) {
+      const quote = screenQuote(await screenLines(page), healthyScreen)
+      if (quote !== undefined) row.screenText = quote
+    }
+    await onFailure?.(page, row)
+  } catch {
+    row.evidenceCaptureFailed = true
+  }
 }
 
 const initialReport = (config: ValidDesktopConfig): DesktopReport => ({
