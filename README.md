@@ -1,8 +1,8 @@
 # Recovery Probe
 
-Find out what breaks when requests fail.
+Stop assuming your code works. Test what actually happens.
 
-Recovery Probe helps developers and AI coding agents find recovery bugs in web and Electron apps. It injects failures into network requests and Electron IPC calls, observes application behavior, and collects evidence to reproduce problems and verify fixes.
+Recovery Probe helps developers and AI coding agents discover bugs that ordinary tests can miss. It deliberately triggers failures in web and Electron applications, observes how the UI responds, and produces evidence you can use to reproduce, fix, and verify problems.
 
 A failed request should not silently turn a populated screen into “No items found.” Recovery Probe helps you reproduce that failure and check whether the application recovers as expected.
 
