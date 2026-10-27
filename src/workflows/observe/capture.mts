@@ -4,9 +4,9 @@ import { randomUUID } from 'node:crypto'
 import { setTimeout as sleep } from 'node:timers/promises'
 import {
   readRegion,
-  summarizeRegion,
   type ObservationReadInput,
-} from '../../core/screen.mjs'
+} from '../../core/region-read.mjs'
+import { summarizeRegion } from '../../core/screen.mjs'
 import type { ObservationAdapter } from './adapters.mjs'
 import { observationConfig, type ObservationConfig } from './config.mjs'
 import { installObserverKit, removeObserverKit } from './kit.mjs'

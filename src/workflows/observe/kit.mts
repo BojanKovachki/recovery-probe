@@ -29,6 +29,7 @@ declare global {
 }
 
 // Runs in the page. Self-contained: page.evaluate serializes this function.
+// eslint-disable-next-line max-lines-per-function -- serialized into the page as one function
 export function installObserverKit({
   token,
   actions,
@@ -134,12 +135,12 @@ export function installObserverKit({
   // A click on a label makes the browser click its control too, in the same task.
   // Actions the label click recorded are not recorded again for that second click.
   let forwarded: { control: Element; actions: Set<string> } | undefined
-  const onClick = (event: MouseEvent) => {
-    const target = event.target instanceof Element ? event.target : null
-    if (!target) return
-    const repeated =
-      forwarded?.control === target ? forwarded.actions : new Set<string>()
-    forwarded = undefined
+  /** Records the actions a click matched, except `repeated` ones; returns them all. */
+  const record = (
+    event: MouseEvent,
+    target: Element,
+    repeated: Set<string>,
+  ) => {
     const matched = new Set<string>()
     for (const action of actions) {
       if (!closest(target, action.selector)) continue
@@ -152,14 +153,24 @@ export function installObserverKit({
       })
       if (buffer.length > 500) buffer.shift()
     }
+    return matched
+  }
+  const forwardFromLabel = (target: Element, matched: Set<string>) => {
     const control = target.closest('label')?.control
-    if (matched.size && control && !control.contains(target)) {
-      const current = { control, actions: matched }
-      forwarded = current
-      setTimeout(() => {
-        if (forwarded === current) forwarded = undefined
-      })
-    }
+    if (!matched.size || !control || control.contains(target)) return
+    const current = { control, actions: matched }
+    forwarded = current
+    setTimeout(() => {
+      if (forwarded === current) forwarded = undefined
+    })
+  }
+  const onClick = (event: MouseEvent) => {
+    const target = event.target instanceof Element ? event.target : null
+    if (!target) return
+    const repeated =
+      forwarded?.control === target ? forwarded.actions : new Set<string>()
+    forwarded = undefined
+    forwardFromLabel(target, record(event, target, repeated))
   }
   if (actions.length) document.addEventListener('click', onClick, true)
   Object.defineProperty(globalThis, '__recoveryProbeObserve', {

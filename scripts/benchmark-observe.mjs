@@ -1,6 +1,7 @@
 import { performance } from 'node:perf_hooks'
 import { chromium } from 'playwright'
-import { readRegion, summarizeRegion } from '../dist/core/screen.mjs'
+import { readRegion } from '../dist/core/region-read.mjs'
+import { summarizeRegion } from '../dist/core/screen.mjs'
 import { observationTable } from '../test/fixtures/observation-table.mjs'
 
 // Diagnostic, not a timing gate: host load and browser versions affect results.

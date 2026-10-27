@@ -1,11 +1,8 @@
 import { performance } from 'node:perf_hooks'
 import { setTimeout as sleep } from 'node:timers/promises'
 import type { Page } from 'playwright'
-import {
-  readRegion,
-  summarizeRegion,
-  type RegionSummary,
-} from '../../core/screen.mjs'
+import { readRegion } from '../../core/region-read.mjs'
+import { summarizeRegion, type RegionSummary } from '../../core/screen.mjs'
 import type { IpcActionConfig } from './config.mjs'
 import type { ActionRun } from './types.mjs'
 

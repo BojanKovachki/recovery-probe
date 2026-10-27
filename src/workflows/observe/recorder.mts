@@ -1,4 +1,5 @@
-import type { RegionRead, summarizeRegion } from '../../core/screen.mjs'
+import type { RegionRead } from '../../core/region-read.mjs'
+import type { summarizeRegion } from '../../core/screen.mjs'
 import type { ObservationConfig } from './config.mjs'
 import { initialReport, type CaptureReport } from './initial-report.mjs'
 import {

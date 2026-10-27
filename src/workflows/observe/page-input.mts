@@ -1,4 +1,4 @@
-import type { ObservationReadInput } from '../../core/screen.mjs'
+import type { ObservationReadInput } from '../../core/region-read.mjs'
 import type { ObservationConfig } from './config.mjs'
 
 /** What the page reads each sample; it never sees row state labels. */

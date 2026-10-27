@@ -8,7 +8,7 @@ import tseslint from 'typescript-eslint'
 const typeScriptFiles = ['**/*.{ts,mts,cts}']
 
 const inPageModules = [
-  'src/core/screen.mts',
+  'src/core/region-read.mts',
   'src/targets/visibility.mts',
   'src/tools/pick-marker.mts',
   'src/workflows/action/screen.mts',

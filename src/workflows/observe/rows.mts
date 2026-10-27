@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import type { RegionRead } from '../../core/screen.mjs'
+import type { RegionRead } from '../../core/region-read.mjs'
 import {
   stateLabels,
   type ObservationConfig,
