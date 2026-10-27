@@ -103,7 +103,7 @@ test('reruns the check after a change and compares it with the first run', async
     const result = await within(
       runWatch({
         paths: [join(root, 'src')],
-        command: ['ipc', '--action', '--config', 'action.json'],
+        command: ['action', '--config', 'action.json'],
         settleMs: 200,
         maxRuns: 2,
         out,
@@ -122,8 +122,7 @@ test('reruns the check after a change and compares it with the first run', async
       'two runs',
     )
     assert.deepEqual(calls[0], [
-      'ipc',
-      '--action',
+      'action',
       '--config',
       'action.json',
       '--out',
@@ -162,11 +161,11 @@ test('records a run that wrote no report, with the reason it printed', async () 
     const result = await within(
       runWatch({
         paths: [join(root, 'src')],
-        command: ['--config', 'scenario.json'],
+        command: ['check', '--config', 'scenario.json'],
         maxRuns: 1,
         out: join(root, '.recovery-probe', 'watch'),
         runCommand: async (args) => {
-          assert.ok(args.at(-1).endsWith(join('run-1', 'report.json')))
+          assert.ok(args.at(-1).endsWith('run-1'))
           return {
             exitCode: 2,
             output:
@@ -226,12 +225,14 @@ test('accepts only a check it can rerun the same way', async () => {
   for (const [command, message] of /** @type {[string[], RegExp][]} */ ([
     [['start', 'web'], /reruns a check/],
     [['mcp'], /reruns a check/],
-    [['ipc', '--action'], /needs --config/],
-    [['ipc', '--config', 'a.json', '--out', 'x'], /Leave out --out/],
+    [['ipc', '--config', 'a.json'], /reruns a check/],
+    [['--config', 'a.json'], /reruns a check/],
+    [['action'], /needs --config/],
+    [['check', '--config', 'a.json', '--out', 'x'], /Leave out --out/],
     [['observe', '--config', 'a.json', '--interactive'], /--interactive/],
   ]))
     assert.throws(() => validateCheckCommand(command), message)
-  validateCheckCommand(['--config', 'scenario.json'])
+  validateCheckCommand(['check', '--config', 'scenario.json'])
   validateCheckCommand(['observe', '--config', 'observe.json', '--steps', 's'])
   await assert.rejects(
     runWatch({ suspects: false }),

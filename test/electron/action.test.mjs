@@ -104,8 +104,7 @@ test(
           fileURLToPath(
             new URL('../../bin/recovery-probe.mjs', import.meta.url),
           ),
-          'ipc',
-          '--action',
+          'action',
           '--config',
           configFile,
           '--out',

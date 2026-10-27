@@ -4,6 +4,25 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 1.0.0 (2026-10-27)
+
+The first stable release. It removes the old command spellings and brings in everything since 0.6.0: the 0.7.0 and 0.8.0 previews below.
+
+Breaking:
+
+- The old spellings `desktop`, `web`, `ipc`, `--demo` and `--config` are gone. Each now stops with a usage error (exit 3) that names the commands that replaced it: `windows`, `reads` and `check` for `desktop`; `login`, `reads`, `check`, `discover` and `windows` for `web`; `check`, `discover` and `action` for `ipc`; `demo`; and `check --config`. Errors no longer exit with 2: usage errors exit with 3 and setup failures with 4.
+- `demo` and the JSON runner's `check` always write `report.json` into a new `--out` folder; the single report file of the old spellings is gone.
+- `watch` and `verify` rerun only `check`, `discover`, `action`, `observe` and `refresh`; `run_recovery_probe` in the MCP server no longer takes the old spellings.
+
+Since 0.6.0:
+
+- `observe` file steps (`--files`) that damage a file the way an interrupted download does, and `expect` steps that report `EXPECTATION_NOT_MET` (0.7.0).
+- A `BASELINE_FAILED` result says why, and a fault that wasn't recovered from quotes what the screen showed instead (0.8.0-preview.15).
+- The code is restructured into small functions and modules with no change in behaviour, held to size limits that `npm run lint` enforces, with a public API report and report-shape checks in CI (0.8.0-preview.1 to .14).
+- The tests are type-checked (0.8.0-preview.16).
+
+Reports written by older versions still read, compare and watch the same. Public package imports and the IPC hook's path are unchanged; restart the development app after upgrading so its hook matches the CLI.
+
 ## 0.8.0-preview.16 (2026-10-27)
 
 The tests are type-checked. No change to the package.

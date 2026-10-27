@@ -83,8 +83,6 @@ export default [
     },
   },
   {
-    // Violations that predate these limits are listed in eslint-suppressions.json;
-    // `npm run lint` fails on new ones and on entries that no longer apply.
     files: ['src/**/*.{mts,cts}'],
     rules: {
       'max-lines': [

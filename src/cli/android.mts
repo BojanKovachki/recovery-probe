@@ -129,8 +129,8 @@ function printForward(
   console.log(`Android ${describe(target).trim()} on ${url}
 
 Use it like a desktop debugging endpoint:
-  recovery-probe desktop --cdp ${url} --list
-  "cdp": "${url}" in an observe or desktop config
+  recovery-probe windows --cdp ${url}
+  "cdp": "${url}" in a check or observe config
 
 Keep the app on screen while a check runs. Press Ctrl+C to remove the forward.`)
   if (awake)

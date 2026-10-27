@@ -15,7 +15,7 @@ List the checks that prove the change in `.recovery-probe/verify.json`:
       "name": "queue",
       "command": ["observe", "--config", "observe.json", "--steps", "steps.json"]
     },
-    { "name": "add-contact", "command": ["ipc", "--action", "--config", "action.json"] }
+    { "name": "add-contact", "command": ["action", "--config", "action.json"] }
   ]
 }
 ```

@@ -52,10 +52,7 @@ export async function run(values: Values): Promise<void> {
       '--state and --headed are only for a page opened with --url',
     )
   const durationMs = integerOption(values, 'duration', [200, 30000]) ?? 5000
-  // The old desktop spelling may write into an existing folder.
-  const directory = await reportFolder('reads', text(values, 'out'), {
-    reuse: values.reuseOut === true,
-  })
+  const directory = await reportFolder('reads', text(values, 'out'))
   const { discovery, scenario } = url
     ? await readsInBrowser(url, values, durationMs)
     : await readsOverCdp(values, durationMs)

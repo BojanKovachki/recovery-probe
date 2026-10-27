@@ -36,9 +36,9 @@ It reads the reports of:
 - `discover`;
 - `action`, `refresh` and `observe`.
 
-Reports from the old `--config`, `web`, `desktop` and `ipc` spellings work too.
+Reports written by the `--config`, `web`, `desktop` and `ipc` spellings that 1.0 removed compare too.
 
-Both sides must come from the same kind of check, the same workflow over the same transport, on the same target, which is an endpoint, an IPC channel or an observed read. Otherwise the result is `NOT_COMPARABLE`. A check from `check --cdp` and one from the old `web --attach` are the same kind.
+Both sides must come from the same kind of check, the same workflow over the same transport, on the same target, which is an endpoint, an IPC channel or an observed read. Otherwise the result is `NOT_COMPARABLE`. A check from `check --cdp` and one written by the old `web --attach` are the same kind.
 
 ## The evidence block
 

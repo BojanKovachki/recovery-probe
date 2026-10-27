@@ -299,11 +299,11 @@ void checkWeb(webConfig);
       })
       assert.match(startHelp.stdout, /start web/)
       assert.match(startHelp.stdout, /--fresh/)
-      const ipcHelp = await exec(process.execPath, [cli, 'ipc', '--help'], {
+      const checkHelp = await exec(process.execPath, [cli, 'check', '--help'], {
         cwd: consumer,
         timeout: 10000,
       })
-      assert.match(ipcHelp.stdout, /Node inspector/)
+      assert.match(checkHelp.stdout, /Node inspector/)
       const observeHelp = await exec(
         process.execPath,
         [cli, 'observe', '--help'],
@@ -366,17 +366,16 @@ void checkWeb(webConfig);
         (/** @type {{ stderr: string }} */ error) =>
           /npm install --save-dev typescript/.test(error.stderr),
       )
-      const desktopHelp = await exec(
-        process.execPath,
-        [cli, 'desktop', '--help'],
-        { cwd: consumer, timeout: 10000 },
-      )
-      assert.match(desktopHelp.stdout, /--discover/)
-      const webHelp = await exec(process.execPath, [cli, 'web', '--help'], {
+      const readsHelp = await exec(process.execPath, [cli, 'reads', '--help'], {
         cwd: consumer,
         timeout: 10000,
       })
-      assert.match(webHelp.stdout, /--login/)
+      assert.match(readsHelp.stdout, /lists the GET fetch\/XHR JSON reads/)
+      const loginHelp = await exec(process.execPath, [cli, 'login', '--help'], {
+        cwd: consumer,
+        timeout: 10000,
+      })
+      assert.match(loginHelp.stdout, /Sign in, then press Enter/)
       const repairHelp = await exec(
         process.execPath,
         [cli, 'repair', '--help'],

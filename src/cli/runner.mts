@@ -1,5 +1,5 @@
-import { mkdir, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { Browser } from 'playwright'
 import { packageUrl, version } from '../core/package.mjs'
 import { rowNotes } from '../reports/check.mjs'
@@ -148,13 +148,6 @@ async function saveReport(report: RunnerReport, demo: boolean, values: Values) {
       null,
       2,
     ) + '\n'
-  // The old spellings wrote the report to one file, and only when asked.
-  if ('reportFile' in values) {
-    if (typeof values.reportFile !== 'string') return
-    await mkdir(dirname(values.reportFile), { recursive: true })
-    await writeFile(values.reportFile, json)
-    return
-  }
   const directory = await reportFolder(
     demo ? 'demo' : 'check',
     values.out as string | undefined,

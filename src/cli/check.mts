@@ -79,11 +79,8 @@ export function exitCodeOf(report: {
   return report.results.some((row) => row.outcome === 'fail') ? 1 : 2
 }
 
-// The old desktop spelling may write into an existing folder.
 const openFolder = (values: Values) =>
-  reportFolder('check', text(values, 'out'), {
-    reuse: values.reuseOut === true,
-  })
+  reportFolder('check', text(values, 'out'))
 
 export async function run(values: Values): Promise<void> {
   const path = text(values, 'config')
@@ -92,13 +89,11 @@ export async function run(values: Values): Promise<void> {
   if (typeof config.channel === 'string') return checkIpcRead(config, values)
   if (typeof config.requestPattern === 'string')
     return runBrowserCheck(config as unknown as RecoveryConfig, values)
-  // The old desktop and web spellings say which; otherwise a debugging port means attach.
+  // A debugging port means attach; otherwise it opens Chromium at pageUrl.
   const attach =
-    !values.launch &&
-    (values.attach ||
-      values.cdp !== undefined ||
-      config.cdp !== undefined ||
-      config.page !== undefined)
+    values.cdp !== undefined ||
+    config.cdp !== undefined ||
+    config.page !== undefined
   return attach
     ? checkAttached(config, values)
     : checkLaunched(config, path, values)
@@ -159,7 +154,6 @@ async function checkAttached(raw: Record<string, unknown>, values: Values) {
     } finally {
       await visibility.revert()
     }
-    if (typeof values.mode === 'string') report.mode = values.mode
     await writeDesktopReport(directory, report, {
       ...config,
       target: 'desktop',

@@ -1,7 +1,6 @@
 import type { ParseArgsOptionsConfig } from 'node:util'
 import { version } from '../core/package.mjs'
 import { parseOptions, UsageError, type Values } from './args.mjs'
-import { legacyHelp, translateLegacy } from './legacy.mjs'
 
 /** A command whose flags main parses from its option spec. */
 interface ParsedCommand {
@@ -178,8 +177,14 @@ async function runCommand(name: string, args: string[]): Promise<void> {
   return command.run(values, positionals)
 }
 
-// Old spellings keep their old exit code for errors: 2.
-let legacy = false
+// The commands 1.0 replaced, so someone used to them learns the new names.
+const REPLACED: Record<string, string> = {
+  desktop: 'windows, reads and check',
+  web: 'login, reads, check, discover and windows',
+  ipc: 'check, discover and action',
+  '--demo': 'demo',
+  '--config': 'check --config',
+}
 
 async function main(argv: string[]): Promise<void> {
   if (
@@ -195,31 +200,17 @@ async function main(argv: string[]): Promise<void> {
   }
   if (Object.hasOwn(commands, argv[0]))
     return runCommand(argv[0], argv.slice(1))
-  if (
-    Object.hasOwn(legacyHelp, argv[0]) &&
-    (argv.length === 1 || argv.includes('--help'))
-  ) {
-    console.log(`${legacyHelp[argv[0]]}\nThe old spelling works until 1.0.`)
-    return
-  }
-  legacy = argv[0].startsWith('--') || Object.hasOwn(legacyHelp, argv[0])
-  const translation = translateLegacy(argv)
-  if (!translation)
-    throw new UsageError(
-      `Unknown command: ${argv[0]}. Run recovery-probe --help.`,
-    )
-  if (!translation.values.json)
-    console.error(
-      `Note: "recovery-probe ${translation.was}" is now "recovery-probe ${translation.now}"; the old spelling works until 1.0.`,
-    )
-  const command = (await commands[translation.command].load()) as ParsedCommand
-  return command.run(translation.values, [])
+  const replaced = Object.hasOwn(REPLACED, argv[0])
+    ? ` 1.0 replaced it with ${REPLACED[argv[0]]}.`
+    : ''
+  throw new UsageError(
+    `Unknown command: ${argv[0]}.${replaced} Run recovery-probe --help.`,
+  )
 }
 
 try {
   await main(process.argv.slice(2))
 } catch (error) {
   console.error(`Recovery Probe: ${(error as Error).message}`)
-  if (legacy) process.exitCode = 2
-  else process.exitCode = error instanceof UsageError ? 3 : 4
+  process.exitCode = error instanceof UsageError ? 3 : 4
 }
