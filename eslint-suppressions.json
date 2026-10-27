@@ -49,28 +49,6 @@
       "count": 1
     }
   },
-  "src/core/screen.mts": {
-    "complexity": {
-      "count": 3
-    },
-    "max-lines": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 2
-    }
-  },
-  "src/ipc-probe.cts": {
-    "complexity": {
-      "count": 3
-    },
-    "max-lines": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 4
-    }
-  },
   "src/reports/discovery.mts": {
     "max-lines-per-function": {
       "count": 1
@@ -119,11 +97,6 @@
   "src/tools/mcp/tools.mts": {
     "max-lines": {
       "count": 1
-    }
-  },
-  "src/tools/pick-marker.mts": {
-    "max-lines-per-function": {
-      "count": 3
     }
   },
   "src/tools/repair/process.mts": {
@@ -178,14 +151,6 @@
     },
     "max-lines-per-function": {
       "count": 2
-    }
-  },
-  "src/workflows/observe/kit.mts": {
-    "complexity": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 1
     }
   }
 }

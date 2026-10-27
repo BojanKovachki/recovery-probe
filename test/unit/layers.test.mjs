@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url'
 const src = fileURLToPath(new URL('../../src/', import.meta.url))
 // Each layer may import itself and the layers listed for it, never upward.
 const allowed = {
+  // The IPC hook runs inside the app's main process, so it stands alone.
+  hook: [],
   core: [],
   transports: ['core'],
   targets: ['core', 'transports'],
@@ -70,7 +72,6 @@ test('modules import only their own layer and the layers below it', () => {
 
 test('the public entry points only re-export', () => {
   for (const file of sources.filter((f) => layerOf(f) === 'public')) {
-    if (file === 'ipc-probe.cts') continue // The hook an app loads by path; it stands alone.
     const code = readFileSync(join(src, file), 'utf8')
       .replace(/^\s*export (type )?\{[^}]*\} from '[^']+'\s*$/gm, '')
       .trim()

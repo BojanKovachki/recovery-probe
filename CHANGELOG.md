@@ -4,6 +4,15 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.8.0-preview.10 (2026-10-27)
+
+The IPC hook and the code that runs in the page, restructured. No change to the CLI, the library, the hook's API or the reports.
+
+- The IPC hook (575 lines, with a 445-line `installIpcProbe`) is a `src/hook/` layer of small CommonJS modules: the public types, the install and plan checks, the read counters and labels, tracking one real call, the push counter, the plan state, and a small `ProbeHook` class behind the same frozen object. `ipc-probe.cts` only re-exports, like the other entry points, and the layer test keeps the hook free of imports from the rest of the package, since it runs inside the app's main process.
+- `readRegion` moved to `core/region-read.mts` and reads the region in small inner steps. It stays one function because Playwright sends only its source to the page; the observer kit and the marker picker follow the same rule. Those three are the only functions allowed past the length limit, each with the reason next to it.
+- `core/screen.mts` keeps summarizing, comparing and classifying regions, each split into short functions.
+- The size-limit violations listed in `eslint-suppressions.json` drop from 70 to 51.
+
 ## 0.8.0-preview.9 (2026-10-27)
 
 The IPC inspector, the CDP bridge and the window controls, restructured. No change to the CLI, the library or the reports.

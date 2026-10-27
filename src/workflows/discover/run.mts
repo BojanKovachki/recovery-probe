@@ -1,7 +1,7 @@
+import { readRegion } from '../../core/region-read.mjs'
 import {
   classifyObservation,
   compareRegions,
-  readRegion,
   summarizeRegion,
   type RegionSummary,
 } from '../../core/screen.mjs'
