@@ -3,6 +3,7 @@ import { startNetworkFaultProxy } from '../transports/net/proxy.mjs'
 import { validateNetworkRules } from '../transports/net/rules.mjs'
 import type {
   NetworkConnectionEvent,
+  NetworkFaultProxy,
   NetworkFaultRule,
 } from '../transports/net/types.mjs'
 import { untilStopped } from './until-stopped.mjs'
@@ -71,20 +72,41 @@ export async function netMain(args: string[]) {
     return
   }
   const options = parseArgs(args)
-  let rules: NetworkFaultRule[] | undefined
-  if (options.rules) {
-    const parsed = JSON.parse(await readFile(options.rules, 'utf8'))
-    rules = validateNetworkRules(Array.isArray(parsed) ? parsed : parsed?.rules)
-  }
+  const rules = await readRules(options.rules)
   const proxy = await startNetworkFaultProxy({
     port: options.port,
     rules,
     armOnFirstConnection: true,
     control: true,
   })
+  const printFaults = faultPrinter(proxy)
+  let watch: NodeJS.Timeout | undefined
+  if (!options.json) {
+    printStart(proxy, rules)
+    watch = setInterval(printFaults, 250)
+  }
+  await untilStopped(options.duration)
+  clearInterval(watch)
+  if (!options.json) printFaults()
+  await proxy.close()
+  const report = netReport(proxy, rules)
+  if (options.out)
+    await writeFile(options.out, `${JSON.stringify(report, null, 2)}\n`)
+  if (options.json) console.log(JSON.stringify(report, null, 2))
+  else printSummary(report)
+  process.exitCode = report.ok ? 0 : 2
+}
 
+async function readRules(path: string | undefined) {
+  if (!path) return undefined
+  const parsed = JSON.parse(await readFile(path, 'utf8'))
+  return validateNetworkRules(Array.isArray(parsed) ? parsed : parsed?.rules)
+}
+
+/** Prints the faulted connections since its last call. */
+function faultPrinter(proxy: NetworkFaultProxy) {
   let printed = 0
-  const printFaults = () => {
+  return () => {
     const events = proxy.events()
     for (const event of events.slice(printed))
       if (event.rule !== undefined)
@@ -93,10 +115,13 @@ export async function netMain(args: string[]) {
         )
     printed = events.length
   }
+}
 
-  let watch: NodeJS.Timeout | undefined
-  if (!options.json) {
-    console.log(`Recovery Probe network faults on ${proxy.url}
+function printStart(
+  proxy: NetworkFaultProxy,
+  rules: NetworkFaultRule[] | undefined,
+) {
+  console.log(`Recovery Probe network faults on ${proxy.url}
 
 Start the app with:
   HTTPS_PROXY=${proxy.url}
@@ -109,19 +134,17 @@ ${
 }
 
 Faulted connections:`)
-    watch = setInterval(printFaults, 250)
-  }
+}
 
-  await untilStopped(options.duration)
-  clearInterval(watch)
-  if (!options.json) printFaults()
-  await proxy.close()
-
+function netReport(
+  proxy: NetworkFaultProxy,
+  rules: NetworkFaultRule[] | undefined,
+) {
   const summary = proxy.summary()
   const events = proxy.events()
   // Rules armed through the control are judged by the run that armed them.
   const triggered = !rules || summary.rules.every((rule) => rule.applied > 0)
-  const report = {
+  return {
     tool: 'recovery-probe',
     mode: 'network faults',
     ok: triggered,
@@ -132,21 +155,17 @@ Faulted connections:`)
     events,
     eventsDropped: summary.eventsDropped,
   }
+}
 
-  if (options.out)
-    await writeFile(options.out, `${JSON.stringify(report, null, 2)}\n`)
-  if (options.json) console.log(JSON.stringify(report, null, 2))
-  else {
-    console.log(`\n${summary.connections} connection(s) through the proxy`)
-    summary.rules.forEach((rule, index) =>
-      console.log(
-        `  rule ${index + 1}: ${rule.fault} ${rule.host} faulted ${rule.applied} of ${rule.matching} matching`,
-      ),
+function printSummary(report: ReturnType<typeof netReport>) {
+  console.log(`\n${report.connections} connection(s) through the proxy`)
+  report.rules.forEach((rule, index) =>
+    console.log(
+      `  rule ${index + 1}: ${rule.fault} ${rule.host} faulted ${rule.applied} of ${rule.matching} matching`,
+    ),
+  )
+  if (!report.ok)
+    console.log(
+      '\nFAULT_NOT_TRIGGERED: a rule faulted no connection. Check that the app uses HTTPS_PROXY and the host names.',
     )
-    if (!triggered)
-      console.log(
-        '\nFAULT_NOT_TRIGGERED: a rule faulted no connection. Check that the app uses HTTPS_PROXY and the host names.',
-      )
-  }
-  process.exitCode = triggered ? 0 : 2
 }

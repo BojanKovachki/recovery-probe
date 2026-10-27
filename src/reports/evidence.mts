@@ -114,18 +114,22 @@ function fromCheck(report: Report, evidence: Evidence) {
   const rows = report.apps
     ? list(report.apps).flatMap((app) => list(app.results))
     : list(report.results)
-  for (const row of rows) {
-    const code = string(row.code) ?? 'UNKNOWN'
-    const scope = string(row.kind) ?? string(row.fault) ?? string(row.scenario)
-    if (row.outcome === 'fail') {
-      evidence.problems.push({ code, scope, severity: 'defect' })
-      if (scope) evidence.checked.push(scope)
-    } else if (row.outcome === 'pass') {
-      evidence.outcomes.push(scoped(code, scope))
-      if (scope) evidence.checked.push(scope)
-    } else evidence.gaps.push(scoped(code, scope))
-  }
+  for (const row of rows) addCheckRow(evidence, row)
   if (!evidence.checked.length) evidence.complete = false
+}
+
+// A failed row is a problem, a passed one an outcome; either was checked. Others are gaps.
+function addCheckRow(evidence: Evidence, row: Row) {
+  const code = string(row.code) ?? 'UNKNOWN'
+  const scope = string(row.kind) ?? string(row.fault) ?? string(row.scenario)
+  if (row.outcome === 'fail')
+    evidence.problems.push({ code, scope, severity: 'defect' })
+  else if (row.outcome === 'pass') evidence.outcomes.push(scoped(code, scope))
+  else {
+    evidence.gaps.push(scoped(code, scope))
+    return
+  }
+  if (scope) evidence.checked.push(scope)
 }
 
 // Reports with findings classified as suspected-defect, decision-needed,
