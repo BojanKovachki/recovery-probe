@@ -6,7 +6,8 @@ import {
   kindOf,
   withEvidence,
 } from '../../dist/reports/evidence.mjs'
-import { compareRuns, runEvidence } from '../../dist/tools/compare.mjs'
+import { runEvidence } from '../../dist/tools/compare/reports.mjs'
+import { compareRuns } from '../../dist/tools/compare/run.mjs'
 
 const check = (mode, outcome) => ({
   mode,

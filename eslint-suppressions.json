@@ -7,11 +7,6 @@
       "count": 1
     }
   },
-  "src/cli/compare.mts": {
-    "complexity": {
-      "count": 2
-    }
-  },
   "src/cli/main.mts": {
     "complexity": {
       "count": 1
@@ -33,14 +28,6 @@
       "count": 1
     }
   },
-  "src/cli/watch.mts": {
-    "complexity": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 1
-    }
-  },
   "src/reports/discovery.mts": {
     "max-lines-per-function": {
       "count": 1
@@ -48,17 +35,6 @@
   },
   "src/reports/evidence.mts": {
     "complexity": {
-      "count": 1
-    }
-  },
-  "src/tools/compare.mts": {
-    "complexity": {
-      "count": 1
-    },
-    "max-lines": {
-      "count": 1
-    },
-    "max-lines-per-function": {
       "count": 1
     }
   },
@@ -73,28 +49,6 @@
   "src/tools/mcp/tools.mts": {
     "max-lines": {
       "count": 1
-    }
-  },
-  "src/tools/suspects.mts": {
-    "complexity": {
-      "count": 1
-    },
-    "max-lines": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 1
-    }
-  },
-  "src/tools/watch.mts": {
-    "complexity": {
-      "count": 1
-    },
-    "max-lines": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 2
     }
   }
 }

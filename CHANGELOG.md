@@ -4,6 +4,16 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.8.0-preview.13 (2026-10-27)
+
+The suspect scanner, `compare` and `watch`, restructured. No change to the CLI, the suspects found or the reports.
+
+- `tools/suspects.mts` (574 lines, with a 298-line `scanSource`) is a `tools/suspects/` folder: a `SourceTree` with the questions the rules ask about a node, the failure paths, the four rules as a table, scanning one file, and listing files and changed lines.
+- `tools/compare.mts` is a `tools/compare/` folder: reading reports, the verdict as small functions, the Markdown and the comparison.
+- `tools/watch.mts` (406 lines) is a `tools/watch/` folder: the file watcher, running a check, the summary and a small `Watch` class that queues one job at a time.
+- The `compare` command parses one option at a time and prints in small steps; `watch` prints each event with its own function.
+- The size-limit violations listed in `eslint-suppressions.json` drop from 26 to 12.
+
 ## 0.8.0-preview.12 (2026-10-27)
 
 Guided start, `doctor` and `verify`, restructured. No change to the CLI, the saved setups or the reports.

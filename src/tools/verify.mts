@@ -1,26 +1,24 @@
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import {
-  compareRuns,
-  readRunEvidence,
-  type Comparison,
-  type RunEvidence,
-} from './compare.mjs'
+import { readRunEvidence } from './compare/reports.mjs'
+import { compareRuns } from './compare/run.mjs'
+import type { Comparison, RunEvidence } from './compare/types.mjs'
 import {
   ensure,
   isIntegerIn,
   isNonEmptyString,
   isRecord,
 } from '../core/validate.mjs'
-import { scanForSuspects, type Suspect } from './suspects.mjs'
+import type { Suspect } from './suspects/source.mjs'
+import { scanForSuspects } from './suspects/scan.mjs'
 import {
   runCheck,
   runRecoveryProbe,
   validateCheckCommand,
   type CheckResult,
   type CommandResult,
-} from './watch.mjs'
+} from './watch/checks.mjs'
 
 const NAME = /^[\w.-]{1,40}$/
 

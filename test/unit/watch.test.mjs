@@ -6,11 +6,9 @@ import { tmpdir } from 'node:os'
 import { join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
-import {
-  runWatch,
-  validateCheckCommand,
-  watchSources,
-} from '../../dist/tools/watch.mjs'
+import { validateCheckCommand } from '../../dist/tools/watch/checks.mjs'
+import { runWatch } from '../../dist/tools/watch/run.mjs'
+import { watchSources } from '../../dist/tools/watch/sources.mjs'
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const within = (promise, ms, what) =>

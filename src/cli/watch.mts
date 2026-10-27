@@ -1,12 +1,12 @@
 import { signals } from './until-stopped.mjs'
 import { relative, sep } from 'node:path'
-import type { RunEvidence } from '../tools/compare.mjs'
+import type { RunEvidence } from '../tools/compare/types.mjs'
+import { validateCheckCommand } from '../tools/watch/checks.mjs'
 import {
   runWatch,
-  validateCheckCommand,
   type WatchEvent,
   type WatchOptions,
-} from '../tools/watch.mjs'
+} from '../tools/watch/run.mjs'
 import { integerOption, parseOptions, text, validated } from './args.mjs'
 
 const USAGE =
@@ -61,80 +61,82 @@ const problemsOf = (evidence: RunEvidence) =>
     .map((p) => (p.scope ? `${p.code} (${p.scope})` : p.code))
     .join(', ') || 'no problem found'
 
-function print(event: WatchEvent) {
-  switch (event.type) {
-    case 'start':
-      console.log(
-        `Watching ${event.paths.map(shown).join(', ')}${event.command ? `; each change reruns: recovery-probe ${event.command.join(' ')}` : '; each change is scanned for suspects'}.`,
-      )
-      console.log(
-        `Runs and summary: ${shown(event.directory)}. Stop with Ctrl+C.`,
-      )
-      if (event.command)
-        console.log(`\n[${time()}] starting point: running the check`)
-      break
-    case 'changed': {
-      const files = event.files.slice(0, 5).join(', ')
-      const more =
-        event.files.length > 5 ? ` and ${event.files.length - 5} more` : ''
-      console.log(`\n[${time()}] changed: ${files}${more}`)
-      break
-    }
-    case 'suspects':
-      if (!event.suspects.length) {
-        console.log(
-          `  suspects: none in ${event.scanned} changed source file(s)`,
-        )
-        break
-      }
-      console.log(`  suspects: ${event.suspects.length}`)
-      for (const s of event.suspects)
-        console.log(
-          `    ${s.file}:${s.line}  ${s.pattern}${s.read ? `  read: ${s.read}` : ''}`,
-        )
-      break
-    case 'suspects-off':
-      console.log(`  suspects: off (${event.reason})`)
-      break
-    case 'run': {
-      const { run } = event
-      const log = shown(run.log)
-      // A run without an error has read its report.
-      if (run.error || !run.evidence) {
-        console.log(
-          `  run ${run.run}: no report to compare: ${run.error} (log: ${log})`,
-        )
-        break
-      }
-      const incomplete = run.evidence.complete
-        ? ''
-        : ` (incomplete: ${run.evidence.gaps.join('; ')})`
-      if (!run.sinceStart) {
-        console.log(
-          `  run ${run.run}: ${problemsOf(run.evidence)}${incomplete}`,
-        )
-        break
-      }
-      console.log(
-        `  run ${run.run}: ${run.sinceStart.verdict} since ${run.sinceStart.labels.before}: ${run.sinceStart.summary}${incomplete}`,
-      )
-      if (run.sincePrevious)
-        console.log(
-          `  ${''.padEnd(String(run.run).length + 5)} ${run.sincePrevious.verdict} since ${run.sincePrevious.labels.before}: ${run.sincePrevious.summary}`,
-        )
-      break
-    }
-    case 'error':
-      console.log(`  watch error: ${event.message}`)
-      break
-    case 'stop':
-      console.log(`\nStopped after ${event.runs} run(s).`)
-      if (event.latest)
-        console.log(
-          `${event.latest.verdict} from ${event.latest.labels.before} to ${event.latest.labels.after}: ${event.latest.summary}`,
-        )
-      break
+type EventOf<T extends WatchEvent['type']> = Extract<WatchEvent, { type: T }>
+
+function printStart(event: EventOf<'start'>) {
+  console.log(
+    `Watching ${event.paths.map(shown).join(', ')}${event.command ? `; each change reruns: recovery-probe ${event.command.join(' ')}` : '; each change is scanned for suspects'}.`,
+  )
+  console.log(`Runs and summary: ${shown(event.directory)}. Stop with Ctrl+C.`)
+  if (event.command)
+    console.log(`\n[${time()}] starting point: running the check`)
+}
+
+function printChanged(event: EventOf<'changed'>) {
+  const files = event.files.slice(0, 5).join(', ')
+  const more =
+    event.files.length > 5 ? ` and ${event.files.length - 5} more` : ''
+  console.log(`\n[${time()}] changed: ${files}${more}`)
+}
+
+function printSuspects(event: EventOf<'suspects'>) {
+  if (!event.suspects.length) {
+    console.log(`  suspects: none in ${event.scanned} changed source file(s)`)
+    return
   }
+  console.log(`  suspects: ${event.suspects.length}`)
+  for (const s of event.suspects)
+    console.log(
+      `    ${s.file}:${s.line}  ${s.pattern}${s.read ? `  read: ${s.read}` : ''}`,
+    )
+}
+
+function printRun({ run }: EventOf<'run'>) {
+  // A run without an error has read its report.
+  if (run.error || !run.evidence) {
+    console.log(
+      `  run ${run.run}: no report to compare: ${run.error} (log: ${shown(run.log)})`,
+    )
+    return
+  }
+  const incomplete = run.evidence.complete
+    ? ''
+    : ` (incomplete: ${run.evidence.gaps.join('; ')})`
+  if (!run.sinceStart) {
+    console.log(`  run ${run.run}: ${problemsOf(run.evidence)}${incomplete}`)
+    return
+  }
+  console.log(
+    `  run ${run.run}: ${run.sinceStart.verdict} since ${run.sinceStart.labels.before}: ${run.sinceStart.summary}${incomplete}`,
+  )
+  if (run.sincePrevious)
+    console.log(
+      `  ${''.padEnd(String(run.run).length + 5)} ${run.sincePrevious.verdict} since ${run.sincePrevious.labels.before}: ${run.sincePrevious.summary}`,
+    )
+}
+
+function printStop(event: EventOf<'stop'>) {
+  console.log(`\nStopped after ${event.runs} run(s).`)
+  if (event.latest)
+    console.log(
+      `${event.latest.verdict} from ${event.latest.labels.before} to ${event.latest.labels.after}: ${event.latest.summary}`,
+    )
+}
+
+const PRINTERS: { [T in WatchEvent['type']]: (event: EventOf<T>) => void } = {
+  start: printStart,
+  changed: printChanged,
+  suspects: printSuspects,
+  'suspects-off': (event) => console.log(`  suspects: off (${event.reason})`),
+  // A run is printed when it ends.
+  running: () => {},
+  run: printRun,
+  error: (event) => console.log(`  watch error: ${event.message}`),
+  stop: printStop,
+}
+
+function print(event: WatchEvent) {
+  ;(PRINTERS[event.type] as (event: WatchEvent) => void)(event)
 }
 
 export async function watchMain(args: string[]) {
