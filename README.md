@@ -107,7 +107,15 @@ It doesn't simulate a whole device going offline, WebSocket drops, token expiry,
 
 Reports stay on your machine and there's no telemetry. Request and response bodies aren't recorded, and discovery and observation keep screen text only as hashes. Reports can still contain endpoint paths, selectors, text you picked as a marker and, with `--screenshots`, what was on screen, so check them before you share them. Nothing calls an AI service except the opt-in [repair](docs/repair.md) workflow.
 
+Failed recovery checks can also save `screenText`: up to 200 characters of newly visible screen text, included in terminal output, reports, fix briefs and MCP results. These quotes are not redacted and can contain personal or sensitive data even without screenshots. Review these outputs before sharing them or passing them to an agent.
+
 Only test apps and accounts you're allowed to, and keep debugging ports on localhost.
+
+## Compatibility in 1.x
+
+The compatibility commitment covers documented, non-experimental package exports, CLI commands and options, exit codes, configuration fields, MCP tools and JSON report fields. Removing or renaming these interfaces, changing their types incompatibly, or changing their documented meaning requires a major version. Backward-compatible additions can ship in minor releases; fixes that restore documented behavior can ship in patch releases.
+
+Consumers should tolerate additional JSON fields. Exact terminal wording, HTML layout, timing measurements and heuristic findings are not fixed contracts. Internal files under `dist/` are not public imports; use the package's declared exports. Features explicitly labeled experimental, including Android WebView support and repair, may change in minor releases, with changes recorded in the changelog.
 
 ## Upgrading to 1.0
 
