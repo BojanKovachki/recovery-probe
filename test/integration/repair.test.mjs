@@ -164,6 +164,7 @@ test(
     try {
       f.config.scenario.readySelector = '#absent'
       f.config.scenario.timeoutMs = 200
+      f.config.scenario.baselineTimeoutMs = 200
       const run = join(f.directory, 'run')
       assert.equal(
         (await prepareRepair(f.config, run, { allowExecution: true }))

@@ -84,6 +84,8 @@ assert.ok(source.includes('textContent = data.name'));
       readyText: 'Repair Fixture',
       recovery: 'automatic',
       timeoutMs: 1000,
+      // A cold CI runner can take over a second to show the first healthy load.
+      baselineTimeoutMs: 10000,
     },
   }
   return {

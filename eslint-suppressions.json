@@ -25,14 +25,6 @@
       "count": 1
     }
   },
-  "src/cli/repair.mts": {
-    "complexity": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 1
-    }
-  },
   "src/cli/runner.mts": {
     "complexity": {
       "count": 1
@@ -97,30 +89,6 @@
   "src/tools/mcp/tools.mts": {
     "max-lines": {
       "count": 1
-    }
-  },
-  "src/tools/repair/process.mts": {
-    "max-lines-per-function": {
-      "count": 1
-    }
-  },
-  "src/tools/repair/provider.mts": {
-    "complexity": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 1
-    }
-  },
-  "src/tools/repair/run.mts": {
-    "complexity": {
-      "count": 5
-    },
-    "max-lines": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 4
     }
   },
   "src/tools/suspects.mts": {

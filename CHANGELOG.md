@@ -4,6 +4,16 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.8.0-preview.11 (2026-10-27)
+
+The repair preview, restructured. No change to the CLI, the run folders or what is sent to the model.
+
+- `tools/repair/run.mts` (667 lines) keeps `prepareRepair`, `generateRepair` and `verifyRepair` as short sequences of steps. The config rules, the source paths and proposal edits, the isolated checkout with its commands, and launching and attaching to the target each have their own module.
+- The provider builds its request and reads the proposal in separate functions, and stopping a command's process tree is its own function.
+- The `repair` command is split into reproduce, generate and verify steps.
+- The repair tests give the app's first healthy load 10 seconds instead of 1, keeping the 1-second recovery window, so a cold Windows runner no longer fails them.
+- The size-limit violations listed in `eslint-suppressions.json` drop from 51 to 36.
+
 ## 0.8.0-preview.10 (2026-10-27)
 
 The IPC hook and the code that runs in the page, restructured. No change to the CLI, the library, the hook's API or the reports.
