@@ -3,6 +3,7 @@ import type { Page, Request, Route } from 'playwright'
 import { pageIdentity } from '../../core/urls.mjs'
 import type { FaultKind } from '../../core/faults.mjs'
 import { fulfillFault } from './route.mjs'
+import { ReadLog, type ReadRecord } from './read-log.mjs'
 
 /** Read counters for one endpoint, in the same shape as an IPC channel row. */
 export interface ReadChannelStats {
@@ -26,6 +27,8 @@ export interface HttpObserverOptions {
   times?: number
   /** Matching reads that pass before the first fault: 1 fails the 2nd read. */
   skip?: number
+  /** Keep a record per read of `endpoint`. Only for runs without a fault. */
+  logReads?: boolean
 }
 
 /** A request the page made, and whether it could be or was selected for a fault. */
@@ -43,6 +46,7 @@ interface RequestMeta {
   injected: boolean
   afterFault: boolean
   target: boolean
+  record: ReadRecord | undefined
 }
 
 const MAX_COVERAGE = 100
@@ -82,6 +86,7 @@ class HttpObserver {
   readonly #requests = new Map<Request, RequestMeta>()
   readonly #coverage = new Map<string, ReadCoverage>()
   readonly #operations = new Set<Promise<unknown>>()
+  readonly #readLog: ReadLog | undefined
   #skipped = 0
   #reserved = 0
   #applied = 0
@@ -99,6 +104,7 @@ class HttpObserver {
       fault,
       times = 1,
       skip = 0,
+      logReads = false,
     }: HttpObserverOptions,
   ) {
     this.#page = page
@@ -111,6 +117,7 @@ class HttpObserver {
     )
     this.#startedAt = Date.now()
     this.#routed = Boolean(fault)
+    this.#readLog = logReads && !fault ? new ReadLog() : undefined
   }
 
   async attach() {
@@ -145,6 +152,10 @@ class HttpObserver {
 
   coverage() {
     return [...this.#coverage.values()]
+  }
+
+  readLog() {
+    return this.#readLog?.snapshot()
   }
 
   /** Stops faulting and waits for the injected responses. */
@@ -200,12 +211,14 @@ class HttpObserver {
     row.pending++
     row.firstReadAt ??= Date.now()
     row.lastReadAt = Date.now()
+    const target = url === this.#endpoint
     this.#requests.set(r, {
       row,
       start: performance.now(),
       injected: false,
       afterFault: this.#reserved === this.#times && this.#injectedAt !== null,
-      target: url === this.#endpoint,
+      target,
+      record: target ? this.#readLog?.start() : undefined,
     })
   }
 
@@ -240,6 +253,7 @@ class HttpObserver {
     const row = meta.row
     row.pending--
     if (meta.injected) return
+    if (meta.record) this.#readLog!.finish(meta.record, r, response)
     const completed = Date.now()
     row.firstCompletedAt ??= completed
     row.lastCompletedAt = completed

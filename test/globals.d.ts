@@ -8,4 +8,7 @@ interface Window {
   fixtureNonce: number
   /** Set by a fixture button when a click reaches the page. */
   clicked?: boolean
+  /** The slow-reads fixture's request bridge, and its own postMessage to compare with. */
+  fixtureBridge: { postMessage: unknown }
+  originalPost: unknown
 }

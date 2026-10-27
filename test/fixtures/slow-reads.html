@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Slow reads fixture</title>
+  </head>
+  <body>
+    <section id="contacts"><ul id="list"></ul></section>
+    <script>
+      // ?start=ms waits before loading, ?busy=ms keeps the main thread busy with short
+      // tasks after the response, ?block=ms runs one long task, ?bridge=1 sends requests
+      // over window.fixtureBridge and answers only some of them.
+      const params = new URLSearchParams(location.search)
+      const number = (name) => Number(params.get(name) ?? 0)
+      const render = (items) => {
+        document.getElementById('list').innerHTML = items
+          .map((name) => `<li data-contact>${name}</li>`)
+          .join('')
+      }
+      // Many short tasks, like a flooded message queue: none is a long task.
+      const busyFor = (ms, done) => {
+        const end = performance.now() + ms
+        const channel = new MessageChannel()
+        channel.port1.onmessage = () => {
+          const slice = performance.now() + 8
+          while (performance.now() < slice) {}
+          if (performance.now() < end) channel.port2.postMessage(0)
+          else done()
+        }
+        channel.port2.postMessage(0)
+      }
+      const listeners = new Set()
+      const held = []
+      window.fixtureBridge = {
+        postMessage(message) {
+          held.push(JSON.parse(message).id)
+        },
+        answer(count) {
+          for (const id of held.splice(0, count)) {
+            const event = new MessageEvent('message', {
+              data: JSON.stringify({ id, result: 'ok' }),
+            })
+            for (const listener of listeners) listener(event)
+          }
+        },
+        addEventListener(type, listener) {
+          listeners.add(listener)
+        },
+        removeEventListener(type, listener) {
+          listeners.delete(listener)
+        },
+      }
+      window.originalPost = window.fixtureBridge.postMessage
+      setTimeout(async () => {
+        if (params.has('bridge'))
+          for (let i = 0; i < 12; i++)
+            window.fixtureBridge.postMessage(JSON.stringify({ id: `r${i}` }))
+        const items = await (await fetch('/api/contacts')).json()
+        if (number('block')) {
+          const end = performance.now() + number('block')
+          while (performance.now() < end) {}
+        }
+        busyFor(number('busy'), () => {
+          render(items)
+          window.fixtureBridge.answer(5)
+        })
+      }, number('start') || 1500)
+    </script>
+  </body>
+</html>

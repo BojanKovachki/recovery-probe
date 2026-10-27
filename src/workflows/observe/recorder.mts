@@ -22,7 +22,10 @@ import {
   type TimelineEvent,
 } from './report.mjs'
 import { RowTracker } from './rows.mjs'
-import { contentBeforeRead, firstContent } from './sample.mjs'
+import { contentBeforeRead, firstContent, showsContent } from './sample.mjs'
+import type { ReadLogSnapshot } from '../../transports/http/read-log.mjs'
+import { SlowReadTracker } from './slow-reads/evidence.mjs'
+import type { LoadSample, ProbeStatus } from './slow-reads/probe.mjs'
 
 /** A screen read between two read snapshots, so each read lands in one sample. */
 export interface Sample {
@@ -33,6 +36,15 @@ export interface Sample {
   rows: SummarizedRows | null
   actions: RegionRead['actions']
   phases: SamplingTimings
+  /** Renderer and bridge load, when `slowReads` is configured. */
+  load?: LoadSample | null
+}
+
+/** What slow-read evidence needs from the end of the capture. */
+export interface SlowReadsEnd {
+  readLog: ReadLogSnapshot | undefined
+  probe: ProbeStatus
+  startedEpoch: number
 }
 
 /** Capture time: milliseconds since the capture started, and when that was. */
@@ -53,6 +65,7 @@ export class ObservationRecorder {
   readonly #metrics: ReturnType<typeof samplingMetrics>
   readonly #comparisons = new ContentComparisons()
   readonly #tracker: RowTracker | null
+  readonly #slowReads: SlowReadTracker | null
   #interval?: ObservationInterval
   #previousSignature?: string
   #samples = 0
@@ -62,6 +75,9 @@ export class ObservationRecorder {
     this.report = initialReport(config)
     this.#metrics = samplingMetrics(config.sampleMs)
     this.#tracker = config.rows ? new RowTracker(config) : null
+    this.#slowReads = config.slowReads
+      ? new SlowReadTracker(config.slowReads)
+      : null
   }
 
   get intervalOpen() {
@@ -140,10 +156,22 @@ export class ObservationRecorder {
     })
     this.#addContent(event)
     this.#addEvent(event, sample.rows, pageErrors)
+    this.#addLoad(event, sample)
     this.#metrics.add(event.fromMs, event.toMs, sample.phases)
     this.#interval!.samples++
     this.#samples++
     return event
+  }
+
+  #addLoad(event: TimelineEvent, sample: Sample) {
+    this.#slowReads?.add({
+      interval: event.interval,
+      fromMs: event.fromMs,
+      toMs: event.toMs,
+      content: showsContent(event),
+      screenReadMs: sample.phases.uiRoundTripMs ?? 0,
+      load: sample.load ?? null,
+    })
   }
 
   /** Records how long sampling ran and the last read snapshot, before any cleanup. */
@@ -157,8 +185,11 @@ export class ObservationRecorder {
   }
 
   /** Adds what can only be judged over the whole capture, and whether it is complete. */
-  conclude() {
+  conclude(slowReads?: SlowReadsEnd) {
     const report = this.report
+    // A capture that failed before its first interval has no reads to place.
+    if (this.#slowReads && slowReads && report.intervals.length)
+      this.#concludeSlowReads(slowReads)
     if (this.#tracker) {
       const tracked = this.#tracker.snapshot()
       report.rows = tracked.rows
@@ -170,6 +201,22 @@ export class ObservationRecorder {
       this.gap('CONTENT_MARKER_NOT_OBSERVED')
     report.captureComplete =
       report.status === 'complete' && report.coverage.gaps.length === 0
+  }
+
+  #concludeSlowReads(end: SlowReadsEnd) {
+    const report = this.report
+    const { section, findings } = this.#slowReads!.conclude({
+      ...end,
+      intervals: report.intervals,
+      endMs: report.elapsedMs ?? 0,
+    })
+    report.slowReads = section
+    report.findings.push(...findings)
+    if (!section.renderer.measured) this.gap('RENDERER_LOAD_UNAVAILABLE')
+    if (section.bridge && !section.bridge.installed)
+      this.gap('BRIDGE_NOT_INSTRUMENTED')
+    if (section.readLogTruncated) this.gap('READ_LOG_LIMIT_REACHED')
+    if (section.samplesTruncated) this.gap('SLOW_READ_SAMPLE_LIMIT_REACHED')
   }
 
   #event(

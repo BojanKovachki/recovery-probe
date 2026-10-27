@@ -48,7 +48,7 @@ Select an existing page using `windows`. HTTP observes main-frame GET fetch/XHR 
 
 Marker inspection is capped at the first 1000 selector matches and 200000 normalized text characters per sample. Exceeding either sets `ui.content.truncated` and a coverage gap; counts may then be partial and comparisons are unavailable. These caps limit collected evidence, not a guarantee about browser execution time. CSS matching and reading a large individual element still cost work.
 
-The duration is bounded to 500–120000 ms; sampling is bounded to 50–1000 ms. Default duration is 30000 ms and sampling is 100 ms. Setup, protocol operations and cleanup add overhead. An unresponsive UI sample times out after 5 seconds and produces incomplete evidence; Ctrl+C interrupts a pending UI sample. Only one target is counted per capture. Existing fault/discovery configs must be adapted: unrelated options are rejected to avoid silently performing a different experiment.
+The duration is bounded to 500–600000 ms over HTTP and 500–120000 ms over IPC, where the development hook ends an observation after 125 s. Sampling is bounded to 50–1000 ms. Default duration is 30000 ms and sampling is 100 ms. Setup, protocol operations and cleanup add overhead. An unresponsive UI sample times out after 5 seconds and produces incomplete evidence, except with [`slowReads`](#slow-reads), which waits for it; Ctrl+C interrupts a pending UI sample. Only one target is counted per capture. Existing fault/discovery configs must be adapted: unrelated options are rejected to avoid silently performing a different experiment.
 
 ## Capture a return visit
 
@@ -258,6 +258,57 @@ With `--files DIR`, steps can also damage a file under that directory, the way a
 - A file that is not `repaired` adds `LOCAL_FILE_NOT_REPAIRED` in the interval of its step. It is a lead: an app may repair only on its next start, so capture long enough for what you expect.
 - A file left damaged or missing is put back from its copy; one the app rewrote is left as the app has it. A file that cannot be checked or put back, for example because the app still holds it open, adds the `FILE_FAULTS_NOT_RESTORED` coverage gap. The report gets only the error code, such as `EBUSY`; `files.json` names the kept copy and gives the full error.
 - The report's mode becomes `observation with file faults`, and `fileFaults` lists each step's fault and outcome. Paths stay in the private `files.json`, and damaged files are left out of the snapshot comparison, so the step's own damage is not reported as `LOCAL_FILES_REMOVED`.
+
+## Slow reads
+
+Use `slowReads` when a screen takes much longer than its data to appear. It shows where the time went: to the network, to a busy main thread, or to neither. It works over HTTP only.
+
+```json
+{
+  "transport": "http",
+  "cdp": "http://127.0.0.1:9222",
+  "endpoint": "https://api.example.com/v1/contacts",
+  "regionSelector": "[data-testid=contact-list]",
+  "contentSelector": "[data-testid=contact]",
+  "observationMs": 300000,
+  "slowReads": { "thresholdMs": 3000, "bridge": { "global": "appBridge" } }
+}
+```
+
+For each read of the endpoint that starts during the capture, `slowReads.reads` records:
+
+- when it started, both in capture time and since its interval began, and when it finished;
+- its outcome and HTTP status: `success`, `error` for an error status, `failed` with no response, or `pending` at the end;
+- `networkMs`: from the request's start to the last byte of the response, as the browser timed it;
+- `contentShownMs`: the bounds of the first sample after the read finished that showed the content marker;
+- `contentAlreadyShown`: the marker was already visible when the read started, so the read says nothing about when content first appeared;
+- `rendererBusyPercent`: how much of the time from the read's start until its content showed, or the capture ended, the page's main thread spent running tasks. It comes from the task time in Chrome's `Performance.getMetrics`, so it counts many short tasks as well as long ones;
+- `slowestScreenReadMs`: the longest the page took to answer one screen read in that time;
+- `maxBridgePending`: with `bridge` set, the most bridge requests waiting at once.
+
+A read is `slow` when it kept the screen waiting at least `thresholdMs` (default 3000, 500–600000). That means its content took that long to appear, it failed or finished that slowly, or it was still pending that long. Each slow read gets a `SLOW_READ` lead, whose basis says where the time went:
+
+| Basis | Meaning |
+| --- | --- |
+| `NETWORK` | The response took at least half the wait, or the read failed, or it refreshed content already showing. |
+| `RENDERER_BUSY` | The response was quick and the content came late, while the main thread was busy at least half the time. |
+| `AFTER_RESPONSE` | The response was quick and the main thread mostly idle, yet the content came late: the screen waited on something else. |
+| `NO_CONTENT` | The read succeeded but the marker did not appear before the capture ended. |
+| `STILL_PENDING` | The read had not finished when the capture ended. |
+
+The summary also says how many earlier reads in the same interval failed, which shows up retries with growing delays, and how far into the interval the read started.
+
+With `slowReads`, a screen read that takes longer than 5 seconds doesn't end the capture. It is waited for, up to `observationMs`, because a page that slow is the evidence. HTTP captures can run for up to 10 minutes.
+
+`bridge` counts requests on a page object that sends with `postMessage` and answers with `message` events carrying the same id. An example is the object an Android app injects into its WebView with a WebMessageListener. `global` names the object on `window`. `idKey` (default `id`) is the field that pairs an answer with its request, in an object or a JSON string.
+
+- During the capture `postMessage` is wrapped to count, and one `message` listener is added. Both are removed at the end.
+- Requests sent before the capture are not counted, and a request whose answer never arrives stays pending.
+- If the object is missing, or its `postMessage` can't be replaced, the `BRIDGE_NOT_INSTRUMENTED` gap is added.
+
+If the browser gives no Performance metrics, the `RENDERER_LOAD_UNAVAILABLE` gap is added and busy percentages are null.
+
+Timings bound when content appeared; they don't prove what delayed it. Busy percentages are taken from the samples at each end of a read, so they are approximate for short reads. Only the first 500 reads are recorded; after that `READ_LOG_LIMIT_REACHED` is added.
 
 ## Interpretation
 

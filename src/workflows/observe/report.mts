@@ -6,6 +6,7 @@ import type { IntervalFileChanges } from './files.mjs'
 import type { SamplingSnapshot } from './sampling.mjs'
 import type { FileFault, StepResult } from './steps.mjs'
 import { seconds } from './summaries.mjs'
+import type { SlowReadsSection } from './slow-reads/evidence.mjs'
 
 export interface ObservationMetadata {
   recoveryProbeVersion: string
@@ -267,6 +268,8 @@ export interface ObservationReport {
   files?: { intervals: IntervalFileChanges[] }
   /** What became of each file a step damaged. */
   fileFaults?: FileFaultRecord[]
+  /** Each read of the endpoint and what kept its content waiting, from `slowReads`. */
+  slowReads?: SlowReadsSection
   injected?: number
   reloads?: number
   cleanup?: string
