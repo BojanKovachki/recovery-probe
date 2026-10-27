@@ -4,6 +4,15 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.8.0-preview.12 (2026-10-27)
+
+Guided start, `doctor` and `verify`, restructured. No change to the CLI, the saved setups or the reports.
+
+- `tools/guided-start.mts` (399 lines, with a 165-line `runStart`) is a `tools/start/` folder: the arguments, launching Chromium, configuring a screen, and a small `StartRun` class that loads the saved setup, opens the target, sets up or reuses the check and runs it. The terminal choices that `init` uses too moved to `tools/ask.mts`.
+- `verify` checks a plan entry by entry, and reading the baseline and scanning the changed lines are their own steps.
+- `doctor` reports a hook error and the hook's channels in separate functions.
+- The size-limit violations listed in `eslint-suppressions.json` drop from 36 to 26.
+
 ## 0.8.0-preview.11 (2026-10-27)
 
 The repair preview, restructured. No change to the CLI, the run folders or what is sent to the model.

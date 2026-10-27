@@ -1,4 +1,4 @@
-import { choose, chooseMany, type StartIo } from './guided-start.mjs'
+import { choose, chooseMany, type StartIo } from './ask.mjs'
 import { identifyIpcHook, probeJson } from './doctor.mjs'
 import type { IpcIdentity } from '../ipc-probe.cjs'
 
