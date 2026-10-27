@@ -1,4 +1,5 @@
-import { scanForSuspects, type SuspectPattern } from '../tools/suspects.mjs'
+import type { SuspectPattern } from '../tools/suspects/rules.mjs'
+import { scanForSuspects } from '../tools/suspects/scan.mjs'
 import { parseOptions, text } from './args.mjs'
 
 const USAGE =

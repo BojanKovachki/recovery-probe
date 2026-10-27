@@ -6,11 +6,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
-import {
-  compareRuns,
-  compareReports,
-  runEvidence,
-} from '../../dist/tools/compare.mjs'
+import { runEvidence } from '../../dist/tools/compare/reports.mjs'
+import { compareRuns, compareReports } from '../../dist/tools/compare/run.mjs'
 
 const action = (findings, extra = {}) => ({
   schemaVersion: 1,

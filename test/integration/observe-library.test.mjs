@@ -9,7 +9,8 @@ import { httpObservationAdapter } from '../../dist/workflows/observe/adapters.mj
 import { observationSteps } from '../../dist/workflows/observe/steps.mjs'
 import { runSteps } from '../../dist/workflows/observe/step-runner.mjs'
 import { observationSummary } from '../../dist/workflows/observe/summaries.mjs'
-import { runEvidence, compareRuns } from '../../dist/tools/compare.mjs'
+import { runEvidence } from '../../dist/tools/compare/reports.mjs'
+import { compareRuns } from '../../dist/tools/compare/run.mjs'
 
 let browser,
   server,

@@ -5,11 +5,11 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import ts from 'typescript'
+import { scanSource } from '../../dist/tools/suspects/source.mjs'
 import {
-  scanSource,
   sourceFiles,
   changedSourceFiles,
-} from '../../dist/tools/suspects.mjs'
+} from '../../dist/tools/suspects/files.mjs'
 
 const scan = (code, file = 'store.ts') =>
   scanSource(ts, file, code).map(({ pattern, line, read }) => ({

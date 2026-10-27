@@ -4,7 +4,8 @@ import { execFileSync } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { changedLines, scanForSuspects } from '../../dist/tools/suspects.mjs'
+import { changedLines } from '../../dist/tools/suspects/files.mjs'
+import { scanForSuspects } from '../../dist/tools/suspects/scan.mjs'
 import {
   recordBaseline,
   verifyChange,
