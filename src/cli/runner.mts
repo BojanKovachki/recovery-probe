@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type { Browser } from 'playwright'
 import { packageUrl, version } from '../core/package.mjs'
+import { rowNotes } from '../reports/check.mjs'
 import { reportFolder } from '../reports/folder.mjs'
 import {
   probeRecovery,
@@ -50,6 +51,7 @@ function printSummary(report: RunnerReport) {
       console.log(
         `  ${marker(row.outcome).padEnd(12)} ${row.scenario} (${row.code}${injected})`,
       )
+      for (const note of rowNotes(row)) console.log(`${' '.repeat(15)}${note}`)
     }
     console.log('')
   }

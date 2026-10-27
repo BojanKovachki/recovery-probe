@@ -1,24 +1,8 @@
 import { setTimeout as sleep } from 'node:timers/promises'
 import type { Page, Response } from 'playwright'
 import { isReadRequest } from '../../../transports/http/reads.mjs'
+import { readyProblem } from '../screen.mjs'
 import type { ValidDesktopConfig } from './config.mjs'
-
-/** Whether the ready marker shows, with its text, and nothing busy is visible. */
-export async function healthy(page: Page, config: ValidDesktopConfig) {
-  const ready = page.locator(config.readySelector)
-  if ((await ready.count()) !== 1 || !(await ready.isVisible())) return false
-  if (
-    config.readyText !== undefined &&
-    !(await ready.innerText()).includes(config.readyText)
-  )
-    return false
-  if (config.busySelector) {
-    const busy = page.locator(config.busySelector)
-    for (const item of await busy.all())
-      if (await item.isVisible()) return false
-  }
-  return true
-}
 
 export async function waitUntil(
   fn: () => boolean | Promise<boolean>,
@@ -32,8 +16,14 @@ export async function waitUntil(
   return false
 }
 
-/** Reloads the page and waits for a successful read and a healthy screen. */
-export async function baseline(page: Page, config: ValidDesktopConfig) {
+/**
+ * Reloads the page and waits for a successful read and its data on screen.
+ * Resolves with why that didn't happen, or undefined when it did.
+ */
+export async function baselineFailure(
+  page: Page,
+  config: ValidDesktopConfig,
+): Promise<string | undefined> {
   let successes = 0
   const listener = (response: Response) => {
     if (
@@ -48,12 +38,16 @@ export async function baseline(page: Page, config: ValidDesktopConfig) {
       waitUntil: 'domcontentloaded',
       timeout: config.baselineTimeoutMs,
     })
-    return await waitUntil(
-      async () => successes > 0 && (await healthy(page, config)),
-      config.baselineTimeoutMs,
-    )
-  } catch {
-    return false
+    let problem: string | undefined
+    const ready = await waitUntil(async () => {
+      problem = successes
+        ? await readyProblem(page, config)
+        : `no successful response from the endpoint within ${config.baselineTimeoutMs} ms`
+      return problem === undefined
+    }, config.baselineTimeoutMs)
+    return ready ? undefined : problem
+  } catch (error) {
+    return String((error as Error).message).split('\n')[0]
   } finally {
     page.off('response', listener)
   }

@@ -4,13 +4,18 @@ import {
   observeHttp,
   type HttpObserver,
 } from '../../../transports/http/observer.mjs'
+import { readyProblem } from '../screen.mjs'
 import type { ValidDesktopConfig } from './config.mjs'
-import { healthy, waitUntil } from './health.mjs'
+import { waitUntil } from './health.mjs'
 
 export interface DesktopRow {
   kind: FaultKind
   outcome: 'pass' | 'fail' | 'inconclusive' | 'skipped'
   code: string
+  /** Why the healthy baseline failed, with BASELINE_FAILED. */
+  reason?: string
+  /** Text the screen showed under the fault that the healthy screen didn't. */
+  screenText?: string
   applied: number
   successfulResponsesAfterFault: number
   retryClicked: boolean
@@ -94,7 +99,7 @@ export class FaultTrial {
       (await waitUntil(
         async () =>
           this.#progress().successfulAfterFault > 0 &&
-          (await healthy(this.#page, this.#config)),
+          (await readyProblem(this.#page, this.#config)) === undefined,
         remainingMs,
       )) && Date.now() - startedAt <= recoveryTimeoutMs
     this.#row.outcome = recovered ? 'pass' : 'fail'

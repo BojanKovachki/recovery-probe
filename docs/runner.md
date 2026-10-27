@@ -37,7 +37,7 @@ The runner requires explicit selectors and endpoint matching. It does not discov
 | `OK` | The configured assertion completed and the expected fault count was observed. |
 | `RECOVERY_ASSERTION_FAILED` | The fault occurred, but the recovery assertion did not pass. |
 | `FAULT_NOT_TRIGGERED` | The requested fault count was not observed. Check the route, method, cache, and service worker. |
-| `BASELINE_FAILED` | The ordinary flow failed, so the runner could not make a useful fault comparison. |
+| `BASELINE_FAILED` | The ordinary flow failed, so the runner could not make a useful fault comparison. The normal connection row's `reason` has the browser's error, for example a timeout or a selector that matched more than one element. |
 | `INJECTION_ERROR` | Playwright could not apply or clean up the route reliably. |
 
 A passing result proves the configured recovery behavior for that test. It is not a certification of overall application resilience.

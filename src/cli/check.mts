@@ -3,7 +3,11 @@ import type { Page } from 'playwright'
 import { connectDesktop, selectDesktopPage } from '../targets/cdp.mjs'
 import { prepareVisibility } from '../targets/visibility.mjs'
 import { reportFolder } from '../reports/folder.mjs'
-import { writeDesktopReport, writeIpcReport } from '../reports/check.mjs'
+import {
+  rowNotes,
+  writeDesktopReport,
+  writeIpcReport,
+} from '../reports/check.mjs'
 import type { RecoveryConfig } from '../workflows/check/browser.mjs'
 import {
   validateDesktopConfig,
@@ -118,10 +122,12 @@ function finish(report: DesktopReport, directory: string, values: Values) {
     console.log(JSON.stringify(report, null, 2))
     return
   }
-  for (const row of report.results)
+  for (const row of report.results) {
     console.log(
       `${row.outcome.toUpperCase().padEnd(12)} ${row.kind}: ${row.code} (injected ${row.applied}, later successful responses ${row.successfulResponsesAfterFault})`,
     )
+    for (const note of rowNotes(row)) console.log(`${' '.repeat(13)}${note}`)
+  }
   console.log(
     `Final reload reset: ${report.finalReset}\nReport: ${join(directory, 'report.html')}\nReproduce: node ${join(directory, 'reproduce.mjs')}\nFix investigation: ${join(directory, 'fix-brief.md')}`,
   )
@@ -211,10 +217,13 @@ function printIpcReport(report: IpcCheckReport, directory: string) {
   console.log(
     `Baseline: ${report.baseline?.code ?? report.error ?? 'not established'}`,
   )
-  for (const row of report.results)
+  for (const note of rowNotes(report.baseline ?? {})) console.log(`  ${note}`)
+  for (const row of report.results) {
     console.log(
       `${row.outcome.toUpperCase()}: ${row.fault} — ${row.code}; injected=${row.snapshot.injected}; later real successes=${row.snapshot.successfulAfterFault}`,
     )
+    for (const note of rowNotes(row)) console.log(`  ${note}`)
+  }
   if (report.error) console.error(`Check stopped: ${report.error}`)
   if (report.cleanupError) console.error(`Cleanup: ${report.cleanupError}`)
   console.log(

@@ -6,15 +6,29 @@ import type { IpcCheckReport } from '../workflows/check/ipc/run.mjs'
 import { escapeHtml, renderTemplate } from './template.mjs'
 import { withEvidence } from './evidence.mjs'
 
+/** A result row's reason and screen quote, as lines for people. */
+export function rowNotes(row: {
+  reason?: string
+  screenText?: string
+}): string[] {
+  const notes: string[] = []
+  if (row.reason) notes.push(`Why: ${row.reason}`)
+  if (row.screenText)
+    notes.push(`Screen showed: "${row.screenText.replaceAll('\n', ' / ')}"`)
+  return notes
+}
+
 export function desktopReportHtml(
   report: DesktopReport,
   target: 'desktop' | 'web' = 'desktop',
 ): string {
   const results = report.results
-    .map(
-      (row) =>
-        `<tr><td>${escapeHtml(row.kind)}</td><td class="${escapeHtml(row.outcome)}">${escapeHtml(row.outcome.toUpperCase())}</td><td>${escapeHtml(row.code)}</td><td>${row.applied}</td><td>${row.successfulResponsesAfterFault}</td><td>${row.retryClicked ? 'Yes' : 'No'}</td></tr>`,
-    )
+    .map((row) => {
+      const notes = rowNotes(row)
+        .map((note) => `<br><small>${escapeHtml(note)}</small>`)
+        .join('')
+      return `<tr><td>${escapeHtml(row.kind)}</td><td class="${escapeHtml(row.outcome)}">${escapeHtml(row.outcome.toUpperCase())}</td><td>${escapeHtml(row.code)}${notes}</td><td>${row.applied}</td><td>${row.successfulResponsesAfterFault}</td><td>${row.retryClicked ? 'Yes' : 'No'}</td></tr>`
+    })
     .join('')
   const screenshots = report.results
     .filter((row) => row.screenshot && /^[a-z0-9-]+\.png$/.test(row.screenshot))
@@ -52,12 +66,17 @@ export async function writeDesktopReport(
   await mkdir(dir, { recursive: true, mode: 0o700 })
   const failures = report.results
     .filter((r) => r.outcome !== 'pass')
-    .map(
-      (r) =>
-        `- ${r.kind}: ${r.code}; injected=${r.applied}; later successful responses=${r.successfulResponsesAfterFault}; retry clicked=${r.retryClicked}`,
+    .map((r) =>
+      [
+        `- ${r.kind}: ${r.code}`,
+        `injected=${r.applied}`,
+        `later successful responses=${r.successfulResponsesAfterFault}`,
+        `retry clicked=${r.retryClicked}`,
+        ...rowNotes(r),
+      ].join('; '),
     )
     .join('\n')
-  const brief = `# Recovery investigation\n\nThis is a test observation, not an automatic diagnosis or a source-code fix.\n\nSelected GET endpoint: ${JSON.stringify(report.endpoint)}\nRecovery mode: ${report.recovery}\nDeadline: ${report.timeoutMs} ms\nFinal reload reset: ${report.finalReset}\n\n## Observations\n\n${failures || 'All configured fault checks passed.'}\n\n## Instructions for a coding agent with authorized source access\n\n1. Read scenario.json and report.json. Validate that readySelector and optional readyText/busySelector prove this endpoint loaded, and that retrySelector identifies the intended action.\n2. Reproduce with node reproduce.mjs from this directory against the same development screen and test account. Treat BASELINE_FAILED, FAULT_NOT_TRIGGERED, and RETRY_ACTION_UNAVAILABLE as inconclusive, not app defects.\n3. Find the selected request and its recovery state transitions in the source. Check loading/in-flight flags, errors, retry handlers, cancellation and stale responses. These are hypotheses, not established causes.\n4. If an app defect is reproduced, propose the smallest source patch with an explanation. Preserve error reporting and authentication; do not mask the failure or weaken the assertion to make the test pass.\n5. Rerun the same scenario and the application's relevant tests. Compare the before/after reports. Obtain review before merging or deploying a patch.\n\nThis report contains local endpoint paths and may include optional screenshots. It has not been sent to an AI service.\n`
+  const brief = `# Recovery investigation\n\nThis is a test observation, not an automatic diagnosis or a source-code fix.\n\nSelected GET endpoint: ${JSON.stringify(report.endpoint)}\nRecovery mode: ${report.recovery}\nDeadline: ${report.timeoutMs} ms\nFinal reload reset: ${report.finalReset}\n\n## Observations\n\n${failures || 'All configured fault checks passed.'}\n\n## Instructions for a coding agent with authorized source access\n\n1. Read scenario.json and report.json. Validate that readySelector and optional readyText/busySelector prove this endpoint loaded, and that retrySelector identifies the intended action.\n2. Reproduce with node reproduce.mjs from this directory against the same development screen and test account. Treat BASELINE_FAILED, FAULT_NOT_TRIGGERED, and RETRY_ACTION_UNAVAILABLE as inconclusive, not app defects.\n3. Find the selected request and its recovery state transitions in the source. Check loading/in-flight flags, errors, retry handlers, cancellation and stale responses. These are hypotheses, not established causes.\n4. If an app defect is reproduced, propose the smallest source patch with an explanation. Preserve error reporting and authentication; do not mask the failure or weaken the assertion to make the test pass.\n5. Rerun the same scenario and the application's relevant tests. Compare the before/after reports. Obtain review before merging or deploying a patch.\n\nThis report contains local endpoint paths, a short quote of the screen under each failed fault, and optional screenshots. It has not been sent to an AI service.\n`
   const reproduction =
     config.target === 'web'
       ? `import { readFile } from 'node:fs/promises';\nimport { checkWeb } from 'recovery-probe/web';\nconst config = JSON.parse(await readFile(new URL('./scenario.json', import.meta.url), 'utf8'));\nconst report = await checkWeb(config);\nconsole.log(JSON.stringify(report, null, 2));\nprocess.exitCode = report.ok ? 0 : 1;\n`

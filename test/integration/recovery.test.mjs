@@ -50,6 +50,7 @@ test('an unreachable or incorrect baseline is inconclusive and faults are skippe
   })
   assert.equal(result.ok, false)
   assert.equal(result.results[0].code, 'BASELINE_FAILED')
+  assert.match(result.results[0].reason, /Timeout 200ms exceeded/)
   assert.ok(result.results.slice(1).every((row) => row.outcome === 'skipped'))
 })
 

@@ -74,6 +74,10 @@ test(
         timeoutMs: 200,
       })
       assert.equal(unauthenticated.results[0].code, 'BASELINE_FAILED')
+      assert.equal(
+        unauthenticated.results[0].reason,
+        'no successful response from the endpoint within 200 ms',
+      )
       const path = join(dir, 'scenario.json')
       await writeFile(
         path,
@@ -89,6 +93,24 @@ test(
         { timeout: 20000 },
       )
       assert.match(result.stdout, /PASS/)
+      // Signed out, the read never succeeds, and the CLI says so under the result.
+      const signedOut = join(dir, 'signed-out.json')
+      await writeFile(
+        signedOut,
+        JSON.stringify({ ...config, storageState: undefined, timeoutMs: 200 }),
+      )
+      await assert.rejects(
+        exec(
+          process.execPath,
+          [cli, 'check', '--config', signedOut, '--out', join(dir, 'out')],
+          { timeout: 20000 },
+        ),
+        (error) =>
+          error.code === 2 &&
+          /BASELINE_FAILED.*\n +Why: no successful response from the endpoint/.test(
+            error.stdout,
+          ),
+      )
       await assertReportShape(
         JSON.parse(await readFile(join(output, 'report.json'), 'utf8')),
         'check-web',

@@ -59,8 +59,8 @@ Use `--fresh` to replace setup/refresh an expired login. Use `--dir ./my-private
 ## Interpret results
 
 - `RECOVERED`: one selected fault occurred, a later matching request succeeded, and the selected content appeared within the deadline.
-- `RECOVERY_NOT_OBSERVED`: investigate recovery logic, expected behavior and the deadline; this is not an automatic root-cause diagnosis.
-- `BASELINE_FAILED`: normal loading/login/selected content could not be verified; inconclusive.
+- `RECOVERY_NOT_OBSERVED`: investigate recovery logic, expected behavior and the deadline; this is not an automatic root-cause diagnosis. `Screen showed:` quotes the text that appeared instead of the content.
+- `BASELINE_FAILED`: normal loading/login/selected content could not be verified; inconclusive. `Why:` says what was missing.
 - `FAULT_NOT_TRIGGERED`: no verified fault; inconclusive.
 - `RETRY_ACTION_UNAVAILABLE`: no unique actionable button matched the selected label; inconclusive.
 

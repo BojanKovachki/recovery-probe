@@ -128,6 +128,8 @@ test(
       const broken = await checkIpc(config)
       assert.equal(broken.results[0].outcome, 'fail', JSON.stringify(broken))
       assert.equal(broken.results[0].snapshot.successfulAfterFault, 0)
+      // The broken screen shows its empty state instead of the failed read.
+      assert.equal(broken.results[0].screenText, 'Empty')
       await page.goto(baseUrl + '?mode=dependency-failure')
       const dependent = await checkIpc(config)
       assert.equal(
@@ -385,6 +387,26 @@ test(
         true,
       )
       assert.equal((await control.call('snapshot')).armed, null)
+      await page.goto(baseUrl + '?mode=broken')
+      await assert.rejects(
+        exec(
+          process.execPath,
+          [
+            fileURLToPath(
+              new URL('../../bin/recovery-probe.mjs', import.meta.url),
+            ),
+            'check',
+            '--config',
+            configFile,
+            '--out',
+            join(dir, 'broken-result'),
+          ],
+          { timeout: 15000 },
+        ),
+        (error) =>
+          error.code === 1 &&
+          /FAIL: rejection .*\n {2}Screen showed: "Empty"/.test(error.stdout),
+      )
       await page.goto(baseUrl + '?mode=honest')
       const discoverFile = join(dir, 'discover.json')
       await writeFile(

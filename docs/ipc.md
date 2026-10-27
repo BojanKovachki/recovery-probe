@@ -107,8 +107,8 @@ The global main-process control exposes `identify()`, `begin(...)`, `snapshot()`
 ## Result boundaries
 
 - `RECOVERED`: the selected IPC recovery expectation passed.
-- `RECOVERY_NOT_OBSERVED`: no verified recovery within the configured deadline; investigate against product expectations.
-- `BASELINE_FAILED` / `BASELINE_AMBIGUOUS`: healthy setup or exactly-one-invocation assumption not established; no recovery verdict.
+- `RECOVERY_NOT_OBSERVED`: no verified recovery within the configured deadline; investigate against product expectations. `screenText` quotes what the screen showed instead, such as an empty state.
+- `BASELINE_FAILED` / `BASELINE_AMBIGUOUS`: healthy setup or exactly-one-invocation assumption not established; no recovery verdict. A `BASELINE_FAILED` baseline has a `reason`: the first of the call, a required channel or the ready element that was missing.
 - `DEPENDENCY_FAILED` / `DEPENDENCY_NOT_READY`: a separate prerequisite failed or did not finish; not attributed to the selected recovery path.
 - `FAULT_NOT_TRIGGERED`: the configured invocation did not consume exactly one fault.
 - `TRAFFIC_AMBIGUOUS`: extra target traffic prevents identifying the expected single retry.

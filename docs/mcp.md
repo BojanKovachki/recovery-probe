@@ -50,7 +50,7 @@ npx playwright install chromium
 | Tool | What it does |
 | --- | --- |
 | `find_page_reads` | Opens a page in headless Chromium and lists the JSON GET requests it makes while loading. |
-| `check_read_recovery` | Loads the page healthy, fails one GET endpoint with each fault kind, and checks that a data marker comes back by itself or after Retry. It returns an outcome per fault and a report folder with `fix-brief.md` and `reproduce.mjs`. |
+| `check_read_recovery` | Loads the page healthy, fails one GET endpoint with each fault kind, and checks that a data marker comes back by itself or after Retry. It returns an outcome per fault, why the healthy baseline failed if it did, what the screen showed under a fault it didn't recover from, and a report folder with `fix-brief.md` and `reproduce.mjs`. |
 | `start_network_faults`, `set_network_faults`, `network_fault_summary`, `stop_network_faults` | Run a [network fault proxy](net.md) for the app's own HTTPS connections, such as an SDK, a main process or a test run started with the returned environment. |
 | `find_suspects` | Reads the project's JavaScript and TypeScript, or only what changed since a Git reference, for error handling that can lose data. Each suspect names the read to fail and how to check it. See [Suspect scanner](suspects.md). |
 | `compare_reports` | Compares reports of the same check from before and after a change and returns a verdict, what happened to each problem, and a Markdown block for the pull request. A problem counts as gone only when a complete run after the change checked it. See [Before and after](compare.md). |
@@ -60,7 +60,7 @@ npx playwright install chromium
 A typical loop for a screen that loads data:
 
 1. `find_page_reads` on the page to find its reads.
-2. `check_read_recovery` with the read and a selector that only shows once the data is on screen.
+2. `check_read_recovery` with the read and a selector that matches exactly one element and only shows once the data is on screen. For a list, use its container or a single item.
 3. If a fault is caught, read `fix-brief.md`, change the code, and run the same check again.
 4. `compare_reports` with the report from step 2 as `before` and the new one as `after` shows whether the change fixed it.
 

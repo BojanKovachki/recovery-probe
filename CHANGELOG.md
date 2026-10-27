@@ -4,6 +4,14 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.8.0-preview.15 (2026-10-27)
+
+Check results say more about why they aren't a pass.
+
+- `BASELINE_FAILED` has a `reason`, for example `the ready selector matched 2 elements`, `the ready element doesn't contain "Saved"` or `no successful response from the endpoint within 5000 ms`. The HTTP and IPC checks and the JSON runner give one; the CLI prints it under the result as `Why:`.
+- A fault that was applied and not recovered from gets `screenText`: the lines the screen showed that the healthy screen didn't, such as `You have no orders yet`, up to 200 characters. It's in the CLI output, `report.json`, `report.html`, `fix-brief.md` and the `check_read_recovery` result. The JSON runner doesn't quote the screen.
+- `check_read_recovery` tells agents that `readySelector` must match exactly one element, and to use a list's container or a single item.
+
 ## 0.8.0-preview.14 (2026-10-27)
 
 The MCP server and tools, the remaining commands and two report writers, restructured. No change to the CLI, the MCP tools or the reports.

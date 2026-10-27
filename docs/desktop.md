@@ -88,7 +88,7 @@ Use your real selectors and one endpoint from discovery. **Choose a ready marker
 npx recovery-probe check --config .recovery-probe/discovery/scenario.json --out .recovery-probe/first-run
 ```
 
-Open `.recovery-probe/first-run/report.html` in your browser. Add `--screenshots` to capture failed/inconclusive fault states locally. Screenshots can contain private information; none are captured by default. Endpoint paths, selectors and configured ready text can also be private. Keep `.recovery-probe/` out of your app's Git repository and review files before sharing.
+Open `.recovery-probe/first-run/report.html` in your browser. Add `--screenshots` to capture failed/inconclusive fault states locally. Screenshots can contain private information; none are captured by default. Endpoint paths, selectors, configured ready text and the short screen quote of a failed fault can also be private. Keep `.recovery-probe/` out of your app's Git repository and review files before sharing.
 
 For each selected fault the checker:
 
@@ -104,10 +104,12 @@ A reload reset is not a Retry success. If Retry remains broken but reloading res
 | --- | --- |
 | `RECOVERED` | The selected fault, action, subsequent successful request and UI assertion were verified. |
 | `RECOVERY_NOT_OBSERVED` | Recovery did not meet those expectations before the deadline. Investigate the app and the assertion. |
-| `BASELINE_FAILED` | The healthy run could not be established; no fault was injected for that row. |
+| `BASELINE_FAILED` | The healthy run could not be established; no fault was injected for that row. Its `reason` says why, for example `the ready selector matched 2 elements` or `no successful response from the endpoint within 5000 ms`. |
 | `FAULT_NOT_TRIGGERED` | The selected failure could not be verified; not a confirmed app bug. |
 | `RETRY_ACTION_UNAVAILABLE` | The configured button was absent, ambiguous or not actionable; check the selector and recovery mode. |
 | `INJECTION_ERROR` / `CLEANUP_FAILED` | Interception was unreliable; stop and investigate the harness. |
+
+A fault that was applied and not recovered from also gets `screenText` when the screen showed lines the healthy screen didn't, such as `You have no orders yet`. The quote keeps up to 200 characters. The CLI prints it under the result as `Screen showed:`, and the reports and the fix brief include it.
 
 Exit code 0 means all checks and final reset passed, 1 means a recovery failure was observed, and 2 means setup or the result was inconclusive.
 

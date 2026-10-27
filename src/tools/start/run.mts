@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import type { Browser, BrowserContext, Page } from 'playwright'
 import { pageIdentity } from '../../core/urls.mjs'
-import { writeDesktopReport } from '../../reports/check.mjs'
+import { rowNotes, writeDesktopReport } from '../../reports/check.mjs'
 import { connectDesktop, desktopPages } from '../../targets/cdp.mjs'
 import {
   checkDesktop,
@@ -272,8 +272,10 @@ class StartRun {
     report.mode = `${target} guided recovery`
     const output = await mkdtemp(join(this.#directory, 'run-'))
     await writeDesktopReport(output, report, config)
-    for (const row of report.results)
+    for (const row of report.results) {
       io.log(`${row.outcome.toUpperCase()}: ${row.kind} — ${row.code}`)
+      for (const note of rowNotes(row)) io.log(`  ${note}`)
+    }
     io.log(`Report: ${join(output, 'report.html')}`)
     io.log(
       `Rerun: npx recovery-probe start ${target}${dir ? ' --dir ' + JSON.stringify(dir) : ''}`,

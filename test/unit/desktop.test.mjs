@@ -1,12 +1,18 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import {
   validateDesktopConfig,
   pageIdentity,
   selectDesktopPage,
   connectDesktop,
 } from '../../dist/desktop.mjs'
-import { desktopReportHtml } from '../../dist/reports/check.mjs'
+import {
+  desktopReportHtml,
+  writeDesktopReport,
+} from '../../dist/reports/check.mjs'
 const config = {
   pageUrl: 'http://localhost/app',
   endpoint: 'https://api.example.test/data',
@@ -92,4 +98,60 @@ test('reports escape application metadata and reject unsafe screenshot paths', (
   assert.ok(!html.includes('<script>bad'))
   assert.ok(html.includes('&lt;img'))
   assert.ok(!html.includes('src="https://tracker'))
+})
+
+test('reports say why a baseline failed and quote the screen under a fault', async () => {
+  const row = {
+    kind: 'http-error',
+    applied: 0,
+    successfulResponsesAfterFault: 0,
+    retryClicked: false,
+  }
+  const report = {
+    endpoint: 'https://api.example.test/orders',
+    timeoutMs: 500,
+    generatedAt: '',
+    recovery: 'automatic',
+    finalReset: 'healthy',
+    ok: false,
+    limitation: '',
+    results: [
+      {
+        ...row,
+        outcome: 'inconclusive',
+        code: 'BASELINE_FAILED',
+        reason: 'the ready selector matched 2 elements',
+      },
+      {
+        ...row,
+        kind: 'timeout',
+        outcome: 'fail',
+        code: 'RECOVERY_NOT_OBSERVED',
+        screenText: 'You have <no> orders yet\nRetry',
+        applied: 1,
+      },
+    ],
+  }
+  const html = desktopReportHtml(report)
+  assert.ok(html.includes('Why: the ready selector matched 2 elements'))
+  assert.ok(
+    html.includes(
+      'Screen showed: &quot;You have &lt;no&gt; orders yet / Retry&quot;',
+    ),
+  )
+  const directory = await mkdtemp(join(tmpdir(), 'recovery-probe-brief-'))
+  try {
+    await writeDesktopReport(directory, report, {})
+    const brief = await readFile(join(directory, 'fix-brief.md'), 'utf8')
+    assert.match(
+      brief,
+      /- http-error: BASELINE_FAILED; .*; Why: the ready selector matched 2 elements\n/,
+    )
+    assert.match(
+      brief,
+      /- timeout: RECOVERY_NOT_OBSERVED; .*; Screen showed: "You have <no> orders yet \/ Retry"\n/,
+    )
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
 })

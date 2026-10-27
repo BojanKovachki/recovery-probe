@@ -16,6 +16,8 @@ export interface ProbeRow {
   scenario: string
   outcome: 'pass' | 'fail' | 'inconclusive' | 'skipped'
   code: string
+  /** Why the normal connection failed, with BASELINE_FAILED. */
+  reason?: string
   applied: number
 }
 
@@ -57,12 +59,14 @@ export async function probeRecovery(
   config: RecoveryConfig,
 ): Promise<{ name: string; ok: boolean; results: ProbeRow[] }> {
   const inPage = freshPages(browser, checkScenario(config))
-  const loaded = await loads(inPage, config)
+  const failure = await baselineFailure(inPage, config)
+  const loaded = failure === undefined
   const results: ProbeRow[] = [
     {
       scenario: 'Normal connection',
       outcome: loaded ? 'pass' : 'inconclusive',
       code: loaded ? 'OK' : 'BASELINE_FAILED',
+      ...(loaded ? {} : { reason: failure }),
       applied: 0,
     },
   ]
@@ -99,15 +103,16 @@ function freshPages(browser: Browser, timeoutMs: number): InFreshPage {
   }
 }
 
-async function loads(inPage: InFreshPage, config: RecoveryConfig) {
+/** Why the page didn't load and show the ready element, or undefined when it did. */
+async function baselineFailure(inPage: InFreshPage, config: RecoveryConfig) {
   try {
     await inPage(async (page) => {
       await page.goto(config.url, { waitUntil: 'domcontentloaded' })
       await page.locator(config.readySelector).waitFor({ state: 'visible' })
     })
-    return true
-  } catch {
-    return false
+    return undefined
+  } catch (error) {
+    return String((error as Error).message).split('\n')[0]
   }
 }
 
