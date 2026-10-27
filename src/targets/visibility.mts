@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from 'node:timers/promises'
 import type { CDPSession, Page } from 'playwright'
 import type { IpcInspector } from '../transports/ipc/inspector.mjs'
 
@@ -13,6 +14,8 @@ export interface WindowVisibility {
   mechanism: 'electron' | 'cdp' | 'unavailable'
   diagnosis: string
 }
+
+type Reported = Pick<WindowVisibility, 'visibility' | 'rendering'>
 
 const RENDERING: Rendering[] = ['frames', 'no-frames', 'no-viewport']
 const NOT_RENDERING: Partial<Record<Rendering, string>> = {
@@ -45,6 +48,54 @@ const renderingOf = (page: Page): Promise<Rendering> =>
     )
     .catch(() => 'unknown' as const)
 
+function diagnosis(reported: Reported, minimized: boolean | undefined) {
+  if (reported.visibility === 'visible')
+    return (
+      (reported.rendering && NOT_RENDERING[reported.rendering]) ?? 'visible'
+    )
+  if (minimized === undefined)
+    return 'hidden: window state unavailable; restore and uncover the target window'
+  return minimized
+    ? 'minimized'
+    : 'hidden-not-minimized: possibly covered; keep the window uncovered'
+}
+
+/** The native window state from the IPC hook, or undefined without one. */
+async function electronWindow(
+  control: IpcInspector | undefined,
+  reported: Reported,
+): Promise<WindowVisibility | undefined> {
+  if (!control) return undefined
+  try {
+    const state = await control.call('windowState')
+    return {
+      ...reported,
+      windowState: state.minimized ? 'minimized' : 'normal',
+      mechanism: 'electron',
+      diagnosis: diagnosis(reported, state.minimized),
+    }
+  } catch {
+    return undefined
+  }
+}
+
+async function cdpWindow(
+  session: CDPSession,
+  reported: Reported,
+): Promise<WindowVisibility> {
+  const { targetInfo } = await session.send('Target.getTargetInfo')
+  const info = await session.send('Browser.getWindowForTarget', {
+    targetId: targetInfo.targetId,
+  })
+  return {
+    ...reported,
+    windowState: info.bounds.windowState,
+    windowId: info.windowId,
+    mechanism: 'cdp',
+    diagnosis: diagnosis(reported, info.bounds.windowState === 'minimized'),
+  }
+}
+
 export async function windowVisibility(
   page: Page,
   control?: IpcInspector,
@@ -52,61 +103,59 @@ export async function windowVisibility(
   const visible = await page.evaluate(() => document.visibilityState)
   const rendering = visible === 'visible' ? await renderingOf(page) : undefined
   const reported = { visibility: visible, ...(rendering ? { rendering } : {}) }
-  const diagnose = (minimized: boolean | undefined) => {
-    if (visible === 'visible')
-      return (rendering && NOT_RENDERING[rendering]) ?? 'visible'
-    if (minimized === undefined)
-      return 'hidden: window state unavailable; restore and uncover the target window'
-    return minimized
-      ? 'minimized'
-      : 'hidden-not-minimized: possibly covered; keep the window uncovered'
-  }
   // Electron's Browser domain can report normal while the native window differs.
   // Prefer the explicitly installed dev hook when it exposes native state.
-  if (control) {
-    try {
-      const state = await control.call('windowState')
-      return {
-        ...reported,
-        windowState: state.minimized ? 'minimized' : 'normal',
-        mechanism: 'electron',
-        diagnosis: diagnose(state.minimized),
-      }
-    } catch {}
-  }
+  const native = await electronWindow(control, reported)
+  if (native) return native
   let session: CDPSession | undefined
   try {
     session = await page.context().newCDPSession(page)
-    const { targetInfo } = await session.send('Target.getTargetInfo')
-    const info = await session.send('Browser.getWindowForTarget', {
-      targetId: targetInfo.targetId,
-    })
-    return {
-      ...reported,
-      windowState: info.bounds.windowState,
-      windowId: info.windowId,
-      mechanism: 'cdp',
-      diagnosis: diagnose(info.bounds.windowState === 'minimized'),
-    }
+    return await cdpWindow(session, reported)
   } catch {
-    if (control) {
-      try {
-        const state = await control.call('windowState')
-        return {
-          ...reported,
-          windowState: state.minimized ? 'minimized' : 'normal',
-          mechanism: 'electron',
-          diagnosis: diagnose(state.minimized),
-        }
-      } catch {}
-    }
-    return {
-      ...reported,
-      mechanism: 'unavailable',
-      diagnosis: diagnose(undefined),
-    }
+    return (
+      (await electronWindow(control, reported)) ?? {
+        ...reported,
+        mechanism: 'unavailable',
+        diagnosis: diagnosis(reported, undefined),
+      }
+    )
   } finally {
     await session?.detach().catch(() => {})
+  }
+}
+
+/** Polls the window for up to a second until `done` holds; returns the last reading. */
+async function waitForWindow(
+  page: Page,
+  control: IpcInspector | undefined,
+  done: (window: WindowVisibility) => boolean,
+): Promise<WindowVisibility> {
+  let current: WindowVisibility | undefined
+  for (let i = 0; i < 20; i++) {
+    current = await windowVisibility(page, control)
+    if (done(current)) break
+    await sleep(50)
+  }
+  return current!
+}
+
+/** Sets the window state through the same mechanism that read it. */
+async function setWindowState(
+  page: Page,
+  control: IpcInspector | undefined,
+  initial: WindowVisibility,
+  state: WindowState,
+) {
+  if (initial.mechanism === 'electron')
+    return control!.call('setWindowMinimized', state === 'minimized')
+  const session = await page.context().newCDPSession(page)
+  try {
+    await session.send('Browser.setWindowBounds', {
+      windowId: initial.windowId!,
+      bounds: { windowState: state },
+    })
+  } finally {
+    await session.detach()
   }
 }
 
@@ -135,20 +184,9 @@ export async function prepareVisibility(
     announce(
       `Recovery Probe: ${initial.diagnosis}. Clicks may time out, and the run may not match what a user sees.`,
     )
+  const set = (state: WindowState) =>
+    setWindowState(page, control, initial, state)
   let changed = false
-  const set = async (state: WindowState) => {
-    if (initial.mechanism === 'electron')
-      return control!.call('setWindowMinimized', state === 'minimized')
-    const session = await page.context().newCDPSession(page)
-    try {
-      await session.send('Browser.setWindowBounds', {
-        windowId: initial.windowId!,
-        bounds: { windowState: state },
-      })
-    } finally {
-      await session.detach()
-    }
-  }
   const revert = async (): Promise<{
     changed: boolean
     restored: boolean
@@ -156,13 +194,12 @@ export async function prepareVisibility(
   }> => {
     if (!changed) return { changed: false, restored: true }
     await set(initial.windowState!)
-    let final: WindowVisibility | undefined
-    for (let i = 0; i < 20; i++) {
-      final = await windowVisibility(page, control)
-      if (final.windowState === initial.windowState) break
-      await new Promise((r) => setTimeout(r, 50))
-    }
-    if (final!.windowState !== initial.windowState)
+    const final = await waitForWindow(
+      page,
+      control,
+      (window) => window.windowState === initial.windowState,
+    )
+    if (final.windowState !== initial.windowState)
       throw new Error('Window state restoration unverified')
     return { changed: true, restored: true, final }
   }
@@ -171,24 +208,33 @@ export async function prepareVisibility(
       'Recovery Probe: restoring the minimized target window for this run; its original state will be restored afterwards.',
     )
     changed = true // An unsuccessful reply may still have executed.
-    try {
-      await set('normal')
-      let current: WindowVisibility | undefined
-      for (let i = 0; i < 20; i++) {
-        current = await windowVisibility(page, control)
-        if (current.windowState !== 'minimized') break
-        await new Promise((r) => setTimeout(r, 50))
-      }
-      if (current!.windowState === 'minimized')
-        throw new Error('Un-minimizing was not observed')
-    } catch (error) {
-      try {
-        await revert()
-      } catch {
-        throw new Error('Window operation failed and restoration is unverified')
-      }
-      throw error
-    }
+    await unminimize(page, control, set, revert)
   }
   return { initial, changed, revert }
+}
+
+/** Un-minimizes the window; when that isn't observed, reverts it and rethrows. */
+async function unminimize(
+  page: Page,
+  control: IpcInspector | undefined,
+  set: (state: WindowState) => Promise<unknown>,
+  revert: () => Promise<unknown>,
+) {
+  try {
+    await set('normal')
+    const current = await waitForWindow(
+      page,
+      control,
+      (window) => window.windowState !== 'minimized',
+    )
+    if (current.windowState === 'minimized')
+      throw new Error('Un-minimizing was not observed')
+  } catch (error) {
+    try {
+      await revert()
+    } catch {
+      throw new Error('Window operation failed and restoration is unverified')
+    }
+    throw error
+  }
 }
