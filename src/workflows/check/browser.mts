@@ -2,6 +2,7 @@ import type { Browser, Page } from 'playwright'
 import { defaultFaults } from '../../core/faults.mjs'
 import { ensure, isIntegerIn, isNonEmptyString } from '../../core/validate.mjs'
 import { ProbeError, withFault } from '../../transports/http/route.mjs'
+import { screenLines, screenQuote } from './screen.mjs'
 
 export interface RecoveryConfig {
   name?: string
@@ -18,6 +19,8 @@ export interface ProbeRow {
   code: string
   /** Why the normal connection failed, with BASELINE_FAILED. */
   reason?: string
+  /** Text the screen showed under the fault that the healthy screen didn't. */
+  screenText?: string
   applied: number
 }
 
@@ -59,7 +62,7 @@ export async function probeRecovery(
   config: RecoveryConfig,
 ): Promise<{ name: string; ok: boolean; results: ProbeRow[] }> {
   const inPage = freshPages(browser, checkScenario(config))
-  const failure = await baselineFailure(inPage, config)
+  const { failure, screen } = await baseline(inPage, config)
   const loaded = failure === undefined
   const results: ProbeRow[] = [
     {
@@ -73,7 +76,7 @@ export async function probeRecovery(
   for (const fault of defaultFaults)
     results.push(
       loaded
-        ? await faultRow(inPage, config, fault)
+        ? await faultRow(inPage, config, fault, screen)
         : {
             scenario: fault.name,
             outcome: 'skipped',
@@ -103,16 +106,23 @@ function freshPages(browser: Browser, timeoutMs: number): InFreshPage {
   }
 }
 
-/** Why the page didn't load and show the ready element, or undefined when it did. */
-async function baselineFailure(inPage: InFreshPage, config: RecoveryConfig) {
+/**
+ * Loads the page without a fault: why it didn't show the ready element, or the
+ * lines on the healthy screen when it did.
+ */
+async function baseline(
+  inPage: InFreshPage,
+  config: RecoveryConfig,
+): Promise<{ failure?: string; screen?: string[] }> {
   try {
-    await inPage(async (page) => {
+    return await inPage(async (page) => {
       await page.goto(config.url, { waitUntil: 'domcontentloaded' })
       await page.locator(config.readySelector).waitFor({ state: 'visible' })
+      // Unreadable text only costs the fault rows their quote.
+      return { screen: await screenLines(page).catch(() => undefined) }
     })
-    return undefined
   } catch (error) {
-    return String((error as Error).message).split('\n')[0]
+    return { failure: String((error as Error).message).split('\n')[0] }
   }
 }
 
@@ -120,12 +130,24 @@ async function faultRow(
   inPage: InFreshPage,
   config: RecoveryConfig,
   fault: Fault,
+  healthyScreen: string[] | undefined,
 ): Promise<ProbeRow> {
+  let screenText: string | undefined
   try {
     const stats = await inPage((page) =>
-      withFault(page, { ...fault, match: config.requestPattern }, () =>
-        retryRecovers(page, config),
-      ),
+      withFault(page, { ...fault, match: config.requestPattern }, async () => {
+        try {
+          await retryRecovers(page, config)
+        } catch (error) {
+          // The context closes with a failed attempt, so read the screen first.
+          if (healthyScreen)
+            screenText = screenQuote(
+              await screenLines(page).catch(() => []),
+              healthyScreen,
+            )
+          throw error
+        }
+      }),
     )
     return {
       scenario: fault.name,
@@ -135,12 +157,14 @@ async function faultRow(
     }
   } catch (error) {
     const failure = error as Partial<ProbeError>
+    const applied = failure.stats?.applied ?? 0
     return {
       scenario: fault.name,
       outcome:
         failure.code === 'RECOVERY_ASSERTION_FAILED' ? 'fail' : 'inconclusive',
       code: failure.code ?? 'RUNNER_ERROR',
-      applied: failure.stats?.applied ?? 0,
+      ...(applied && screenText !== undefined ? { screenText } : {}),
+      applied,
     }
   }
 }

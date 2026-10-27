@@ -1,5 +1,11 @@
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
+import { execFile } from 'node:child_process'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { promisify } from 'node:util'
 import { chromium } from 'playwright'
 import { probeRecovery, withFault } from '../../dist/index.mjs'
 import { startDemoServer } from '../../examples/demo-server.mjs'
@@ -38,8 +44,34 @@ test('normal tests miss a recovery defect; each fault reveals it; corrected app 
         (row) => row.applied === 1 && row.code === 'RECOVERY_ASSERTION_FAILED',
       ),
   )
+  // The broken page shows its error and a Retry button that does nothing.
+  assert.deepEqual(
+    broken.results.map((row) => row.screenText),
+    [undefined, 'error\nRetry', 'error\nRetry', 'error\nRetry'],
+  )
   assert.ok(fixed.ok)
   assert.ok(fixed.results.slice(1).every((row) => row.applied === 1))
+  assert.ok(fixed.results.every((row) => row.screenText === undefined))
+})
+
+test('the demo prints what the broken screen showed', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'recovery-demo-'))
+  try {
+    const { stdout } = await promisify(execFile)(
+      process.execPath,
+      [
+        fileURLToPath(new URL('../../bin/recovery-probe.mjs', import.meta.url)),
+        'demo',
+        '--out',
+        join(dir, 'report'),
+      ],
+      { timeout: 30000 },
+    )
+    assert.match(stdout, /CAUGHT .*\n +Screen showed: "error \/ Retry"/)
+    assert.match(stdout, /Demo verified/)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
 })
 
 test('an unreachable or incorrect baseline is inconclusive and faults are skipped', async () => {

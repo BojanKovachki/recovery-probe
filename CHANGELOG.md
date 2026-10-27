@@ -17,7 +17,8 @@ Breaking:
 Since 0.6.0:
 
 - `observe` file steps (`--files`) that damage a file the way an interrupted download does, and `expect` steps that report `EXPECTATION_NOT_MET` (0.7.0).
-- A `BASELINE_FAILED` result says why, and a fault that wasn't recovered from quotes what the screen showed instead (0.8.0-preview.15).
+- A `BASELINE_FAILED` result says why, and a fault that wasn't recovered from quotes what the screen showed instead (0.8.0-preview.15). In 1.0.0 the JSON runner quotes the screen too.
+- `check --restore-window`, or `"restoreWindow": true`, un-minimizes the window for an IPC check and minimizes it again afterwards. The IPC check used to ignore it, so an app that hides a minimized window's page, as Electron does by default, stopped the check.
 - The code is restructured into small functions and modules with no change in behaviour, held to size limits that `npm run lint` enforces, with a public API report and report-shape checks in CI (0.8.0-preview.1 to .14).
 - The tests are type-checked (0.8.0-preview.16).
 

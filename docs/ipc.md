@@ -58,7 +58,7 @@ Use the actual development startup command with these flags reaching **Electron*
 
 If startup already enables the Node inspector, inspect its actual port rather than adding a conflicting flag. The Node inspector controls the main-process probe; CDP observes the renderer. Both must remain loopback-only and be disabled after testing. Inspector access can execute main-process code; it is a development interface, not a production service.
 
-Sign in with a fixture account, open the intended route, and keep the window visible and online. Preserve hash navigation; when passing a `#/route` through Git Bash tooling, check that MSYS path conversion has not rewritten it. The checker uses the actual target WebContents URL, including hash/query, and reloads the existing page without requiring a route argument.
+Sign in with a fixture account, open the intended route, and keep the window visible and online. With Electron's default background throttling, a minimized window hides the page and stops the check. `"restoreWindow": true` in the scenario, or `--restore-window`, un-minimizes the window for the check and minimizes it again at the end; the report records both under `window`. Preserve hash navigation; when passing a `#/route` through Git Bash tooling, check that MSYS path conversion has not rewritten it. The checker uses the actual target WebContents URL, including hash/query, and reloads the existing page without requiring a route argument.
 
 ## 4. Generate one local scenario
 

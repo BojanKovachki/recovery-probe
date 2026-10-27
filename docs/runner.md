@@ -40,4 +40,6 @@ The runner requires explicit selectors and endpoint matching. It does not discov
 | `BASELINE_FAILED` | The ordinary flow failed, so the runner could not make a useful fault comparison. The normal connection row's `reason` has the browser's error, for example a timeout or a selector that matched more than one element. |
 | `INJECTION_ERROR` | Playwright could not apply or clean up the route reliably. |
 
+A fault that was applied and not recovered from also gets `screenText`: the lines the screen showed that the healthy screen didn't, such as an error message, up to 200 characters. The CLI prints it under the result as `Screen showed:`.
+
 A passing result proves the configured recovery behavior for that test. It is not a certification of overall application resilience.

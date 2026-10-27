@@ -72,6 +72,7 @@ export interface ProbeRow {
     outcome: 'pass' | 'fail' | 'inconclusive' | 'skipped';
     code: string;
     reason?: string;
+    screenText?: string;
     applied: number;
 }
 
