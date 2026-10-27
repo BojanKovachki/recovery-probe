@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import type { Browser } from 'playwright'
 import { packageUrl, version } from '../core/package.mjs'
 import { reportFolder } from '../reports/folder.mjs'
 import {
@@ -74,28 +75,48 @@ export async function runBrowserCheck(
   config: RecoveryConfig | 'demo',
   values: Values,
 ): Promise<void> {
+  const report = await runApps(config)
+  if (values.json) console.log(JSON.stringify(report, null, 2))
+  else printSummary(report)
+  await saveReport(report, config === 'demo', values)
+}
+
+/** The broken and the fixed demo app, each checked once. */
+async function demoApps(browser: Browser, server: DemoServer) {
+  const apps = []
+  for (const variant of ['broken', 'fixed'])
+    apps.push(
+      await probeRecovery(browser, {
+        name: `${variant} synthetic fixture`,
+        url: `${server.url}/${variant}`,
+        requestPattern: '**/api/profile',
+        readySelector: '#profile',
+        retrySelector: '#retry',
+        timeoutMs: 1200,
+      }),
+    )
+  return apps
+}
+
+// The demo passes when the broken app fails every fault once and the fixed app passes.
+const demonstrated = (apps: RunnerReport['apps']) =>
+  apps[0].results[0].outcome === 'pass' &&
+  apps[0].results
+    .slice(1)
+    .every((row) => row.outcome === 'fail' && row.applied === 1) &&
+  apps[1].ok
+
+async function runApps(config: RecoveryConfig | 'demo') {
   const demo = config === 'demo'
   const { chromium } = await import('playwright')
   const browser = await chromium.launch({ headless: true })
   let server: DemoServer | undefined
-  let report: RunnerReport
   try {
-    const apps = []
-    if (demo) {
-      server = await startDemoServer()
-      for (const variant of ['broken', 'fixed'])
-        apps.push(
-          await probeRecovery(browser, {
-            name: `${variant} synthetic fixture`,
-            url: `${server.url}/${variant}`,
-            requestPattern: '**/api/profile',
-            readySelector: '#profile',
-            retrySelector: '#retry',
-            timeoutMs: 1200,
-          }),
-        )
-    } else apps.push(await probeRecovery(browser, config))
-    report = {
+    if (demo) server = await startDemoServer()
+    const apps = demo
+      ? await demoApps(browser, server!)
+      : [await probeRecovery(browser, config)]
+    const report: RunnerReport = {
       tool: 'Recovery Probe',
       version,
       generatedAt: new Date().toISOString(),
@@ -108,20 +129,17 @@ export async function runBrowserCheck(
       apps,
     }
     if (demo) {
-      report.expectedDemonstrationVerified =
-        apps[0].results[0].outcome === 'pass' &&
-        apps[0].results
-          .slice(1)
-          .every((row) => row.outcome === 'fail' && row.applied === 1) &&
-        apps[1].ok
+      report.expectedDemonstrationVerified = demonstrated(apps)
       process.exitCode = report.expectedDemonstrationVerified ? 0 : 1
     } else process.exitCode = apps.every((app) => app.ok) ? 0 : 1
+    return report
   } finally {
     await browser.close()
     if (server) await server.close()
   }
-  if (values.json) console.log(JSON.stringify(report, null, 2))
-  else printSummary(report)
+}
+
+async function saveReport(report: RunnerReport, demo: boolean, values: Values) {
   const json =
     JSON.stringify(
       withEvidence(report, { workflow: 'check', transport: 'browser' }),

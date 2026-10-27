@@ -7,7 +7,9 @@ import {
   displayProblems,
   forwardAndroidDevtools,
   keepQuestAwake,
+  type AdbRunner,
   type AndroidDevtoolsTarget,
+  type AndroidDisplayState,
   type KeptAwake,
 } from '../targets/android.mjs'
 import {
@@ -72,44 +74,80 @@ export async function androidMain(args: string[]) {
     return
   }
   const options = parseArgs(args)
-  let serial = options.serial
-  if (!serial) {
-    const devices = await androidDevices(adbRunner({ adb: options.adb }))
-    if (devices.length !== 1)
-      throw Error(
-        devices.length
-          ? `Several devices are connected (${devices.join(', ')}); choose one with --serial`
-          : 'No device is connected over adb; enable USB debugging and check adb devices',
-      )
-    serial = devices[0]
-  }
-  const run = adbRunner({ adb: options.adb, serial })
+  const run = adbRunner({
+    adb: options.adb,
+    serial: await deviceSerial(options),
+  })
   const targets = await androidDevtoolsTargets(run)
-
   if (options.list) {
-    console.log(
-      targets.length
-        ? targets.map(describe).join('\n')
-        : 'Nothing to inspect: no app with WebView debugging enabled is running.',
-    )
+    console.log(targets.length ? targets.map(describe).join('\n') : NOTHING)
     return
   }
+  const target = chosenTarget(targets, options.package)
+  if (options.keepAwake && !(await androidDisplayState(run)).quest)
+    throw Error('--keep-awake works on Meta Quest headsets only')
+  await forwardUntilStopped(run, target, options)
+}
 
-  const matching = options.package
-    ? targets.filter((target) => target.package === options.package)
+const NOTHING =
+  'Nothing to inspect: no app with WebView debugging enabled is running.'
+
+/** The serial given, or of the one connected device. */
+async function deviceSerial(options: AndroidOptions) {
+  if (options.serial) return options.serial
+  const devices = await androidDevices(adbRunner({ adb: options.adb }))
+  if (devices.length !== 1)
+    throw Error(
+      devices.length
+        ? `Several devices are connected (${devices.join(', ')}); choose one with --serial`
+        : 'No device is connected over adb; enable USB debugging and check adb devices',
+    )
+  return devices[0]
+}
+
+function chosenTarget(targets: AndroidDevtoolsTarget[], name?: string) {
+  const matching = name
+    ? targets.filter((target) => target.package === name)
     : targets
   if (matching.length !== 1)
     throw Error(
       matching.length
         ? `Several targets can be inspected; choose one with --package:\n${matching.map(describe).join('\n')}`
-        : options.package
-          ? `${options.package} has no WebView to inspect; is it running with WebView debugging enabled?`
-          : 'Nothing to inspect: no app with WebView debugging enabled is running.',
+        : name
+          ? `${name} has no WebView to inspect; is it running with WebView debugging enabled?`
+          : NOTHING,
     )
+  return matching[0]
+}
 
-  const [target] = matching
-  if (options.keepAwake && !(await androidDisplayState(run)).quest)
-    throw Error('--keep-awake works on Meta Quest headsets only')
+function printForward(
+  target: AndroidDevtoolsTarget,
+  url: string,
+  display: AndroidDisplayState | undefined,
+  awake: KeptAwake | undefined,
+) {
+  console.log(`Android ${describe(target).trim()} on ${url}
+
+Use it like a desktop debugging endpoint:
+  recovery-probe desktop --cdp ${url} --list
+  "cdp": "${url}" in an observe or desktop config
+
+Keep the app on screen while a check runs. Press Ctrl+C to remove the forward.`)
+  if (awake)
+    console.log(
+      'Keeping the Quest display awake and the Guardian boundary paused until the forward stops.',
+    )
+  for (const problem of display ? displayProblems(display) : [])
+    console.log(
+      `Warning: ${problem} ${display?.quest && !awake ? 'Wear the headset, or use --keep-awake.' : 'Wake the device and bring the app to the front.'}`,
+    )
+}
+
+async function forwardUntilStopped(
+  run: AdbRunner,
+  target: AndroidDevtoolsTarget,
+  options: AndroidOptions,
+) {
   const forward = await forwardAndroidDevtools(run, target.socket)
   let bridge: CdpBridge | undefined
   let awake: KeptAwake | undefined
@@ -123,21 +161,7 @@ export async function androidMain(args: string[]) {
       await sleep(3000)
     }
     const display = await androidDisplayState(run).catch(() => undefined)
-    console.log(`Android ${describe(target).trim()} on ${bridge.url}
-
-Use it like a desktop debugging endpoint:
-  recovery-probe desktop --cdp ${bridge.url} --list
-  "cdp": "${bridge.url}" in an observe or desktop config
-
-Keep the app on screen while a check runs. Press Ctrl+C to remove the forward.`)
-    if (awake)
-      console.log(
-        'Keeping the Quest display awake and the Guardian boundary paused until the forward stops.',
-      )
-    for (const problem of display ? displayProblems(display) : [])
-      console.log(
-        `Warning: ${problem} ${display?.quest && !awake ? 'Wear the headset, or use --keep-awake.' : 'Wake the device and bring the app to the front.'}`,
-      )
+    printForward(target, bridge.url, display, awake)
     await untilStopped(options.duration)
   } finally {
     await awake

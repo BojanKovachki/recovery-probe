@@ -4,6 +4,15 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.8.0-preview.14 (2026-10-27)
+
+The MCP server and tools, the remaining commands and two report writers, restructured. No change to the CLI, the MCP tools or the reports.
+
+- The MCP server is a small class with a table of methods, and `tools/mcp/tools.mts` (592 lines) is split by area: the browser tools, the network tools and their proxy, the change tools (suspects, compare, verify) and running a command.
+- `android`, `net` and the browser runner are split into small steps.
+- The discovery report and the evidence of a check report are built in small functions.
+- The size-limit violations listed in `eslint-suppressions.json` drop from 12 to 1, the command dispatcher, whose old spellings go in 1.0.
+
 ## 0.8.0-preview.13 (2026-10-27)
 
 The suspect scanner, `compare` and `watch`, restructured. No change to the CLI, the suspects found or the reports.
