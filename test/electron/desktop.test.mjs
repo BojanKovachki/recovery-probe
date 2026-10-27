@@ -227,7 +227,7 @@ test(
   'guided Electron setup picks content and reuses saved setup without a window index',
   { timeout: 20000 },
   async () => {
-    const { runStart } = await import('../../dist/tools/guided-start.mjs')
+    const { runStart } = await import('../../dist/tools/start/run.mjs')
     const { pickMarker } = await import('../../dist/tools/pick-marker.mjs')
     await page.goto(`${server.url}/fixed`)
     const dir = await mkdtemp(join(tmpdir(), 'guided-electron-'))

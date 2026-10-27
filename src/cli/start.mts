@@ -1,4 +1,5 @@
-import { parseStartArgs, runStart } from '../tools/guided-start.mjs'
+import { parseStartArgs } from '../tools/start/args.mjs'
+import { runStart } from '../tools/start/run.mjs'
 import { terminalIo } from './terminal.mjs'
 import { validated } from './args.mjs'
 

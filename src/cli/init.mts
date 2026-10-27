@@ -1,7 +1,7 @@
 import { access, mkdir, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { CDP_FLAGS } from '../tools/doctor.mjs'
-import { runStart } from '../tools/guided-start.mjs'
+import { runStart } from '../tools/start/run.mjs'
 import {
   chooseIpcScenario,
   detectTarget,

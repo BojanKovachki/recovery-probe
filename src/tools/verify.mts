@@ -7,6 +7,12 @@ import {
   type Comparison,
   type RunEvidence,
 } from './compare.mjs'
+import {
+  ensure,
+  isIntegerIn,
+  isNonEmptyString,
+  isRecord,
+} from '../core/validate.mjs'
 import { scanForSuspects, type Suspect } from './suspects.mjs'
 import {
   runCheck,
@@ -33,43 +39,42 @@ export interface VerifyPlan {
 }
 
 export function verifyPlan(input: unknown): VerifyPlan {
-  if (!input || typeof input !== 'object' || Array.isArray(input))
-    throw new Error('The plan must be { base?, runs?, checks }')
-  const {
-    base = 'main',
-    runs = 3,
-    checks,
-    ...rest
-  } = input as Record<string, unknown>
+  ensure(isRecord(input), 'The plan must be { base?, runs?, checks }')
+  const { base = 'main', runs = 3, checks, ...rest } = input
   const [unknown] = Object.keys(rest)
   if (unknown) throw new Error(`Unsupported plan option: ${unknown}`)
-  if (typeof base !== 'string' || !base.trim())
-    throw new Error('base must be a Git reference, such as main')
-  if (
-    typeof runs !== 'number' ||
-    !Number.isInteger(runs) ||
-    runs < 1 ||
-    runs > 10
+  ensure(isNonEmptyString(base), 'base must be a Git reference, such as main')
+  ensure(isIntegerIn(runs, 1, 10), 'runs must be a whole number from 1 to 10')
+  ensure(
+    Array.isArray(checks) && checks.length > 0 && checks.length <= 20,
+    'checks must list 1–20 { name, command } entries',
   )
-    throw new Error('runs must be a whole number from 1 to 10')
-  if (!Array.isArray(checks) || !checks.length || checks.length > 20)
-    throw new Error('checks must list 1–20 { name, command } entries')
   const plan: VerifyPlan = { base, runs, checks: [] }
-  for (const [i, check] of checks.entries()) {
-    const { name, command } = (check ?? {}) as Record<string, unknown>
-    if (typeof name !== 'string' || !NAME.test(name))
-      throw new Error(`checks[${i}].name must match ${NAME}`)
-    if (plan.checks.some((earlier) => earlier.name === name))
-      throw new Error(`Check names must be unique: ${name}`)
-    if (
-      !Array.isArray(command) ||
-      command.some((arg) => typeof arg !== 'string')
-    )
-      throw new Error(`checks[${i}].command must be a list of arguments`)
-    validateCheckCommand(command)
-    plan.checks.push({ name, command: [...command] })
-  }
+  for (const [i, check] of checks.entries())
+    plan.checks.push(planCheck(check, `checks[${i}]`, plan.checks))
   return plan
+}
+
+function planCheck(
+  check: unknown,
+  where: string,
+  earlier: VerifyCheck[],
+): VerifyCheck {
+  const { name, command } = (check ?? {}) as Record<string, unknown>
+  ensure(
+    typeof name === 'string' && NAME.test(name),
+    `${where}.name must match ${NAME}`,
+  )
+  ensure(
+    !earlier.some((other) => other.name === name),
+    `Check names must be unique: ${name}`,
+  )
+  ensure(
+    Array.isArray(command) && command.every((arg) => typeof arg === 'string'),
+    `${where}.command must be a list of arguments`,
+  )
+  validateCheckCommand(command)
+  return { name, command: [...command] }
 }
 
 export type VerifyEvent =
@@ -172,46 +177,52 @@ const evidenceOf = (runs: CheckResult[]) =>
 
 const problemsIn = (runs: RunEvidence[]) => runs.flatMap((run) => run.problems)
 
+const unverified = (
+  name: string,
+  reason: string,
+  comparison?: Comparison,
+): CheckVerification => ({
+  name,
+  verified: false,
+  reason,
+  ...(comparison ? { comparison } : {}),
+})
+
 function verifyCheck(
   check: VerifyCheck,
   baseline: Baseline,
   before: RunEvidence[],
   after: CheckResult[],
 ): CheckVerification {
-  const recorded = baseline.checks.find(
-    (earlier) => earlier.name === check.name,
-  )
+  const { name } = check
+  const recorded = baseline.checks.find((earlier) => earlier.name === name)
   if (!recorded || !before.length)
-    return {
-      name: check.name,
-      verified: false,
-      reason: 'no runs from before the change: run verify --baseline first',
-    }
+    return unverified(
+      name,
+      'no runs from before the change: run verify --baseline first',
+    )
   if (JSON.stringify(recorded.command) !== JSON.stringify(check.command))
-    return {
-      name: check.name,
-      verified: false,
-      reason: 'the check changed since the baseline: record it again',
-    }
+    return unverified(
+      name,
+      'the check changed since the baseline: record it again',
+    )
   const afterEvidence = evidenceOf(after)
   if (!afterEvidence.length)
-    return {
-      name: check.name,
-      verified: false,
-      reason: `no run after the change wrote a report (${after.find((run) => run.error)?.error ?? 'no report'})`,
-    }
+    return unverified(
+      name,
+      `no run after the change wrote a report (${after.find((run) => run.error)?.error ?? 'no report'})`,
+    )
   const comparison = compareRuns(before, afterEvidence, {
     before: 'before',
     after: 'after',
   })
   const incomplete = after.filter((run) => !run.evidence?.complete).length
   if (incomplete)
-    return {
-      name: check.name,
-      verified: false,
-      reason: `${incomplete} of ${after.length} runs after the change were incomplete`,
+    return unverified(
+      name,
+      `${incomplete} of ${after.length} runs after the change were incomplete`,
       comparison,
-    }
+    )
   const clean =
     comparison.verdict === 'IMPROVED' ||
     (comparison.verdict === 'UNCHANGED' && !problemsIn(afterEvidence).length)
@@ -222,6 +233,42 @@ function verifyCheck(
       ? {}
       : { reason: `${comparison.verdict}: ${comparison.summary}` }),
     comparison,
+  }
+}
+
+/** The baseline and the reports its runs wrote, by check. */
+async function readBaseline(directory: string, plan: VerifyPlan) {
+  const baselineFile = join(directory, 'before', 'baseline.json')
+  if (!existsSync(baselineFile))
+    throw new Error(
+      'No baseline: run verify --baseline before changing the code',
+    )
+  const baseline: Baseline = JSON.parse(await readFile(baselineFile, 'utf8'))
+  const before = new Map<string, RunEvidence[]>()
+  for (const check of plan.checks) {
+    const reports = Array.from({ length: plan.runs }, (_, i) =>
+      join(directory, 'before', check.name, `run-${i + 1}`, 'report.json'),
+    ).filter((report) => existsSync(report))
+    before.set(check.name, await Promise.all(reports.map(readRunEvidence)))
+  }
+  return { baseline, before }
+}
+
+/** The suspects on lines changed since `base`; adds to `reasons` when there are any. */
+async function scanChangedLines(base: string, reasons: string[]) {
+  try {
+    const { suspects } = await scanForSuspects({
+      changedSince: base,
+      changedLinesOnly: true,
+    })
+    if (suspects.length)
+      reasons.push(
+        `${suspects.length} suspect(s) on changed lines: prove or dismiss each, and mark a reviewed line with // recovery-probe-ignore`,
+      )
+    return suspects
+  } catch (error) {
+    reasons.push(`the suspect scan did not run: ${(error as Error).message}`)
+    return []
   }
 }
 
@@ -250,19 +297,7 @@ export async function verifyChange(
   options: VerifyOptions,
 ): Promise<Verification> {
   const directory = folderOf(options)
-  const baselineFile = join(directory, 'before', 'baseline.json')
-  if (!existsSync(baselineFile))
-    throw new Error(
-      'No baseline: run verify --baseline before changing the code',
-    )
-  const baseline: Baseline = JSON.parse(await readFile(baselineFile, 'utf8'))
-  const before = new Map<string, RunEvidence[]>()
-  for (const check of options.plan.checks) {
-    const reports = Array.from({ length: options.plan.runs }, (_, i) =>
-      join(directory, 'before', check.name, `run-${i + 1}`, 'report.json'),
-    ).filter((report) => existsSync(report))
-    before.set(check.name, await Promise.all(reports.map(readRunEvidence)))
-  }
+  const { baseline, before } = await readBaseline(directory, options.plan)
   const after = await runSide('after', options)
   const checks = options.plan.checks.map((check) =>
     verifyCheck(
@@ -276,19 +311,7 @@ export async function verifyChange(
     .filter((check) => !check.verified)
     .map((check) => `${check.name}: ${check.reason}`)
   options.onEvent?.({ type: 'scanning', base: options.plan.base })
-  let suspects: Suspect[] = []
-  try {
-    ;({ suspects } = await scanForSuspects({
-      changedSince: options.plan.base,
-      changedLinesOnly: true,
-    }))
-    if (suspects.length)
-      reasons.push(
-        `${suspects.length} suspect(s) on changed lines: prove or dismiss each, and mark a reviewed line with // recovery-probe-ignore`,
-      )
-  } catch (error) {
-    reasons.push(`the suspect scan did not run: ${(error as Error).message}`)
-  }
+  const suspects = await scanChangedLines(options.plan.base, reasons)
   const verdict = reasons.length ? 'NOT_VERIFIED' : 'VERIFIED'
   const result = {
     verdict,

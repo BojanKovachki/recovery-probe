@@ -62,22 +62,6 @@
       "count": 1
     }
   },
-  "src/tools/doctor.mts": {
-    "max-lines-per-function": {
-      "count": 1
-    }
-  },
-  "src/tools/guided-start.mts": {
-    "complexity": {
-      "count": 3
-    },
-    "max-lines": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 2
-    }
-  },
   "src/tools/mcp/server.mts": {
     "complexity": {
       "count": 1
@@ -100,14 +84,6 @@
     },
     "max-lines-per-function": {
       "count": 1
-    }
-  },
-  "src/tools/verify.mts": {
-    "complexity": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 2
     }
   },
   "src/tools/watch.mts": {

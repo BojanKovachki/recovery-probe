@@ -8,7 +8,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
-import { runStart } from '../../dist/tools/guided-start.mjs'
+import { runStart } from '../../dist/tools/start/run.mjs'
 import { pickMarker } from '../../dist/tools/pick-marker.mjs'
 const exec = promisify(execFile)
 const cli = fileURLToPath(

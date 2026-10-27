@@ -166,23 +166,7 @@ async function ipcCheck(
       },
     }
   const result = await identifyIpcHook(inspector)
-  if ('error' in result) {
-    const notLoaded = /__recoveryProbeIpc|undefined/.test(result.error)
-    return {
-      check: {
-        name,
-        status: 'problem',
-        detail: notLoaded
-          ? "the inspector is up, but the hook isn't loaded"
-          : result.error,
-        fix: notLoaded
-          ? ipcHookSetup()
-          : /WebContents/.test(result.error)
-            ? "Open the app window. The hook's sender() must return its webContents."
-            : undefined,
-      },
-    }
-  }
+  if ('error' in result) return { check: hookError(name, result.error) }
   const { identity } = result
   if (identity.version !== version)
     return {
@@ -194,23 +178,44 @@ async function ipcCheck(
         fix: `Restart the app with RECOVERY_PROBE_IPC_MODULE=${IPC_HOOK_PATH}`,
       },
     }
-  // The hook records a channel only if it's allowed and the app registers it after the hook loads.
+  return { identity, check: channelsCheck(name, identity, version) }
+}
+
+function hookError(name: string, error: string): DoctorCheck {
+  const notLoaded = /__recoveryProbeIpc|undefined/.test(error)
+  return {
+    name,
+    status: 'problem',
+    detail: notLoaded
+      ? "the inspector is up, but the hook isn't loaded"
+      : error,
+    fix: notLoaded
+      ? ipcHookSetup()
+      : /WebContents/.test(error)
+        ? "Open the app window. The hook's sender() must return its webContents."
+        : undefined,
+  }
+}
+
+// The hook records a channel only if it's allowed and the app registers it after the hook loads.
+function channelsCheck(
+  name: string,
+  identity: IpcIdentity,
+  version: string,
+): DoctorCheck {
   const unregistered = (identity.channels ?? []).filter(
     (c) => !identity.registered.includes(c),
   )
   const count = identity.registered.length
   const detail = `${version}, ${count} ${count === 1 ? 'channel' : 'channels'} to test`
-  return {
-    identity,
-    check: unregistered.length
-      ? {
-          name,
-          status: count ? 'ok' : 'problem',
-          detail: `${detail}; never registered: ${unregistered.join(', ')}`,
-          fix: 'Check those channel names, and load the hook before the app registers its IPC handlers.',
-        }
-      : { name, status: 'ok', detail },
-  }
+  return unregistered.length
+    ? {
+        name,
+        status: count ? 'ok' : 'problem',
+        detail: `${detail}; never registered: ${unregistered.join(', ')}`,
+        fix: 'Check those channel names, and load the hook before the app registers its IPC handlers.',
+      }
+    : { name, status: 'ok', detail }
 }
 
 export async function runDoctor({
