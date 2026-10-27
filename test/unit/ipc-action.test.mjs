@@ -4,6 +4,7 @@ import { installIpcProbe } from '../../dist/ipc-probe.cjs'
 import { actionConfig } from '../../dist/workflows/action/config.mjs'
 import { classifyActionRuns } from '../../dist/workflows/action/classify.mjs'
 import { observationSteps } from '../../dist/workflows/observe/steps.mjs'
+import { fake } from '../helpers/fake.mjs'
 
 function hook() {
   const handlers = new Map()
@@ -12,12 +13,13 @@ function hook() {
       handlers.set(channel, listener)
     },
   }
-  const sender = {
+  /** @type {import('../../dist/ipc-probe.cjs').ProbeWebContents} */
+  const sender = fake({
     id: 1,
     mainFrame: {},
     isDestroyed: () => false,
     getURL: () => 'file:///fixture.html#/contacts',
-  }
+  })
   const probe = installIpcProbe(ipc, {
     enabled: true,
     channels: ['write'],
@@ -52,12 +54,16 @@ test('injected results can settle after a simulated latency', async () => {
   assert.equal(probe.snapshot().channels.write.realCalls, 0)
   probe.begin({ id: 'instant', channel: 'write', fault: 'rejection' })
   assert.equal(probe.snapshot().armed.delayMs, 0)
-  for (const [id, options, message] of [
+  for (const [
+    id,
+    options,
+    message,
+  ] of /** @type {[string, object, RegExp][]} */ ([
     ['no-fault', { delayMs: 10 }, /needs a fault/],
     ['too-long', { fault: 'rejection', delayMs: 10001 }, /0–10000/],
     ['fraction', { fault: 'rejection', delayMs: 1.5 }, /0–10000/],
     ['observation', { observation: true, delayMs: 10 }, /needs a fault/],
-  ])
+  ]))
     assert.throws(
       () => probe.begin({ id, channel: 'write', ...options }),
       message,
@@ -147,12 +153,21 @@ test('fill and press steps validate their argument', () => {
 })
 
 // A screen state: only the fields the classifier reads.
-const ui = (fingerprint, flags = {}) => ({
-  fingerprint,
-  error: false,
-  retry: false,
-  ...flags,
-})
+/** @returns {ActionRun['final']} */
+const ui = (fingerprint, flags = {}) =>
+  fake({
+    fingerprint,
+    error: false,
+    retry: false,
+    ...flags,
+  })
+/** @typedef {Parameters<typeof classifyActionRuns>[0][number]} ActionRun */
+
+/**
+ * @param {ActionRun['kind']} kind
+ * @param {Partial<ActionRun> & { states?: ActionRun['final'][] }} [options]
+ * @returns {ActionRun}
+ */
 const run = (
   kind,
   { requests = 1, before = ui('form'), states = [], ...rest } = {},

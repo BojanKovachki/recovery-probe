@@ -11,8 +11,13 @@ import {
   changedSourceFiles,
 } from '../../dist/tools/suspects/files.mjs'
 
+// The default import is the namespace scanSource takes, typed without its default.
+const typescript = /** @type {Parameters<typeof scanSource>[0]} */ (
+  /** @type {unknown} */ (ts)
+)
+
 const scan = (code, file = 'store.ts') =>
-  scanSource(ts, file, code).map(({ pattern, line, read }) => ({
+  scanSource(typescript, file, code).map(({ pattern, line, read }) => ({
     pattern,
     line,
     ...(read ? { read } : {}),

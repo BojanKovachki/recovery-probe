@@ -5,19 +5,25 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { attachIpcWindow } from '../../dist/targets/ipc-window.mjs'
 import { reportFolder } from '../../dist/reports/folder.mjs'
+import { fake } from '../helpers/fake.mjs'
 
 // Pages that run their evaluate callbacks here, and a hook that checks the challenge.
 const page = (url) => ({ url: () => url, evaluate: async (fn, arg) => fn(arg) })
-const browser = (...pages) => ({ contexts: () => [{ pages: () => pages }] })
-const hook = (identity) => ({
-  calls: [],
-  async call(method, challenge) {
-    this.calls.push(challenge)
-    if (challenge && globalThis.__recoveryProbeWindowNonce !== challenge)
-      throw new Error('Not the same window')
-    return identity
-  },
-})
+/** @returns {import('playwright').Browser} */
+const browser = (...pages) => fake({ contexts: () => [{ pages: () => pages }] })
+const hook = (identity) => {
+  const calls = []
+  /** @type {import('../../dist/transports/ipc/inspector.mjs').IpcInspector} */
+  const control = fake({
+    async call(method, challenge) {
+      calls.push(challenge)
+      if (challenge && globalThis.__recoveryProbeWindowNonce !== challenge)
+        throw new Error('Not the same window')
+      return identity
+    },
+  })
+  return { control, calls }
+}
 const identity = {
   pageUrl: 'file:///app.html',
   registered: ['files:read'],
@@ -26,7 +32,7 @@ const identity = {
 
 test('the hook window is found once, proven with a challenge and left clean', async () => {
   const target = page('file:///app.html')
-  const control = hook(identity)
+  const { control, calls } = hook(identity)
   const attached = await attachIpcWindow(
     browser(page('file:///other.html'), target),
     control,
@@ -34,13 +40,13 @@ test('the hook window is found once, proven with a challenge and left clean', as
   )
   assert.equal(attached.page, target)
   assert.equal(attached.identity, identity)
-  assert.match(control.calls[1], /^[0-9a-f-]{36}$/)
+  assert.match(calls[1], /^[0-9a-f-]{36}$/)
   assert.equal(Object.hasOwn(globalThis, '__recoveryProbeWindowNonce'), false)
 })
 
 test('a channel the hook did not capture, or no single window, stops the attach', async () => {
   await assert.rejects(
-    attachIpcWindow(browser(page(identity.pageUrl)), hook(identity), [
+    attachIpcWindow(browser(page(identity.pageUrl)), hook(identity).control, [
       'files:read',
       'files:write',
     ]),
@@ -48,7 +54,9 @@ test('a channel the hook did not capture, or no single window, stops the attach'
   )
   for (const pages of [[], [page(identity.pageUrl), page(identity.pageUrl)]])
     await assert.rejects(
-      attachIpcWindow(browser(...pages), hook(identity), ['files:read']),
+      attachIpcWindow(browser(...pages), hook(identity).control, [
+        'files:read',
+      ]),
       /exactly one window/,
     )
 })

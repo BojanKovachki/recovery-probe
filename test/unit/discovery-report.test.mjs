@@ -13,6 +13,7 @@ import {
 } from '../../dist/workflows/discover/experiment.mjs'
 import { writeDiscoveryReport } from '../../dist/reports/discovery.mjs'
 import { retainPartialFindings } from '../../dist/workflows/discover/experiment.mjs'
+import { fake } from '../helpers/fake.mjs'
 
 test('later calls are failed one by one only when every healthy load made as many', () => {
   assert.deepEqual(laterCalls([1, 1, 1]), [])
@@ -33,14 +34,15 @@ test('a later-call experiment keeps its own id, also when it is cut short', () =
     'rejection-1-call2',
   )
   const interpretation = { classification: 'RECOVERED', kind: 'observation' }
-  const report = {
+  /** @type {Parameters<typeof retainPartialFindings>[0]} */
+  const report = fake({
     results: [
       { fault: 'rejection', times: 1, interpretation },
       { fault: 'rejection', times: 1, call: 2, interpretation },
     ],
     findings: [{ id: 'rejection-1' }],
     error: 'CONTROL_UNSTABLE',
-  }
+  })
   retainPartialFindings(report, 3)
   assert.equal(report.findings.length, 2)
   assert.equal(report.findings[1].id, 'rejection-1-call2')
@@ -89,7 +91,8 @@ test('only discovery takes screenshots', async () => {
   ])
     await assert.rejects(
       promisify(execFile)(process.execPath, [cli, ...args]),
-      (error) => /--screenshots needs --discover/.test(error.stderr),
+      (/** @type {{ code: number, stdout: string, stderr: string }} */ error) =>
+        /--screenshots needs --discover/.test(error.stderr),
       args.join(' '),
     )
 })

@@ -2,6 +2,9 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { callIpcInspector } from '../../dist/ipc-inspector.mjs'
 import { resetIpcAndConfirm } from '../../dist/transports/ipc/control.mjs'
+import { fake } from '../helpers/fake.mjs'
+
+/** @typedef {import('../../dist/transports/ipc/inspector.mjs').IpcInspector} IpcInspector */
 
 test('synchronous controls never enable implicit Promise awaiting', async () => {
   const calls = []
@@ -10,12 +13,15 @@ test('synchronous controls never enable implicit Promise awaiting', async () => 
     if (params.awaitPromise !== false) throw Error('Promise was collected')
     return { result: { value: { armed: null } } }
   }
-  for (const [method, argument] of [
+  for (const [
+    method,
+    argument,
+  ] of /** @type {[Parameters<typeof callIpcInspector>[1], unknown?][]} */ ([
     ['identify'],
     ['snapshot'],
     ['begin', { id: 'run' }],
     ['reset', 'run'],
-  ]) {
+  ])) {
     assert.deepEqual(await callIpcInspector(send, method, argument), {
       armed: null,
     })
@@ -70,7 +76,8 @@ test('async identification retains and explicitly awaits its Promise, then relea
 test('readback verifies disarm despite lost reset replies; newer armed plans are not reset', async () => {
   let state = { id: 'run', armed: { fault: 'rejection' } }
   const calls = []
-  const control = {
+  /** @type {IpcInspector} */
+  const control = fake({
     async call(method, id) {
       calls.push([method, id])
       if (method === 'reset') {
@@ -81,7 +88,7 @@ test('readback verifies disarm despite lost reset replies; newer armed plans are
       }
       return state
     },
-  }
+  })
   assert.equal((await resetIpcAndConfirm(control, 'run')).armed, null)
   assert.deepEqual(
     calls.map((c) => c[0]),
@@ -93,7 +100,9 @@ test('readback verifies disarm despite lost reset replies; newer armed plans are
   for (const snapshot of [undefined, {}, { armed: {} }]) {
     await assert.rejects(
       resetIpcAndConfirm(
-        { call: async (method) => (method === 'snapshot' ? snapshot : null) },
+        fake({
+          call: async (method) => (method === 'snapshot' ? snapshot : null),
+        }),
         'run',
       ),
       /cleanup unverified/,
@@ -101,11 +110,11 @@ test('readback verifies disarm despite lost reset replies; newer armed plans are
   }
   await assert.rejects(
     resetIpcAndConfirm(
-      {
+      fake({
         call: async () => {
           throw Error('disconnected')
         },
-      },
+      }),
       'run',
     ),
     /cannot read back state/,

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { chromium } from 'playwright'
 import { discoverHttp } from '../../dist/workflows/discover/http.mjs'
+import { listen } from '../helpers/ports.mjs'
 
 async function withFixture(mode, exercise) {
   let loads = 0
@@ -28,8 +29,7 @@ async function withFixture(mode, exercise) {
         }, 500)).catch(() => {});
     </script>`)
   })
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
-  const base = `http://127.0.0.1:${server.address().port}`
+  const base = `http://127.0.0.1:${await listen(server)}`
   let browser
   try {
     browser = await chromium.launch()

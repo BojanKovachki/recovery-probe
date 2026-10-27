@@ -15,6 +15,7 @@ import {
   hostMatches,
   connectNetworkFaults,
 } from '../../dist/net-fault.mjs'
+import { listen } from '../helpers/ports.mjs'
 
 // The proxy never reads what goes through a tunnel, so an echo server stands in
 // for the HTTPS server behind it.
@@ -25,9 +26,7 @@ before(async () => {
     socket.on('error', () => {})
     socket.pipe(socket)
   })
-  echo.listen(0, '127.0.0.1')
-  await once(echo, 'listening')
-  echoPort = echo.address().port
+  echoPort = await listen(echo)
 })
 after(() => echo.close())
 
@@ -187,9 +186,8 @@ test('a rule drops the open connections when it starts to apply', async () => {
 })
 
 test('reports a host it cannot reach', async () => {
-  const unused = net.createServer().listen(0, '127.0.0.1')
-  await once(unused, 'listening')
-  const closedPort = unused.address().port
+  const unused = net.createServer()
+  const closedPort = await listen(unused)
   unused.close()
   await withProxy(undefined, async (proxy) => {
     assert.equal((await tunnel(proxy, '127.0.0.1', closedPort)).status, 502)
@@ -338,6 +336,7 @@ test('can be controlled from another process', async () => {
     assert.equal(await control.dropOpen('127.0.0.1'), 1)
     await closed
     await assert.rejects(
+      // @ts-expect-error: a fault the proxy doesn't have
       control.arm([{ host: '127.0.0.1', fault: 'drop' }]),
       /arm failed \(400\): rules\[0\]\.fault/,
     )

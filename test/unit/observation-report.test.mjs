@@ -9,6 +9,7 @@ import {
   comparisonFollowUpSummary,
 } from '../../dist/workflows/observe/comparisons.mjs'
 import { createRequire } from 'node:module'
+import { fake } from '../helpers/fake.mjs'
 
 test('sampling measures actual durations and start cadence, including unchanged samples', () => {
   const metrics = samplingMetrics(100)
@@ -33,6 +34,9 @@ test('sampling measures actual durations and start cadence, including unchanged 
   })
 })
 
+/** @typedef {Parameters<ContentComparisons['add']>[0]} Sample */
+
+/** @returns {Sample} */
 const sample = (
   successes,
   {
@@ -45,22 +49,23 @@ const sample = (
     visible = true,
     presence = 'visible',
   } = {},
-) => ({
-  interval,
-  fromMs: 10,
-  toMs: 20,
-  ui: {
-    presence,
-    visible,
-    contentCount: count,
-    ...(presence === 'visible'
-      ? { content: { count, textFingerprint: text, truncated } }
-      : {}),
-  },
-  before: { successes, errors },
-  after: { successes: successes + during, errors },
-  reads: { calls: successes + errors, pendingAtStart: 0 },
-})
+) =>
+  fake({
+    interval,
+    fromMs: 10,
+    toMs: 20,
+    ui: {
+      presence,
+      visible,
+      contentCount: count,
+      ...(presence === 'visible'
+        ? { content: { count, textFingerprint: text, truncated } }
+        : {}),
+    },
+    before: { successes, errors },
+    after: { successes: successes + during, errors },
+    reads: { calls: successes + errors, pendingAtStart: 0 },
+  })
 test('content comparisons wait for a sample after completion and separate changed, unchanged and failed reads', () => {
   const tracker = new ContentComparisons()
   assert.deepEqual(tracker.add(sample(0)), [])
@@ -99,6 +104,7 @@ test('sample phase metrics include repeated samples without leaking timing into 
     uiRoundTripMs: 8,
     beforeSnapshotMs: 3,
   })
+  // @ts-expect-error: a phase the metrics don't keep
   metrics.add(60, 75, { rendererReadMs: 4, uiRoundTripMs: 12, ignored: 99 })
   assert.deepEqual(metrics.snapshot().phases.rendererReadMs, {
     count: 2,

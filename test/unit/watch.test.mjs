@@ -223,13 +223,13 @@ test('scans changed files for suspects without a check', async () => {
 })
 
 test('accepts only a check it can rerun the same way', async () => {
-  for (const [command, message] of [
+  for (const [command, message] of /** @type {[string[], RegExp][]} */ ([
     [['start', 'web'], /reruns a check/],
     [['mcp'], /reruns a check/],
     [['ipc', '--action'], /needs --config/],
     [['ipc', '--config', 'a.json', '--out', 'x'], /Leave out --out/],
     [['observe', '--config', 'a.json', '--interactive'], /--interactive/],
-  ])
+  ]))
     assert.throws(() => validateCheckCommand(command), message)
   validateCheckCommand(['--config', 'scenario.json'])
   validateCheckCommand(['observe', '--config', 'observe.json', '--steps', 's'])

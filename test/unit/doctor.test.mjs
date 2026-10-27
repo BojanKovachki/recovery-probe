@@ -4,7 +4,7 @@ import { spawn, execFile } from 'node:child_process'
 import { createServer } from 'node:http'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
-import { freePort } from '../helpers/ports.mjs'
+import { freePort, listen } from '../helpers/ports.mjs'
 import { IPC_HOOK_PATH, runDoctor } from '../../dist/tools/doctor.mjs'
 
 const cli = fileURLToPath(
@@ -69,10 +69,10 @@ test('an Electron app on the debugging port is named with its windows', async (t
       ),
     )
   })
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const port = await listen(server)
   t.after(() => server.close())
   const report = await runDoctor({
-    cdp: `http://127.0.0.1:${server.address().port}`,
+    cdp: `http://127.0.0.1:${port}`,
     inspector: await unused(),
   })
   assert.equal(check(report, 'App on').status, 'ok')

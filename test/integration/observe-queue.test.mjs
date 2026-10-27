@@ -10,6 +10,9 @@ import { observationSteps } from '../../dist/workflows/observe/steps.mjs'
 import { runSteps } from '../../dist/workflows/observe/step-runner.mjs'
 import { actionSummary } from '../../dist/workflows/observe/summaries.mjs'
 import { installObserverKit } from '../../dist/workflows/observe/kit.mjs'
+import { listen } from '../helpers/ports.mjs'
+
+/** @typedef {import('../../dist/workflows/observe/report.mjs').DelayedUiUpdateFinding} DelayedUiUpdateFinding */
 
 let browser,
   server,
@@ -55,8 +58,7 @@ before(async () => {
       response.end(html)
     }
   })
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
-  origin = `http://127.0.0.1:${server.address().port}`
+  origin = `http://127.0.0.1:${await listen(server)}`
   browser = await chromium.launch({ headless: true })
 })
 after(async () => {
@@ -129,7 +131,9 @@ test(
       starts.every((a) => a.trusted),
       'scripted steps use real input events',
     )
-    const finding = report.findings.find((f) => f.code === 'DELAYED_UI_UPDATE')
+    const finding = /** @type {DelayedUiUpdateFinding} */ (
+      report.findings.find((f) => f.code === 'DELAYED_UI_UPDATE')
+    )
     assert.ok(finding, JSON.stringify(report.rows))
     assert.equal(finding.row, 'second')
     assert.equal(finding.from, 'Pause')

@@ -4,6 +4,15 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.8.0-preview.16 (2026-10-27)
+
+The tests are type-checked. No change to the package.
+
+- `npm run typecheck` covers `test`, against the built declarations, so a test that calls a function with the wrong options or reads a field a report doesn't have fails before it runs.
+- `fake()` in `test/helpers/fake.mjs` builds a page, browser, IPC hook or report from only the members a test needs, typed as the real thing; a misspelled member is a type error.
+- `listen()` in `test/helpers/ports.mjs` starts a test server on a free loopback port and returns the port.
+- Deliberately invalid input is marked with `// @ts-expect-error` and the reason.
+
 ## 0.8.0-preview.15 (2026-10-27)
 
 Check results say more about why they aren't a pass.

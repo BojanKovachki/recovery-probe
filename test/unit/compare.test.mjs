@@ -301,10 +301,10 @@ test('reads report folders and runs from the command line', async () => {
     ])
     assert.ok(markdown.stdout.includes('| Problem | before | fix | Change |'))
     // A folder of run folders stands for repeated runs.
-    for (const [side, findings] of [
+    for (const [side, findings] of /** @type {[string, string[][]][]} */ ([
       ['main', [['SILENT_FAILURE', 'suspected-defect']]],
       ['branch', [['FEEDBACK_SHOWN', 'observation']]],
-    ])
+    ]))
       for (const name of ['run-1', 'run-2']) {
         await mkdir(join(root, side, name), { recursive: true })
         await writeFile(

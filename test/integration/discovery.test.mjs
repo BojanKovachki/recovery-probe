@@ -5,6 +5,7 @@ import { chromium } from 'playwright'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { discoverHttp } from '../../dist/workflows/discover/http.mjs'
 import { checkDesktop } from '../../dist/desktop.mjs'
+import { listen } from '../helpers/ports.mjs'
 
 function fixture(options) {
   return `<!doctype html><meta charset="utf-8"><main><h1>Catalog</h1><div id="loading" role="progressbar">…</div><section id="content"></section></main><script>
@@ -66,8 +67,7 @@ test(
         ),
       )
     })
-    await new Promise((r) => server.listen(0, '127.0.0.1', r))
-    const base = `http://127.0.0.1:${server.address().port}`
+    const base = `http://127.0.0.1:${await listen(server)}`
     const browser = await chromium.launch()
     const page = await browser.newPage()
     const metrics = []
@@ -249,6 +249,7 @@ test(
       // injected HTTP-200 malformed body from later-success counts.
       options = { style: 'async', family: 'list', retries: 1 }
       await page.goto(base)
+      /** @type {import('../../dist/desktop.mjs').DesktopConfig} */
       const config = {
         pageUrl: base,
         endpoint: base + '/api/read',

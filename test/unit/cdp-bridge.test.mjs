@@ -4,6 +4,7 @@ import { createServer } from 'node:http'
 import { once } from 'node:events'
 import { startCdpBridge } from '../../dist/targets/cdp-bridge/bridge.mjs'
 import { acceptWebSocket } from '../../dist/targets/cdp-bridge/websocket.mjs'
+import { listen } from '../helpers/ports.mjs'
 
 const appPage = { targetId: 'APP', type: 'page', url: 'https://app.test/' }
 const blankPage = { targetId: 'BLANK', type: 'page', url: '' }
@@ -78,10 +79,9 @@ async function fakeDevice() {
       () => {},
     )
   })
-  server.listen(0, '127.0.0.1')
-  await once(server, 'listening')
+  const port = await listen(server)
   return {
-    url: `http://127.0.0.1:${server.address().port}`,
+    url: `http://127.0.0.1:${port}`,
     received,
     close: () =>
       new Promise((resolve) => {

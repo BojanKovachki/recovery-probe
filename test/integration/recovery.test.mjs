@@ -67,7 +67,7 @@ test('a successful assertion cannot hide an injection that never happened', asyn
           await page.locator('#profile').waitFor()
         },
       ),
-      (error) =>
+      (/** @type {import('../../dist/index.mjs').ProbeError} */ error) =>
         error.code === 'FAULT_NOT_TRIGGERED' && error.stats.applied === 0,
     )
   } finally {
@@ -161,7 +161,8 @@ test('route cleanup runs even when the user assertion fails', async () => {
           throw new Error('intentional assertion failure')
         },
       ),
-      (error) => error.code === 'RECOVERY_ASSERTION_FAILED',
+      (/** @type {import('../../dist/index.mjs').ProbeError} */ error) =>
+        error.code === 'RECOVERY_ASSERTION_FAILED',
     )
     assert.equal(
       await page.evaluate(() =>
@@ -192,6 +193,7 @@ test('invalid configurations are rejected before requests are intercepted', asyn
     /status/,
   )
   await assert.rejects(
+    // @ts-expect-error: a fault kind that doesn't exist
     withFault(null, { match: '**/*', kind: 'unknown' }, async () => {}),
     /Unsupported/,
   )

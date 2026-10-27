@@ -4,6 +4,11 @@ import { observationConfig } from '../../dist/workflows/observe/config.mjs'
 import { runObservation } from '../../dist/workflows/observe/capture.mjs'
 import { ipcObservationAdapter } from '../../dist/workflows/observe/adapters.mjs'
 import { installIpcProbe } from '../../dist/ipc-probe.cjs'
+import { fake } from '../helpers/fake.mjs'
+
+/** @typedef {import('../../dist/transports/ipc/inspector.mjs').IpcInspector} IpcInspector */
+/** @typedef {import('../../dist/ipc-probe.cjs').IpcSnapshot} IpcSnapshot */
+/** @typedef {Parameters<typeof runObservation>[2]} Adapter */
 
 function fixture() {
   let listener, complete
@@ -12,12 +17,13 @@ function fixture() {
       listener = fn
     },
   }
-  const sender = {
+  /** @type {import('../../dist/ipc-probe.cjs').ProbeWebContents} */
+  const sender = fake({
     id: 1,
     mainFrame: {},
     isDestroyed: () => false,
     getURL: () => 'file:///synthetic.html',
-  }
+  })
   const probe = installIpcProbe(ipc, {
     enabled: true,
     channels: ['fixture:read'],
@@ -30,7 +36,8 @@ function fixture() {
         complete = resolve
       }),
   )
-  const control = { call: async (method, arg) => probe[method](arg) }
+  /** @type {IpcInspector} */
+  const control = fake({ call: async (method, arg) => probe[method](arg) })
   return {
     probe,
     control,
@@ -38,7 +45,8 @@ function fixture() {
     complete: () => complete('value'),
   }
 }
-const c = { channel: 'fixture:read', observationMs: 500 }
+/** @type {import('../../dist/workflows/observe/config.mjs').ObservationConfig} */
+const c = fake({ channel: 'fixture:read', observationMs: 500 })
 test('observation config rejects mutation options and requires explicit content evidence', () => {
   const input = {
     transport: 'http',
@@ -68,10 +76,13 @@ test('fault-free IPC observation tracks starts and settlements, preserves promis
   const a = ipcObservationAdapter(f.control, c, 1)
   await a.start()
   assert.equal(a.metadata().version, f.probe.identify().version)
-  assert.equal(a.metadata().runtime.node, process.versions.node)
+  assert.equal(
+    /** @type {{ node: string }} */ (a.metadata().runtime).node,
+    process.versions.node,
+  )
   assert.equal('pageUrl' in a.metadata(), false)
   const pending = f.call()
-  const started = await a.snapshot()
+  const started = /** @type {IpcSnapshot} */ (await a.snapshot())
   assert.equal(started.channels[c.channel].pending, 1)
   assert.ok(started.channels[c.channel].firstReadAt >= started.startedAt)
   assert.equal(started.channels[c.channel].lastCompletedAt, null)
@@ -101,18 +112,22 @@ test('fault-free IPC observation tracks starts and settlements, preserves promis
 })
 test('lost observation begin reply is cleaned up; foreign fault and observation plans are never replaced', async () => {
   const f = fixture()
-  const unreliable = {
+  /** @type {IpcInspector} */
+  const unreliable = fake({
     async call(method, arg) {
       const value = await f.control.call(method, arg)
       if (method === 'begin') throw Error('lost reply')
       return value
     },
-  }
+  })
   const a = ipcObservationAdapter(unreliable, c, 1)
   await assert.rejects(a.start(), /lost reply/)
   await a.stop()
   assert.equal(f.probe.snapshot().observingUntil, null)
-  for (const plan of [{ fault: 'rejection' }, { observation: true }]) {
+  for (const plan of /** @type {object[]} */ ([
+    { fault: 'rejection' },
+    { observation: true },
+  ])) {
     const id = JSON.stringify(plan)
     f.probe.begin({ id, channel: c.channel, ...plan })
     const foreign = ipcObservationAdapter(f.control, c, 1)
@@ -141,6 +156,7 @@ test('observation rejects faults and expires its lease; unsupported hooks fail b
         id: 'bad',
         channel: c.channel,
         observation: true,
+        // @ts-expect-error: an observation is fault-free
         fault: 'rejection',
       }),
     /fault-free/,
@@ -155,12 +171,12 @@ test('observation rejects faults and expires its lease; unsupported hooks fail b
   assert.equal(f.probe.snapshot().observingUntil, null)
   const calls = []
   const old = ipcObservationAdapter(
-    {
+    fake({
       async call(method) {
         calls.push(method)
         return { senderId: 1, capabilities: {} }
       },
-    },
+    }),
     c,
     1,
   )
@@ -177,7 +193,8 @@ test(
       let evaluations = 0,
         stopped = false
       const abort = new AbortController()
-      const page = {
+      /** @type {import('playwright').Page} */
+      const page = fake({
         on() {},
         off() {},
         evaluate() {
@@ -185,7 +202,7 @@ test(
           if (interrupt) abort.abort()
           return new Promise(() => {}) // A blocked renderer never answers the UI read.
         },
-      }
+      })
       const row = {
         calls: 0,
         successes: 0,
@@ -194,7 +211,8 @@ test(
         lastReadAt: null,
         lastCompletedAt: null,
       }
-      const adapter = {
+      /** @type {Adapter} */
+      const adapter = fake({
         async start() {},
         async snapshot() {
           return { channels: { 'fixture:read': row } }
@@ -202,7 +220,7 @@ test(
         async stop() {
           stopped = true
         },
-      }
+      })
       const report = await runObservation(
         page,
         {
@@ -239,7 +257,8 @@ test('the operator interval acknowledgement follows its read-counter boundary', 
   const abort = new AbortController()
   let announced = false,
     marker = true
-  const page = {
+  /** @type {import('playwright').Page} */
+  const page = fake({
     on() {},
     off() {},
     async evaluate() {
@@ -250,14 +269,15 @@ test('the operator interval acknowledgement follows its read-counter boundary', 
         online: true,
       }
     },
-  }
-  const adapter = {
+  })
+  /** @type {Adapter} */
+  const adapter = fake({
     async start() {},
     async snapshot() {
       return { channels: { 'fixture:read': { ...row } } }
     },
     async stop() {},
-  }
+  })
   const report = await runObservation(
     page,
     {
@@ -293,7 +313,8 @@ test('the operator interval acknowledgement follows its read-counter boundary', 
 // preview.12 hooks support observation but do not expose version/runtime metadata.
 test('older observation-capable hooks retain coverage with unknown provenance', async () => {
   const f = fixture()
-  const control = {
+  /** @type {IpcInspector} */
+  const control = fake({
     async call(method, arg) {
       const value = await f.control.call(method, arg)
       if (method === 'identify') {
@@ -302,19 +323,27 @@ test('older observation-capable hooks retain coverage with unknown provenance', 
       }
       return value
     },
-  }
+  })
   const adapter = ipcObservationAdapter(control, c, 1)
   await adapter.start()
   assert.equal(adapter.metadata().version, null)
-  assert.equal(adapter.metadata().runtime.electron, null)
-  assert.equal((await adapter.snapshot()).injected, 0)
+  assert.equal(
+    /** @type {{ electron: string | null }} */ (adapter.metadata().runtime)
+      .electron,
+    null,
+  )
+  assert.equal(
+    /** @type {IpcSnapshot} */ (await adapter.snapshot()).injected,
+    0,
+  )
   await adapter.stop()
 })
 
 test('cleanup evidence is not returned when the readback still shows an active lease', async () => {
   const f = fixture()
   let reset = false
-  const control = {
+  /** @type {IpcInspector} */
+  const control = fake({
     async call(method, arg) {
       if (method === 'reset') {
         reset = true
@@ -322,7 +351,7 @@ test('cleanup evidence is not returned when the readback still shows an active l
       } // Simulate an acknowledged but ineffective reset.
       return f.control.call(method, arg)
     },
-  }
+  })
   const adapter = ipcObservationAdapter(control, c, 1)
   await adapter.start()
   try {

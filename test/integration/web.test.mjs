@@ -9,6 +9,7 @@ import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { checkWeb, discoverWeb } from '../../dist/web.mjs'
 import { assertReportShape } from '../helpers/report-shape.mjs'
+import { listen } from '../helpers/ports.mjs'
 const exec = promisify(execFile)
 
 test(
@@ -33,8 +34,7 @@ test(
         `<p id="profile"></p><script>async function load(){try{const r=await fetch('/api/profile?private=do-not-record');if(!r.ok)throw Error();const d=await r.json();document.querySelector('#profile').textContent=d.name}catch{setTimeout(load,30)}}load()</script>`,
       )
     })
-    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
-    const url = `http://127.0.0.1:${server.address().port}`
+    const url = `http://127.0.0.1:${await listen(server)}`
     try {
       const state = join(dir, 'auth.json')
       await writeFile(
@@ -55,6 +55,7 @@ test(
           origins: [],
         }),
       )
+      /** @type {import('../../dist/web.mjs').WebConfig} */
       const config = {
         pageUrl: `${url}/`,
         endpoint: `${url}/api/profile`,
@@ -105,7 +106,7 @@ test(
           [cli, 'check', '--config', signedOut, '--out', join(dir, 'out')],
           { timeout: 20000 },
         ),
-        (error) =>
+        (/** @type {{ code: number, stdout: string }} */ error) =>
           error.code === 2 &&
           /BASELINE_FAILED.*\n +Why: no successful response from the endpoint/.test(
             error.stdout,

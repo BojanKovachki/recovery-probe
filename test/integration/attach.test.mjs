@@ -10,6 +10,7 @@ import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { freePort } from '../helpers/ports.mjs'
 import { assertReportShape } from '../helpers/report-shape.mjs'
+import { listen } from '../helpers/ports.mjs'
 const exec = promisify(execFile)
 test(
   'web attach CLI preserves a sessionStorage login without exporting it',
@@ -29,8 +30,7 @@ test(
       res.end(`<!doctype html><main><h1>Items</h1><div id="result"></div></main><script>
     let attempts=0;async function load(){try{if(!sessionStorage.getItem('session')){document.querySelector('#result').textContent='Sign in';return;}const r=await fetch('/api/read',{headers:{Authorization:sessionStorage.getItem('session')}});if(!r.ok)throw Error();const d=await r.json();document.querySelector('#result').innerHTML='<ul><li>'+d.name+'</li></ul>';}catch{if(attempts++===0)setTimeout(load,30);else document.querySelector('#result').innerHTML='<div role="alert">Could not load</div>';}}load();</script>`)
     })
-    await new Promise((r) => server.listen(0, '127.0.0.1', r))
-    const url = `http://127.0.0.1:${server.address().port}`
+    const url = `http://127.0.0.1:${await listen(server)}`
     const port = await freePort()
     const browser = await chromium.launch({
       args: [

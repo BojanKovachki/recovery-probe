@@ -1,6 +1,7 @@
 import { mkdtemp, mkdir, writeFile, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fake } from './fake.mjs'
 import { freePort } from './ports.mjs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -107,17 +108,19 @@ export const fixtureProposal = {
     },
   ],
 }
-export const mockProvider = async () => ({
-  ok: true,
-  json: async () => ({
-    status: 'completed',
-    output: [
-      {
-        type: 'message',
-        content: [
-          { type: 'output_text', text: JSON.stringify(fixtureProposal) },
-        ],
-      },
-    ],
-  }),
-})
+/** @type {typeof fetch} */
+export const mockProvider = async () =>
+  fake({
+    ok: true,
+    json: async () => ({
+      status: 'completed',
+      output: [
+        {
+          type: 'message',
+          content: [
+            { type: 'output_text', text: JSON.stringify(fixtureProposal) },
+          ],
+        },
+      ],
+    }),
+  })

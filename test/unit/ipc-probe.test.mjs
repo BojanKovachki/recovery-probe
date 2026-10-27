@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { installIpcProbe } from '../../dist/ipc-probe.cjs'
 import { validateIpcConfig } from '../../dist/workflows/check/ipc/config.mjs'
+import { fake } from '../helpers/fake.mjs'
 function fixture(real) {
   const handlers = new Map()
   const ipc = {
@@ -10,12 +11,13 @@ function fixture(real) {
       handlers.set(channel, listener)
     },
   }
-  const sender = {
+  /** @type {import('../../dist/ipc-probe.cjs').ProbeWebContents} */
+  const sender = fake({
     id: 1,
     mainFrame: {},
     isDestroyed: () => false,
     getURL: () => 'file:///fixture.html#/files',
-  }
+  })
   const event = { sender, senderFrame: sender.mainFrame }
   const original = ipc.handle
   const probe = installIpcProbe(ipc, {
@@ -30,6 +32,7 @@ function fixture(real) {
 test('preserves Promise identity, receiver, all arguments and non-target traffic', async () => {
   const receiver = {}
   const promise = Promise.resolve('real')
+  /** @type {{ receiver: unknown, args: unknown[] }} */
   let received
   const f = fixture(function (...args) {
     received = { receiver: this, args }
@@ -84,6 +87,7 @@ test('atomic one-shot consumption, stale IDs, TTL, null shape and transparent di
   assert.equal(await f.handlers.get('read')(f.event), 'real')
 })
 test('pending calls cannot contaminate a later run and invalid configuration fails closed', async () => {
+  /** @type {(value: string) => void} */
   let resolve
   const f = fixture(
     () =>
@@ -109,7 +113,9 @@ test('pending calls cannot contaminate a later run and invalid configuration fai
     () => f.probe.begin({ id: 'unknown', channel: 'unregistered' }),
     /allowed and registered/,
   )
+  // @ts-expect-error: no enablement
   assert.throws(() => installIpcProbe(f.ipc, {}), /enablement/)
+  // @ts-expect-error: no channel
   assert.throws(() => validateIpcConfig({}), /channel/)
   assert.throws(
     () =>
@@ -117,6 +123,7 @@ test('pending calls cannot contaminate a later run and invalid configuration fai
         channel: 'read',
         readySelector: '#row',
         readyText: 'file',
+        // @ts-expect-error: an HTTP fault for an IPC check
         faults: ['http-error'],
       }),
     /rejection/,
@@ -144,6 +151,7 @@ test('skip lets earlier calls on the channel through before the fault', async ()
     { skip: 1 },
   ])
     assert.throws(
+      // @ts-expect-error: a skip that isn't a whole number, or a skip without a fault
       () => f.probe.begin({ id: 'bad-skip', channel: 'read', ...plan }),
       /skip/,
     )

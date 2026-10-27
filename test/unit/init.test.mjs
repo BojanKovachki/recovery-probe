@@ -1,12 +1,14 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { chooseIpcScenario, detectTarget } from '../../dist/tools/init.mjs'
+import { fake } from '../helpers/fake.mjs'
 
-const identity = {
+/** @type {import('../../dist/ipc-probe.cjs').IpcIdentity} */
+const identity = fake({
   version: '0.0.0',
   channels: ['files:read', 'files:versions', 'files:thumbnails', 'unused'],
   registered: ['files:read', 'files:versions', 'files:thumbnails'],
-}
+})
 
 // Answers questions from a script and keeps what was printed.
 function scripted(answers) {
@@ -26,6 +28,7 @@ function scripted(answers) {
 }
 
 test('init tests a URL, an attached app, or an app with the IPC hook', async () => {
+  /** @param {{ version?: object, list?: object[], hook?: object }} found */
   const probes = ({ version, list, hook }) => ({
     json: async (url) =>
       url.endsWith('/json/version')
