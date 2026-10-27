@@ -6,7 +6,7 @@ Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-
 
 ## 1.0.0 (2026-10-27)
 
-The first stable release. It removes the old command spellings and brings in everything since 0.6.0: the 0.7.0 and 0.8.0 previews below.
+The first release with an explicit 1.x compatibility commitment. It removes the old command spellings and brings in everything since 0.6.0: the 0.7.0 and 0.8.0 previews below. The README defines the supported interfaces and experimental exceptions, and explains that failed checks can save unredacted screen-text quotes of up to 200 characters.
 
 Breaking:
 
