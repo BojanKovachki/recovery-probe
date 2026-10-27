@@ -5,6 +5,11 @@ import type { IpcIdentity } from '../../../ipc-probe.cjs'
 import { connectDesktop } from '../../../targets/cdp.mjs'
 import { attachIpcWindow } from '../../../targets/ipc-window.mjs'
 import {
+  prepareVisibility,
+  type PreparedVisibility,
+  type WindowReport,
+} from '../../../targets/visibility.mjs'
+import {
   resetIpcAndConfirm,
   runSnapshot,
   type IpcFault,
@@ -37,6 +42,8 @@ export interface IpcCheckReport {
   ok: boolean
   error?: string
   cleanupError?: string
+  window?: WindowReport
+  windowRestoreError?: string
   limitation: string
 }
 
@@ -64,6 +71,7 @@ class IpcCheck {
   #page!: Page
   #identity!: IpcIdentity
   #runId: string | undefined
+  #visibility: PreparedVisibility | undefined
 
   constructor(config: IpcCheckConfig, control: IpcInspector) {
     this.#config = config
@@ -86,7 +94,7 @@ class IpcCheck {
     return report
   }
 
-  /** Disarms the last phase and disconnects, leaving the app open. */
+  /** Disarms the last phase, puts the window back and disconnects, leaving the app open. */
   async close() {
     try {
       if (this.#runId) await resetIpcAndConfirm(this.#control, this.#runId)
@@ -95,8 +103,20 @@ class IpcCheck {
       this.#report.finalReset = 'not-verified'
       this.#report.cleanupError = (error as Error).message
     } finally {
+      await this.#restoreWindow()
       this.#control.close()
       if (this.#browser) await this.#browser.close()
+    }
+  }
+
+  async #restoreWindow() {
+    try {
+      // The window state is recorded as soon as visibility is prepared.
+      if (this.#visibility)
+        this.#report.window!.restoration = await this.#visibility.revert()
+    } catch (error) {
+      this.#report.ok = false
+      this.#report.windowRestoreError = (error as Error).message
     }
   }
 
@@ -110,6 +130,11 @@ class IpcCheck {
     )
     this.#page = page
     this.#identity = identity
+    this.#visibility = await prepareVisibility(page, {
+      restoreWindow: config.restoreWindow,
+      control: this.#control,
+    })
+    this.#report.window = { initial: this.#visibility.initial }
     await page.bringToFront()
     if ((await ui(page, config)).blocked)
       throw new Error('Target must be visible and online')

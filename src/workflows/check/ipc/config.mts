@@ -18,6 +18,8 @@ export interface IpcCheckConfig {
   baselineTimeoutMs: number
   retryDelayMs: number
   renderMarginMs: number
+  /** Un-minimizes the window for the check and minimizes it again afterwards. */
+  restoreWindow: boolean
 }
 
 export type IpcCheckInput = Partial<IpcCheckConfig> &
@@ -52,6 +54,7 @@ export function validateIpcConfig(input: IpcCheckInput): IpcCheckConfig {
     baselineTimeoutMs: 15000,
     retryDelayMs: 1000,
     renderMarginMs: 1000,
+    restoreWindow: false,
     ...input,
   }
   for (const name of ['channel', 'readySelector', 'readyText'] as const)
@@ -65,5 +68,6 @@ export function validateIpcConfig(input: IpcCheckInput): IpcCheckConfig {
   )
   ensure(isFaultList(c.faults), 'Use unique rejection/null-result faults')
   ensureRanges(c, TIMINGS, (key) => `Invalid ${key}`)
+  ensure(typeof c.restoreWindow === 'boolean', 'restoreWindow must be boolean')
   return c
 }

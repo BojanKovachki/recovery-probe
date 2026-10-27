@@ -353,6 +353,14 @@ test(
       )
       await restoredWindow.revert()
       assert.equal((await control.call('windowState')).minimized, true)
+      // This fixture keeps drawing while minimized, so the check would run either
+      // way; with restoreWindow it must still un-minimize the window and put it back.
+      const restoredCheck = await checkIpc({ ...config, restoreWindow: true })
+      assert.equal(restoredCheck.ok, true, JSON.stringify(restoredCheck))
+      assert.equal(restoredCheck.window.initial.windowState, 'minimized')
+      assert.equal(restoredCheck.window.restoration.changed, true)
+      assert.equal(restoredCheck.window.restoration.restored, true)
+      assert.equal((await control.call('windowState')).minimized, true)
       await control.call('setWindowMinimized', false)
       await page.goto(baseUrl + '?mode=honest')
       const honest = await discoverIpc(discoveryConfig)
