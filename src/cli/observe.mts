@@ -74,6 +74,7 @@ const NAMED_FINDINGS = [
   'UNEXPECTED_ROW_STATE',
   'LOCAL_FILE_NOT_REPAIRED',
   'EXPECTATION_NOT_MET',
+  'SLOW_READ',
 ]
 
 export async function observeMain(args: string[]) {

@@ -4,6 +4,11 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 1.1.0-preview.1 (2026-10-27)
+
+- `observe` with `slowReads` explains slow screens over HTTP. For each read it records when it started and finished, how long the network took, when its content first showed, and how busy the page's main thread was in between. Optionally it also counts the requests waiting on a page bridge, such as an Android WebMessageListener object. A `SLOW_READ` lead says whether the time went to the network, to a busy main thread or to something else.
+- With `slowReads`, a screen read that takes longer than 5 seconds no longer ends the capture, and HTTP captures can run for up to 10 minutes. IPC captures keep the 2-minute limit set by the development hook.
+
 ## 1.0.0 (2026-10-27)
 
 The first release with an explicit 1.x compatibility commitment. It removes the old command spellings and brings in everything since 0.6.0: the 0.7.0 and 0.8.0 previews below. The README defines the supported interfaces and experimental exceptions, and explains that failed checks can save unredacted screen-text quotes of up to 200 characters.

@@ -9,12 +9,15 @@ import type { IpcIdentity, IpcSnapshot } from '../../ipc-probe.cjs'
 import type { ObservationConfig } from './config.mjs'
 import type { ReadSnapshot } from './reads.mjs'
 import type { ObservationMetadata } from './report.mjs'
+import type { ReadLogSnapshot } from '../../transports/http/read-log.mjs'
 
 export interface ObservationAdapter {
   start(): Promise<void>
   snapshot(): ReadSnapshot | Promise<ReadSnapshot>
   stop(): Promise<Record<string, unknown> | undefined>
   metadata?(): ObservationMetadata['ipcHook']
+  /** A record per read, when the transport keeps one. */
+  readLog?(): ReadLogSnapshot | undefined
 }
 
 // Older hooks answer identify with fewer fields, hence the optional chaining.
@@ -147,10 +150,16 @@ export function httpObservationAdapter(
   let observer: HttpObserver | undefined
   return {
     async start() {
-      observer = await observeHttp(page, { endpoint: config.endpoint! })
+      observer = await observeHttp(page, {
+        endpoint: config.endpoint!,
+        logReads: Boolean(config.slowReads),
+      })
     },
     snapshot() {
       return observer!.snapshot()
+    },
+    readLog() {
+      return observer?.readLog()
     },
     async stop() {
       await observer?.stop()

@@ -13,12 +13,10 @@ import { installObserverKit, removeObserverKit } from './kit.mjs'
 import { pageReadInput, pageSelectors } from './page-input.mjs'
 import type { ReadSnapshot } from './reads.mjs'
 import { ObservationRecorder, type Clock, type Sample } from './recorder.mjs'
-import type {
-  ObservationOperator,
-  ObservationReport,
-  TimelineEvent,
-} from './report.mjs'
+import { OperatorRun } from './operator.mjs'
+import type { ObservationReport, TimelineEvent } from './report.mjs'
 import { summarizeRows } from './rows.mjs'
+import { SlowReadProbe } from './slow-reads/probe.mjs'
 import { boundedUiRead } from './ui-read.mjs'
 
 export interface ObservationHooks {
@@ -36,7 +34,6 @@ export interface ObservationHooks {
 }
 
 const MAX_INTERVALS = 50
-const OPERATOR_STOP_MS = 5000
 
 /**
  * Observe only. No reload, navigation, routing, focus changes or final UI reset.
@@ -61,8 +58,8 @@ class Capture {
   readonly #recorder: ObservationRecorder
   readonly #kitToken = randomUUID()
   readonly #readInput: ObservationReadInput
-  readonly #markerRequests: { resolve?: (index: number | null) => void }[] = []
-  readonly #operatorAbort = new AbortController()
+  readonly #operator = new OperatorRun()
+  readonly #slowProbe: SlowReadProbe | undefined
   #started = 0
   /** Set once the adapter is reading; the capture has a clock from then on. */
   #clock?: Clock
@@ -70,7 +67,6 @@ class Capture {
   #pageErrors = 0
   #newDocument = false
   #adapterStarted = false
-  #operatorRun?: Promise<ObservationOperator>
 
   #elapsed = () => Math.round(performance.now() - this.#started)
   #countPageError = () => {
@@ -93,6 +89,9 @@ class Capture {
     this.#hooks = hooks
     this.#recorder = new ObservationRecorder(config)
     this.#readInput = pageReadInput(config, this.#kitToken)
+    this.#slowProbe = config.slowReads
+      ? new SlowReadProbe(page, config.slowReads, this.#kitToken)
+      : undefined
   }
 
   async run(): Promise<ObservationReport> {
@@ -120,6 +119,7 @@ class Capture {
   async #start() {
     const report = this.#recorder.report
     await this.#installKit()
+    await this.#slowProbe?.start()
     this.#page.on('pageerror', this.#countPageError)
     this.#page.on('domcontentloaded', this.#noteDocumentLoad)
     this.#adapterStarted = true
@@ -131,7 +131,7 @@ class Capture {
     report.startedAt = this.#lastSnapshot.startedAt
     this.#recorder.openInterval(this.#lastSnapshot, this.#elapsed())
     await this.#hooks.onReady?.()
-    this.#startOperator()
+    this.#operator.start(this.#hooks.operator, this.#elapsed)
   }
 
   /** One renderer call installs the kit and validates every selector, mounted or not. */
@@ -144,31 +144,6 @@ class Capture {
         this.#page.evaluate(installObserverKit, { token, actions, validate }),
       this.#hooks.signal,
     )
-  }
-
-  #startOperator() {
-    const operator = this.#hooks.operator
-    if (!operator) return
-    const abort = this.#operatorAbort
-    const mark = () =>
-      new Promise<number | null>((resolve) =>
-        this.#markerRequests.push({ resolve }),
-      )
-    this.#operatorRun = Promise.resolve()
-      .then(() =>
-        operator({ mark, signal: abort.signal, elapsed: this.#elapsed }),
-      )
-      .then(
-        (steps): ObservationOperator => ({
-          status: 'complete',
-          ...(Array.isArray(steps) ? { steps } : {}),
-        }),
-        (error): ObservationOperator => ({
-          status: abort.signal.aborted ? 'stopped' : 'failed',
-          error: error.message,
-          ...(Array.isArray(error.results) ? { steps: error.results } : {}),
-        }),
-      )
   }
 
   async #sampleUntilDone() {
@@ -192,13 +167,8 @@ class Capture {
     }
   }
 
-  #nextMarker() {
-    if (this.#markerRequests.length) return this.#markerRequests.shift()
-    return this.#hooks.takeMarker?.() ? {} : null
-  }
-
   async #openMarkedInterval() {
-    const marker = this.#nextMarker()
+    const marker = this.#operator.nextMarker(this.#hooks.takeMarker)
     if (!marker) return
     if (this.#recorder.report.intervals.length >= MAX_INTERVALS)
       throw Error('INTERVAL_LIMIT_REACHED')
@@ -217,9 +187,21 @@ class Capture {
     const before = await this.#adapter.snapshot()
     const uiStart = performance.now()
     const fromMs = this.#elapsed()
-    const { rendererReadMs, rows, actions, ...raw } = await boundedUiRead(
-      () => this.#page.evaluate(readRegion, this.#readInput),
-      this.#hooks.signal,
+    // Slow-read evidence waits out a busy renderer: that wait is what it measures.
+    const timeoutMs = c.slowReads ? c.observationMs : undefined
+    const signal = this.#hooks.signal
+    const slowProbe = this.#slowProbe
+    const [{ rendererReadMs, rows, actions, ...raw }, load] = await Promise.all(
+      [
+        boundedUiRead(
+          () => this.#page.evaluate(readRegion, this.#readInput),
+          signal,
+          timeoutMs,
+        ),
+        slowProbe
+          ? boundedUiRead(() => slowProbe.read(), signal, timeoutMs)
+          : null,
+      ],
     )
     const summarizeStart = performance.now()
     // A read without text or content (an absent or hidden region) summarizes to itself.
@@ -235,6 +217,7 @@ class Capture {
       ui,
       rows: summarizedRows,
       actions,
+      load,
       phases: {
         beforeSnapshotMs: uiStart - beforeStart,
         uiRoundTripMs: summarizeStart - uiStart,
@@ -259,41 +242,35 @@ class Capture {
 
   async #finish() {
     const recorder = this.#recorder
-    this.#operatorAbort.abort()
-    for (const pending of this.#markerRequests) pending.resolve?.(null)
-    await this.#finishOperator()
+    const operator = await this.#operator.finish()
+    if (operator) {
+      recorder.report.operator = operator
+      if (operator.status !== 'complete')
+        recorder.gap('OPERATOR_STEPS_INCOMPLETE')
+    }
     const elapsedMs = this.#clock ? this.#elapsed() : 0
     if (recorder.intervalOpen)
       recorder.closeInterval(this.#lastSnapshot, elapsedMs)
     recorder.endSampling(elapsedMs, this.#lastSnapshot)
     this.#page.off('pageerror', this.#countPageError)
     this.#page.off('domcontentloaded', this.#noteDocumentLoad)
+    const readLog = this.#adapter.readLog?.()
+    await this.#slowProbe?.stop()
     await this.#removeKit()
     await this.#stopAdapter()
-    recorder.conclude()
+    recorder.conclude(this.#slowReadsEnd(readLog))
   }
 
-  async #finishOperator() {
-    if (!this.#operatorRun) return
-    let timer: ReturnType<typeof setTimeout> | undefined
-    // An operator that ignores the stop signal must not hold cleanup hostage.
-    const outcome = await Promise.race([
-      this.#operatorRun,
-      new Promise<ObservationOperator>((resolve) => {
-        timer = setTimeout(
-          () =>
-            resolve({
-              status: 'stopped',
-              error: `Operator did not stop within ${OPERATOR_STOP_MS} ms`,
-            }),
-          OPERATOR_STOP_MS,
-        )
-      }),
-    ])
-    this.#recorder.report.operator = outcome
-    clearTimeout(timer)
-    if (outcome.status !== 'complete')
-      this.#recorder.gap('OPERATOR_STEPS_INCOMPLETE')
+  #slowReadsEnd(
+    readLog: ReturnType<NonNullable<ObservationAdapter['readLog']>>,
+  ) {
+    const probe = this.#slowProbe
+    if (!probe || !this.#clock) return undefined
+    return {
+      readLog,
+      probe: probe.status,
+      startedEpoch: this.#clock.startedEpoch,
+    }
   }
 
   // Bounded: a replaced or unresponsive document must not delay owned IPC cleanup.

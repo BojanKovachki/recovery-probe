@@ -5,7 +5,7 @@ import {
   type TimelineEvent,
 } from './report.mjs'
 
-const showsContent = (event: TimelineEvent) =>
+export const showsContent = (event: TimelineEvent) =>
   event.ui.visible && (event.ui.contentCount ?? 0) > 0
 
 /** When `event` first showed content in `interval`, or null if it shows none. */
