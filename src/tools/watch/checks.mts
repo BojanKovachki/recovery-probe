@@ -6,10 +6,8 @@ import { packageUrl } from '../../core/package.mjs'
 import { readRunEvidence } from '../compare/reports.mjs'
 import type { RunEvidence } from '../compare/types.mjs'
 
-// Commands whose reports compare run to run; each needs --config. The old
-// ipc, web and desktop spellings still run until 1.0.
+// Commands whose reports compare run to run; each needs --config.
 const CHECKS = ['check', 'discover', 'action', 'observe', 'refresh']
-const OLD_CHECKS = ['ipc', 'web', 'desktop']
 // Flags a rerun sets itself, or that need a person at the keyboard.
 const NOT_IN_A_RERUN = ['--out', '--interactive', '--help', '--list']
 // Each check runs as its own CLI process, so a hung or crashing check can be stopped
@@ -18,12 +16,7 @@ const CLI = fileURLToPath(packageUrl('bin/recovery-probe.mjs'))
 
 /** Throws unless `args` is a check the watch can rerun into a new folder each time. */
 export function validateCheckCommand(args: string[]): void {
-  const [first] = args
-  if (
-    first !== '--config' &&
-    !CHECKS.includes(first) &&
-    !OLD_CHECKS.includes(first)
-  )
+  if (!CHECKS.includes(args[0]))
     throw new Error(
       `This reruns a check: ${CHECKS.join(', ')} with --config FILE`,
     )
@@ -83,11 +76,7 @@ export async function runCheck(
   folder: string,
   runCommand: (args: string[]) => Promise<CommandResult> = runRecoveryProbe,
 ): Promise<CheckResult> {
-  const { exitCode, output } = await runCommand([
-    ...command,
-    '--out',
-    command[0] === '--config' ? join(folder, 'report.json') : folder,
-  ])
+  const { exitCode, output } = await runCommand([...command, '--out', folder])
   const result: CheckResult = { exitCode, output }
   const report = join(folder, 'report.json')
   if (!existsSync(report))

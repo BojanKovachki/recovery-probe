@@ -65,9 +65,7 @@ const plan = (runs = 1) =>
   verifyPlan({
     base: 'main',
     runs,
-    checks: [
-      { name: 'add', command: ['ipc', '--action', '--config', 'a.json'] },
-    ],
+    checks: [{ name: 'add', command: ['action', '--config', 'a.json'] }],
   })
 
 test('a plan names unique checks that can be rerun', () => {
@@ -76,15 +74,17 @@ test('a plan names unique checks that can be rerun', () => {
   for (const bad of [
     {},
     { checks: [] },
-    { checks: [{ name: 'x y', command: ['ipc', '--config', 'a'] }] },
-    { checks: [{ name: 'x', command: ['ipc'] }] },
+    { checks: [{ name: 'x y', command: ['check', '--config', 'a'] }] },
+    { checks: [{ name: 'x', command: ['check'] }] },
     {
-      checks: [{ name: 'x', command: ['ipc', '--config', 'a', '--out', 'o'] }],
+      checks: [
+        { name: 'x', command: ['check', '--config', 'a', '--out', 'o'] },
+      ],
     },
     {
       checks: [
-        { name: 'x', command: ['ipc', '--config', 'a'] },
-        { name: 'x', command: ['ipc', '--config', 'b'] },
+        { name: 'x', command: ['check', '--config', 'a'] },
+        { name: 'x', command: ['check', '--config', 'b'] },
       ],
     },
     { runs: 0, checks: plan().checks },
@@ -183,9 +183,7 @@ test('a change is verified only when its checks improved or stayed clean, with c
 
     const renamed = verifyPlan({
       runs: 2,
-      checks: [
-        { name: 'add', command: ['ipc', '--action', '--config', 'b.json'] },
-      ],
+      checks: [{ name: 'add', command: ['action', '--config', 'b.json'] }],
     })
     const changedCheck = await verifyChange({
       plan: renamed,

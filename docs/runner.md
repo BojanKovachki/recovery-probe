@@ -28,7 +28,7 @@ The runner requires explicit selectors and endpoint matching. It does not discov
 - `3`: invalid arguments or configuration.
 - `4`: it couldn't run, for example because Chromium isn't installed.
 
-`--out` is a new folder for `report.json`. The old `recovery-probe --config FILE --out report.json` spelling still writes one file and exits with 2 on errors, until 1.0.
+`--out` is a new folder for `report.json`.
 
 ## Result codes
 

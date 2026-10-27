@@ -109,9 +109,9 @@ Reports stay on your machine and there's no telemetry. Request and response bodi
 
 Only test apps and accounts you're allowed to, and keep debugging ports on localhost.
 
-## Upgrading from 0.5.0
+## Upgrading to 1.0
 
-Restart the development app after upgrading so its IPC hook matches the CLI. Public package imports and the hook's path are unchanged. The old command spellings still work until 1.0, with a migration notice; new commands distinguish usage errors (exit 3) and setup failures (exit 4) from inconclusive results (exit 2). Update CI scripts that interpret exit codes. With the new `demo` and JSON-runner `check` commands, `--out` names a new report folder; their old spellings still write one file. See the [changelog](CHANGELOG.md) for the full migration notes.
+1.0 removes the old command spellings `desktop`, `web`, `ipc`, `--demo` and `--config`. Each now stops with a usage error that names the commands that replaced it, such as `windows`, `reads`, `check`, `discover`, `action` and `demo`. Usage errors exit with 3 and setup failures with 4, where the old spellings exited with 2, so update CI scripts that read exit codes. `demo` and the JSON runner's `check` write `report.json` into the `--out` folder. Restart the development app after upgrading so its IPC hook matches the CLI. Public package imports and the hook's path are unchanged. See the [changelog](CHANGELOG.md).
 
 ## Docs
 

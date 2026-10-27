@@ -15,7 +15,7 @@
   <circle cx="44" cy="38" r="6" fill="#fb7185"/>
   <circle cx="64" cy="38" r="6" fill="#fbbf24"/>
   <circle cx="84" cy="38" r="6" fill="#34d399"/>
-  <text x="120" y="45" fill="#cbd5e1" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="18">recovery-probe --demo</text>
+  <text x="120" y="45" fill="#cbd5e1" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="18">recovery-probe demo</text>
 
   <text x="54" y="102" fill="#f8fafc" font-family="Inter, system-ui, sans-serif" font-size="24" font-weight="700">The happy path passes in both apps</text>
   <rect x="54" y="124" width="852" height="54" rx="12" fill="#16243d" stroke="#334155"/>

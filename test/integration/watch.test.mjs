@@ -39,6 +39,7 @@ test('reruns a check when a file changes and reports what the change fixed', asy
       '--max-runs',
       '2',
       '--',
+      'check',
       '--config',
       'scenario.json',
     ],

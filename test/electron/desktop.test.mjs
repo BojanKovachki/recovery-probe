@@ -191,6 +191,7 @@ test('CLI writes useful reports and disconnecting leaves the Electron app alive'
   try {
     const { writeFile } = await import('node:fs/promises')
     const configPath = join(dir, 'input.json')
+    const out = join(dir, 'report')
     await writeFile(
       configPath,
       JSON.stringify(config('fixed', { faults: ['http-error'] })),
@@ -199,25 +200,25 @@ test('CLI writes useful reports and disconnecting leaves the Electron app alive'
       process.execPath,
       [
         fileURLToPath(new URL('../../bin/recovery-probe.mjs', import.meta.url)),
-        'desktop',
+        'check',
         '--config',
         configPath,
         '--out',
-        dir,
+        out,
       ],
       { timeout: 20000 },
     )
     assert.match(result.stdout, /PASS/)
     assert.equal(
-      JSON.parse(await readFile(join(dir, 'report.json'), 'utf8')).ok,
+      JSON.parse(await readFile(join(out, 'report.json'), 'utf8')).ok,
       true,
     )
     assert.match(
-      await readFile(join(dir, 'fix-brief.md'), 'utf8'),
+      await readFile(join(out, 'fix-brief.md'), 'utf8'),
       /not an automatic diagnosis/,
     )
     assert.match(
-      await readFile(join(dir, 'reproduce.mjs'), 'utf8'),
+      await readFile(join(out, 'reproduce.mjs'), 'utf8'),
       /checkDesktop/,
     )
     assert.equal(app.exitCode, null)

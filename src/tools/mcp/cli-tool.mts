@@ -4,7 +4,6 @@ import { packageUrl } from '../../core/package.mjs'
 import { integer, truncated } from './args.mjs'
 import type { McpTool } from './server.mjs'
 
-// The old ipc, desktop and web spellings still run until 1.0.
 const CLI_COMMANDS = [
   'check',
   'discover',
@@ -15,9 +14,6 @@ const CLI_COMMANDS = [
   'refresh',
   'android',
   'doctor',
-  'ipc',
-  'desktop',
-  'web',
 ]
 
 export const runCli: McpTool = {
