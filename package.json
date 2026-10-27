@@ -2,7 +2,7 @@
   "name": "recovery-probe",
   "version": "1.1.0-preview.1",
   "type": "module",
-  "description": "Test whether web and Electron desktop apps show the right data when a read fails, from the command line, your tests or an AI coding agent.",
+  "description": "Find recovery and UI-state bugs in web and Electron apps through fault injection and runtime evidence. Built for developers and AI coding agents.",
   "license": "MIT",
   "author": "Bojan Kovachki",
   "homepage": "https://github.com/BojanKovachki/recovery-probe#readme",

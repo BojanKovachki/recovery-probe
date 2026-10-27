@@ -1,8 +1,10 @@
 # Recovery Probe
 
-See what your app shows when a data request fails.
+Find out what breaks when requests fail.
 
-Most apps don't crash when a read fails. The list goes empty, the spinner never stops, or the screen keeps showing old data. There's no error and nothing in the logs, so it ships. Recovery Probe fails those reads on purpose, runs the same screen healthy for comparison, and tells you what changed.
+Recovery Probe helps developers and AI coding agents find recovery bugs in web and Electron apps. It injects failures into network requests and Electron IPC calls, observes application behavior, and collects evidence to reproduce problems and verify fixes.
+
+A failed request should not silently turn a populated screen into “No items found.” Recovery Probe helps you reproduce that failure and check whether the application recovers as expected.
 
 [![CI](https://github.com/BojanKovachki/recovery-probe/actions/workflows/validate.yml/badge.svg)](https://github.com/BojanKovachki/recovery-probe/actions/workflows/validate.yml)
 [![npm](https://img.shields.io/npm/v/recovery-probe.svg)](https://www.npmjs.com/package/recovery-probe)
