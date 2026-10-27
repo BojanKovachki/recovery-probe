@@ -47,14 +47,20 @@ export async function resetIpcAndConfirm(
   return snapshot
 }
 
-/** The hook refuses a new plan while the previous plan's real calls are pending. */
+/**
+ * The hook refuses a new plan while the previous plan's real calls are pending.
+ * With `refuseArmed`, a plan that is still armed fails the wait at once.
+ */
 export async function waitForSettledCalls(
   control: IpcInspector,
   timeoutMs: number,
+  { refuseArmed = false } = {},
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs
   while (true) {
     const snapshot = await control.call('snapshot')
+    if (refuseArmed && snapshot?.armed)
+      throw new Error('IPC_PLAN_ALREADY_ARMED')
     if (
       !snapshot?.channels ||
       !Object.values(snapshot.channels).some((row) => row.pending)

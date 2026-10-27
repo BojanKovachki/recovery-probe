@@ -2,10 +2,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { once } from 'node:events'
-import {
-  startCdpBridge,
-  acceptWebSocket,
-} from '../../dist/targets/cdp-bridge.mjs'
+import { startCdpBridge } from '../../dist/targets/cdp-bridge/bridge.mjs'
+import { acceptWebSocket } from '../../dist/targets/cdp-bridge/websocket.mjs'
 
 const appPage = { targetId: 'APP', type: 'page', url: 'https://app.test/' }
 const blankPage = { targetId: 'BLANK', type: 'page', url: '' }

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { IpcProbe, IpcSnapshot } from '../../ipc-probe.cjs'
+import { debuggerUrl, InspectorSocket } from './socket.mjs'
 
 export interface IpcInspector {
   call(
@@ -30,6 +31,11 @@ type ProbeControl =
   | 'windowState'
   | 'setWindowMinimized'
 
+type Send = (
+  method: string,
+  params: Record<string, unknown>,
+) => Promise<unknown>
+
 interface EvaluateResponse {
   exceptionDetails?: {
     exception?: { description?: string }
@@ -38,114 +44,23 @@ interface EvaluateResponse {
   result?: { subtype?: string; objectId?: string; value?: unknown }
 }
 
-/** Only the developer's explicitly selected loopback Node inspector is supported. */
-function loopback(raw: string, protocols: string[]) {
-  const url = new URL(raw)
-  if (
-    !protocols.includes(url.protocol) ||
-    !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) ||
-    url.username ||
-    url.password
-  )
-    throw new Error('Inspector must use a loopback address without credentials')
-  return url
-}
+const CONTROLS: readonly string[] = [
+  'identify',
+  'begin',
+  'snapshot',
+  'reset',
+  'windowState',
+  'setWindowMinimized',
+]
+
 export async function connectIpcInspector(
   endpoint = 'http://127.0.0.1:9229',
 ): Promise<IpcInspector> {
-  let url = loopback(endpoint, ['http:', 'ws:'])
-  if (url.protocol === 'http:') {
-    const response = await fetch(new URL('/json/list', url), {
-      redirect: 'error',
-      signal: AbortSignal.timeout(5000),
-    })
-    if (!response.ok)
-      throw new Error(`Inspector discovery returned HTTP ${response.status}`)
-    const targets = (
-      (await response.json()) as {
-        type?: string
-        webSocketDebuggerUrl?: string
-      }[]
-    ).filter((item) => item.type === 'node' && item.webSocketDebuggerUrl)
-    if (targets.length !== 1)
-      throw new Error('Expected exactly one Node inspector target on this port')
-    const discovered = loopback(targets[0].webSocketDebuggerUrl!, ['ws:'])
-    if (discovered.port !== url.port)
-      throw new Error('Inspector discovery changed ports')
-    url = discovered
-  }
-  const socket = new WebSocket(url)
-  const pending = new Map<
-    number,
-    {
-      resolve: (value: unknown) => void
-      reject: (error: unknown) => void
-      timer: ReturnType<typeof setTimeout>
-    }
-  >()
-  let next = 0
-  socket.addEventListener('message', (event) => {
-    const message = JSON.parse(event.data)
-    const item = pending.get(message.id)
-    if (!item) return
-    pending.delete(message.id)
-    clearTimeout(item.timer)
-    if (message.error) item.reject(new Error(message.error.message))
-    else item.resolve(message.result)
-  })
-  socket.addEventListener('close', () => {
-    for (const item of pending.values()) {
-      clearTimeout(item.timer)
-      item.reject(new Error('Inspector disconnected'))
-    }
-    pending.clear()
-  })
-  await new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      socket.close()
-      reject(new Error('Inspector connection timed out'))
-    }, 5000)
-    socket.addEventListener(
-      'open',
-      () => {
-        clearTimeout(timer)
-        resolve()
-      },
-      { once: true },
-    )
-    socket.addEventListener(
-      'error',
-      () => {
-        clearTimeout(timer)
-        reject(new Error('Cannot connect to Node inspector'))
-      },
-      { once: true },
-    )
-  })
-  const send = (method: string, params: Record<string, unknown>) =>
-    new Promise<unknown>((resolve, reject) => {
-      if (socket.readyState !== WebSocket.OPEN) {
-        reject(new Error('Inspector is not connected'))
-        return
-      }
-      const id = ++next
-      const timer = setTimeout(() => {
-        pending.delete(id)
-        reject(new Error('Inspector command timed out'))
-      }, 5000)
-      pending.set(id, { resolve, reject, timer })
-      try {
-        socket.send(JSON.stringify({ id, method, params }))
-      } catch (error) {
-        pending.delete(id)
-        clearTimeout(timer)
-        reject(error)
-      }
-    })
+  const socket = await InspectorSocket.open(await debuggerUrl(endpoint))
   return {
     // One transport serves every overload; callIpcInspector validates the method.
     call: ((method: ProbeControl, argument?: unknown) =>
-      callIpcInspector(send, method, argument)) as IpcInspector['call'],
+      callIpcInspector(socket.send, method, argument)) as IpcInspector['call'],
     close() {
       socket.close()
     },
@@ -172,32 +87,27 @@ export async function callIpcInspector(
   argument?: unknown,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- public signature: the result is whatever the probe control returned.
 ): Promise<any> {
-  if (
-    ![
-      'identify',
-      'begin',
-      'snapshot',
-      'reset',
-      'windowState',
-      'setWindowMinimized',
-    ].includes(method)
-  )
-    throw new Error('Unsupported probe control')
+  if (!CONTROLS.includes(method)) throw new Error('Unsupported probe control')
   const expression = `globalThis.__recoveryProbeIpc.${method}(${argument === undefined ? '' : JSON.stringify(argument)})`
-  if (method !== 'identify' || argument === undefined) {
-    const result = checked(
-      await send('Runtime.evaluate', {
-        expression,
-        returnByValue: true,
-        awaitPromise: false,
-      }),
-    )
-    if (result?.subtype === 'promise')
-      throw new Error(
-        'A synchronous IPC control unexpectedly returned a Promise',
-      )
-    return result?.value
-  }
+  return method === 'identify' && argument !== undefined
+    ? evaluateAsync(send, expression)
+    : evaluate(send, expression)
+}
+
+async function evaluate(send: Send, expression: string) {
+  const result = checked(
+    await send('Runtime.evaluate', {
+      expression,
+      returnByValue: true,
+      awaitPromise: false,
+    }),
+  )
+  if (result?.subtype === 'promise')
+    throw new Error('A synchronous IPC control unexpectedly returned a Promise')
+  return result?.value
+}
+
+async function evaluateAsync(send: Send, expression: string) {
   const objectGroup = `recovery-probe-${randomUUID()}`
   try {
     const result = checked(

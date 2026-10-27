@@ -4,6 +4,17 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 0.8.0-preview.9 (2026-10-27)
+
+The IPC inspector, the CDP bridge and the window controls, restructured. No change to the CLI, the library or the reports.
+
+- The Node inspector's WebSocket is a small `InspectorSocket` class in `transports/ipc/socket.mts`, next to the loopback check and the target discovery. `callIpcInspector` keeps its synchronous and asynchronous paths in two short functions.
+- `targets/cdp-bridge.mts` (293 lines) is a `targets/cdp-bridge/` folder: the WebSocket server with its framing as plain functions, a `TargetFilter` that decides what each client sees, and the bridge.
+- `windowVisibility` reads the window through one function per mechanism, and the window polls and state changes are shared helpers.
+- `waitForSettledCalls` can refuse a plan that is still armed, so the refresh adapter uses it instead of its own copy of the wait.
+- `core/server.mts` listens on loopback and closes a server for both the network proxy and the bridge.
+- The size-limit violations listed in `eslint-suppressions.json` drop from 81 to 70; `transports/` and `targets/` have none left.
+
 ## 0.8.0-preview.8 (2026-10-27)
 
 The HTTP and network fault layer, restructured. No change to the CLI, the library or the reports.

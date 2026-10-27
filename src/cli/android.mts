@@ -10,7 +10,10 @@ import {
   type AndroidDevtoolsTarget,
   type KeptAwake,
 } from '../targets/android.mjs'
-import { startCdpBridge, type CdpBridge } from '../targets/cdp-bridge.mjs'
+import {
+  startCdpBridge,
+  type CdpBridge,
+} from '../targets/cdp-bridge/bridge.mjs'
 import { untilStopped } from './until-stopped.mjs'
 import { integerOption, parseOptions, text } from './args.mjs'
 

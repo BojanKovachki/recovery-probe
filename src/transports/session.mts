@@ -1,12 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import { setTimeout as sleep } from 'node:timers/promises'
 import type { Page } from 'playwright'
 import {
   observeHttp,
   type HttpObserver,
   type ReadCoverage,
 } from './http/observer.mjs'
-import { resetIpcAndConfirm } from './ipc/control.mjs'
+import { resetIpcAndConfirm, waitForSettledCalls } from './ipc/control.mjs'
 import type { FaultKind } from '../core/faults.mjs'
 import type { IpcInspector } from './ipc/inspector.mjs'
 
@@ -79,20 +78,11 @@ export function ipcRefreshAdapter(
       } = {},
     ) {
       if (id) await resetIpcAndConfirm(control, id)
-      const deadline = Date.now() + (config.baselineTimeoutMs ?? 15000)
       // Do not retry a mutating begin after an uncertain reply. Wait using
       // read-only snapshots before issuing that mutation exactly once.
-      while (true) {
-        const previous = await control.call('snapshot')
-        if (previous?.armed) throw Error('IPC_PLAN_ALREADY_ARMED')
-        if (
-          !previous?.channels ||
-          !Object.values(previous.channels).some((row) => row.pending)
-        )
-          break
-        if (Date.now() >= deadline) throw Error('IPC_PREVIOUS_CALLS_PENDING')
-        await sleep(50)
-      }
+      await waitForSettledCalls(control, config.baselineTimeoutMs ?? 15000, {
+        refuseArmed: true,
+      })
       id = randomUUID() // Assign before mutation: a lost reply still requires reset.
       await control.call('begin', {
         id,

@@ -1,6 +1,7 @@
-import { createServer, type IncomingMessage, type Server } from 'node:http'
+import { createServer, type IncomingMessage } from 'node:http'
 import { performance } from 'node:perf_hooks'
 import type { Duplex } from 'node:stream'
+import { closeServer, listenOnLoopback } from '../../core/server.mjs'
 import { controlActions, controlListener } from './control.mjs'
 import { ArmedRules, validateNetworkRules } from './rules.mjs'
 import { parseAuthority, refuse, Tunnels } from './tunnels.mjs'
@@ -41,7 +42,7 @@ export async function startNetworkFaultProxy(
     (request: IncomingMessage, client: Duplex, head: Buffer) =>
       faults.connect(request, client, head),
   )
-  const port = await listen(server, options.port ?? 0)
+  const port = await listenOnLoopback(server, options.port ?? 0)
   const url = `http://127.0.0.1:${port}`
   const proxy: NetworkFaultProxy = {
     url,
@@ -56,23 +57,13 @@ export async function startNetworkFaultProxy(
     async close() {
       faults.disarm()
       faults.dropOpen()
-      server.closeAllConnections()
-      await new Promise<void>((resolve) => server.close(() => resolve()))
+      await closeServer(server)
     },
   }
   if (initialRules && options.armOnFirstConnection)
     faults.armOnFirstConnection(initialRules)
   else if (initialRules) faults.arm(initialRules)
   return proxy
-}
-
-async function listen(server: Server, port: number): Promise<number> {
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject)
-    server.listen(port, '127.0.0.1', () => resolve())
-  })
-  const address = server.address()
-  return typeof address === 'object' && address ? address.port : 0
 }
 
 /** The proxy's state: the armed rules, the open tunnels and the connection log. */

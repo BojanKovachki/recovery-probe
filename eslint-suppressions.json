@@ -81,22 +81,6 @@
       "count": 1
     }
   },
-  "src/targets/cdp-bridge.mts": {
-    "complexity": {
-      "count": 2
-    },
-    "max-lines-per-function": {
-      "count": 3
-    }
-  },
-  "src/targets/visibility.mts": {
-    "complexity": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 2
-    }
-  },
   "src/tools/compare.mts": {
     "complexity": {
       "count": 1
@@ -194,16 +178,6 @@
     },
     "max-lines-per-function": {
       "count": 2
-    }
-  },
-  "src/transports/ipc/inspector.mts": {
-    "max-lines-per-function": {
-      "count": 2
-    }
-  },
-  "src/transports/session.mts": {
-    "max-lines-per-function": {
-      "count": 1
     }
   },
   "src/workflows/observe/kit.mts": {
