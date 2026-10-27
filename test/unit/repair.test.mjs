@@ -1,11 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { validateRepairConfig } from '../../dist/tools/repair/config.mjs'
 import {
-  validateRepairConfig,
   validateSourcePath,
   applyProposalToSources,
-  prepareRepair,
-} from '../../dist/tools/repair/run.mjs'
+} from '../../dist/tools/repair/sources.mjs'
+import { prepareRepair } from '../../dist/tools/repair/run.mjs'
 import { proposeRepair } from '../../dist/tools/repair/provider.mjs'
 import {
   runCommand,

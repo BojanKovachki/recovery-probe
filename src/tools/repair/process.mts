@@ -67,29 +67,10 @@ export function startCommand(
       resolve(closed)
     })
   })
-  const stop = async () => {
-    const pid = child.pid
-    if (!pid) return
-    if (process.platform === 'win32') {
-      if (!result)
-        await exec('taskkill', ['/PID', String(pid), '/T', '/F']).catch(
-          () => {},
-        )
-    } else {
-      try {
-        process.kill(-pid, 'SIGTERM')
-      } catch {}
-      await Promise.race([finished, sleep(500)])
-      try {
-        process.kill(-pid, 'SIGKILL')
-      } catch {}
-    }
-    await finished
-  }
   return {
     child,
     finished,
-    stop,
+    stop: () => stopTree(child.pid, finished, () => result !== undefined),
     get result() {
       return result
     },
@@ -97,6 +78,28 @@ export function startCommand(
       return output
     },
   }
+}
+
+/** Stops a command and its children: taskkill on Windows, the process group elsewhere. */
+async function stopTree(
+  pid: number | undefined,
+  finished: Promise<CommandResult>,
+  exited: () => boolean,
+) {
+  if (!pid) return
+  if (process.platform === 'win32') {
+    if (!exited())
+      await exec('taskkill', ['/PID', String(pid), '/T', '/F']).catch(() => {})
+  } else {
+    try {
+      process.kill(-pid, 'SIGTERM')
+    } catch {}
+    await Promise.race([finished, sleep(500)])
+    try {
+      process.kill(-pid, 'SIGKILL')
+    } catch {}
+  }
+  await finished
 }
 
 export async function runCommand(

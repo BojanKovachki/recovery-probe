@@ -17,9 +17,7 @@ interface RepairOptions {
   verify?: string
 }
 
-export async function repairMain(args: string[]) {
-  if (!args.length || args.includes('--help')) {
-    console.log(`Recovery Probe repair preview — local development only
+const USAGE = `Recovery Probe repair preview — local development only
   recovery-probe repair --config repair.json --out NEW_DIRECTORY --allow-execution
   recovery-probe repair --generate RUN_DIRECTORY --allow-source-upload
   recovery-probe repair --verify RUN_DIRECTORY --allow-execution
@@ -34,19 +32,38 @@ Step 3 applies proposal.json only to the copy and reruns the same scenario and y
 Review proposal.json before verification. --auto-verify explicitly executes unreviewed AI code.
 A checkout is NOT a security sandbox: use a disposable dev container/VM and test accounts.
 There is no implicit source upload, production deployment, commit, merge or original-repo edit.
-See docs/repair.md for complete web and Electron examples and Windows commands.`)
+See docs/repair.md for complete web and Electron examples and Windows commands.`
+
+const OPTIONS = {
+  'allow-execution': { type: 'boolean' },
+  'allow-source-upload': { type: 'boolean' },
+  'auto-verify': { type: 'boolean' },
+  config: { type: 'string' },
+  out: { type: 'string' },
+  generate: { type: 'string' },
+  verify: { type: 'string' },
+} as const
+
+export async function repairMain(args: string[]) {
+  if (!args.length || args.includes('--help')) {
+    console.log(USAGE)
     return
   }
-  const { values } = parseOptions(args, {
-    'allow-execution': { type: 'boolean' },
-    'allow-source-upload': { type: 'boolean' },
-    'auto-verify': { type: 'boolean' },
-    config: { type: 'string' },
-    out: { type: 'string' },
-    generate: { type: 'string' },
-    verify: { type: 'string' },
-  })
-  const options = values as RepairOptions
+  const options = parseOptions(args, OPTIONS).values as RepairOptions
+  checkOptions(options)
+  const directory = resolve(
+    options.generate ??
+      options.verify ??
+      options.out ??
+      `../recovery-probe-run-${Date.now()}`,
+  )
+  if (options.verify) return verify(directory, options)
+  if (options.config && !(await reproduce(options.config, directory, options)))
+    return
+  await generate(directory, options)
+}
+
+function checkOptions(options: RepairOptions) {
   if (
     [options.config, options.generate, options.verify].filter(Boolean)
       .length !== 1
@@ -61,51 +78,59 @@ See docs/repair.md for complete web and Electron examples and Windows commands.`
     throw new UsageError(
       '--auto-verify requires --config, --allow-execution and --allow-source-upload',
     )
-  const directory = resolve(
-    options.generate ??
-      options.verify ??
-      options.out ??
-      `../recovery-probe-run-${Date.now()}`,
+}
+
+async function verify(directory: string, options: RepairOptions) {
+  const result = await verifyRepair(directory, {
+    allowExecution: options['allow-execution'],
+  })
+  console.log(JSON.stringify(result, null, 2))
+  console.log(
+    `Review ${directory}/candidate.patch. Your original repository was not modified.`,
   )
-  if (options.verify) {
-    const result = await verifyRepair(directory, {
-      allowExecution: options['allow-execution'],
-    })
-    console.log(JSON.stringify(result, null, 2))
-    console.log(
-      `Review ${directory}/candidate.patch. Your original repository was not modified.`,
+  process.exitCode = result.status === 'verified-candidate' ? 0 : 1
+}
+
+/** The config with its paths resolved against the config file; prepareRepair validates it. */
+async function readRepairConfig(path: string) {
+  const configPath = resolve(path)
+  const config = JSON.parse(await readFile(configPath, 'utf8'))
+  config.repo = resolve(dirname(configPath), config.repo ?? '.')
+  if (config.scenario?.storageState)
+    config.scenario.storageState = resolve(
+      dirname(configPath),
+      config.scenario.storageState,
     )
-    process.exitCode = result.status === 'verified-candidate' ? 0 : 1
-    return
+  return config
+}
+
+/** Reproduces the failure; true when the run should go on to a proposal. */
+async function reproduce(
+  configPath: string,
+  directory: string,
+  options: RepairOptions,
+) {
+  const config = await readRepairConfig(configPath)
+  console.log(
+    'Reproducing in a separate checkout; running only the commands you configured.',
+  )
+  const prepared = await prepareRepair(config, directory, {
+    allowExecution: options['allow-execution'],
+  })
+  if (!prepared.reproduced) {
+    console.log(
+      `No repairable failure reproduced. Inspect ${directory}/before.json; no model called.`,
+    )
+    process.exitCode = prepared.before.ok ? 0 : 2
+    return false
   }
-  if (options.config) {
-    const configPath = resolve(options.config)
-    // prepareRepair validates the configuration.
-    const config = JSON.parse(await readFile(configPath, 'utf8'))
-    config.repo = resolve(dirname(configPath), config.repo ?? '.')
-    if (config.scenario?.storageState)
-      config.scenario.storageState = resolve(
-        dirname(configPath),
-        config.scenario.storageState,
-      )
-    console.log(
-      'Reproducing in a separate checkout; running only the commands you configured.',
-    )
-    const prepared = await prepareRepair(config, directory, {
-      allowExecution: options['allow-execution'],
-    })
-    if (!prepared.reproduced) {
-      console.log(
-        `No repairable failure reproduced. Inspect ${directory}/before.json; no model called.`,
-      )
-      process.exitCode = prepared.before.ok ? 0 : 2
-      return
-    }
-    console.log(
-      `Failure reproduced. Inspect ${directory}/repair-request.json before authorizing source upload.`,
-    )
-    if (!options['allow-source-upload']) return
-  }
+  console.log(
+    `Failure reproduced. Inspect ${directory}/repair-request.json before authorizing source upload.`,
+  )
+  return Boolean(options['allow-source-upload'])
+}
+
+async function generate(directory: string, options: RepairOptions) {
   const proposal = await generateRepair(directory, {
     allowSourceUpload: options['allow-source-upload'],
   })
