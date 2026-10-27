@@ -15,6 +15,13 @@ import {
 import { actionEffects } from '../../dist/workflows/observe/action-effects.mjs'
 import { comparisonDigest } from '../../dist/workflows/observe/comparisons.mjs'
 import { selectorSpec } from '../../dist/core/selector.mjs'
+import { fake } from '../helpers/fake.mjs'
+
+/** @typedef {import('../../dist/transports/ipc/inspector.mjs').IpcInspector} IpcInspector */
+/** @typedef {import('../../dist/workflows/observe/report.mjs').DelayedUiUpdateFinding} DelayedUiUpdateFinding */
+/** @typedef {import('../../dist/workflows/observe/report.mjs').UnexpectedRowStateFinding} UnexpectedRowStateFinding */
+/** @typedef {Parameters<RowTracker['add']>[0]} RowSample */
+/** @typedef {Parameters<typeof runObservation>[2]} Adapter */
 
 function hookFixture(options = {}) {
   const handlers = new Map(),
@@ -55,7 +62,9 @@ function hookFixture(options = {}) {
     proto,
     sent,
     call,
-    control: { call: async (m, a) => probe[m](a) },
+    control: /** @type {IpcInspector} */ (
+      fake({ call: async (m, a) => probe[m](a) })
+    ),
   }
 }
 
@@ -353,16 +362,18 @@ test('a matching marker names the row state before its text does', () => {
 })
 
 test('the row tracker reports each stretch of a row in an unexpected state once', () => {
-  const t = new RowTracker({
-    rows: {
-      states: ['Pause'],
-      markers: { 'not installed': 'svg' },
-      unexpected: ['not installed'],
-    },
-    lagThresholdMs: 1000,
-    minUnchangedReads: 2,
-  })
-  t.addActions([{ name: 'start', atMs: 250 }])
+  const t = new RowTracker(
+    fake({
+      rows: {
+        states: ['Pause'],
+        markers: { 'not installed': 'svg' },
+        unexpected: ['not installed'],
+      },
+      lagThresholdMs: 1000,
+      minUnchangedReads: 2,
+    }),
+  )
+  t.addActions([fake({ name: 'start', atMs: 250 })])
   const states = [
     'none',
     'not installed',
@@ -375,11 +386,13 @@ test('the row tracker reports each stretch of a row in an unexpected state once'
   // Another row in an allowed state never produces a finding.
   t.add({
     ...sample(7, 'Pause', 7),
-    rows: { items: [{ row: 'x', state: 'Pause' }] },
+    rows: fake({ items: [{ row: 'x', state: 'Pause' }] }),
   })
   // 'second' was missing from sample 7, so coming back starts a new finding.
   t.add(sample(8, 'not installed', 8))
-  const findings = t.snapshot().findings
+  const findings = /** @type {UnexpectedRowStateFinding[]} */ (
+    t.snapshot().findings
+  )
   assert.deepEqual(
     findings.map((f) => [f.code, f.row, f.state, f.samples]),
     [
@@ -412,24 +425,27 @@ test('the row tracker reports each stretch of a row in an unexpected state once'
   )
 })
 
-const trackerConfig = {
+/** @type {ConstructorParameters<typeof RowTracker>[0]} */
+const trackerConfig = fake({
   rows: { states: ['Pause', 'Move up'] },
   lagThresholdMs: 1000,
   minUnchangedReads: 2,
-}
-const sample = (index, state, completed, data = null) => ({
-  index,
-  interval: 1,
-  fromMs: index * 100,
-  toMs: index * 100 + 50,
-  rows: { items: [{ row: 'second', state }] },
-  completed,
-  data,
 })
+/** @returns {RowSample} */
+const sample = (index, state, completed, data = null) =>
+  fake({
+    index,
+    interval: 1,
+    fromMs: index * 100,
+    toMs: index * 100 + 50,
+    rows: { items: [{ row: 'second', state }] },
+    completed,
+    data,
+  })
 
 test('the row tracker reports a state that outlived completed reads and changed without a data event', () => {
   const t = new RowTracker(trackerConfig)
-  t.addActions([{ name: 'start', atMs: 0 }])
+  t.addActions([fake({ name: 'start', atMs: 0 })])
   for (let i = 1; i <= 30; i++)
     t.add(
       sample(i, i < 30 ? 'Pause' : 'Move up', Math.floor(i / 4), {
@@ -437,7 +453,9 @@ test('the row tracker reports a state that outlived completed reads and changed 
         lastAtMs: 120,
       }),
     )
-  const [finding] = t.snapshot().findings
+  const [finding] = /** @type {DelayedUiUpdateFinding[]} */ (
+    t.snapshot().findings
+  )
   assert.equal(finding.code, 'DELAYED_UI_UPDATE')
   assert.equal(finding.basis, 'NO_DATA_EVENT_BEFORE_UI_CHANGE')
   assert.equal(finding.confidence, 'medium')
@@ -452,7 +470,7 @@ test('the row tracker reports a state that outlived completed reads and changed 
 
 test('a stale state that did not begin right after an action is only a low-confidence lead', () => {
   const t = new RowTracker(trackerConfig)
-  t.addActions([{ name: 'start', atMs: 0 }])
+  t.addActions([fake({ name: 'start', atMs: 0 })])
   // The row first shows Move up, later switches to Pause on its own, then back after many reads.
   for (let i = 1; i <= 60; i++)
     t.add(
@@ -463,7 +481,9 @@ test('a stale state that did not begin right after an action is only a low-confi
         { count: 1, lastAtMs: 120 },
       ),
     )
-  const late = t.snapshot().findings.find((f) => f.from === 'Pause')
+  const late = /** @type {DelayedUiUpdateFinding[]} */ (
+    t.snapshot().findings
+  ).find((f) => f.from === 'Pause')
   assert.equal(late.confidence, 'low')
   assert.equal(late.previousStateStartedAfterActionMs, null)
   assert.match(
@@ -473,6 +493,7 @@ test('a stale state that did not begin right after an action is only a low-confi
 })
 
 test('the row tracker stays quiet when a data event explains the change, reads did not complete, or the row was not visible', () => {
+  /** @type {[string, (i: number) => RowSample][]} */
   const cases = [
     [
       'data event in the change window',
@@ -515,11 +536,16 @@ test('the row tracker stays quiet when a data event explains the change, reads d
   for (let i = 1; i <= 30; i++)
     reads.add(sample(i, i < 30 ? 'Pause' : 'Move up', Math.floor(i / 4), null))
   assert.equal(reads.snapshot().findings[0].basis, 'UNCHANGED_ACROSS_READS')
-  assert.equal(reads.snapshot().findings[0].confidence, 'low')
+  assert.equal(
+    /** @type {DelayedUiUpdateFinding} */ (reads.snapshot().findings[0])
+      .confidence,
+    'low',
+  )
 })
 
 test('action effects link rows that appeared or changed after an action', () => {
-  const report = {
+  /** @type {Parameters<typeof actionEffects>[0]} */
+  const report = fake({
     actions: [{ name: 'start', atMs: 1000, trusted: true }],
     rows: [
       {
@@ -559,17 +585,19 @@ test('action effects link rows that appeared or changed after an action', () => 
         ],
       },
     ],
-  }
-  report.rows.push({
-    row: 'key:fedcba9876543210',
-    firstSeen: {
-      fromMs: 1500,
-      toMs: 1550,
-      state: 'none',
-      afterAction: { name: 'start', atMs: 1000 },
-    },
-    transitions: [],
   })
+  report.rows.push(
+    fake({
+      row: 'key:fedcba9876543210',
+      firstSeen: {
+        fromMs: 1500,
+        toMs: 1550,
+        state: 'none',
+        afterAction: { name: 'start', atMs: 1000 },
+      },
+      transitions: [],
+    }),
+  )
   const [effect] = actionEffects(report)
   assert.equal(
     actionSummary(effect),
@@ -588,7 +616,8 @@ test('busy targets omit per-completion comparisons and the terminal digest group
   }
   const abort = new AbortController()
   let n = 0
-  const page = {
+  /** @type {import('playwright').Page} */
+  const page = fake({
     on() {},
     off() {},
     async evaluate(fn) {
@@ -603,14 +632,15 @@ test('busy targets omit per-completion comparisons and the terminal digest group
           }
         : true
     },
-  }
-  const adapter = {
+  })
+  /** @type {Adapter} */
+  const adapter = fake({
     async start() {},
     async snapshot() {
       return { channels: { 'fixture:invoke': { ...row } } }
     },
     async stop() {},
-  }
+  })
   const report = await runObservation(
     page,
     {
@@ -637,18 +667,20 @@ test('busy targets omit per-completion comparisons and the terminal digest group
   )
   assert.equal(report.notes[0].code, 'READ_COMPLETION_COMPARISONS_OMITTED')
   assert.deepEqual(
-    comparisonDigest({
-      comparisons: [
-        { interval: 1, basis: 'READ_COMPLETION', result: 'unchanged' },
-        { interval: 1, basis: 'READ_COMPLETION', result: 'unchanged' },
-        {
-          interval: 2,
-          basis: 'INTERVAL_RETURN',
-          result: 'changed',
-          followUp: { firstBaselineMatch: {} },
-        },
-      ],
-    }),
+    comparisonDigest(
+      fake({
+        comparisons: [
+          { interval: 1, basis: 'READ_COMPLETION', result: 'unchanged' },
+          { interval: 1, basis: 'READ_COMPLETION', result: 'unchanged' },
+          {
+            interval: 2,
+            basis: 'INTERVAL_RETURN',
+            result: 'changed',
+            followUp: { firstBaselineMatch: {} },
+          },
+        ],
+      }),
+    ),
     [
       'Interval 1 comparisons: 2 read-completion unchanged.',
       'Interval 2 comparisons: 1 interval-return changed (later matched).',
@@ -665,7 +697,8 @@ test('a mark from the operator opens an interval; a failing operator is reported
     lastReadAt: null,
     lastCompletedAt: null,
   }
-  const page = {
+  /** @type {import('playwright').Page} */
+  const page = fake({
     on() {},
     off() {},
     async evaluate(fn) {
@@ -679,14 +712,15 @@ test('a mark from the operator opens an interval; a failing operator is reported
           }
         : true
     },
-  }
-  const adapter = {
+  })
+  /** @type {Adapter} */
+  const adapter = fake({
     async start() {},
     async snapshot() {
       return { channels: { 'fixture:invoke': { ...row } } }
     },
     async stop() {},
-  }
+  })
   const report = await runObservation(
     page,
     {

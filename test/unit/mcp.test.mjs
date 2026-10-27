@@ -27,6 +27,13 @@ function client(input, output) {
   return {
     unanswered,
     send: (message) => input.write(`${JSON.stringify(message)}\n`),
+    /**
+     * Replies are JSON for the agent, so the tests read them without a type.
+     * @param {string} method
+     * @param {object} [params]
+     * @param {string | number} [id]
+     * @returns {Promise<any>}
+     */
     request(method, params, id = next++) {
       const reply = new Promise((resolve) => waiting.set(id, resolve))
       input.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`)
@@ -41,6 +48,7 @@ function client(input, output) {
 }
 
 /** Starts `recovery-probe mcp` as an agent would. */
+/** @param {{ cwd?: string }} [options] */
 function startServer({ cwd } = {}) {
   const child = spawn(
     process.execPath,

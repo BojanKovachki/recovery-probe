@@ -11,6 +11,7 @@ import {
   runCommand,
   executionEnvironment,
 } from '../../dist/tools/repair/process.mjs'
+import { fake } from '../helpers/fake.mjs'
 
 const config = {
   target: 'web',
@@ -134,7 +135,7 @@ test('Responses adapter uses schema, no storage and handles refusal/incomplete/e
         assert.equal(body.store, false)
         assert.equal(body.text.format.strict, true)
         assert.equal(body.model, 'configured-by-user')
-        return {
+        return fake({
           ok: true,
           json: async () => ({
             status: 'completed',
@@ -147,7 +148,7 @@ test('Responses adapter uses schema, no storage and handles refusal/incomplete/e
               },
             ],
           }),
-        }
+        })
       },
     },
   )
@@ -167,14 +168,17 @@ test('Responses adapter uses schema, no storage and handles refusal/incomplete/e
         {},
         {
           ...options,
-          fetchImpl: async () => ({ ok: true, json: async () => data }),
+          fetchImpl: async () => fake({ ok: true, json: async () => data }),
         },
       ),
     )
   await assert.rejects(
     proposeRepair(
       {},
-      { ...options, fetchImpl: async () => ({ ok: false, status: 401 }) },
+      {
+        ...options,
+        fetchImpl: async () => fake({ ok: false, status: 401 }),
+      },
     ),
     /HTTP 401/,
   )

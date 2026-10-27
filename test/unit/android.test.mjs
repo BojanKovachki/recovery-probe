@@ -11,6 +11,7 @@ import {
   displayProblems,
   keepQuestAwake,
 } from '../../dist/targets/android.mjs'
+import { fake } from '../helpers/fake.mjs'
 
 // Shaped like a device's output; the same discovery chrome://inspect uses.
 const PROC_NET_UNIX = `Num       RefCount Protocol Flags    Type St Inode Path
@@ -88,7 +89,7 @@ test('forwards a free port and checks that DevTools answers', async () => {
   const forward = await forwardAndroidDevtools(
     run,
     'webview_devtools_remote_4321',
-    { fetchVersion: async (url) => (versions.push(url), { ok: true }) },
+    { fetchVersion: async (url) => (versions.push(url), fake({ ok: true })) },
   )
   assert.equal(forward.cdp, 'http://127.0.0.1:51234')
   assert.deepEqual(versions, ['http://127.0.0.1:51234/json/version'])

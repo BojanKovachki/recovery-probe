@@ -12,7 +12,9 @@ import {
   applyNetworkEvidence,
 } from '../../dist/workflows/observe/network.mjs'
 import { networkStepSummary } from '../../dist/workflows/observe/summaries.mjs'
+import { fake } from '../helpers/fake.mjs'
 
+/** @type {import('../../dist/net-fault.mjs').NetworkFaultRule} */
 const refuse = { host: 'api.example.test', fault: 'refuse' }
 
 /** Resolves with the proxy's answer to one CONNECT. */
@@ -71,7 +73,7 @@ test('runs network steps in order through the control', async () => {
     { network: true },
   )
   const results = await runSteps(
-    {},
+    fake({}),
     steps,
     runOptions({
       arm: async (rules, step) => calls.push(['arm', step, rules.length]),
@@ -84,7 +86,7 @@ test('runs network steps in order through the control', async () => {
   ])
   assert.ok(results.every((result) => result.status === 'done'))
   await assert.rejects(
-    runSteps({}, steps, runOptions(undefined)),
+    runSteps(fake({}), steps, runOptions(undefined)),
     /NETWORK_CONTROL_MISSING/,
   )
 })
@@ -132,11 +134,12 @@ test('records what each armed set faulted and restores at the end', async () => 
     assert.equal(await connectThrough(proxy, 'unused.example.test'), 502)
     assert.equal(proxy.summary().rules[0].matching, 0)
 
-    const report = {
+    /** @type {import('../../dist/workflows/observe/report.mjs').ObservationReport} */
+    const report = fake({
       status: 'complete',
       captureComplete: true,
       coverage: { gaps: [] },
-    }
+    })
     applyNetworkEvidence(report, evidence)
     assert.equal(report.mode, 'observation with network faults')
     assert.deepEqual(report.coverage.gaps, ['NETWORK_FAULT_NOT_TRIGGERED'])
@@ -154,17 +157,19 @@ test('reports faults it could not remove', async () => {
   const evidence = await network.finish()
   assert.match(evidence.restoreError, /fetch failed|ECONNREFUSED/)
 
-  const report = { status: 'complete', coverage: { gaps: [] } }
+  /** @type {import('../../dist/workflows/observe/report.mjs').ObservationReport} */
+  const report = fake({ status: 'complete', coverage: { gaps: [] } })
   applyNetworkEvidence(report, evidence)
   assert.ok(report.coverage.gaps.includes('NETWORK_FAULTS_NOT_RESTORED'))
 })
 
 test('leaves a report without network steps unchanged', () => {
-  const report = {
+  /** @type {import('../../dist/workflows/observe/report.mjs').ObservationReport} */
+  const report = fake({
     status: 'complete',
     mode: 'fault-free observation',
     coverage: { gaps: [] },
-  }
+  })
   applyNetworkEvidence(report, { faults: [] })
   assert.equal(report.mode, 'fault-free observation')
   assert.equal(report.network, undefined)

@@ -63,12 +63,14 @@ test('unused and partially consumed faults cannot be counted as successful check
   })
   assert.throws(
     () => p.assertApplied(),
-    (e) => e.code === 'FAULT_NOT_TRIGGERED',
+    (/** @type {import('../../dist/index.mjs').ProbeError} */ e) =>
+      e.code === 'FAULT_NOT_TRIGGERED',
   )
   await p.fetch(endpoint)
   assert.throws(
     () => p.assertApplied(),
-    (e) => e.code === 'FAULT_NOT_TRIGGERED' && e.stats.applied === 1,
+    (/** @type {import('../../dist/index.mjs').ProbeError} */ e) =>
+      e.code === 'FAULT_NOT_TRIGGERED' && e.stats.applied === 1,
   )
 })
 
@@ -136,7 +138,7 @@ test('already aborted requests keep cancellation semantics and do not consume a 
   controller.abort()
   await assert.rejects(
     p.fetch(endpoint, { signal: controller.signal }),
-    (e) => e.name === 'AbortError',
+    (/** @type {Error} */ e) => e.name === 'AbortError',
   )
   assert.equal(p.summary().applied, 0)
   assert.equal((await p.fetch(endpoint)).status, 503)
@@ -177,6 +179,7 @@ test('invalid options fail before any underlying request', () => {
     /status/,
   )
   assert.throws(
+    // @ts-expect-error: a fault kind that doesn't exist
     () => createFaultFetch(impossible, { url: endpoint, kind: 'unknown' }),
     /Unsupported/,
   )

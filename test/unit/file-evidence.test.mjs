@@ -10,6 +10,7 @@ import {
   applyFileEvidence,
 } from '../../dist/workflows/observe/files.mjs'
 import { observationSummary } from '../../dist/workflows/observe/summaries.mjs'
+import { fake } from '../helpers/fake.mjs'
 
 async function contentDirectory() {
   const directory = await mkdtemp(join(tmpdir(), 'recovery-probe-files-'))
@@ -97,7 +98,8 @@ test('gives each interval what changed while it was open', () => {
 })
 
 test('reports lost files as a lead and partial snapshots as a gap', () => {
-  const report = {
+  /** @type {import('../../dist/workflows/observe/report.mjs').ObservationReport} */
+  const report = fake({
     status: 'complete',
     captureComplete: true,
     intervals: [
@@ -106,7 +108,7 @@ test('reports lost files as a lead and partial snapshots as a gap', () => {
     ],
     findings: [],
     coverage: { gaps: [] },
-  }
+  })
   applyFileEvidence(report, {
     intervals: [
       { interval: 1, removed: 0, shrunk: 0, added: 2, grown: 0, bytesLost: 0 },

@@ -11,6 +11,12 @@ import { runSteps } from '../../dist/workflows/observe/step-runner.mjs'
 import { observationSummary } from '../../dist/workflows/observe/summaries.mjs'
 import { runEvidence } from '../../dist/tools/compare/reports.mjs'
 import { compareRuns } from '../../dist/tools/compare/run.mjs'
+import { listen } from '../helpers/ports.mjs'
+
+/** @typedef {import('../../dist/workflows/observe/report.mjs').UnexpectedRowStateFinding} UnexpectedRowStateFinding */
+
+// compare reads reports back from their JSON files.
+const saved = (report) => JSON.parse(JSON.stringify(report))
 
 let browser,
   server,
@@ -41,8 +47,7 @@ before(async () => {
       response.end(html)
     }
   })
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
-  origin = `http://127.0.0.1:${server.address().port}`
+  origin = `http://127.0.0.1:${await listen(server)}`
   browser = await chromium.launch({ headless: true })
 })
 after(async () => {
@@ -103,7 +108,7 @@ test(
       (f) => f.code === 'UNEXPECTED_ROW_STATE',
     )
     assert.equal(findings.length, 1, JSON.stringify(broken.findings))
-    const [finding] = findings
+    const [finding] = /** @type {UnexpectedRowStateFinding[]} */ (findings)
     assert.equal(finding.row, 'second')
     assert.equal(finding.state, 'not installed')
     assert.equal(finding.afterAction.name, 'start')
@@ -129,8 +134,8 @@ test(
       [],
     )
     const comparison = compareRuns(
-      [runEvidence(broken, 'broken')],
-      [runEvidence(fixed, 'fixed')],
+      [runEvidence(saved(broken), 'broken')],
+      [runEvidence(saved(fixed), 'fixed')],
     )
     // The list is on screen before the capture's first read, so CONTENT_BEFORE_READ stays on both sides.
     assert.equal(

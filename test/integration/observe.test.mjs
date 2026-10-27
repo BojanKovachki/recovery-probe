@@ -10,6 +10,15 @@ import { readRegion } from '../../dist/core/region-read.mjs'
 import { summarizeRegion } from '../../dist/core/screen.mjs'
 import { observationTable } from '../fixtures/observation-table.mjs'
 import { assertReportShape } from '../helpers/report-shape.mjs'
+import { listen } from '../helpers/ports.mjs'
+
+/** @typedef {import('../../dist/workflows/observe/report.mjs').ContentBeforeReadFinding} ContentBeforeReadFinding */
+
+// The HTTP observer's counts, as far as these tests read them.
+const channelsOf = (report) =>
+  /** @type {{ channels: Record<string, { calls: number }> }} */ (
+    report.snapshot
+  ).channels
 
 let browser, server, origin
 before(async () => {
@@ -35,8 +44,7 @@ before(async () => {
       response.end(html)
     }
   })
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
-  origin = `http://127.0.0.1:${server.address().port}`
+  origin = `http://127.0.0.1:${await listen(server)}`
   browser = await chromium.launch({ headless: true })
 })
 after(async () => {
@@ -87,11 +95,15 @@ test('fresh cached content is observed without a reload or read; absence during 
     )
     await assertReportShape(report, 'observe-http')
     assert.equal(report.captureComplete, true, JSON.stringify(report))
-    assert.equal(report.snapshot.channels[c.endpoint].calls, 0)
+    assert.equal(channelsOf(report)[c.endpoint].calls, 0)
     assert.equal(report.timeline[0].ui.presence, 'absent')
     assert.equal(report.findings[0].code, 'CONTENT_BEFORE_READ')
     assert.equal(report.findings[0].basis, 'NO_READ_OBSERVED_IN_INTERVAL')
-    assert.equal(report.findings[0].lastCompletionAgeMs, null)
+    assert.equal(
+      /** @type {ContentBeforeReadFinding} */ (report.findings[0])
+        .lastCompletionAgeMs,
+      null,
+    )
     assert.equal(report.coverage.historyBeforeCapture, 'unknown')
     assert.equal(await page.evaluate(() => window.fixtureNonce), nonce)
     assert.ok(!JSON.stringify(report).includes('synthetic-alpha-private-value'))
@@ -147,7 +159,11 @@ test('interval markers retain read history while measuring zero reads on a cache
     assert.equal(report.intervals.length, 2)
     assert.equal(report.intervals[0].reads.calls, 1)
     assert.equal(report.intervals[1].reads.calls, 0)
-    assert.ok(report.intervals[1].firstContent.lastCompletionAgeMs >= 0)
+    assert.ok(
+      /** @type {number} */ (
+        report.intervals[1].firstContent.lastCompletionAgeMs
+      ) >= 0,
+    )
     assert.equal(report.findings.length, 1)
     assert.equal(report.findings[0].interval, 2)
     const returned = report.comparisons.find(
@@ -266,7 +282,7 @@ test('return samples retain a temporary marker reduction and later baseline matc
     assert.equal(returned.followUp.firstBaselineMatch.content.count, 19)
     assert.equal(returned.followUp.latest.result, 'unchanged')
     assert.ok(returned.followUp.samples > 1)
-    assert.equal(report.snapshot.channels[c.endpoint].calls, 0)
+    assert.equal(channelsOf(report)[c.endpoint].calls, 0)
     assert.match(
       returned.followUp.summary,
       /Initially different; a later sample matched/,

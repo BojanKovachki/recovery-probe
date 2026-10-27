@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { refreshConfig } from '../../dist/workflows/refresh/config.mjs'
 import { ipcRefreshAdapter } from '../../dist/transports/session.mjs'
+import { fake } from '../helpers/fake.mjs'
 test('refresh configuration requires explicit event and compatible read/fault scope', () => {
   const c = {
     transport: 'ipc',
@@ -20,8 +21,11 @@ test('refresh configuration requires explicit event and compatible read/fault sc
   )
 })
 test('refresh IPC resets a possibly armed begin even when its reply is lost', async () => {
-  let state, resetId
-  const control = {
+  /** @type {{ id: string, armed: object | null }} */
+  let state
+  let resetId
+  /** @type {import('../../dist/transports/ipc/inspector.mjs').IpcInspector} */
+  const control = fake({
     async call(method, args) {
       if (method === 'begin') {
         state = { id: args.id, armed: { remaining: 1 } }
@@ -34,7 +38,7 @@ test('refresh IPC resets a possibly armed begin even when its reply is lost', as
       }
       if (method === 'snapshot') return state
     },
-  }
+  })
   const adapter = ipcRefreshAdapter(
     control,
     { channel: 'read', requiredChannels: [] },
@@ -48,13 +52,14 @@ test('refresh IPC resets a possibly armed begin even when its reply is lost', as
 
 test('refresh never clears or reports cleanup for a foreign armed IPC plan', async () => {
   let mutated = false
-  const control = {
+  /** @type {import('../../dist/transports/ipc/inspector.mjs').IpcInspector} */
+  const control = fake({
     async call(method) {
       if (method === 'snapshot')
         return { id: 'foreign', armed: { remaining: 1 }, channels: {} }
       mutated = true
     },
-  }
+  })
   const adapter = ipcRefreshAdapter(
     control,
     { channel: 'read', requiredChannels: [] },

@@ -6,6 +6,8 @@ import { join } from 'node:path'
 import { recoveryProbeTools } from '../../dist/tools/mcp/tools.mjs'
 import { startDemoServer } from '../../examples/demo-server.mjs'
 
+// Tool results are JSON for the agent, so the tests read them without a type.
+/** @returns {{ run(args: object, context: object): Promise<any> }} */
 const tool = (name) => recoveryProbeTools.find((t) => t.name === name)
 const context = { signal: new AbortController().signal }
 

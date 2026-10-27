@@ -5,6 +5,7 @@ import { chromium } from 'playwright'
 import { runRefresh } from '../../dist/workflows/refresh/run.mjs'
 import { httpRefreshAdapter } from '../../dist/transports/session.mjs'
 import { assertReportShape } from '../helpers/report-shape.mjs'
+import { listen } from '../helpers/ports.mjs'
 
 function fixture(mode) {
   return `<!doctype html><main><h1>Catalog</h1><ul id="items"></ul><div id="error"></div></main><script>
@@ -29,8 +30,7 @@ test(
       res.setHeader('Content-Type', 'text/html')
       res.end(fixture(mode))
     })
-    await new Promise((r) => server.listen(0, '127.0.0.1', r))
-    const base = `http://127.0.0.1:${server.address().port}`
+    const base = `http://127.0.0.1:${await listen(server)}`
     const browser = await chromium.launch()
     const page = await browser.newPage()
     const config = {
@@ -148,8 +148,7 @@ test(
   async function load(){try{const r=await fetch('/api/items');if(!r.ok)throw Error();await r.json();setTimeout(()=>{document.querySelector('section').innerHTML=${empty ? "'Empty catalog'" : '\'<button><img alt="Card A"></button><button><img alt="Card B"></button><button><img alt="Card C"></button>\''}},400);}catch{document.querySelector('section').innerHTML='';}}
   load();window.addEventListener('online',load);</script>`)
     })
-    await new Promise((r) => server.listen(0, '127.0.0.1', r))
-    const base = `http://127.0.0.1:${server.address().port}`
+    const base = `http://127.0.0.1:${await listen(server)}`
     const browser = await chromium.launch()
     const page = await browser.newPage()
     const c = {

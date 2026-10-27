@@ -110,7 +110,7 @@ test(
       await npm(['install', join(temp, packed.filename)], consumer)
       await assert.rejects(
         access(join(consumer, 'node_modules', 'playwright')),
-        (error) => error.code === 'ENOENT',
+        (/** @type {NodeJS.ErrnoException} */ error) => error.code === 'ENOENT',
       )
 
       const installedPackage = JSON.parse(
@@ -363,7 +363,8 @@ void checkWeb(webConfig);
           cwd: consumer,
           timeout: 10000,
         }),
-        (error) => /npm install --save-dev typescript/.test(error.stderr),
+        (/** @type {{ stderr: string }} */ error) =>
+          /npm install --save-dev typescript/.test(error.stderr),
       )
       const desktopHelp = await exec(
         process.execPath,

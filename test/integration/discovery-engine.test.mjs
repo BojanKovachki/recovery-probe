@@ -3,6 +3,9 @@ import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { chromium } from 'playwright'
 import { runDiscovery } from '../../dist/workflows/discover/run.mjs'
+import { listen } from '../helpers/ports.mjs'
+
+/** @typedef {import('../../dist/workflows/discover/types.mjs').ReadSnapshot} ReadSnapshot */
 
 // A page whose list shows `items(load)` entries on each reload.
 async function withPage(items, exercise) {
@@ -14,11 +17,11 @@ async function withPage(items, exercise) {
       `<!doctype html><main>${count ? `<ul>${'<li>Item</li>'.repeat(count)}</ul>` : '<p>No items</p>'}</main>`,
     )
   })
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const port = await listen(server)
   const browser = await chromium.launch()
   try {
     const page = await browser.newPage()
-    await page.goto(`http://127.0.0.1:${server.address().port}`)
+    await page.goto(`http://127.0.0.1:${port}`)
     await exercise(page)
   } finally {
     await browser.close()
@@ -50,6 +53,7 @@ function fakeSession({ pending = 0 } = {}) {
   }
 }
 
+/** @returns {import('../../dist/workflows/discover/types.mjs').DiscoveryResult<string, ReadSnapshot>} */
 const report = () => ({
   baselines: [],
   results: [],
@@ -58,6 +62,7 @@ const report = () => ({
   ok: false,
   readiness: { calibrationComplete: false },
 })
+/** @returns {import('../../dist/workflows/discover/types.mjs').DiscoverySetup<string, ReadSnapshot>} */
 const setup = (page, session) => ({
   page,
   session,

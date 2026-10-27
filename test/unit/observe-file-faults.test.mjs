@@ -21,6 +21,7 @@ import {
 import { applyExpectationEvidence } from '../../dist/workflows/observe/report.mjs'
 import { fileFaultSummary } from '../../dist/workflows/observe/summaries.mjs'
 import { fileEvidence } from '../../dist/workflows/observe/files.mjs'
+import { fake } from '../helpers/fake.mjs'
 
 const runOptions = (files) => ({
   mark: async () => null,
@@ -112,7 +113,7 @@ test('runs file steps through the control', async () => {
     { files: true },
   )
   const results = await runSteps(
-    {},
+    fake({}),
     steps,
     runOptions({
       damage: async (path, fault, step) => calls.push([path, fault, step]),
@@ -121,7 +122,7 @@ test('runs file steps through the control', async () => {
   assert.deepEqual(calls, [['a.dll', 'remove', 0]])
   assert.ok(results.every((result) => result.status === 'done'))
   await assert.rejects(
-    runSteps({}, steps, runOptions(undefined)),
+    runSteps(fake({}), steps, runOptions(undefined)),
     /FILE_CONTROL_MISSING/,
   )
 })
@@ -263,31 +264,33 @@ test('files the steps damaged are left out of the snapshot comparison', () => {
   assert.deepEqual(evidence.paths[0].removed, ['content.pak'])
 })
 
-const capture = () => ({
-  status: 'complete',
-  captureComplete: true,
-  coverage: { gaps: [] },
-  intervals: [
-    { index: 1, startMs: 0, samples: 1, findings: [] },
-    { index: 2, startMs: 5_000, samples: 1, findings: [] },
-  ],
-  findings: [],
-  operator: {
+/** @returns {import('../../dist/workflows/observe/report.mjs').ObservationReport} */
+const capture = () =>
+  fake({
     status: 'complete',
-    steps: [
-      { index: 0, kind: 'mark', startedMs: 4_900, status: 'done' },
-      { index: 1, kind: 'file', startedMs: 5_100, status: 'done' },
-      {
-        index: 2,
-        kind: 'expect',
-        name: 'repairing',
-        startedMs: 5_200,
-        endedMs: 20_200,
-        status: 'unmet',
-      },
+    captureComplete: true,
+    coverage: { gaps: [] },
+    intervals: [
+      { index: 1, startMs: 0, samples: 1, findings: [] },
+      { index: 2, startMs: 5_000, samples: 1, findings: [] },
     ],
-  },
-})
+    findings: [],
+    operator: {
+      status: 'complete',
+      steps: [
+        { index: 0, kind: 'mark', startedMs: 4_900, status: 'done' },
+        { index: 1, kind: 'file', startedMs: 5_100, status: 'done' },
+        {
+          index: 2,
+          kind: 'expect',
+          name: 'repairing',
+          startedMs: 5_200,
+          endedMs: 20_200,
+          status: 'unmet',
+        },
+      ],
+    },
+  })
 
 test('a file the app did not restore is LOCAL_FILE_NOT_REPAIRED in its step’s interval', () => {
   const report = capture()

@@ -89,6 +89,7 @@ test(
       // fault. There must be no reload/injection before the checker disarms it.
       let lostReply = false
       let uncertainId
+      /** @type {{ armed: unknown, injected: number }} */
       let observedReset
       const unreliable = {
         async call(method, argument) {
@@ -403,7 +404,7 @@ test(
           ],
           { timeout: 15000 },
         ),
-        (error) =>
+        (/** @type {{ code: number, stdout: string }} */ error) =>
           error.code === 1 &&
           /FAIL: rejection .*\n {2}Screen showed: "Empty"/.test(error.stdout),
       )

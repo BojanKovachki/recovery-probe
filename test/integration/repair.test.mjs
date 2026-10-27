@@ -33,9 +33,9 @@ test(
       await generateRepair(run, {
         allowSourceUpload: true,
         apiKey: 'mock-key',
-        fetchImpl: async (...args) => {
+        fetchImpl: async (input, init) => {
           called++
-          return mockProvider(...args)
+          return mockProvider(input, init)
         },
       })
       assert.equal(called, 1)

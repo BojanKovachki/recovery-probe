@@ -13,6 +13,7 @@ import {
   desktopReportHtml,
   writeDesktopReport,
 } from '../../dist/reports/check.mjs'
+import { fake } from '../helpers/fake.mjs'
 const config = {
   pageUrl: 'http://localhost/app',
   endpoint: 'https://api.example.test/data',
@@ -61,7 +62,8 @@ test('page identities omit credentials, query strings and fragments', () => {
 test('never silently picks between multiple app windows', () => {
   const a = { url: () => 'http://localhost/app' }
   const b = { url: () => 'http://localhost/app' }
-  const browser = { contexts: () => [{ pages: () => [a, b] }] }
+  /** @type {import('playwright').Browser} */
+  const browser = fake({ contexts: () => [{ pages: () => [a, b] }] })
   assert.throws(() => selectDesktopPage(browser), /Choose one window/)
   assert.throws(
     () => selectDesktopPage(browser, { pageUrl: a.url() }),
@@ -78,23 +80,26 @@ test('never silently picks between multiple app windows', () => {
   )
 })
 test('reports escape application metadata and reject unsafe screenshot paths', () => {
-  const html = desktopReportHtml({
-    endpoint: '<img src=x onerror=alert(1)>',
-    timeoutMs: 500,
-    generatedAt: '',
-    recovery: 'retry',
-    finalReset: 'healthy',
-    results: [
-      {
-        kind: 'http-error',
-        outcome: 'fail',
-        code: '<script>bad</script>',
-        applied: 1,
-        successfulResponsesAfterFault: 0,
-        screenshot: 'https://tracker.example/image.png',
-      },
-    ],
-  })
+  const html = desktopReportHtml(
+    fake({
+      endpoint: '<img src=x onerror=alert(1)>',
+      timeoutMs: 500,
+      generatedAt: '',
+      recovery: 'retry',
+      finalReset: 'healthy',
+      results: [
+        {
+          kind: 'http-error',
+          outcome: 'fail',
+          code: '<script>bad</script>',
+          applied: 1,
+          successfulResponsesAfterFault: 0,
+          retryClicked: false,
+          screenshot: 'https://tracker.example/image.png',
+        },
+      ],
+    }),
+  )
   assert.ok(!html.includes('<script>bad'))
   assert.ok(html.includes('&lt;img'))
   assert.ok(!html.includes('src="https://tracker'))
@@ -107,7 +112,8 @@ test('reports say why a baseline failed and quote the screen under a fault', asy
     successfulResponsesAfterFault: 0,
     retryClicked: false,
   }
-  const report = {
+  /** @type {import('../../dist/desktop.mjs').DesktopReport} */
+  const report = fake({
     endpoint: 'https://api.example.test/orders',
     timeoutMs: 500,
     generatedAt: '',
@@ -131,7 +137,7 @@ test('reports say why a baseline failed and quote the screen under a fault', asy
         applied: 1,
       },
     ],
-  }
+  })
   const html = desktopReportHtml(report)
   assert.ok(html.includes('Why: the ready selector matched 2 elements'))
   assert.ok(

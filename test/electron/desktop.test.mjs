@@ -124,12 +124,15 @@ test('corrected Electron app recovers from all faults with subsequent real reque
   )
 })
 test('wrong endpoint and wrong health marker are inconclusive, never app failures', async () => {
-  for (const [extra, reason] of [
-    [
-      { endpoint: `${server.url}/absent` },
-      'no successful response from the endpoint within 200 ms',
-    ],
-    [{ readySelector: '#absent' }, 'the ready selector matched 0 elements'],
+  for (const { extra, reason } of [
+    {
+      extra: { endpoint: `${server.url}/absent` },
+      reason: 'no successful response from the endpoint within 200 ms',
+    },
+    {
+      extra: { readySelector: '#absent' },
+      reason: 'the ready selector matched 0 elements',
+    },
   ]) {
     const report = await checkDesktop(
       page,

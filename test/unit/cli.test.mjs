@@ -16,6 +16,7 @@ const run = (...args) =>
   )
 
 test('old spellings run the new commands with the same options', () => {
+  /** @type {[string[], string, object][]} */
   const cases = [
     [['--demo', '--json'], 'demo', { json: true, reportFile: false }],
     [
@@ -84,12 +85,12 @@ test('old spellings run the new commands with the same options', () => {
     assert.deepEqual(translation.values, values, argv.join(' '))
   }
   assert.equal(translateLegacy(['check', '--config', 'a.json']), null)
-  for (const [argv, message] of [
+  for (const [argv, message] of /** @type {[string[], RegExp][]} */ ([
     [['desktop', '--list', '--config', 'a.json'], /Choose one of/],
     [['ipc', '--discover', '--action', '--config', 'a'], /either --discover/],
     [['ipc', '--action', '--config', 'a', '--screenshots'], /needs --discover/],
     [['web', '--login', '--nope'], /Unknown option '--nope'/],
-  ])
+  ]))
     assert.throws(() => translateLegacy(argv), message)
 })
 

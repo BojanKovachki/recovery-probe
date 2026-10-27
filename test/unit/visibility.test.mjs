@@ -4,9 +4,13 @@ import {
   prepareVisibility,
   windowVisibility,
 } from '../../dist/targets/visibility.mjs'
+import { fake } from '../helpers/fake.mjs'
+/** @typedef {import('playwright').Page} Page */
+
 function fixture(unsupported = false) {
   let state = 'minimized'
-  const page = {
+  /** @type {Page} */
+  const page = fake({
     evaluate: async () => (state === 'minimized' ? 'hidden' : 'visible'),
     context: () => ({
       newCDPSession: async () => ({
@@ -22,13 +26,14 @@ function fixture(unsupported = false) {
         detach: async () => {},
       }),
     }),
-  }
-  const control = {
+  })
+  /** @type {Parameters<typeof windowVisibility>[1]} */
+  const control = fake({
     call: async (method, arg) => {
       if (method === 'setWindowMinimized') state = arg ? 'minimized' : 'normal'
       return { minimized: state === 'minimized' }
     },
-  }
+  })
   return { page, control, state: () => state }
 }
 test('unminimize is opt-in, reversible and supports an Electron control fallback', async () => {
@@ -53,15 +58,17 @@ test('unminimize is opt-in, reversible and supports an Electron control fallback
 })
 
 test('tells a visible page that draws frames from one that does not', async () => {
-  const page = (rendering) => ({
-    evaluate: async (probe) =>
-      String(probe).includes('requestAnimationFrame') ? rendering : 'visible',
-    context: () => ({
-      newCDPSession: async () => {
-        throw Error('unsupported')
-      },
-    }),
-  })
+  /** @returns {Page} */
+  const page = (rendering) =>
+    fake({
+      evaluate: async (probe) =>
+        String(probe).includes('requestAnimationFrame') ? rendering : 'visible',
+      context: () => ({
+        newCDPSession: async () => {
+          throw Error('unsupported')
+        },
+      }),
+    })
   assert.equal((await windowVisibility(page('frames'))).diagnosis, 'visible')
   const asleep = await windowVisibility(page('no-viewport'))
   assert.equal(asleep.rendering, 'no-viewport')

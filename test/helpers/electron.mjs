@@ -7,6 +7,7 @@ import { connectDesktop, desktopPages } from '../../dist/desktop.mjs'
 const require = createRequire(import.meta.url)
 
 // A host that sets ELECTRON_RUN_AS_NODE (some editors do) would start Electron as plain Node.
+/** @param {NodeJS.ProcessEnv} env */
 const withoutRunAsNode = ({ ELECTRON_RUN_AS_NODE: _ignored, ...env }) => env
 
 /**

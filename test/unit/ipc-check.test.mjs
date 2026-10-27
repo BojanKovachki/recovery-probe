@@ -1,8 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { phaseVerdict } from '../../dist/workflows/check/ipc/verdict.mjs'
+import { fake } from '../helpers/fake.mjs'
 
 const channels = { channel: 'items', requiredChannels: ['user'] }
+/** A channel's counters; the verdict reads only these. */
 const row = (counts = {}) => ({
   calls: 1,
   successes: 1,
@@ -10,6 +12,17 @@ const row = (counts = {}) => ({
   pending: 0,
   ...counts,
 })
+/**
+ * @param {{
+ *   fault?: import('../../dist/transports/ipc/control.mjs').IpcFault,
+ *   target?: object,
+ *   user?: object,
+ *   injected?: number,
+ *   successfulAfterFault?: number,
+ *   readyProblem?: string,
+ *   expired?: boolean,
+ * }} [state]
+ */
 const verdict = ({
   fault,
   target = {},
@@ -21,11 +34,11 @@ const verdict = ({
 } = {}) =>
   phaseVerdict(channels, {
     fault,
-    snapshot: {
+    snapshot: fake({
       injected,
       successfulAfterFault,
       channels: { items: row(target), user: row(user) },
-    },
+    }),
     readyProblem,
     expired,
   })

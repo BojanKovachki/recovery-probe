@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
 import { runStart } from '../../dist/tools/start/run.mjs'
 import { pickMarker } from '../../dist/tools/pick-marker.mjs'
+import { listen } from '../helpers/ports.mjs'
 const exec = promisify(execFile)
 const cli = fileURLToPath(
   new URL('../../bin/recovery-probe.mjs', import.meta.url),
@@ -70,8 +71,8 @@ test(
       async function load(){try{const r=await fetch('/api/profile?secret=omit');if(!r.ok)throw Error();const d=await r.json();document.querySelector('p').textContent=d.name}catch{${req.url === '/broken' ? "document.body.insertAdjacentHTML('beforeend','<div role=alert>Could not load your profile</div>')" : 'setTimeout(load,30)'}}}load();
     </script>`)
     })
-    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
-    const url = `http://127.0.0.1:${server.address().port}`
+    const url = `http://127.0.0.1:${await listen(server)}`
+    /** @type {import('playwright').Browser | undefined} */
     let browser
     const logs = []
     try {
@@ -139,7 +140,7 @@ test(
           [cli, 'start', 'web', '--dir', dir, '--headless'],
           { timeout: 15000 },
         ),
-        (error) =>
+        (/** @type {{ code: number, stdout: string }} */ error) =>
           error.code === 1 &&
           /RECOVERY_NOT_OBSERVED\n {2}Screen showed: "Could not load your profile"/.test(
             error.stdout,
