@@ -12,7 +12,7 @@ Use Node.js 22 or newer, then:
 mkdir recovery-probe-example
 cd recovery-probe-example
 npm init -y
-npm install --save-dev recovery-probe@1.0.2 playwright
+npm install --save-dev recovery-probe playwright
 npx playwright install chromium
 node node_modules/recovery-probe/examples/mcp-demo.mjs
 ```
