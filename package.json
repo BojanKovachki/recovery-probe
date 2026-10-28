@@ -1,6 +1,6 @@
 {
   "name": "recovery-probe",
-  "version": "1.1.0-preview.1",
+  "version": "1.1.0-preview.2",
   "type": "module",
   "description": "Find recovery and UI-state bugs in web and Electron apps through fault injection and runtime evidence. Built for developers and AI coding agents.",
   "license": "MIT",
