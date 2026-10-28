@@ -4,6 +4,12 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 1.0.2 (2026-10-28)
+
+- Add MCP Registry ownership and launch metadata, with stable-tag publication using GitHub OIDC after verifying the npm package.
+- Document unattended MCP startup, project working directories and optional dependencies.
+- Add a reproducible stdio MCP demonstration of a broken retry, the corrected controller and before/after report comparison.
+
 ## 1.0.1 (2026-10-28)
 
 - Reject browser-origin WebSocket connections and untrusted Host headers on the Android CDP bridge before opening an upstream connection. Validate the network proxy control API's Host header to block DNS rebinding.
