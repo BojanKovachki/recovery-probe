@@ -45,11 +45,14 @@ function payloadLength(buffered: Buffer) {
 /** The first whole frame and its size in bytes, or undefined until it has all arrived. */
 function readFrame(
   buffered: Buffer,
+  remaining: number,
 ): { frame: Frame; size: number } | 'too-large' | undefined {
   if (buffered.length < 2) return undefined
   const header = payloadLength(buffered)
   if (!header) return undefined
-  if (header.length > MAX_MESSAGE) return 'too-large'
+  const opcode = buffered[0] & 0x0f
+  const limit = opcode < 0x8 ? remaining : 125
+  if (header.length > limit) return 'too-large'
   const masked = (buffered[1] & 0x80) !== 0
   const start = header.offset + (masked ? 4 : 0)
   const end = start + header.length
@@ -80,26 +83,31 @@ export function acceptWebSocket(
   return new ServerWebSocket(socket, onMessage, onClose)
 }
 
-class ServerWebSocket implements WebSocketPeer {
+export class ServerWebSocket implements WebSocketPeer {
   readonly #socket: Duplex
   readonly #onMessage: (text: string) => void
   readonly #onClose: () => void
+  readonly #maxMessage: number
   #closed = false
   #buffered = Buffer.alloc(0)
   #message: Buffer[] = []
+  #messageBytes = 0
 
   constructor(
     socket: Duplex,
     onMessage: (text: string) => void,
     onClose: () => void,
+    maxMessage = MAX_MESSAGE,
   ) {
     this.#socket = socket
     this.#onMessage = onMessage
     this.#onClose = onClose
+    this.#maxMessage = maxMessage
     socket.on('data', (chunk: Buffer) => this.#receive(chunk))
     socket.on('close', () => {
       if (this.#closed) return
       this.#closed = true
+      this.#clear()
       this.#onClose()
     })
     socket.on('error', () => socket.destroy())
@@ -109,10 +117,13 @@ class ServerWebSocket implements WebSocketPeer {
     if (!this.#closed) this.#frame(0x1, Buffer.from(text))
   }
 
-  readonly close = () => {
+  readonly close = (code = 1000) => {
     if (this.#closed) return
     this.#closed = true
-    this.#frame(0x8, Buffer.from([0x03, 0xe8])) // 1000: normal closure
+    const payload = Buffer.alloc(2)
+    payload.writeUInt16BE(code)
+    this.#frame(0x8, payload)
+    this.#clear()
     this.#socket.end()
     this.#onClose()
   }
@@ -124,24 +135,36 @@ class ServerWebSocket implements WebSocketPeer {
   }
 
   #receive(chunk: Buffer) {
+    if (this.#closed) return
     this.#buffered = Buffer.concat([this.#buffered, chunk])
-    for (;;) {
-      const read = readFrame(this.#buffered)
+    while (!this.#closed) {
+      const read = readFrame(
+        this.#buffered,
+        this.#maxMessage - this.#messageBytes,
+      )
       if (read === undefined) return
-      if (read === 'too-large') return this.close()
+      if (read === 'too-large') return this.close(1009)
       this.#buffered = this.#buffered.subarray(read.size)
       if (read.frame.opcode === 0x8) return this.close()
       this.#handle(read.frame)
     }
   }
 
+  #clear() {
+    this.#buffered = Buffer.alloc(0)
+    this.#message = []
+    this.#messageBytes = 0
+  }
+
   #handle({ fin, opcode, payload }: Frame) {
     if (opcode === 0x9) this.#frame(0xa, payload)
     else if (opcode === 0x1 || opcode === 0x2 || opcode === 0x0) {
-      this.#message.push(payload)
+      if (payload.length) this.#message.push(payload)
+      this.#messageBytes += payload.length
       if (fin) {
         const text = Buffer.concat(this.#message).toString('utf8')
         this.#message = []
+        this.#messageBytes = 0
         this.#onMessage(text)
       }
     }

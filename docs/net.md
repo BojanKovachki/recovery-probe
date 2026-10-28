@@ -7,6 +7,7 @@ Some apps make their own HTTPS requests outside the page: an SDK, the Electron m
 - **Whole connections only.** HTTPS stays end to end, so the proxy sees each connection's host and port and nothing else. It cannot return an HTTP status, change a response or fail one path on a host.
 - **The app has to use the proxy.** Clients that read `HTTPS_PROXY` include Rust's reqwest (by default), Go's `net/http`, curl and Python's requests. Node's built-in `fetch` reads it only with `NODE_USE_ENV_PROXY=1` (Node 24 or later). Chromium and Electron renderers ignore it; use the [page's HTTP faults](desktop.md) for those.
 - **Open connections are reused.** A rule that starts mid-session reaches a client only once it connects again. Set `dropOpen` to close the open connections to the host when the rule starts.
+- **Local processes can tunnel to any host and port**, including other loopback services. The proxy binds only to `127.0.0.1`; it is a development proxy, not a destination allowlist or a security boundary between local processes.
 - It reports what it did to connections, not whether the app recovered. Check the screen with `observe`, discovery or your own assertions.
 
 Use it only with development or test targets you control.
@@ -53,7 +54,7 @@ Rule windows count from the first connection through the proxy, so they line up 
 | `fromMs`, `untilMs` | When the rule applies |
 | `dropOpen` | Close the open connections to the host when the rule starts |
 
-The first rule that matches a connection applies.
+The first rule that matches a connection applies. Host matching ignores case and a final DNS dot: `api.example.com.` matches `api.example.com`. `*.example.com` matches subdomains at any depth but never the apex `example.com`; add a separate rule for the apex if needed.
 
 ## Results
 
@@ -65,7 +66,7 @@ The first rule that matches a connection applies.
 
 Without `--rules`, `net` only passes connections through until something arms faults through its control. [`observe --network URL`](observe.md#network-steps) does that from network steps, so the screen is sampled while hosts are away and after they come back. Code can use the same control with `connectNetworkFaults(url)`.
 
-The control listens on the proxy's own loopback address and answers only requests with the `x-recovery-probe: network` header. A web page cannot send that header without a preflight, which the proxy never answers.
+The control listens on the proxy's own loopback address and requires both the `x-recovery-probe: network` header and a `Host` of `127.0.0.1:<port>` or `localhost:<port>` using the proxy's actual port. The Host check rejects DNS rebinding; other web pages cannot send the control header without a preflight, which the proxy never answers.
 
 ## Use it from code
 

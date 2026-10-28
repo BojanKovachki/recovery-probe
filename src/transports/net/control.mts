@@ -1,4 +1,5 @@
 import type { IncomingMessage, RequestListener } from 'node:http'
+import { hasLoopbackHost } from '../../core/server.mjs'
 import { CONTROL_HEADER, CONTROL_PATH } from './client.mjs'
 import type { NetworkFaultRule, NetworkFaultSummary } from './types.mjs'
 
@@ -33,7 +34,12 @@ export function controlListener(handle?: ControlHandler): RequestListener {
       response.writeHead(501).end('Recovery Probe tunnels HTTPS (CONNECT) only')
       return
     }
-    // A web page cannot send this header without a preflight, which is never answered.
+    // A same-origin page after DNS rebinding can send the control header too.
+    if (!hasLoopbackHost(request)) {
+      reply(403, { error: 'Use the proxy loopback host and port' })
+      return
+    }
+    // Other web pages cannot send this header without a preflight, never answered here.
     if (request.headers[CONTROL_HEADER] !== 'network') {
       reply(403, { error: `Send the ${CONTROL_HEADER}: network header` })
       return
