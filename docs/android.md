@@ -34,6 +34,7 @@ npx recovery-probe android --package com.example.app --keep-awake
 - **Page reads:** fetch and XHR made by the WebView can be observed and faulted, as in a desktop page.
 - **Native reads are outside the page.** That covers requests made in Java or Kotlin code or an SDK, and calls through JavaScript bridges (`addJavascriptInterface`). Android apps do not read `HTTPS_PROXY`, so `recovery-probe net` does not reach them either.
 - **Blank WebViews are hidden.** Apps often keep WebViews with nothing loaded and no window yet, for example to warm one up. Android pauses those, and they never answer DevTools, so a client that attaches to every page waits forever. The URL serves the app's DevTools through a small bridge that leaves out pages that were blank when it first saw them, and lets them run if they were waiting for a debugger. Everything else passes through unchanged.
+- **The bridge accepts native CDP clients only.** WebSocket requests carrying any `Origin` header are rejected. Discovery and WebSocket requests must use `127.0.0.1:<port>` or `localhost:<port>` for the bridge's actual port; DNS aliases are rejected. Inbound WebSocket messages, including fragmented messages, are limited to 256 MiB.
 - **Leftover forwards:** a forward is removed when the command stops. If the process is killed instead, remove it with `adb forward --remove tcp:PORT`.
 
 ## Keep the app drawing

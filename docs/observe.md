@@ -145,6 +145,8 @@ When one IPC channel carries many kinds of calls (for example an SDK bridge), co
 
 Main-to-renderer pushes can be observed as data-change events. List their channels in the hook's `pushChannels`, optionally with `classifyPush(channel, args)`, and select them with `dataEvents`. The hook wraps `send` on the target window's WebContents only while an observation lease is active, counts sends and their times, never stores payloads, and removes the wrapper at the end of the lease. Fault plans never observe pushes.
 
+These counts cover calls through `webContents.send` only. Calls through `webContents.mainFrame.send`, `postMessage`, other frames, or a reference to `send` saved before the wrapper was installed are not counted. A zero push count does not prove that no message was sent through those paths.
+
 ```js
 installIpcProbe(ipcMain, {
   enabled: true, channels: ['app:invoke'], sender: () => mainWindow?.webContents,

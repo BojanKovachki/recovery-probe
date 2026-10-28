@@ -173,12 +173,20 @@ class McpServer {
         (params.arguments ?? {}) as Record<string, unknown>,
         { signal: controller.signal },
       )
+      if (controller.signal.aborted) return undefined
       return reply(id, {
-        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        structuredContent: result,
+        content: [
+          { type: 'text', text: JSON.stringify(result, null, 2) ?? 'null' },
+        ],
+        ...(result !== null &&
+        typeof result === 'object' &&
+        !Array.isArray(result)
+          ? { structuredContent: result }
+          : {}),
         isError: false,
       })
     } catch (error) {
+      if (controller.signal.aborted) return undefined
       // A tool failure is a result the model can read and act on, not a protocol error.
       return reply(id, {
         content: [{ type: 'text', text: (error as Error).message }],

@@ -339,13 +339,17 @@ test('cancels a running tool and answers batches', async () => {
     output,
   )
   const session = client(input, output)
-  const waiting = session.request('tools/call', { name: 'wait' }, 'w')
+  session.send({
+    jsonrpc: '2.0',
+    id: 'w',
+    method: 'tools/call',
+    params: { name: 'wait' },
+  })
   session.send({
     jsonrpc: '2.0',
     method: 'notifications/cancelled',
     params: { requestId: 'w' },
   })
-  assert.equal((await waiting).result.isError, true)
   assert.ok(cancelled)
 
   const replies = await session.batch([
@@ -364,6 +368,91 @@ test('cancels a running tool and answers batches', async () => {
   )
   assert.equal(replies[1].result.content[0].text, 'it broke')
 
+  input.end()
+  await served
+  assert.deepEqual(session.unanswered, [])
+})
+
+test('does not reply when a cancelled tool resolves successfully', async () => {
+  const input = new PassThrough()
+  const output = new PassThrough()
+  const served = serveMcp(
+    {
+      name: 'test',
+      version: '0',
+      tools: [
+        {
+          name: 'wait',
+          description: 'Resolves on abort.',
+          inputSchema: { type: 'object' },
+          run: (_args, { signal }) =>
+            new Promise((resolve) => {
+              signal.addEventListener('abort', () => resolve({ done: true }))
+            }),
+        },
+      ],
+    },
+    input,
+    output,
+  )
+  const session = client(input, output)
+  session.send({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'tools/call',
+    params: { name: 'wait' },
+  })
+  for (const requestId of ['unknown', 1])
+    session.send({
+      jsonrpc: '2.0',
+      method: 'notifications/cancelled',
+      params: { requestId },
+    })
+  assert.deepEqual((await session.request('ping', {}, 2)).result, {})
+  input.end()
+  await served
+  assert.deepEqual(session.unanswered, [])
+})
+
+test('includes structuredContent only for object results and always supplies text', async () => {
+  const input = new PassThrough()
+  const output = new PassThrough()
+  const served = serveMcp(
+    {
+      name: 'test',
+      version: '0',
+      tools: [
+        {
+          name: 'value',
+          description: 'Returns its argument.',
+          inputSchema: { type: 'object' },
+          run: async (args) => args.value,
+        },
+      ],
+    },
+    input,
+    output,
+  )
+  const session = client(input, output)
+  for (const value of [
+    undefined,
+    null,
+    false,
+    0,
+    'text',
+    [],
+    [1],
+    { ok: true },
+  ]) {
+    const result = await call(session, 'value', { value })
+    assert.equal(result.isError, false)
+    assert.equal(typeof result.content[0].text, 'string')
+    assert.equal(
+      Object.hasOwn(result, 'structuredContent'),
+      value !== null && typeof value === 'object' && !Array.isArray(value),
+    )
+    assert.deepEqual(JSON.parse(result.content[0].text), value ?? null)
+  }
   input.end()
   await served
 })

@@ -4,6 +4,14 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## 1.0.1 (2026-10-28)
+
+- Reject browser-origin WebSocket connections and untrusted Host headers on the Android CDP bridge before opening an upstream connection. Validate the network proxy control API's Host header to block DNS rebinding.
+- Bound complete inbound CDP WebSocket messages, including continuation frames, and close oversized messages with code 1009.
+- Suppress MCP tool responses after cancellation and emit `structuredContent` only for object results.
+- Match network host names with or without a final DNS dot. Document wildcard apex behavior, unrestricted local CONNECT tunneling, and the `webContents.send` scope of IPC push counting.
+
+
 ## 1.0.0 (2026-10-27)
 
 The first release with an explicit 1.x compatibility commitment. It removes the old command spellings and brings in everything since 0.6.0: the 0.7.0 and 0.8.0 previews below. The README defines the supported interfaces and experimental exceptions, and explains that failed checks can save unredacted screen-text quotes of up to 200 characters.
