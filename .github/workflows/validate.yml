@@ -119,6 +119,8 @@ jobs:
         run: node scripts/benchmark-observe.mjs > artifacts/observe-benchmark.json
       - name: Run controlled browser demonstration
         run: npm run demo:browser
+      - name: Run the real stdio MCP demonstration
+        run: npm run demo:mcp
       - name: Verify the runnable CI recovery example
         run: npm run test:ci-example
       - name: Upload demonstration reports

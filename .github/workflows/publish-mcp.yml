@@ -1,0 +1,37 @@
+name: Publish MCP Registry
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+concurrency:
+  group: mcp-registry-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Verify stable tag and published npm ownership
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: node scripts/check-mcp-release.mjs
+      - name: Install pinned publisher
+        run: |
+          curl --fail --location --retry 3 --output publisher.tar.gz https://github.com/modelcontextprotocol/registry/releases/download/v1.8.6/mcp-publisher_linux_amd64.tar.gz
+          echo '1fbe93fc0783c2394d8012c8d6e50a59e98cb2cc2d216264cc69f405d0e21340  publisher.tar.gz' | sha256sum --check
+          tar xzf publisher.tar.gz mcp-publisher
+      - name: Authenticate using GitHub OIDC
+        run: ./mcp-publisher login github-oidc
+      - name: Publish registry entry
+        run: ./mcp-publisher publish

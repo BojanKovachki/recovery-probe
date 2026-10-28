@@ -4,12 +4,12 @@ An AI coding agent can say "this handles a failed request" without ever seeing o
 
 ## Add it to an agent
 
-The server runs over stdio: the agent starts `npx recovery-probe mcp` and talks to it. Add it wherever your agent keeps its MCP servers. Most agents take this JSON:
+The server runs over stdio: the agent starts `npx -y recovery-probe mcp` and talks to it. Add it wherever your agent keeps its MCP servers. Most agents take this JSON:
 
 ```json
 {
   "mcpServers": {
-    "recovery-probe": { "command": "npx", "args": ["recovery-probe", "mcp"] }
+    "recovery-probe": { "command": "npx", "args": ["-y", "recovery-probe", "mcp"] }
   }
 }
 ```
@@ -22,7 +22,7 @@ Some use a different shape for the same entry. VS Code's `.vscode/mcp.json` uses
     "recovery-probe": {
       "type": "stdio",
       "command": "npx",
-      "args": ["recovery-probe", "mcp"]
+      "args": ["-y", "recovery-probe", "mcp"]
     }
   }
 }
@@ -33,10 +33,10 @@ Agents configured with TOML use:
 ```toml
 [mcp_servers.recovery-probe]
 command = "npx"
-args = ["recovery-probe", "mcp"]
+args = ["-y", "recovery-probe", "mcp"]
 ```
 
-If your agent has an `mcp add` command, give it the name `recovery-probe` and the command `npx recovery-probe mcp`.
+If your agent has an `mcp add` command, give it the name `recovery-probe` and the command `npx -y recovery-probe mcp`.
 
 Install the package in the project, as for the other commands. The browser tools also need Playwright and Chromium:
 
@@ -44,6 +44,10 @@ Install the package in the project, as for the other commands. The browser tools
 npm install --save-dev recovery-probe playwright
 npx playwright install chromium
 ```
+
+Run the server with your project as its working directory (the MCP client’s `cwd` setting, where supported). Install the dependencies in that same project; a temporary `npx` download alone does not install the optional browser dependencies. For a fixed executable path, use `node /absolute/path/to/project/node_modules/recovery-probe/bin/recovery-probe.mjs mcp`. Node.js 22 or newer must be available to the agent.
+
+See [the reproducible MCP demonstration](mcp-demo.md) for a clean installation and a before/after check through the real stdio server.
 
 ## Tools
 
