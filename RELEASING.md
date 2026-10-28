@@ -13,3 +13,11 @@ This checklist is for maintainers.
 9. Create a GitHub release from the matching changelog entry. Mark preview releases as prereleases and distinguish newly published capabilities from earlier GitHub-only previews.
 
 Never publish from a dirty working tree or move an existing release tag.
+
+## MCP Registry
+
+For stable releases, update `server.json`'s top-level and npm package versions alongside `package.json`. Preserve the package's `mcpName` ownership field and the `mcp` package argument. Run `npm run demo:mcp` after installing Chromium; CI runs the same stdio demonstration.
+
+Publish and verify npm **before** creating the version tag. `.github/workflows/publish-mcp.yml` publishes the matching registry entry using GitHub OIDC. It skips preview tags, requires an exact stable version and checks that npm already exposes the expected ownership metadata. No registry secret is needed. If npm propagation delays the job, rerun the failed workflow after verifying npm; do not move the tag or publish a second npm version just to retry it.
+
+After the workflow succeeds, verify the exact name and version in the [MCP Registry](https://registry.modelcontextprotocol.io/). Registry publication is separate from npm publication. A failed registry job does not undo the npm release.
