@@ -4,7 +4,11 @@ import {
   type ServerResponse,
 } from 'node:http'
 import type { Duplex } from 'node:stream'
-import { closeServer, listenOnLoopback } from '../../core/server.mjs'
+import {
+  closeServer,
+  hasLoopbackHost,
+  listenOnLoopback,
+} from '../../core/server.mjs'
 import { BRIDGE_ID_BASE, TargetFilter, type CdpTargetInfo } from './filter.mjs'
 import { acceptWebSocket, type WebSocketPeer } from './websocket.mjs'
 
@@ -67,6 +71,10 @@ async function answer(
   request: IncomingMessage,
   response: ServerResponse,
 ) {
+  if (!hasLoopbackHost(request)) {
+    response.writeHead(403).end('Forbidden')
+    return
+  }
   try {
     // Clients ask for both /json/version and /json/version/.
     const path = new URL(request.url ?? '/', 'http://bridge').pathname.replace(
@@ -125,6 +133,11 @@ function bridgeClient(
   request: IncomingMessage,
   socket: Duplex,
 ) {
+  // Native CDP clients send no Origin. Even an empty or null browser origin is denied.
+  if (!hasLoopbackHost(request) || request.headers.origin !== undefined) {
+    socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n')
+    return
+  }
   if (
     new URL(request.url ?? '/', 'http://bridge').pathname !==
     '/devtools/browser'

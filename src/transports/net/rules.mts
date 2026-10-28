@@ -13,7 +13,8 @@ const isWholeNumber = (value: unknown): value is number =>
   Number.isInteger(value) && (value as number) >= 0
 
 export function hostMatches(pattern: string, host: string): boolean {
-  const name = host.toLowerCase()
+  const name = host.toLowerCase().replace(/\.$/, '')
+  pattern = pattern.toLowerCase().replace(/\.$/, '')
   if (pattern === '*') return true
   if (pattern.startsWith('*.')) return name.endsWith(pattern.slice(1))
   return name === pattern

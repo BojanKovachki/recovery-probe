@@ -4,6 +4,13 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## Unreleased
+
+- Reject browser-origin WebSocket connections and untrusted Host headers on the Android CDP bridge before opening an upstream connection. Validate the network proxy control API's Host header to block DNS rebinding.
+- Bound complete inbound CDP WebSocket messages, including continuation frames, and close oversized messages with code 1009.
+- Suppress MCP tool responses after cancellation and emit `structuredContent` only for object results.
+- Match network host names with or without a final DNS dot. Document wildcard apex behavior, unrestricted local CONNECT tunneling, and the `webContents.send` scope of IPC push counting.
+
 ## 1.1.0-preview.1 (2026-10-27)
 
 - `observe` with `slowReads` explains slow screens over HTTP. For each read it records when it started and finished, how long the network took, when its content first showed, and how busy the page's main thread was in between. Optionally it also counts the requests waiting on a page bridge, such as an Android WebMessageListener object. A `SLOW_READ` lead says whether the time went to the network, to a busy main thread or to something else.

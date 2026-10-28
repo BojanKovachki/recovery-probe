@@ -16,6 +16,7 @@ import {
   connectNetworkFaults,
 } from '../../dist/net-fault.mjs'
 import { listen } from '../helpers/ports.mjs'
+import { localRequest } from '../helpers/local-http.mjs'
 
 // The proxy never reads what goes through a tunnel, so an echo server stands in
 // for the HTTPS server behind it.
@@ -226,6 +227,11 @@ test('matches a host exactly, by subdomain or every host', () => {
   assert.ok(!hostMatches('*.example.com', 'example.com'))
   assert.ok(!hostMatches('*.example.com', 'example.com.evil.test'))
   assert.ok(hostMatches('*', 'anything.test'))
+  assert.ok(hostMatches('api.example.com', 'api.example.com.'))
+  assert.ok(hostMatches('API.Example.com.', 'api.example.com'))
+  assert.ok(hostMatches('*.example.com.', 'cdn.example.com.'))
+  assert.ok(!hostMatches('*.example.com', 'example.com.'))
+  assert.ok(!hostMatches('api.example.com', 'api.example.com.evil.'))
 })
 
 test('rejects rules it cannot apply', () => {
@@ -377,4 +383,44 @@ test('answers control requests only with its header', async () => {
 
 test('controls only a loopback proxy', () => {
   assert.throws(() => connectNetworkFaults('http://192.0.2.1:8899'), /loopback/)
+})
+
+test('rejects rebinding control requests without changing fault state', async () => {
+  const proxy = await startNetworkFaultProxy({
+    control: true,
+    rules: [{ host: '*', fault: 'refuse' }],
+  })
+  try {
+    for (const Host of [
+      undefined,
+      `rebind.example:${proxy.port}`,
+      '127.0.0.1:1',
+      [`127.0.0.1:${proxy.port}`, `rebind.example:${proxy.port}`],
+    ]) {
+      for (const action of ['summary', 'arm', 'disarm', 'drop']) {
+        const status = await localRequest(
+          proxy.url,
+          `/recovery-probe/network/${action}`,
+          {
+            'x-recovery-probe': 'network',
+            ...(Host === undefined ? {} : { Host }),
+          },
+        )
+        // Node may reject malformed HTTP before it reaches our listener.
+        assert.ok([400, 403].includes(status), `Host ${Host}: ${status}`)
+      }
+    }
+    assert.equal((await tunnel(proxy)).status, 502)
+    for (const host of ['localhost', '127.0.0.1']) {
+      assert.equal(
+        await localRequest(proxy.url, '/recovery-probe/network/summary', {
+          Host: `${host}:${proxy.port}`,
+          'x-recovery-probe': 'network',
+        }),
+        200,
+      )
+    }
+  } finally {
+    await proxy.close()
+  }
 })

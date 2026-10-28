@@ -5,6 +5,7 @@ import { once } from 'node:events'
 import { startCdpBridge } from '../../dist/targets/cdp-bridge/bridge.mjs'
 import { acceptWebSocket } from '../../dist/targets/cdp-bridge/websocket.mjs'
 import { listen } from '../helpers/ports.mjs'
+import { localRequest } from '../helpers/local-http.mjs'
 
 const appPage = { targetId: 'APP', type: 'page', url: 'https://app.test/' }
 const blankPage = { targetId: 'BLANK', type: 'page', url: '' }
@@ -15,7 +16,9 @@ const blankPage = { targetId: 'BLANK', type: 'page', url: '' }
  */
 async function fakeDevice() {
   const received = []
+  const requests = []
   const server = createServer((request, response) => {
+    requests.push(request.url)
     const path = new URL(request.url, 'http://device').pathname
     response.writeHead(200, { 'content-type': 'application/json' })
     if (path === '/json/version')
@@ -37,6 +40,7 @@ async function fakeDevice() {
       )
   })
   server.on('upgrade', (request, socket) => {
+    requests.push(request.url)
     const peer = acceptWebSocket(
       request,
       socket,
@@ -83,6 +87,7 @@ async function fakeDevice() {
   return {
     url: `http://127.0.0.1:${port}`,
     received,
+    requests,
     close: () =>
       new Promise((resolve) => {
         server.closeAllConnections()
@@ -90,6 +95,76 @@ async function fakeDevice() {
       }),
   }
 }
+
+const upgradeHeaders = {
+  Connection: 'Upgrade',
+  Upgrade: 'websocket',
+  'Sec-WebSocket-Key': 'dGhlIHNhbXBsZSBub25jZQ==',
+  'Sec-WebSocket-Version': '13',
+}
+
+test('rejects browser origins before opening an upstream connection', async () => {
+  await withBridge(async ({ bridge, device }) => {
+    for (const Origin of ['https://hostile.example', 'null', '', bridge.url]) {
+      assert.equal(
+        await localRequest(bridge.url, '/devtools/browser', {
+          ...upgradeHeaders,
+          Host: new URL(bridge.url).host,
+          Origin,
+        }),
+        403,
+      )
+    }
+    assert.deepEqual(device.requests, [])
+  })
+})
+
+test('rejects untrusted Host headers on discovery and upgrades', async () => {
+  await withBridge(async ({ bridge, device }) => {
+    const port = new URL(bridge.url).port
+    for (const Host of [
+      undefined,
+      `rebind.example:${port}`,
+      '127.0.0.1:1',
+      'localhost',
+      `localhost.evil:${port}`,
+      `127.0.0.2:${port}`,
+      [`127.0.0.1:${port}`, `rebind.example:${port}`],
+    ]) {
+      for (const path of [
+        '/json',
+        '/json/list',
+        '/json/version/',
+        '/devtools/browser',
+      ]) {
+        const status = await localRequest(bridge.url, path, {
+          ...(path.startsWith('/devtools') ? upgradeHeaders : {}),
+          ...(Host === undefined ? {} : { Host }),
+        })
+        // Node may reject malformed HTTP before it reaches our listener.
+        assert.ok([400, 403].includes(status), `Host ${Host}: ${status}`)
+      }
+    }
+    assert.deepEqual(device.requests, [])
+    for (const host of ['localhost', '127.0.0.1']) {
+      assert.equal(
+        await localRequest(bridge.url, '/json/version', {
+          Host: `${host}:${port}`,
+        }),
+        200,
+      )
+      const ws = new WebSocket(`ws://${host}:${port}/devtools/browser`)
+      await once(ws, 'open')
+      const echoed = once(ws, 'message')
+      ws.send(JSON.stringify({ id: 1, method: 'Echo', params: { text: host } }))
+      const [event] = await echoed
+      assert.equal(JSON.parse(event.data).result.echo, host)
+      const closed = once(ws, 'close')
+      ws.close()
+      await closed
+    }
+  })
+})
 
 /** A client on the bridge's browser endpoint that collects every message. */
 async function connect(bridge) {

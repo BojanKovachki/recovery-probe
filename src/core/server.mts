@@ -1,4 +1,12 @@
-import type { Server } from 'node:http'
+import type { IncomingMessage, Server } from 'node:http'
+
+/** Reject DNS aliases and ambiguous authorities before exposing local controls. */
+export function hasLoopbackHost(request: IncomingMessage): boolean {
+  const hosts = request.headersDistinct.host
+  if (hosts?.length !== 1 || !request.socket.localPort) return false
+  const port = request.socket.localPort
+  return hosts[0] === `127.0.0.1:${port}` || hosts[0] === `localhost:${port}`
+}
 
 /** Listens on 127.0.0.1 and returns the port; port 0 picks a free one. */
 export async function listenOnLoopback(
