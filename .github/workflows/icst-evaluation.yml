@@ -1,0 +1,62 @@
+name: ICST repeated evaluation
+on:
+  push:
+    branches: [research/icst-2027-evaluation]
+    paths: [.github/workflows/icst-evaluation.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  repeated-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: deed6149cb723e5fd3c3b9335dff46f52d829e11
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Record environment
+        run: |
+          mkdir -p artifacts/icst
+          git rev-parse HEAD > artifacts/icst/commit.txt
+          node --version > artifacts/icst/node.txt
+          uname -a > artifacts/icst/os.txt
+      - name: Run repeated synthetic evaluation
+        run: |
+          cat > evaluation-repeat.mjs <<'JS'
+          import { chromium } from 'playwright';
+          import { probeRecovery, withFault } from './dist/index.mjs';
+          import { startDemoServer } from './examples/demo-server.mjs';
+          import { createProfileController } from './examples/profile-controller.mjs';
+          import { writeFile } from 'node:fs/promises';
+          import assert from 'node:assert/strict';
+          const out={commit:'deed6149cb723e5fd3c3b9335dff46f52d829e11',node:process.version,browser:null,oracle:[],runs:[],negative:[]};
+          for(let run=0;run<10;run++) for(const fixed of [false,true]) for(const kind of ['http-error','connection-failure','invalid-json']) {
+           let calls=0; const controller=createProfileController(async()=>{calls++; if(calls===1){if(kind==='connection-failure') throw new Error('synthetic connection failure');return new Response(kind==='invalid-json'?'{bad':'{}',{status:kind==='http-error'?503:200});} return new Response(JSON.stringify({name:'Synthetic Example'}));},{fixed});
+           await controller.load();assert.equal(controller.getState().phase,'error');await controller.load();assert.equal(controller.getState().phase,fixed?'ready':'error');assert.equal(calls,fixed?2:1);out.oracle.push({run,fixed,kind,calls,state:controller.getState()});
+          }
+          await writeFile('artifacts/icst/controller-oracle.json',JSON.stringify(out,null,2));
+          if(process.env.ORACLE_ONLY==='1'){console.log('Independent controller cases passed: '+out.oracle.length);process.exit(0);}
+          const server=await startDemoServer();const browser=await chromium.launch({headless:true});out.browser=browser.version();
+          try {for(let run=0;run<10;run++) {for(const variant of ['broken','fixed']) {const result=await probeRecovery(browser,{name:variant,url:server.url+'/'+variant,requestPattern:'**/api/profile',readySelector:'#profile',retrySelector:'#retry',timeoutMs:1000});out.runs.push({run,variant,result});assert.equal(result.results[0].outcome,'pass');for(const row of result.results.slice(1)){assert.equal(row.applied,1);assert.equal(row.outcome,variant==='fixed'?'pass':'fail');}}
+          const context=await browser.newContext();const page=await context.newPage();let code;try{await withFault(page,{match:'**/not-the-endpoint',kind:'http-error'},async()=>{await page.goto(server.url+'/fixed');await page.locator('#profile').waitFor();});}catch(e){code=e.code;}assert.equal(code,'FAULT_NOT_TRIGGERED');out.negative.push({run,code});await context.close();}}
+          finally{await browser.close();await server.close();await writeFile('artifacts/icst/repeated-results.json',JSON.stringify(out,null,2));}
+          console.log(JSON.stringify({oracle:out.oracle.length,browserRuns:out.runs.length,faultTrials:out.runs.length*3,negative:out.negative.length,browser:out.browser}));
+          JS
+          node evaluation-repeat.mjs 2>&1 | tee artifacts/icst/repeated.log
+      - name: Preserve raw results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: icst-repeated-evaluation
+          path: |
+            artifacts/icst/
+            evaluation-repeat.mjs
+          if-no-files-found: error
