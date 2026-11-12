@@ -1,0 +1,76 @@
+name: ICST independent Playwright comparison
+on:
+  push:
+    branches: [research/icst-2027-evaluation]
+    paths: [.github/workflows/icst-comparison.yml]
+permissions:
+  contents: read
+jobs:
+  comparison:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: deed6149cb723e5fd3c3b9335dff46f52d829e11
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - name: Independent fault-aware test
+        run: |
+          cat > comparison.mjs <<'JS'
+          import { chromium } from 'playwright';
+          import { startDemoServer } from './examples/demo-server.mjs';
+          import { writeFile, mkdir } from 'node:fs/promises';
+          import assert from 'node:assert/strict';
+          const results=[];
+          const server=await startDemoServer();
+          const browser=await chromium.launch();
+          try {
+           for(let repeat=0;repeat<10;repeat++) for(const variant of ['broken','fixed']) for(const fault of ['503','abort','json']) {
+            const context=await browser.newContext(); const page=await context.newPage();
+            try {
+             await page.goto(server.url+'/'+variant);
+             await page.locator('#profile').waitFor({state:'visible'});
+             assert.equal(await page.locator('#profile').textContent(),'Synthetic Example');
+             let injected=0, successfulAfter=0;
+             page.on('response', r=>{if(injected && new URL(r.url()).pathname==='/api/profile' && r.status()===200) successfulAfter++;});
+             await page.route('**/api/profile',async route=>{
+              if(injected) return route.continue();
+              injected++;
+              if(fault==='abort') return route.abort('failed');
+              await route.fulfill({status:fault==='503'?503:200,contentType:'application/json',body:fault==='json'?'{bad':'{}'});
+             });
+             await page.reload();
+             await page.locator('#retry').waitFor({state:'visible'});
+             const start=performance.now();
+             await page.locator('#retry').click();
+             let recovered=false;
+             try {await page.waitForFunction(()=>document.querySelector('#status').textContent==='ready' && !document.querySelector('#profile').hidden && document.querySelector('#profile').textContent==='Synthetic Example',{},{timeout:1000});recovered=true;} catch(e){if(e.name!=='TimeoutError') throw e;}
+             const row={repeat,variant,fault,injected,recovered,successfulAfter,elapsedMs:performance.now()-start};
+             results.push(row);
+             assert.equal(injected,1);assert.equal(recovered,variant==='fixed');
+             if(recovered) assert.ok(successfulAfter>0);
+            } finally {await context.close();}
+           }
+          } finally {
+           await mkdir('artifacts/comparison',{recursive:true});
+           await writeFile('artifacts/comparison/results.json',JSON.stringify({commit:'deed6149cb723e5fd3c3b9335dff46f52d829e11',browser:browser.version(),node:process.version,results},null,2));
+           await browser.close();await server.close();
+          }
+          console.log(JSON.stringify({trials:results.length,brokenDetected:results.filter(r=>r.variant==='broken'&&!r.recovered).length,fixedRecovered:results.filter(r=>r.variant==='fixed'&&r.recovered).length}));
+          JS
+          node comparison.mjs
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: independent-playwright-comparison
+          path: |
+            artifacts/comparison/
+            comparison.mjs
