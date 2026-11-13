@@ -24,6 +24,7 @@ import type {
   ObservationReport,
 } from '../workflows/observe/report.mjs'
 import { comparisonDigest } from '../workflows/observe/comparisons.mjs'
+import { contentLoadedSummary } from '../workflows/observe/summaries.mjs'
 import {
   observationSteps,
   type ObservationStep,
@@ -246,9 +247,11 @@ function printObservation(
   )
 }
 
-function intervalLine({ index, reads, findings }: ObservationInterval) {
+function intervalLine(interval: ObservationInterval) {
+  const { index, reads, findings } = interval
   const raised = findings.length ? '; ' + findings.join(', ') : ''
-  return `Interval ${index}: ${reads?.calls ?? '?'} reads, ${reads?.successes ?? '?'} successes, ${reads?.errors ?? '?'} errors${raised}`
+  const loaded = contentLoadedSummary(interval)
+  return `Interval ${index}: ${reads?.calls ?? '?'} reads, ${reads?.successes ?? '?'} successes, ${reads?.errors ?? '?'} errors${loaded ? '; ' + loaded : ''}${raised}`
 }
 
 function findingLine(finding: ObservationFinding) {

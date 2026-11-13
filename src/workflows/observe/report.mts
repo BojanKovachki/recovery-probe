@@ -1,4 +1,5 @@
 import { version } from '../../core/package.mjs'
+import type { RegionRead } from '../../core/region-read.mjs'
 import type { WindowReport } from '../../targets/visibility.mjs'
 import type { NetworkRuleSummary } from '../../transports/net/types.mjs'
 import type { ActionEffect } from './action-effects.mjs'
@@ -40,6 +41,7 @@ export interface ObservationSample {
     visible: boolean
     contentCount?: number
     content?: ContentSummary | null
+    contentImages?: RegionRead['contentImages']
   }
   reads: ReadCounts & { pendingAtStart: number }
   before: ReadCounts
@@ -152,6 +154,18 @@ export interface ObservationInterval {
     fromMs: number
     toMs: number
     [key: string]: unknown
+  } | null
+  /**
+   * With contentImages: when the content last became fully loaded (shown, with every image
+   * loaded or failed) and then stayed unchanged to the end of the interval; null if it never did.
+   */
+  contentLoaded?: {
+    fromMs: number
+    toMs: number
+    images: number
+    failedImages: number
+    /** The content had more elements than were checked for images. */
+    truncated: boolean
   } | null
   samples: number
   /** Codes of the findings raised in this interval. */

@@ -24,6 +24,36 @@ export function firstContent(
   }
 }
 
+/**
+ * The interval's contentLoaded after `event`: the start of the latest stretch in which the content
+ * showed with every image loaded or failed. A change to the content or its images starts a new one.
+ */
+export function contentLoaded(
+  current: ObservationInterval['contentLoaded'],
+  event: TimelineEvent,
+  previous: TimelineEvent | undefined,
+): ObservationInterval['contentLoaded'] {
+  const images = event.ui.contentImages
+  if (
+    !showsContent(event) ||
+    !images ||
+    images.loaded + images.failed < images.total
+  )
+    return null
+  const unchanged =
+    previous?.ui.content?.textFingerprint ===
+      event.ui.content?.textFingerprint &&
+    previous?.ui.contentImages?.total === images.total
+  if (current && unchanged) return current
+  return {
+    fromMs: event.fromMs,
+    toMs: event.toMs,
+    images: images.total,
+    failedImages: images.failed,
+    truncated: images.truncated,
+  }
+}
+
 /** CONTENT_BEFORE_READ when `event` shows content before any read completed in its interval. */
 export function contentBeforeRead(
   event: TimelineEvent,
@@ -47,4 +77,29 @@ export function contentBeforeRead(
   }
   finding.summary = observationSummary(finding)
   return finding
+}
+
+// Each interval's last sample, to tell whether the content changed since.
+const lastSamples = new WeakMap<ObservationInterval, TimelineEvent>()
+
+/**
+ * Adds one sample to its interval's content timing. Returns the CONTENT_BEFORE_READ finding to
+ * raise, at most one per interval.
+ */
+export function addContentSample(
+  interval: ObservationInterval,
+  event: TimelineEvent,
+  contentImages: boolean,
+): ContentBeforeReadFinding | null {
+  if (!interval.firstContent)
+    interval.firstContent = firstContent(event, interval)
+  if (contentImages)
+    interval.contentLoaded = contentLoaded(
+      interval.contentLoaded,
+      event,
+      lastSamples.get(interval),
+    )
+  lastSamples.set(interval, event)
+  if (interval.findings.includes('CONTENT_BEFORE_READ')) return null
+  return contentBeforeRead(event)
 }

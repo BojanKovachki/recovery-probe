@@ -1,4 +1,7 @@
-import type { RecordedAction } from '../workflows/observe/kit.mjs'
+import type {
+  ContentImages,
+  RecordedAction,
+} from '../workflows/observe/kit.mjs'
 import type { SelectorSpec } from './selector.mjs'
 
 /** What an observation reads; a plain region selector reads the region alone. */
@@ -7,6 +10,8 @@ export interface ObservationReadInput {
   contentSelector: SelectorSpec
   detail?: string
   kitToken?: string
+  /** Also counts the images inside the matched content. */
+  images?: boolean
   rows?: {
     selector: SelectorSpec
     key?: SelectorSpec
@@ -25,6 +30,7 @@ export interface RegionRead {
   presence?: 'absent' | 'hidden' | 'visible'
   contentCount?: number
   content?: { texts: string[]; truncated: boolean }
+  contentImages?: ContentImages
   rows?: {
     truncated: boolean
     /** `marker` is the index of the first configured marker found in the row. */
@@ -119,16 +125,19 @@ export function readRegion(
   const contentOf = (root: Element, spec: SelectorSpec) => {
     const matches = select(root, spec)
     const texts: string[] = []
+    const elements: Element[] = []
     let remaining = 200000
     let truncated = matches.length > 1000
     for (const e of [...matches].slice(0, 1000)) {
       if (!visible(e)) continue
+      elements.push(e)
       const text = innerText(e)
       if (text.length > remaining) truncated = true
       texts.push(text.slice(0, remaining))
       remaining = Math.max(0, remaining - text.length)
     }
-    return { texts, truncated }
+    // The elements stay in the page: only the texts are returned.
+    return { content: { texts, truncated }, elements }
   }
 
   // Row key and state text are returned transiently; Node hashes keys and keeps only allowlisted states.
@@ -249,6 +258,7 @@ export function readRegion(
   type Observed = {
     content: NonNullable<RegionRead['content']>
     rows: RegionRead['rows']
+    contentImages?: RegionRead['contentImages']
   }
 
   const structuralRead = (
@@ -265,8 +275,7 @@ export function readRegion(
         ? {
             presence: 'visible' as const,
             contentCount: observed.content.texts.length,
-            content: observed.content,
-            rows: observed.rows,
+            ...observed,
           }
         : {}),
       region: regionSelector
@@ -282,12 +291,11 @@ export function readRegion(
     }
   }
 
-  const contentRead = ({ content, rows }: Observed): RegionRead => ({
+  const contentRead = (observed: Observed): RegionRead => ({
     presence: 'visible',
-    contentCount: content.texts.length,
-    content,
-    rows,
-    truncated: content.truncated,
+    contentCount: observed.content.texts.length,
+    ...observed,
+    truncated: observed.content.truncated,
     ...page(),
   })
 
@@ -303,9 +311,11 @@ export function readRegion(
     if (!observation) return structuralRead(root, regionSelector)
     if (!visible(root))
       return { presence: 'hidden', contentCount: 0, ...page() }
+    const { content, elements } = contentOf(root, observation.contentSelector)
     const observed = {
-      content: contentOf(root, observation.contentSelector),
+      content,
       rows: observation.rows ? rowsOf(root, observation.rows) : undefined,
+      ...(observation.images ? { contentImages: kit?.imagesIn(elements) } : {}),
     }
     return observation.detail === 'content'
       ? contentRead(observed)

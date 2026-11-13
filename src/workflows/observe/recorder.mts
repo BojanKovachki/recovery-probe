@@ -22,7 +22,7 @@ import {
   type TimelineEvent,
 } from './report.mjs'
 import { RowTracker } from './rows.mjs'
-import { contentBeforeRead, firstContent, showsContent } from './sample.mjs'
+import { addContentSample, showsContent } from './sample.mjs'
 import type { ReadLogSnapshot } from '../../transports/http/read-log.mjs'
 import { SlowReadTracker } from './slow-reads/evidence.mjs'
 import type { LoadSample, ProbeStatus } from './slow-reads/probe.mjs'
@@ -100,6 +100,7 @@ export class ObservationRecorder {
       startMs,
       startCounts: counts(selectedReads(s, c)!),
       firstContent: null,
+      ...(c.contentImages ? { contentLoaded: null } : {}),
       samples: 0,
       findings: [],
       ...(c.methods
@@ -270,10 +271,11 @@ export class ObservationRecorder {
 
   #addContent(event: TimelineEvent) {
     const interval = this.#interval!
-    if (!interval.firstContent)
-      interval.firstContent = firstContent(event, interval)
-    if (interval.findings.includes('CONTENT_BEFORE_READ')) return
-    const finding = contentBeforeRead(event)
+    const finding = addContentSample(
+      interval,
+      event,
+      this.#config.contentImages,
+    )
     if (!finding) return
     interval.findings.push(finding.code)
     this.report.findings.push(finding)

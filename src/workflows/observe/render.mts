@@ -3,6 +3,7 @@ import { comparisonFollowUpSummary } from './comparisons.mjs'
 import type { ObservationReport, TrackedRow } from './report.mjs'
 import {
   actionSummary,
+  contentLoadedSummary,
   fileFaultSummary,
   networkStepSummary,
   observationSummary,
@@ -54,7 +55,8 @@ function intervalsHtml(report: ObservationReport) {
       const content = i.firstContent
         ? `${i.firstContent.fromMs - i.startMs}–${i.firstContent.toMs - i.startMs} ms`
         : 'not sampled'
-      return `<tr><td>${i.index}</td><td>${reads?.calls ?? 'unknown'}</td><td>${reads?.successes ?? 'unknown'}</td><td>${reads?.errors ?? 'unknown'}</td><td>${content}</td></tr>`
+      const loaded = contentLoadedSummary(i)
+      return `<tr><td>${i.index}</td><td>${reads?.calls ?? 'unknown'}</td><td>${reads?.successes ?? 'unknown'}</td><td>${reads?.errors ?? 'unknown'}</td><td>${content}${loaded ? `; ${loaded}` : ''}</td></tr>`
     })
     .join('')
 }

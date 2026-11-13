@@ -77,6 +77,12 @@ JSON findings retain their codes/bases and add a plain-language `summary`. HTML 
 
 For a reproducible local diagnostic from a repository checkout, run `npm run benchmark:observe` after installing dependencies and Chromium. It alternates content/region reads of a synthetic 200-row fixture, discards warmup samples, and prints renderer, round-trip, summarization and transfer measurements. This is not a performance pass/fail gate or a guarantee of detecting a particular flash duration. Compare actual cadence in field reports before drawing conclusions about the application under test.
 
+## Content with images
+
+A screen often shows its cards or rows before their images arrive. With `"contentImages": true`, each sample also counts the images inside the elements that match `contentSelector`: `<img>` elements and CSS background images, and how many of them have loaded or failed. A background image has no load state in the page, so the capture loads each background URL once more in the page (the page is loading the same URL, so the two share the request or the cached image) and listens for it.
+
+Each interval then gets `contentLoaded`: the sample bounds at which the content last became fully loaded (shown, with every image loaded or failed) and then stayed unchanged until the interval ended, with the number of images and how many failed. Content that changes later, such as a card added after the first ones loaded, moves it later. `null` means the content never fully loaded in that interval. To time a screen from a click, mark a new interval right before the click step.
+
 ## Content comparisons
 
 `comparisons` and the HTML/terminal summaries make two relationships explicit:
