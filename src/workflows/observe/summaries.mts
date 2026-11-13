@@ -20,9 +20,10 @@ export function contentLoadedSummary({
   if (contentLoaded === undefined) return null
   if (contentLoaded === null)
     return firstContent ? 'content not fully loaded' : 'content not shown'
-  const { fromMs, toMs, images, failedImages } = contentLoaded
+  const { fromMs, toMs, images, failedImages, truncated } = contentLoaded
   const failed = failedImages ? `, ${failedImages} failed` : ''
-  return `content fully loaded at ${fromMs - startMs}–${toMs - startMs} ms (${images} images${failed})`
+  const partial = truncated ? '; not all content was checked' : ''
+  return `content fully loaded at ${fromMs - startMs}–${toMs - startMs} ms (${images} images${failed}${partial})`
 }
 
 const range = ([low, high]: readonly [number, number]) => {

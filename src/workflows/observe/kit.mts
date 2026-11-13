@@ -16,7 +16,7 @@ export interface RecordedAction {
 
 type ImageState = 'failed' | 'loaded' | 'pending'
 
-/** `<img>` elements and CSS background images in some elements; settled ones loaded or failed. */
+/** The `<img>` elements and CSS background images in the given elements; settled ones loaded or failed. */
 export interface ContentImages {
   total: number
   loaded: number

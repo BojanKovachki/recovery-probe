@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { contentLoaded } from '../../dist/workflows/observe/sample.mjs'
 import { contentLoadedSummary } from '../../dist/workflows/observe/summaries.mjs'
+import { renderObservationReport } from '../../dist/workflows/observe/render.mjs'
 import { fake } from '../helpers/fake.mjs'
 
 /**
@@ -61,8 +62,39 @@ test('the interval summary tells content that never showed from content still lo
   )
   assert.equal(
     summary({
-      contentLoaded: { fromMs: 1600, toMs: 1650, images: 3, failedImages: 1 },
+      contentLoaded: {
+        fromMs: 1600,
+        toMs: 1650,
+        images: 3,
+        failedImages: 1,
+        truncated: true,
+      },
     }),
-    'content fully loaded at 600–650 ms (3 images, 1 failed)',
+    'content fully loaded at 600–650 ms (3 images, 1 failed; not all content was checked)',
   )
+})
+
+test('the HTML report shows when each interval’s content fully loaded', () => {
+  const html = renderObservationReport(
+    fake({
+      status: 'complete',
+      findings: [],
+      intervals: [
+        fake({
+          index: 1,
+          startMs: 0,
+          firstContent: { fromMs: 100, toMs: 150 },
+          contentLoaded: {
+            fromMs: 600,
+            toMs: 650,
+            images: 2,
+            failedImages: 0,
+            truncated: false,
+          },
+          findings: [],
+        }),
+      ],
+    }),
+  )
+  assert.ok(html.includes('content fully loaded at 600–650 ms (2 images)'))
 })

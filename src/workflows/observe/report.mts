@@ -164,6 +164,8 @@ export interface ObservationInterval {
     toMs: number
     images: number
     failedImages: number
+    /** The content had more elements than were checked for images. */
+    truncated: boolean
   } | null
   samples: number
   /** Codes of the findings raised in this interval. */

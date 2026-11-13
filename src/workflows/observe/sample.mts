@@ -50,6 +50,7 @@ export function contentLoaded(
     toMs: event.toMs,
     images: images.total,
     failedImages: images.failed,
+    truncated: images.truncated,
   }
 }
 
