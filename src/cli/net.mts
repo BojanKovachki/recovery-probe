@@ -9,6 +9,9 @@ import type {
 import { untilStopped } from './until-stopped.mjs'
 import { integerOption, parseOptions, text } from './args.mjs'
 
+// An app that is not running, or ignores HTTPS_PROXY, leaves the proxy silent.
+const IDLE_WARNING_MS = 30_000
+
 const USAGE =
   'recovery-probe net [--rules FILE] [--port N] [--duration MS] [--out FILE] [--json]'
 
@@ -80,12 +83,14 @@ export async function netMain(args: string[]) {
     control: true,
   })
   const printFaults = faultPrinter(proxy)
+  const stopIdleWarning = warnIfIdle(proxy, IDLE_WARNING_MS)
   let watch: NodeJS.Timeout | undefined
   if (!options.json) {
     printStart(proxy, rules)
     watch = setInterval(printFaults, 250)
   }
   await untilStopped(options.duration)
+  stopIdleWarning()
   clearInterval(watch)
   if (!options.json) printFaults()
   await proxy.close()
@@ -93,7 +98,7 @@ export async function netMain(args: string[]) {
   if (options.out)
     await writeFile(options.out, `${JSON.stringify(report, null, 2)}\n`)
   if (options.json) console.log(JSON.stringify(report, null, 2))
-  else printSummary(report)
+  else printSummary(report, proxy.url)
   process.exitCode = report.ok ? 0 : 2
 }
 
@@ -101,6 +106,24 @@ async function readRules(path: string | undefined) {
   if (!path) return undefined
   const parsed = JSON.parse(await readFile(path, 'utf8'))
   return validateNetworkRules(Array.isArray(parsed) ? parsed : parsed?.rules)
+}
+
+const startHint = (url: string) =>
+  `Is the app running, and was it started with HTTPS_PROXY=${url}?`
+
+/** Warns once, on stderr, when no connection reached the proxy within `delayMs`; returns how to stop. */
+export function warnIfIdle(
+  proxy: Pick<NetworkFaultProxy, 'summary' | 'url'>,
+  delayMs: number,
+  warn = (message: string) => console.error(message),
+): () => void {
+  const timer = setTimeout(() => {
+    if (proxy.summary().connections === 0)
+      warn(
+        `Recovery Probe: no connection has reached the proxy in ${delayMs / 1000} s. ${startHint(proxy.url)}`,
+      )
+  }, delayMs)
+  return () => clearTimeout(timer)
 }
 
 /** Prints the faulted connections since its last call. */
@@ -157,8 +180,10 @@ function netReport(
   }
 }
 
-function printSummary(report: ReturnType<typeof netReport>) {
+function printSummary(report: ReturnType<typeof netReport>, url: string) {
   console.log(`\n${report.connections} connection(s) through the proxy`)
+  if (report.connections === 0)
+    console.log(`No connection reached the proxy. ${startHint(url)}`)
   report.rules.forEach((rule, index) =>
     console.log(
       `  rule ${index + 1}: ${rule.fault} ${rule.host} faulted ${rule.applied} of ${rule.matching} matching`,

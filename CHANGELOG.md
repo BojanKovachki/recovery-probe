@@ -6,6 +6,7 @@ Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-
 
 ## Unreleased
 
+- `net` warns on stderr when no connection has reached the proxy after 30 seconds, and its summary says so when none did, with the `HTTPS_PROXY` value to start the app with. Before, a proxy the app never used ran silently until it stopped.
 - `observe` with `contentImages` counts the images inside the content marker's elements, `<img>` elements and CSS background images, in every sample. Each interval records `contentLoaded`: when the content last became fully loaded, with every image loaded or failed, and stayed unchanged. The terminal and HTML report show it per interval.
 
 ## 1.1.0-preview.3 (2026-11-13)

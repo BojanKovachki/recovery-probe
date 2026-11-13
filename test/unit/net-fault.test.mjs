@@ -15,6 +15,8 @@ import {
   hostMatches,
   connectNetworkFaults,
 } from '../../dist/net-fault.mjs'
+import { warnIfIdle } from '../../dist/cli/net.mjs'
+import { fake } from '../helpers/fake.mjs'
 import { listen } from '../helpers/ports.mjs'
 import { localRequest } from '../helpers/local-http.mjs'
 
@@ -299,6 +301,36 @@ test('the net command reports the faults it applied', async () => {
   )
   assert.equal(code, 0)
   assert.match(output, /rule 1: refuse 127\.0\.0\.1 faulted 1 of 1 matching/)
+})
+
+test('the net command says when no connection reached it', async () => {
+  const { output } = await runCli(
+    [{ host: 'unused.example', fault: 'refuse' }],
+    async () => {},
+  )
+  assert.ok(output.includes('0 connection(s) through the proxy'))
+  assert.match(
+    output,
+    /No connection reached the proxy\. Is the app running, and was it started with HTTPS_PROXY=http:\/\/127\.0\.0\.1:\d+\?/,
+  )
+})
+
+test('net warns once when nothing has connected in time, and only then', async () => {
+  /** @param {number} connections */
+  const proxy = (connections) =>
+    fake({ url: 'http://127.0.0.1:1', summary: () => fake({ connections }) })
+  const idle = [],
+    busy = [],
+    stopped = []
+  warnIfIdle(proxy(0), 20, (message) => idle.push(message))
+  warnIfIdle(proxy(3), 20, (message) => busy.push(message))
+  warnIfIdle(proxy(0), 20, (message) => stopped.push(message))()
+  await delay(80)
+  assert.deepEqual(idle, [
+    'Recovery Probe: no connection has reached the proxy in 0.02 s. Is the app running, and was it started with HTTPS_PROXY=http://127.0.0.1:1?',
+  ])
+  assert.deepEqual(busy, [])
+  assert.deepEqual(stopped, [])
 })
 
 test('the net command exits 2 when a rule faulted nothing', async () => {
