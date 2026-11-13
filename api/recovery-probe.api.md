@@ -508,6 +508,16 @@ export type WebConfig = Omit<DesktopConfig, 'cdp'> & Omit<BrowserSession, 'pageU
 ## Types the exports refer to
 
 ```ts
+const CONTROLS: readonly [
+    "identify",
+    "begin",
+    "snapshot",
+    "reset",
+    "windowState",
+    "setWindowMinimized",
+    "setBackgroundThrottling"
+];
+
 const FAULT_KINDS: readonly [
     "http-error",
     "connection-failure",
@@ -523,5 +533,5 @@ export interface BrowserSession {
 
 type Classifier = (channel: string, args: unknown[]) => string | null | undefined;
 
-type ProbeControl = 'identify' | 'begin' | 'snapshot' | 'reset' | 'windowState' | 'setWindowMinimized' | 'setBackgroundThrottling';
+type ProbeControl = (typeof CONTROLS)[number];
 ```
