@@ -187,7 +187,13 @@ async function keepDrawing(
   announce: (message: string) => void,
 ) {
   if (!control) throw new Error('keepRendering needs the IPC development hook')
-  const { previous } = await control.call('setBackgroundThrottling', false)
+  const { previous } = await control
+    .call('setBackgroundThrottling', false)
+    .catch((error: Error) => {
+      throw new Error(
+        `keepRendering needs this version's development hook; restart the app so it loads it (${error.message})`,
+      )
+    })
   announce(
     'Recovery Probe: keeping the target window drawing frames while it is minimized or covered; its background throttling is restored afterwards.',
   )
@@ -204,7 +210,8 @@ export async function prepareVisibility(
     restoreWindow = false,
     keepRendering = false,
     control,
-    announce = console.log,
+    // stderr, so a command's JSON on stdout stays parseable.
+    announce = (message: string) => console.error(message),
   }: {
     restoreWindow?: boolean
     /** Keeps a minimized or covered Electron window drawing frames, through the IPC hook. */

@@ -258,11 +258,17 @@ async function release(target: Target, report: ObservationReport) {
   }
 }
 
-async function putBackWindow(target: Target, report: ObservationReport) {
+/** Reverts what preparing the window changed; a failure is a cleanup error, like a failed disconnect. */
+export async function putBackWindow(
+  target: Pick<Target, 'visibility'>,
+  report: ObservationReport,
+) {
   try {
     const restoration = await target.visibility?.revert()
     if (report.window && restoration) report.window.restoration = restoration
   } catch (error) {
+    report.status = 'incomplete'
+    report.captureComplete = false
     report.windowRestoreError = (error as Error).message
   }
 }

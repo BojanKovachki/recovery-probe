@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { observationConfig } from '../../dist/workflows/observe/config.mjs'
+import { putBackWindow } from '../../dist/workflows/observe/session.mjs'
 import { runObservation } from '../../dist/workflows/observe/capture.mjs'
 import { ipcObservationAdapter } from '../../dist/workflows/observe/adapters.mjs'
 import { installIpcProbe } from '../../dist/ipc-probe.cjs'
@@ -94,6 +95,42 @@ test('observation window options are booleans, and keeping a window drawing need
     () => observationConfig({ ...http, restoreWindow: 'yes' }),
     /restoreWindow must be boolean/,
   )
+})
+test('a window that could not be put back makes the capture a cleanup failure', async () => {
+  /** @type {import('../../dist/workflows/observe/report.mjs').ObservationReport} */
+  const restored = fake({
+    status: 'complete',
+    captureComplete: true,
+    window: {},
+  })
+  await putBackWindow(
+    {
+      visibility: fake({
+        revert: async () => ({ changed: true, restored: true }),
+      }),
+    },
+    restored,
+  )
+  assert.deepEqual(restored.window?.restoration, {
+    changed: true,
+    restored: true,
+  })
+  assert.equal(restored.captureComplete, true)
+  /** @type {import('../../dist/workflows/observe/report.mjs').ObservationReport} */
+  const failed = fake({ status: 'complete', captureComplete: true })
+  await putBackWindow(
+    {
+      visibility: fake({
+        revert: async () => {
+          throw new Error('Window state restoration unverified')
+        },
+      }),
+    },
+    failed,
+  )
+  assert.equal(failed.status, 'incomplete')
+  assert.equal(failed.captureComplete, false)
+  assert.equal(failed.windowRestoreError, 'Window state restoration unverified')
 })
 test('fault-free IPC observation tracks starts and settlements, preserves promises, and stops without clearing UI state', async () => {
   const f = fixture()

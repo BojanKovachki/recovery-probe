@@ -214,7 +214,7 @@ Each step has exactly one of `mark` (start a new interval and wait for it), `nav
 
 Clicks and waits need a page that draws frames. Electron stops drawing a window that is minimized or covered, such as behind a locked screen, and a click step then waits until it times out. Observation checks the window when it starts and says when the page is hidden or draws no frames.
 
-`"restoreWindow": true` un-minimizes the window for the capture and minimizes it again at the end. `"keepRendering": true` (IPC transport) asks the development hook to turn off the window's background throttling for the capture, so a minimized or covered window keeps drawing where it is, and puts the previous setting back at the end. A window the app hid itself draws nothing either way. The report records the window's state at the start, and what putting it back did, under `window`.
+`"restoreWindow": true` un-minimizes the window for the capture and minimizes it again at the end. `"keepRendering": true` (IPC transport) asks the development hook to turn off the window's background throttling for the capture, so a minimized or covered window keeps drawing where it is, and puts the previous setting back at the end. A window the app hid itself draws nothing either way. The report records the window's state at the start, and what putting it back did, under `window`. A window that could not be put back is a cleanup error, so the capture exits with 2.
 
 ### Network steps
 

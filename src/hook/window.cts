@@ -27,9 +27,13 @@ export function windowControls(sender: Sender) {
       const contents = sender()
       if (!contents?.setBackgroundThrottling || contents.isDestroyed())
         throw new Error('Rendering control unavailable')
+      // Electron throttles by default; older versions cannot report it.
       const previous = contents.getBackgroundThrottling?.() ?? true
       contents.setBackgroundThrottling(allowed)
-      return { allowed, previous }
+      return {
+        allowed: contents.getBackgroundThrottling?.() ?? allowed,
+        previous,
+      }
     },
   }
 }

@@ -64,6 +64,15 @@ test('keeps the window drawing on request and reports the throttling it replaced
     () => install({}).setBackgroundThrottling(false),
     /Rendering control unavailable/,
   )
+  // It reports the throttling in effect, not what was asked for.
+  const ignored = install({
+    setBackgroundThrottling: () => {},
+    getBackgroundThrottling: () => true,
+  })
+  assert.deepEqual(ignored.setBackgroundThrottling(false), {
+    allowed: true,
+    previous: true,
+  })
 })
 test('preserves Promise identity, receiver, all arguments and non-target traffic', async () => {
   const receiver = {}

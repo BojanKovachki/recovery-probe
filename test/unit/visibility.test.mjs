@@ -106,6 +106,44 @@ test('warns about a hidden page, and needs the IPC hook to keep it drawing', asy
   )
 })
 
+test('says what is wrong with the window on stderr, so JSON on stdout stays parseable', async (t) => {
+  const errors = t.mock.method(console, 'error', () => {})
+  const logs = t.mock.method(console, 'log', () => {})
+  await prepareVisibility(hiddenPage())
+  assert.equal(logs.mock.callCount(), 0)
+  assert.match(
+    String(errors.mock.calls[0].arguments[0]),
+    /^Recovery Probe: hidden/,
+  )
+})
+
+test('says when the background throttling was not put back, or the app runs an older hook', async () => {
+  /** @param {(method: string) => unknown} reply */
+  const controlWith = (reply) =>
+    /** @type {Parameters<typeof prepareVisibility>[1]['control']} */ (
+      fake({
+        call: async (method) =>
+          method === 'windowState' ? { minimized: false } : reply(method),
+      })
+    )
+  const stuck = await prepareVisibility(hiddenPage(), {
+    control: controlWith(() => ({ allowed: false, previous: true })),
+    keepRendering: true,
+    announce() {},
+  })
+  await assert.rejects(stuck.revert(), /restoration unverified/)
+  await assert.rejects(
+    prepareVisibility(hiddenPage(), {
+      control: controlWith(() => {
+        throw new Error('setBackgroundThrottling is not a function')
+      }),
+      keepRendering: true,
+      announce() {},
+    }),
+    /restart the app so it loads it/,
+  )
+})
+
 test('tells a visible page that draws frames from one that does not', async () => {
   /** @returns {Page} */
   const page = (rendering) =>
