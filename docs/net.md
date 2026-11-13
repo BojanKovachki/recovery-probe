@@ -42,7 +42,7 @@ HTTPS_PROXY=http://127.0.0.1:8899 NO_PROXY=localhost,127.0.0.1,::1 your-app
 
 In PowerShell, set `$env:HTTPS_PROXY` and `$env:NO_PROXY` before starting the app.
 
-Rule windows count from the first connection through the proxy, so they line up with the app's start. Each faulted connection is printed as it happens. Ctrl+C, or `--duration MS`, stops the proxy and prints how many connections each rule faulted. `--out FILE` saves the report and `--json` prints it: per-host counts and each connection's host, port, outcome and time. Request contents are never seen or stored.
+Rule windows count from the first connection through the proxy, so they line up with the app's start. When no connection has arrived after 30 seconds, `net` says so on stderr, and the summary says so at the end: the app is not running, or it ignores `HTTPS_PROXY`. Each faulted connection is printed as it happens. Ctrl+C, or `--duration MS`, stops the proxy and prints how many connections each rule faulted. `--out FILE` saves the report and `--json` prints it: per-host counts and each connection's host, port, outcome and time. Request contents are never seen or stored.
 
 ## Rules
 
