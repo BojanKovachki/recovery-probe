@@ -6,7 +6,7 @@ import type { ActionEffect } from './action-effects.mjs'
 import type { ContentComparison } from './comparisons.mjs'
 import type { IntervalFileChanges } from './files.mjs'
 import type { SamplingSnapshot } from './sampling.mjs'
-import type { FileFault, StepResult } from './steps.mjs'
+import type { FileFault, RequestFaultRule, StepResult } from './steps.mjs'
 import { seconds } from './summaries.mjs'
 import type { SlowReadsSection } from './slow-reads/evidence.mjs'
 
@@ -195,6 +195,19 @@ export interface NetworkStepRecord {
   rules?: NetworkRuleSummary[]
 }
 
+/** What a request step armed, with how many of the page's requests each rule failed. */
+export interface RequestStepRecord {
+  step: number
+  restored?: true
+  rules?: (RequestFaultRule & { faulted: number })[]
+}
+
+export interface ObservationRequests {
+  faults: RequestStepRecord[]
+  /** Why the rules could not be removed at the end. */
+  restoreError?: string
+}
+
 export interface ObservationNetwork {
   faults: NetworkStepRecord[]
   /** Why the faults could not be removed at the end. */
@@ -279,6 +292,7 @@ export interface ObservationReport {
   notes?: ObservationNote[]
   operator?: ObservationOperator | null
   network?: ObservationNetwork
+  requests?: ObservationRequests
   /** What changed on disk in each interval, from `observe --files`. */
   files?: { intervals: IntervalFileChanges[] }
   /** What became of each file a step damaged. */
@@ -303,6 +317,25 @@ export interface ObservationReport {
   }
   snapshot?: unknown
   snapshotStage?: string
+}
+
+/** The mode of a capture whose steps faulted the app, named after what they faulted. */
+export function faultMode(report: ObservationReport): string {
+  const kinds = [
+    report.network && 'network',
+    report.requests && 'request',
+    report.fileFaults?.length && 'file',
+  ].filter((kind) => typeof kind === 'string')
+  const last = kinds.pop()
+  return `observation with ${kinds.length ? `${kinds.join(', ')} and ${last}` : last} faults`
+}
+
+/** Adds a coverage gap once; the capture is complete only without gaps. */
+export function addCoverageGap(report: ObservationReport, code: string): void {
+  const gaps = report.coverage?.gaps
+  if (!gaps) return
+  if (!gaps.includes(code)) gaps.push(code)
+  report.captureComplete = report.status === 'complete' && gaps.length === 0
 }
 
 export function observationMetadata(): ObservationMetadata {

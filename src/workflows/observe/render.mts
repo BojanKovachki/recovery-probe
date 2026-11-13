@@ -6,6 +6,7 @@ import {
   contentLoadedSummary,
   fileFaultSummary,
   networkStepSummary,
+  requestStepSummary,
   observationSummary,
   rowName,
   seconds,
@@ -100,7 +101,7 @@ function phasesHtml({ sampling }: ObservationReport) {
 
 /** Scripted steps, then what their network and file faults did. */
 function stepsHtml(report: ObservationReport) {
-  const { operator, network, fileFaults } = report
+  const { operator, network, requests, fileFaults } = report
   const steps = operator
     ? `<p>Scripted steps: ${escapeHtml(operator.status)}${operator.error ? ` — ${escapeHtml(operator.error)}` : ''}.</p>`
     : ''
@@ -110,8 +111,14 @@ function stepsHtml(report: ObservationReport) {
   const networkFaults = network
     ? list(network.faults.map(networkStepSummary)) + restoreError
     : ''
+  const requestFaults = requests
+    ? list(requests.faults.map(requestStepSummary)) +
+      (requests.restoreError
+        ? `<p>Request faults were not removed: ${escapeHtml(requests.restoreError)}</p>`
+        : '')
+    : ''
   const files = fileFaults?.length ? list(fileFaults.map(fileFaultSummary)) : ''
-  return steps + networkFaults + files
+  return steps + networkFaults + requestFaults + files
 }
 
 function actionsHtml(report: ObservationReport) {

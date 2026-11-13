@@ -5,6 +5,7 @@ import type {
   NetworkStepRecord,
   ObservationFinding,
   ObservationInterval,
+  RequestStepRecord,
   UnexpectedRowStateFinding,
 } from './report.mjs'
 import type { FileFault } from './steps.mjs'
@@ -119,6 +120,16 @@ export function actionSummary(effect: ActionEffect): string {
       `${plural(quiet.length, 'row')} without a tracked state appeared`,
     )
   return `Action ‘${effect.name}’ at ${seconds(effect.atMs)} s (${effect.trusted ? 'trusted input' : 'scripted, untrusted event'}): ${parts.length ? parts.join('; ') : 'no tracked row appeared or changed'}.`
+}
+
+export const requestStepSummary = (record: RequestStepRecord): string => {
+  if (record.restored) return `Step ${record.step}: page requests restored`
+  return (record.rules ?? [])
+    .map(
+      (rule) =>
+        `Step ${record.step}: ${rule.faulted} request(s) to ${rule.url} ${rule.fault === 'abort' ? 'aborted' : `answered with ${rule.status}`}`,
+    )
+    .join('; ')
 }
 
 export const networkStepSummary = (record: NetworkStepRecord): string => {

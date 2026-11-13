@@ -2,10 +2,12 @@ import type {
   NetworkFaultControl,
   NetworkFaultRule,
 } from '../../transports/net/types.mjs'
-import type {
-  NetworkStepRecord,
-  ObservationNetwork,
-  ObservationReport,
+import {
+  addCoverageGap,
+  faultMode,
+  type NetworkStepRecord,
+  type ObservationNetwork,
+  type ObservationReport,
 } from './report.mjs'
 import type { NetworkStepControl } from './steps.mjs'
 
@@ -59,19 +61,14 @@ export function applyNetworkEvidence(
   network: ObservationNetwork,
 ): void {
   if (!network.faults.length && !network.restoreError) return
-  report.mode = 'observation with network faults'
   report.network = network
-  const gaps = report.coverage?.gaps
-  if (!gaps) return
-  const add = (code: string) => {
-    if (!gaps.includes(code)) gaps.push(code)
-  }
+  report.mode = faultMode(report)
   if (
     network.faults.some((record) =>
       record.rules?.some((rule) => rule.applied === 0),
     )
   )
-    add('NETWORK_FAULT_NOT_TRIGGERED')
-  if (network.restoreError) add('NETWORK_FAULTS_NOT_RESTORED')
-  report.captureComplete = report.status === 'complete' && gaps.length === 0
+    addCoverageGap(report, 'NETWORK_FAULT_NOT_TRIGGERED')
+  if (network.restoreError)
+    addCoverageGap(report, 'NETWORK_FAULTS_NOT_RESTORED')
 }
