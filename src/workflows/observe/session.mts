@@ -2,6 +2,10 @@ import type { Browser, Page } from 'playwright'
 import { connectDesktop, selectDesktopPage } from '../../targets/cdp.mjs'
 import { attachIpcWindow } from '../../targets/ipc-window.mjs'
 import {
+  prepareVisibility,
+  type PreparedVisibility,
+} from '../../targets/visibility.mjs'
+import {
   connectIpcInspector,
   type IpcInspector,
 } from '../../transports/ipc/inspector.mjs'
@@ -76,6 +80,7 @@ interface Target {
   browser?: Browser
   browserVersion: string | null
   control?: IpcInspector
+  visibility?: PreparedVisibility
 }
 
 type FileRecorder = ReturnType<typeof fileRecorder>
@@ -146,7 +151,12 @@ async function capture(
     /* Metadata may be unavailable on an attached runtime. */
   }
   const { page, adapter } = await selectTarget(config, browser, target)
-  return runObservation(page, config, adapter, {
+  target.visibility = await prepareVisibility(page, {
+    restoreWindow: config.restoreWindow,
+    keepRendering: config.keepRendering,
+    control: target.control,
+  })
+  const report = await runObservation(page, config, adapter, {
     signal: options.signal,
     takeMarker: options.hooks.takeMarker,
     onReady() {
@@ -159,6 +169,8 @@ async function capture(
     },
     ...operatorFor(page, options, files),
   })
+  report.window = { initial: target.visibility.initial }
+  return report
 }
 
 async function selectTarget(
@@ -235,6 +247,7 @@ async function restore(files: FileRecorder, network: NetworkSteps | undefined) {
 }
 
 async function release(target: Target, report: ObservationReport) {
+  await putBackWindow(target, report)
   target.control?.close()
   try {
     await target.browser?.close()
@@ -242,6 +255,21 @@ async function release(target: Target, report: ObservationReport) {
     report.status = 'incomplete'
     report.captureComplete = false
     report.disconnectError = (error as Error).message
+  }
+}
+
+/** Reverts what preparing the window changed; a failure is a cleanup error, like a failed disconnect. */
+export async function putBackWindow(
+  target: Pick<Target, 'visibility'>,
+  report: ObservationReport,
+) {
+  try {
+    const restoration = await target.visibility?.revert()
+    if (report.window && restoration) report.window.restoration = restoration
+  } catch (error) {
+    report.status = 'incomplete'
+    report.captureComplete = false
+    report.windowRestoreError = (error as Error).message
   }
 }
 

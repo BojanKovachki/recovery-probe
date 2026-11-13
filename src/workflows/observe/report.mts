@@ -1,4 +1,5 @@
 import { version } from '../../core/package.mjs'
+import type { WindowReport } from '../../targets/visibility.mjs'
 import type { NetworkRuleSummary } from '../../transports/net/types.mjs'
 import type { ActionEffect } from './action-effects.mjs'
 import type { ContentComparison } from './comparisons.mjs'
@@ -277,6 +278,9 @@ export interface ObservationReport {
   cleanupError?: string
   /** Set by the CLI when closing the browser connection failed. */
   disconnectError?: string
+  /** The target window's state when the capture started, and what putting it back did. */
+  window?: WindowReport
+  windowRestoreError?: string
   coverage?: {
     historyBeforeCapture: string
     pendingBeforeCapture: string

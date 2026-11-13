@@ -210,6 +210,12 @@ Each step has exactly one of `mark` (start a new interval and wait for it), `nav
 { "expect": { "role": "alert" }, "name": "repair-message", "timeoutMs": 10000 }
 ```
 
+### A minimized or covered window
+
+Clicks and waits need a page that draws frames. Electron stops drawing a window that is minimized or covered, such as behind a locked screen, and a click step then waits until it times out. Observation checks the window when it starts and says when the page is hidden or draws no frames.
+
+`"restoreWindow": true` un-minimizes the window for the capture and minimizes it again at the end. `"keepRendering": true` (IPC transport) asks the development hook to turn off the window's background throttling for the capture, so a minimized or covered window keeps drawing where it is, and puts the previous setting back at the end. A window the app hid itself draws nothing either way. The report records the window's state at the start, and what putting it back did, under `window`. A window that could not be put back is a cleanup error, so the capture exits with 2.
+
 ### Network steps
 
 With `--network URL`, steps can also take hosts away from the app's own HTTPS connections through a running [`recovery-probe net`](net.md). Use them when the app's data comes through native code, such as an SDK in the main process. Start `recovery-probe net` without `--rules` first, start the app with its `HTTPS_PROXY`, then pass its URL to `--network`.

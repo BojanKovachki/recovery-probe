@@ -8,6 +8,9 @@ export interface ProbeWebContents {
   getURL(): string
   executeJavaScript(code: string): Promise<unknown>
   send?(channel: string, ...args: unknown[]): void
+  /** Used for the opt-in control that keeps a minimized or covered window drawing frames. */
+  setBackgroundThrottling?(allowed: boolean): void
+  getBackgroundThrottling?(): boolean
   /** Used for the opt-in window minimize/restore controls. */
   getOwnerBrowserWindow?(): {
     isDestroyed(): boolean
@@ -109,6 +112,10 @@ export interface IpcProbe {
   snapshot(): IpcSnapshot | null
   windowState(): { minimized: boolean }
   setWindowMinimized(minimized: boolean): { minimized: boolean }
+  setBackgroundThrottling(allowed: boolean): {
+    allowed: boolean
+    previous: boolean
+  }
   reset(id?: string): IpcSnapshot | null
   dispose(): void
 }

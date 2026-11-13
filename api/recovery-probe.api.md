@@ -288,6 +288,10 @@ export interface IpcProbe {
     setWindowMinimized(minimized: boolean): {
         minimized: boolean;
     };
+    setBackgroundThrottling(allowed: boolean): {
+        allowed: boolean;
+        previous: boolean;
+    };
     reset(id?: string): IpcSnapshot | null;
     dispose(): void;
 }
@@ -349,6 +353,8 @@ export interface ProbeWebContents {
     getURL(): string;
     executeJavaScript(code: string): Promise<unknown>;
     send?(channel: string, ...args: unknown[]): void;
+    setBackgroundThrottling?(allowed: boolean): void;
+    getBackgroundThrottling?(): boolean;
     getOwnerBrowserWindow?(): {
         isDestroyed(): boolean;
         isMinimized(): boolean;
@@ -378,6 +384,10 @@ export interface IpcInspector {
     }>;
     call(method: 'setWindowMinimized', minimized: boolean): Promise<{
         minimized: boolean;
+    }>;
+    call(method: 'setBackgroundThrottling', allowed: boolean): Promise<{
+        allowed: boolean;
+        previous: boolean;
     }>;
     close(): void;
 }
@@ -498,6 +508,16 @@ export type WebConfig = Omit<DesktopConfig, 'cdp'> & Omit<BrowserSession, 'pageU
 ## Types the exports refer to
 
 ```ts
+const CONTROLS: readonly [
+    "identify",
+    "begin",
+    "snapshot",
+    "reset",
+    "windowState",
+    "setWindowMinimized",
+    "setBackgroundThrottling"
+];
+
 const FAULT_KINDS: readonly [
     "http-error",
     "connection-failure",
@@ -513,5 +533,5 @@ export interface BrowserSession {
 
 type Classifier = (channel: string, args: unknown[]) => string | null | undefined;
 
-type ProbeControl = 'identify' | 'begin' | 'snapshot' | 'reset' | 'windowState' | 'setWindowMinimized';
+type ProbeControl = (typeof CONTROLS)[number];
 ```

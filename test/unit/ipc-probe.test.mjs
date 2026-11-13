@@ -29,6 +29,51 @@ function fixture(real) {
   ipc.handle('versions', () => Promise.resolve([]))
   return { ipc, handlers, event, probe, original }
 }
+test('keeps the window drawing on request and reports the throttling it replaced', () => {
+  let throttled = true
+  /** @param {Partial<import('../../dist/ipc-probe.cjs').ProbeWebContents>} contents */
+  const install = (contents) =>
+    installIpcProbe(fake({ handle() {} }), {
+      enabled: true,
+      channels: ['read'],
+      sender: () =>
+        fake({
+          id: 1,
+          mainFrame: {},
+          isDestroyed: () => false,
+          getURL: () => 'file:///fixture.html',
+          ...contents,
+        }),
+    })
+  const probe = install({
+    setBackgroundThrottling: (allowed) => (throttled = allowed),
+    getBackgroundThrottling: () => throttled,
+  })
+  assert.deepEqual(probe.setBackgroundThrottling(false), {
+    allowed: false,
+    previous: true,
+  })
+  assert.equal(throttled, false)
+  assert.deepEqual(probe.setBackgroundThrottling(true), {
+    allowed: true,
+    previous: false,
+  })
+  // @ts-expect-error a non-boolean is rejected
+  assert.throws(() => probe.setBackgroundThrottling('no'), /Expected boolean/)
+  assert.throws(
+    () => install({}).setBackgroundThrottling(false),
+    /Rendering control unavailable/,
+  )
+  // It reports the throttling in effect, not what was asked for.
+  const ignored = install({
+    setBackgroundThrottling: () => {},
+    getBackgroundThrottling: () => true,
+  })
+  assert.deepEqual(ignored.setBackgroundThrottling(false), {
+    allowed: true,
+    previous: true,
+  })
+})
 test('preserves Promise identity, receiver, all arguments and non-target traffic', async () => {
   const receiver = {}
   const promise = Promise.resolve('real')

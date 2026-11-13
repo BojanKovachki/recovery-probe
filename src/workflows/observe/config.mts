@@ -57,6 +57,10 @@ export interface ObservationConfig {
   detail: 'content' | 'region'
   observationMs: number
   sampleMs: number
+  /** Un-minimizes the target window for the capture and minimizes it again afterwards. */
+  restoreWindow: boolean
+  /** Keeps a minimized or covered window drawing frames for the capture, through the IPC hook. */
+  keepRendering: boolean
 }
 
 const DEFAULTS = {
@@ -79,6 +83,8 @@ const DEFAULTS = {
   detail: 'content',
   observationMs: 30000,
   sampleMs: 100,
+  restoreWindow: false,
+  keepRendering: false,
 }
 
 const RANGES = [
@@ -121,9 +127,19 @@ export function observationConfig(input: unknown): ObservationConfig {
   if (c.rows !== undefined) c.rows = rowsConfig(c.rows)
   if (c.actions !== undefined) c.actions = actionsConfig(c.actions)
   if (c.slowReads !== undefined) c.slowReads = slowReadsConfig(c.slowReads)
+  validateWindowOptions(c)
   if (c.transport === 'http') validateHttpTarget(c)
   else validateIpcTarget(c)
   return c as unknown as ObservationConfig
+}
+
+function validateWindowOptions(c: Record<string, unknown>) {
+  for (const key of ['restoreWindow', 'keepRendering'])
+    ensure(typeof c[key] === 'boolean', `${key} must be boolean`)
+  ensure(
+    !c.keepRendering || c.transport === 'ipc',
+    'keepRendering needs transport ipc and the development hook',
+  )
 }
 
 const isLoopbackDevtools = (url: URL) =>

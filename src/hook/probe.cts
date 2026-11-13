@@ -8,6 +8,7 @@ import {
 import { PushCounter } from './pushes.cjs'
 import { addPushRows, identityOf, newState } from './state.cjs'
 import { classifyCall, readStats } from './stats.cjs'
+import { windowControls } from './window.cjs'
 import type {
   InvokeEvent,
   IpcIdentity,
@@ -65,6 +66,7 @@ class ProbeHook {
   readonly #registered = new Set<string>()
   readonly #seenIds = new Set<string>()
   readonly #pushes: PushCounter
+  readonly #windows: ReturnType<typeof windowControls>
   #active = true
   #state: ProbeState | null = null
   #timer: ReturnType<typeof setTimeout> | undefined
@@ -73,6 +75,7 @@ class ProbeHook {
     this.#ipcMain = ipcMain
     this.#original = ipcMain.handle
     this.#sender = settings.sender
+    this.#windows = windowControls(settings.sender)
     this.#classify = settings.classify
     this.#allowed = new Set(settings.channels)
     this.#allowedPushes = new Set(settings.pushChannels)
@@ -92,8 +95,7 @@ class ProbeHook {
         this.identify(challenge)) as IpcProbe['identify'],
       begin: (options) => this.begin(options),
       snapshot: () => this.snapshot(),
-      windowState: () => this.windowState(),
-      setWindowMinimized: (minimized) => this.setWindowMinimized(minimized),
+      ...this.#windows,
       reset: (id) => this.reset(id),
       dispose: () => this.dispose(),
     }
@@ -162,19 +164,6 @@ class ProbeHook {
       : null
   }
 
-  windowState() {
-    return { minimized: this.#window().isMinimized() }
-  }
-
-  setWindowMinimized(minimized: boolean) {
-    if (typeof minimized !== 'boolean')
-      throw new Error('Expected boolean window state')
-    const window = this.#window()
-    if (minimized) window.minimize()
-    else window.restore()
-    return { minimized: window.isMinimized() }
-  }
-
   reset(id?: string) {
     if (id !== undefined && this.#state && id !== this.#state.id)
       throw new Error('Stale run ID')
@@ -200,13 +189,6 @@ class ProbeHook {
       throw new Error(
         'Previous real calls are still pending; wait before beginning another run',
       )
-  }
-
-  #window() {
-    const window = this.#sender()?.getOwnerBrowserWindow?.()
-    if (!window || window.isDestroyed())
-      throw new Error('Window control unavailable')
-    return window
   }
 
   #disarm() {
