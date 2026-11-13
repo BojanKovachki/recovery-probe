@@ -49,7 +49,7 @@ after(async () => {
     })
 })
 
-/** Opens the fixture with `query` and observes its cards for 5 s. */
+/** Opens the fixture with `query`, renders its cards once the capture is ready and observes them for 5 s. */
 async function observe(query, { contentImages = true } = {}) {
   const page = await browser.newPage()
   await page.goto(`${origin}/?${query}`)
@@ -62,10 +62,12 @@ async function observe(query, { contentImages = true } = {}) {
     observationMs: 5000,
     contentImages,
   })
+  // Rendering after the capture starts makes the image delays lower bounds for its timing.
   const report = await runObservation(
     page,
     config,
     httpObservationAdapter(page, config),
+    { onReady: () => page.evaluate('window.render()') },
   )
   await page.close()
   const [interval] = report.intervals
@@ -79,7 +81,7 @@ test('content counts as loaded only once its <img> and CSS background images hav
   assert.ok(loaded, 'the card fully loads')
   assert.equal(loaded.images, 2)
   assert.equal(loaded.failedImages, 0)
-  // The background image arrives 1200 ms after the card shows at 100 ms.
+  // The card shows 100 ms after the capture starts, and its background image 1200 ms after that.
   assert.ok(loaded.toMs - interval.startMs >= 1300, JSON.stringify(loaded))
   assert.ok(loaded.fromMs > interval.firstContent.toMs)
 })
