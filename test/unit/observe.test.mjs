@@ -71,6 +71,30 @@ test('observation config rejects mutation options and requires explicit content 
   ])
     assert.throws(() => observationConfig({ ...input, ...extra }))
 })
+test('observation window options are booleans, and keeping a window drawing needs the IPC hook', () => {
+  const http = {
+    transport: 'http',
+    endpoint: 'http://localhost/api/items',
+    regionSelector: '#items',
+    contentSelector: 'li',
+  }
+  const ipc = { ...http, transport: 'ipc', channel: 'fixture:read' }
+  delete ipc.endpoint
+  assert.equal(observationConfig(http).restoreWindow, false)
+  assert.equal(observationConfig(http).keepRendering, false)
+  assert.equal(
+    observationConfig({ ...ipc, keepRendering: true }).keepRendering,
+    true,
+  )
+  assert.throws(
+    () => observationConfig({ ...http, keepRendering: true }),
+    /keepRendering needs transport ipc/,
+  )
+  assert.throws(
+    () => observationConfig({ ...http, restoreWindow: 'yes' }),
+    /restoreWindow must be boolean/,
+  )
+})
 test('fault-free IPC observation tracks starts and settlements, preserves promises, and stops without clearing UI state', async () => {
   const f = fixture()
   const a = ipcObservationAdapter(f.control, c, 1)

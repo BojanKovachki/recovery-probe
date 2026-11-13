@@ -353,6 +353,23 @@ test(
       )
       await restoredWindow.revert()
       assert.equal((await control.call('windowState')).minimized, true)
+      // The fixture already draws while hidden: throttle it, so keeping it drawing changes something.
+      const fixture = await control.call('setBackgroundThrottling', true)
+      const drawing = await prepareVisibility(page, {
+        keepRendering: true,
+        control,
+        announce() {},
+      })
+      // Asking the hook again shows what the run set without changing it.
+      assert.deepEqual(await control.call('setBackgroundThrottling', false), {
+        allowed: false,
+        previous: false,
+      })
+      await drawing.revert()
+      assert.deepEqual(
+        await control.call('setBackgroundThrottling', fixture.previous),
+        { allowed: fixture.previous, previous: true },
+      )
       // This fixture keeps drawing while minimized, so the check would run either
       // way; with restoreWindow it must still un-minimize the window and put it back.
       const restoredCheck = await checkIpc({ ...config, restoreWindow: true })

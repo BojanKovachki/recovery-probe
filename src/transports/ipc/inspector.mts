@@ -20,16 +20,14 @@ export interface IpcInspector {
     method: 'setWindowMinimized',
     minimized: boolean,
   ): Promise<{ minimized: boolean }>
+  call(
+    method: 'setBackgroundThrottling',
+    allowed: boolean,
+  ): Promise<{ allowed: boolean; previous: boolean }>
   close(): void
 }
 
-type ProbeControl =
-  | 'identify'
-  | 'begin'
-  | 'snapshot'
-  | 'reset'
-  | 'windowState'
-  | 'setWindowMinimized'
+type ProbeControl = (typeof CONTROLS)[number]
 
 type Send = (
   method: string,
@@ -44,14 +42,15 @@ interface EvaluateResponse {
   result?: { subtype?: string; objectId?: string; value?: unknown }
 }
 
-const CONTROLS: readonly string[] = [
+const CONTROLS = [
   'identify',
   'begin',
   'snapshot',
   'reset',
   'windowState',
   'setWindowMinimized',
-]
+  'setBackgroundThrottling',
+] as const
 
 export async function connectIpcInspector(
   endpoint = 'http://127.0.0.1:9229',
@@ -87,7 +86,8 @@ export async function callIpcInspector(
   argument?: unknown,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- public signature: the result is whatever the probe control returned.
 ): Promise<any> {
-  if (!CONTROLS.includes(method)) throw new Error('Unsupported probe control')
+  if (!(CONTROLS as readonly string[]).includes(method))
+    throw new Error('Unsupported probe control')
   const expression = `globalThis.__recoveryProbeIpc.${method}(${argument === undefined ? '' : JSON.stringify(argument)})`
   return method === 'identify' && argument !== undefined
     ? evaluateAsync(send, expression)

@@ -57,6 +57,55 @@ test('unminimize is opt-in, reversible and supports an Electron control fallback
   }
 })
 
+/** A hidden, uncovered-but-not-minimized page whose CDP window calls fail. */
+const hiddenPage = () =>
+  fake({
+    evaluate: async () => 'hidden',
+    context: () => ({
+      newCDPSession: async () => {
+        throw Error('unsupported')
+      },
+    }),
+  })
+
+test('keeps a hidden window drawing for the run and puts its throttling back', async () => {
+  let throttled = true
+  /** @type {Parameters<typeof prepareVisibility>[1]['control']} */
+  const control = fake({
+    call: async (method, arg) => {
+      if (method === 'windowState') return { minimized: false }
+      const previous = throttled
+      throttled = arg
+      return { allowed: arg, previous }
+    },
+  })
+  const messages = []
+  const prepared = await prepareVisibility(hiddenPage(), {
+    control,
+    keepRendering: true,
+    announce: (message) => messages.push(message),
+  })
+  assert.equal(throttled, false)
+  assert.match(prepared.initial.diagnosis, /^hidden-not-minimized/)
+  assert.deepEqual(messages, [
+    'Recovery Probe: keeping the target window drawing frames while it is minimized or covered; its background throttling is restored afterwards.',
+  ])
+  await prepared.revert()
+  assert.equal(throttled, true)
+})
+
+test('warns about a hidden page, and needs the IPC hook to keep it drawing', async () => {
+  const messages = []
+  await prepareVisibility(hiddenPage(), {
+    announce: (message) => messages.push(message),
+  })
+  assert.match(messages[0], /^Recovery Probe: hidden: .*Clicks may time out/)
+  await assert.rejects(
+    prepareVisibility(hiddenPage(), { keepRendering: true, announce() {} }),
+    /keepRendering needs the IPC development hook/,
+  )
+})
+
 test('tells a visible page that draws frames from one that does not', async () => {
   /** @returns {Page} */
   const page = (rendering) =>

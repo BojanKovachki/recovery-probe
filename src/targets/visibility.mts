@@ -167,31 +167,67 @@ export interface WindowReport {
   restoration?: Awaited<ReturnType<PreparedVisibility['revert']>>
 }
 
+/** Warns when the page is hidden or draws no frames, which stalls clicks. */
+function warnUnlessDrawing(
+  window: WindowVisibility,
+  announce: (message: string) => void,
+) {
+  const draws =
+    window.visibility === 'visible' &&
+    !(window.rendering && NOT_RENDERING[window.rendering])
+  if (!draws)
+    announce(
+      `Recovery Probe: ${window.diagnosis}. Clicks may time out, and the run may not match what a user sees.`,
+    )
+}
+
+/** Turns off the window's background throttling through the IPC hook; returns how to turn it back. */
+async function keepDrawing(
+  control: IpcInspector | undefined,
+  announce: (message: string) => void,
+) {
+  if (!control) throw new Error('keepRendering needs the IPC development hook')
+  const { previous } = await control.call('setBackgroundThrottling', false)
+  announce(
+    'Recovery Probe: keeping the target window drawing frames while it is minimized or covered; its background throttling is restored afterwards.',
+  )
+  return async () => {
+    const { allowed } = await control.call('setBackgroundThrottling', previous)
+    if (allowed !== previous)
+      throw new Error('Background throttling restoration unverified')
+  }
+}
+
 export async function prepareVisibility(
   page: Page,
   {
     restoreWindow = false,
+    keepRendering = false,
     control,
     announce = console.log,
   }: {
     restoreWindow?: boolean
+    /** Keeps a minimized or covered Electron window drawing frames, through the IPC hook. */
+    keepRendering?: boolean
     control?: IpcInspector
     announce?: (message: string) => void
   } = {},
 ) {
   const initial = await windowVisibility(page, control)
-  if (initial.rendering && NOT_RENDERING[initial.rendering])
-    announce(
-      `Recovery Probe: ${initial.diagnosis}. Clicks may time out, and the run may not match what a user sees.`,
-    )
+  const restoring = restoreWindow && initial.windowState === 'minimized'
+  if (!restoring && !keepRendering) warnUnlessDrawing(initial, announce)
   const set = (state: WindowState) =>
     setWindowState(page, control, initial, state)
+  const restoreDrawing = keepRendering
+    ? await keepDrawing(control, announce)
+    : undefined
   let changed = false
   const revert = async (): Promise<{
     changed: boolean
     restored: boolean
     final?: WindowVisibility
   }> => {
+    await restoreDrawing?.()
     if (!changed) return { changed: false, restored: true }
     await set(initial.windowState!)
     const final = await waitForWindow(
@@ -203,7 +239,7 @@ export async function prepareVisibility(
       throw new Error('Window state restoration unverified')
     return { changed: true, restored: true, final }
   }
-  if (restoreWindow && initial.windowState === 'minimized') {
+  if (restoring) {
     announce(
       'Recovery Probe: restoring the minimized target window for this run; its original state will be restored afterwards.',
     )
