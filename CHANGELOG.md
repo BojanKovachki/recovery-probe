@@ -4,7 +4,7 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
-## Unreleased
+## 1.1.0-preview.3 (2026-11-13)
 
 - `observe` checks the target window when the capture starts and says when the page is hidden or draws no frames, the usual reason a click step times out. `restoreWindow` un-minimizes the window for the capture, and `keepRendering` (IPC) keeps a minimized or covered window drawing where it is by turning off its background throttling through the development hook. Both put the window back afterwards, and the report records it under `window`. The hook gains a `setBackgroundThrottling` control. `check`, `discover`, `action` and `refresh` now also warn about a hidden page, not only one that reports itself visible but draws nothing. These window messages now go to stderr, so `--json` output on stdout stays parseable.
 - Add MCP Registry ownership and launch metadata with stable-only OIDC publication.
