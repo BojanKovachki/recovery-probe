@@ -61,6 +61,8 @@ export interface ObservationConfig {
   restoreWindow: boolean
   /** Keeps a minimized or covered window drawing frames for the capture, through the IPC hook. */
   keepRendering: boolean
+  /** Counts the content as loaded only once the images inside it have loaded or failed. */
+  contentImages: boolean
 }
 
 const DEFAULTS = {
@@ -85,6 +87,7 @@ const DEFAULTS = {
   sampleMs: 100,
   restoreWindow: false,
   keepRendering: false,
+  contentImages: false,
 }
 
 const RANGES = [
@@ -127,14 +130,14 @@ export function observationConfig(input: unknown): ObservationConfig {
   if (c.rows !== undefined) c.rows = rowsConfig(c.rows)
   if (c.actions !== undefined) c.actions = actionsConfig(c.actions)
   if (c.slowReads !== undefined) c.slowReads = slowReadsConfig(c.slowReads)
-  validateWindowOptions(c)
+  validateFlags(c)
   if (c.transport === 'http') validateHttpTarget(c)
   else validateIpcTarget(c)
   return c as unknown as ObservationConfig
 }
 
-function validateWindowOptions(c: Record<string, unknown>) {
-  for (const key of ['restoreWindow', 'keepRendering'])
+function validateFlags(c: Record<string, unknown>) {
+  for (const key of ['restoreWindow', 'keepRendering', 'contentImages'])
     ensure(typeof c[key] === 'boolean', `${key} must be boolean`)
   ensure(
     !c.keepRendering || c.transport === 'ipc',

@@ -11,6 +11,7 @@ export function pageReadInput(
     contentSelector: c.contentSelector,
     detail: c.detail,
     kitToken,
+    ...(c.contentImages ? { images: true } : {}),
     ...(c.rows
       ? {
           rows: {

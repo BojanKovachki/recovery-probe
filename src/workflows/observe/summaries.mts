@@ -4,11 +4,26 @@ import type {
   FileFaultRecord,
   NetworkStepRecord,
   ObservationFinding,
+  ObservationInterval,
   UnexpectedRowStateFinding,
 } from './report.mjs'
 import type { FileFault } from './steps.mjs'
 
 export const seconds = (ms: number) => (Math.round(ms / 100) / 10).toFixed(1)
+
+/** When the interval's content fully loaded, or null when contentImages was off. */
+export function contentLoadedSummary({
+  contentLoaded,
+  firstContent,
+  startMs,
+}: ObservationInterval): string | null {
+  if (contentLoaded === undefined) return null
+  if (contentLoaded === null)
+    return firstContent ? 'content not fully loaded' : 'content not shown'
+  const { fromMs, toMs, images, failedImages } = contentLoaded
+  const failed = failedImages ? `, ${failedImages} failed` : ''
+  return `content fully loaded at ${fromMs - startMs}–${toMs - startMs} ms (${images} images${failed})`
+}
 
 const range = ([low, high]: readonly [number, number]) => {
   const a = seconds(Math.max(0, low)),

@@ -14,10 +14,21 @@ export interface RecordedAction {
   trusted: boolean
 }
 
+type ImageState = 'failed' | 'loaded' | 'pending'
+
+/** `<img>` elements and CSS background images in some elements; settled ones loaded or failed. */
+export interface ContentImages {
+  total: number
+  loaded: number
+  failed: number
+  truncated: boolean
+}
+
 export interface ObserverKit {
   token: string
   select(root: ParentNode, spec: SelectorSpec): Element[]
   normalize(value: unknown): string
+  imagesIn(elements: Element[]): ContentImages
   lastPolledAt(): number
   drainActions(): RecordedAction[]
   stop(): void
@@ -53,6 +64,48 @@ export function installObserverKit({
     String(value ?? '')
       .replace(/\s+/g, ' ')
       .trim()
+  // The DOM has no load state for a CSS background, so a probe image per URL tracks it.
+  // The page is loading the same URL, so the probe shares its request or cache entry.
+  const backgrounds = new Map<string, ImageState>()
+  const backgroundState = (url: string): ImageState => {
+    const known = backgrounds.get(url)
+    if (known) return known
+    backgrounds.set(url, 'pending')
+    const probe = new Image()
+    probe.onload = () => backgrounds.set(url, 'loaded')
+    probe.onerror = () => backgrounds.set(url, 'failed')
+    probe.src = url
+    return 'pending'
+  }
+  const imageStatesOf = (node: Element): ImageState[] => {
+    const urls =
+      getComputedStyle(node).backgroundImage.matchAll(/url\("?(.*?)"?\)/g)
+    const states = [...urls].map((match) => backgroundState(match[1]))
+    if (!(node instanceof HTMLImageElement) || !node.getAttribute('src'))
+      return states
+    if (node.complete)
+      return [...states, node.naturalWidth > 0 ? 'loaded' : 'failed']
+    // A lazy image out of view loads only once scrolled to, so it is not waited for.
+    return node.loading === 'lazy' && !inView(node)
+      ? states
+      : [...states, 'pending']
+  }
+  const inView = (node: Element) => {
+    const { top, bottom, left, right } = node.getBoundingClientRect()
+    return bottom > 0 && top < innerHeight && right > 0 && left < innerWidth
+  }
+  const imagesIn = (elements: Element[]): ContentImages => {
+    const nodes = elements.flatMap((e) => [e, ...e.querySelectorAll('*')])
+    const states = nodes.slice(0, 2000).flatMap(imageStatesOf)
+    const count = (state: ImageState) =>
+      states.filter((value) => value === state).length
+    return {
+      total: states.length,
+      loaded: count('loaded'),
+      failed: count('failed'),
+      truncated: nodes.length > 2000,
+    }
+  }
   const implicitRole = (e: Element) => {
     const tag = e.tagName.toLowerCase()
     if (tag === 'button') return 'button'
@@ -179,6 +232,7 @@ export function installObserverKit({
       token,
       select,
       normalize,
+      imagesIn,
       lastPolledAt: () => polledAt,
       drainActions: () => {
         polledAt = Date.now()
