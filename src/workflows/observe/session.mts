@@ -29,6 +29,7 @@ import {
   type FileEvidence,
 } from './files.mjs'
 import { applyNetworkEvidence, networkSteps } from './network.mjs'
+import { applyRequestEvidence, requestSteps } from './requests.mjs'
 import {
   applyExpectationEvidence,
   observationMetadata,
@@ -81,6 +82,7 @@ interface Target {
   browserVersion: string | null
   control?: IpcInspector
   visibility?: PreparedVisibility
+  requests?: ReturnType<typeof requestSteps>
 }
 
 type FileRecorder = ReturnType<typeof fileRecorder>
@@ -126,9 +128,10 @@ export async function observeSession(
   } catch (error) {
     report = failedReport(config, error as Error)
   }
-  const restored = await restore(files, options.network)
+  const restored = await restore(files, options.network, target.requests)
   await release(target, report)
   if (restored.network) applyNetworkEvidence(report, restored.network)
+  if (restored.requests) applyRequestEvidence(report, restored.requests)
   if (restored.faults) applyFileFaultEvidence(report, restored.faults)
   applyExpectationEvidence(report)
   const changes = await fileChanges(report, files, restored.faults)
@@ -156,6 +159,8 @@ async function capture(
     keepRendering: config.keepRendering,
     control: target.control,
   })
+  if (options.steps?.some((step) => step.kind === 'requests'))
+    target.requests = requestSteps(page)
   const report = await runObservation(page, config, adapter, {
     signal: options.signal,
     takeMarker: options.hooks.takeMarker,
@@ -167,7 +172,7 @@ async function capture(
       files.take(index)
       return options.hooks.onInterval?.(index)
     },
-    ...operatorFor(page, options, files),
+    ...operatorFor(page, options, files, target.requests),
   })
   report.window = { initial: target.visibility.initial }
   return report
@@ -196,6 +201,7 @@ function operatorFor(
   page: Page,
   { steps, network, logStep }: ObserveSessionOptions,
   files: FileRecorder,
+  requests: Target['requests'],
 ): Pick<ObservationHooks, 'operator'> {
   if (!steps) return {}
   return {
@@ -205,6 +211,7 @@ function operatorFor(
         signal,
         elapsed,
         network,
+        requests,
         files: files.damage,
         log: logStep,
       }),
@@ -230,15 +237,21 @@ function failedReport(
   }
 }
 
-/** Removes the network faults and puts back damaged files, recording the end state first. */
-async function restore(files: FileRecorder, network: NetworkSteps | undefined) {
+/** Removes the network and request faults and puts back damaged files, recording the end state first. */
+async function restore(
+  files: FileRecorder,
+  network: NetworkSteps | undefined,
+  requests: Target['requests'],
+) {
   // Taken before the network and files are restored: the state the capture ended in.
   if (files.snapshots.length) files.take(0)
   const restored: {
     network?: Awaited<ReturnType<NetworkSteps['finish']>>
+    requests?: Awaited<ReturnType<NonNullable<Target['requests']>['finish']>>
     faults?: FileFaultEvidence
   } = {}
   if (network) restored.network = await network.finish()
+  if (requests) restored.requests = await requests.finish()
   if (files.damage) {
     await files.snapshots.at(-1)?.snapshot
     restored.faults = await files.damage.finish()

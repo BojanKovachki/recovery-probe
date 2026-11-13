@@ -5,8 +5,9 @@ import type { NetworkFaultRule } from '../../transports/net/types.mjs'
 
 // Opt-in scripted operator for `observe --steps` and `action`. Steps act on the
 // app (same-document navigation, clicks, typing, key presses, waits and interval marks)
-// or, for observe, on its network through `recovery-probe net` and on its files under
-// `--files`; observation itself never acts. Typed values are never written to reports.
+// or, for observe, on the page's own requests, on its network through `recovery-probe net`
+// and on its files under `--files`; observation itself never acts. Typed values are
+// never written to reports.
 const NAME = /^[\w.-]{1,40}$/
 const KEY = /^[A-Za-z0-9+]{1,40}$/
 const KINDS = [
@@ -19,6 +20,7 @@ const KINDS = [
   'expect',
   'wait',
   'network',
+  'requests',
   'file',
 ] as const
 type StepKind = (typeof KINDS)[number]
@@ -26,6 +28,11 @@ type StepKind = (typeof KINDS)[number]
 /** How a file step damages a file: deletes it, cuts it to half its size, or changes bytes in its middle. */
 export const FILE_FAULTS = ['remove', 'truncate', 'corrupt'] as const
 export type FileFault = (typeof FILE_FAULTS)[number]
+
+/** Fails the page's own requests whose URL matches the Playwright glob `url`. */
+export type RequestFaultRule = { url: string } & (
+  { fault: 'abort' } | { fault: 'status'; status: number }
+)
 
 // The extra property a kind needs besides its selector.
 const ARGUMENTS: Partial<Record<StepKind, string>> = {
@@ -46,6 +53,7 @@ export type ObservationStep = { name?: string } & (
   | { kind: 'press'; target: SelectorSpec; key: string; timeoutMs: number }
   // `null` restores the network.
   | { kind: 'network'; rules: NetworkFaultRule[] | null }
+  | { kind: 'requests'; rules: RequestFaultRule[] | null }
   // `path` is relative to the `--files` directory, with `/` separators.
   | { kind: 'file'; path: string; fault: FileFault }
 )
@@ -53,6 +61,12 @@ export type ObservationStep = { name?: string } & (
 /** Applies network steps; `step` is the index of the step that asked. */
 export interface NetworkStepControl {
   arm(rules: NetworkFaultRule[], step: number): Promise<void>
+  restore(step: number): Promise<void>
+}
+
+/** Applies request steps; `step` is the index of the step that asked. */
+export interface RequestStepControl {
+  arm(rules: RequestFaultRule[], step: number): Promise<void>
   restore(step: number): Promise<void>
 }
 
@@ -181,6 +195,7 @@ const PARSERS: Record<StepKind, (input: StepInput) => ObservationStep> = {
     return { kind: 'press', target, key, timeoutMs, ...named }
   },
   network: networkStep,
+  requests: requestsStep,
   file: fileStep,
 }
 
@@ -199,6 +214,42 @@ function networkStep({ step, at, named, options }: StepInput): ObservationStep {
   } catch (error) {
     throw Error(`${at}.network: ${(error as Error).message}`, { cause: error })
   }
+}
+
+function requestsStep({ step, at, named }: StepInput): ObservationStep {
+  if (step.requests === 'restore')
+    return { kind: 'requests', rules: null, ...named }
+  const rules = Array.isArray(step.requests) ? step.requests : [step.requests]
+  ensure(
+    rules.length > 0 && rules.length <= 10,
+    `${at}.requests must list 1–10 rules or be "restore"`,
+  )
+  return {
+    kind: 'requests',
+    rules: rules.map((rule, i) => requestRule(rule, `${at}.requests[${i}]`)),
+    ...named,
+  }
+}
+
+function requestRule(rule: unknown, at: string): RequestFaultRule {
+  ensure(isRecord(rule), `${at} must be an object`)
+  for (const key of Object.keys(rule))
+    ensure(
+      ['url', 'fault', 'status'].includes(key),
+      `Unsupported ${at} property: ${key}`,
+    )
+  const { url, fault, status } = rule
+  ensure(
+    typeof url === 'string' && url.length > 0 && url.length <= 500,
+    `${at}.url must be a URL glob`,
+  )
+  if (fault === 'abort') {
+    ensure(status === undefined, `${at}.status needs fault "status"`)
+    return { url, fault }
+  }
+  ensure(fault === 'status', `${at}.fault must be abort or status`)
+  ensure(isIntegerIn(status, 400, 599), `${at}.status must be 400–599`)
+  return { url, fault, status: status as number }
 }
 
 function fileStep({ step, at, named, options }: StepInput): ObservationStep {
