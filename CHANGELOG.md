@@ -6,6 +6,7 @@ Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-
 
 ## Unreleased
 
+- `net` warns on stderr when no connection has reached the proxy after 30 seconds, and its summary says so when none did, with the `HTTPS_PROXY` value to start the app with. Before, a proxy the app never used ran silently until it stopped.
 - `observe --steps` can fail the page's own requests, such as its images or reads: `{ "requests": { "url": "**/images/**", "fault": "abort" } }`, or `"fault": "status"` with a status from 400 to 599. A later step replaces the rules, `"restore"` removes them, and the capture removes them when it ends. The report counts what each rule failed under `requests`. A rule that failed nothing adds `REQUEST_FAULT_NOT_TRIGGERED`, and rules that could not be removed add `REQUEST_FAULTS_NOT_RESTORED`.
 - `observe` with `contentImages` counts the images inside the content marker's elements, `<img>` elements and CSS background images, in every sample. Each interval records `contentLoaded`: when the content last became fully loaded, with every image loaded or failed, and stayed unchanged. The terminal and HTML report show it per interval.
 
