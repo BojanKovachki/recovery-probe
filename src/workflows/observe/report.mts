@@ -6,7 +6,7 @@ import type { ActionEffect } from './action-effects.mjs'
 import type { ContentComparison } from './comparisons.mjs'
 import type { IntervalFileChanges } from './files.mjs'
 import type { SamplingSnapshot } from './sampling.mjs'
-import type { FileFault, StepResult } from './steps.mjs'
+import type { FileFault, RequestFaultRule, StepResult } from './steps.mjs'
 import { seconds } from './summaries.mjs'
 import type { SlowReadsSection } from './slow-reads/evidence.mjs'
 
@@ -195,11 +195,22 @@ export interface NetworkStepRecord {
   rules?: NetworkRuleSummary[]
 }
 
-export interface ObservationNetwork {
-  faults: NetworkStepRecord[]
+/** What a request step armed, with how many of the page's requests each rule failed. */
+export interface RequestStepRecord {
+  step: number
+  restored?: true
+  rules?: (RequestFaultRule & { faulted: number })[]
+}
+
+/** What a capture's fault steps did. */
+export interface FaultSteps<StepRecord> {
+  faults: StepRecord[]
   /** Why the faults could not be removed at the end. */
   restoreError?: string
 }
+
+export type ObservationNetwork = FaultSteps<NetworkStepRecord>
+export type ObservationRequests = FaultSteps<RequestStepRecord>
 
 /** What became of a damaged file by the end of the capture. */
 export type FileFaultOutcome =
@@ -279,6 +290,7 @@ export interface ObservationReport {
   notes?: ObservationNote[]
   operator?: ObservationOperator | null
   network?: ObservationNetwork
+  requests?: ObservationRequests
   /** What changed on disk in each interval, from `observe --files`. */
   files?: { intervals: IntervalFileChanges[] }
   /** What became of each file a step damaged. */
@@ -303,6 +315,25 @@ export interface ObservationReport {
   }
   snapshot?: unknown
   snapshotStage?: string
+}
+
+/** The mode of a capture whose steps faulted the app, named after what they faulted. */
+export function faultMode(report: ObservationReport): string {
+  const kinds = [
+    report.network && 'network',
+    report.requests && 'request',
+    report.fileFaults?.length && 'file',
+  ].filter((kind) => typeof kind === 'string')
+  const last = kinds.pop()
+  return `observation with ${kinds.length ? `${kinds.join(', ')} and ${last}` : last} faults`
+}
+
+/** Adds a coverage gap once; a capture with a gap is not complete. */
+export function addCoverageGap(report: ObservationReport, code: string): void {
+  const gaps = report.coverage?.gaps
+  if (!gaps) return
+  if (!gaps.includes(code)) gaps.push(code)
+  report.captureComplete = false
 }
 
 export function observationMetadata(): ObservationMetadata {

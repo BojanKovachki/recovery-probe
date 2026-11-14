@@ -1,11 +1,12 @@
 import { escapeHtml, renderTemplate } from '../../reports/template.mjs'
 import { comparisonFollowUpSummary } from './comparisons.mjs'
-import type { ObservationReport, TrackedRow } from './report.mjs'
+import type { FaultSteps, ObservationReport, TrackedRow } from './report.mjs'
 import {
   actionSummary,
   contentLoadedSummary,
   fileFaultSummary,
   networkStepSummary,
+  requestStepSummary,
   observationSummary,
   rowName,
   seconds,
@@ -98,20 +99,31 @@ function phasesHtml({ sampling }: ObservationReport) {
   return `<table><thead><tr><th>Measured phase</th><th>Mean ms</th><th>Maximum ms</th></tr></thead><tbody>${rows}</tbody></table><p>Renderer read time is included in the UI round trip, not additional to it.</p>`
 }
 
-/** Scripted steps, then what their network and file faults did. */
+/** Scripted steps, then what their network, request and file faults did. */
 function stepsHtml(report: ObservationReport) {
-  const { operator, network, fileFaults } = report
+  const { operator, network, requests, fileFaults } = report
   const steps = operator
     ? `<p>Scripted steps: ${escapeHtml(operator.status)}${operator.error ? ` — ${escapeHtml(operator.error)}` : ''}.</p>`
     : ''
-  const restoreError = network?.restoreError
-    ? `<p>Network faults were not removed: ${escapeHtml(network.restoreError)}</p>`
-    : ''
-  const networkFaults = network
-    ? list(network.faults.map(networkStepSummary)) + restoreError
-    : ''
   const files = fileFaults?.length ? list(fileFaults.map(fileFaultSummary)) : ''
-  return steps + networkFaults + files
+  return (
+    steps +
+    faultsHtml(network, networkStepSummary, 'Network') +
+    faultsHtml(requests, requestStepSummary, 'Request') +
+    files
+  )
+}
+
+function faultsHtml<StepRecord>(
+  evidence: FaultSteps<StepRecord> | undefined,
+  summary: (record: StepRecord) => string,
+  kind: string,
+) {
+  if (!evidence) return ''
+  const unrestored = evidence.restoreError
+    ? `<p>${kind} faults were not removed: ${escapeHtml(evidence.restoreError)}</p>`
+    : ''
+  return list(evidence.faults.map(summary)) + unrestored
 }
 
 function actionsHtml(report: ObservationReport) {

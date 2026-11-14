@@ -5,6 +5,7 @@ import type {
   FileStepControl,
   NetworkStepControl,
   ObservationStep,
+  RequestStepControl,
   StepResult,
 } from './steps.mjs'
 
@@ -14,6 +15,7 @@ export interface RunStepsOptions {
   elapsed: () => number
   log?: (result: StepResult) => void
   network?: NetworkStepControl
+  requests?: RequestStepControl
   files?: FileStepControl
 }
 
@@ -109,12 +111,28 @@ export async function runSteps(
   return results
 }
 
+/** Arms a fault step's rules, or removes the armed ones when the step says "restore". */
+function applyFaults<Rule>(
+  control:
+    | {
+        arm(rules: Rule[], step: number): Promise<void>
+        restore(step: number): Promise<void>
+      }
+    | undefined,
+  rules: Rule[] | null,
+  step: number,
+  missing: string,
+) {
+  if (!control) throw Error(missing)
+  return rules ? control.arm(rules, step) : control.restore(step)
+}
+
 /** Runs one step; an `expect` step that saw nothing in time marks `result` unmet. */
 async function runStep(
   page: Page,
   step: ObservationStep,
   result: StepResult,
-  { mark, signal, network, files }: RunStepsOptions,
+  { mark, signal, network, requests, files }: RunStepsOptions,
 ) {
   const index = result.index
   switch (step.kind) {
@@ -133,9 +151,14 @@ async function runStep(
       await abortable(sleep(step.ms), signal)
       return
     case 'network':
-      if (!network) throw Error('NETWORK_CONTROL_MISSING')
       await abortable(
-        step.rules ? network.arm(step.rules, index) : network.restore(index),
+        applyFaults(network, step.rules, index, 'NETWORK_CONTROL_MISSING'),
+        signal,
+      )
+      return
+    case 'requests':
+      await abortable(
+        applyFaults(requests, step.rules, index, 'REQUEST_CONTROL_MISSING'),
         signal,
       )
       return
