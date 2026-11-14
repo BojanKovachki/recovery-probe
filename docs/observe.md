@@ -83,6 +83,12 @@ A screen often shows its cards or rows before their images arrive. With `"conten
 
 Each interval then gets `contentLoaded`: the sample bounds at which the content last became fully loaded (shown, with every image loaded or failed) and then stayed unchanged until the interval ended, with the number of images and how many failed. Content that changes later, such as a card added after the first ones loaded, moves it later. `null` means the content never fully loaded in that interval. To time a screen from a click, mark a new interval right before the click step.
 
+## Exported spans
+
+An app that measures itself with OpenTelemetry can be checked against what the screen did. With `"spans": { "names": ["LoadTime *"], "attributes": ["load_time.outcome"] }`, the capture lists every span with a matching name (`*` matches any run of characters) that the page exports over OTLP/HTTP JSON, `POST …/v1/traces`, while the capture runs. It reads the requests as they go out and does not change the page. A span exported after the capture ends is not seen, so leave time for the app's export interval.
+
+Each span records its name, start and end in milliseconds since the capture started, duration and status, and the interval it started in. It records the values of the listed attributes only, because spans can carry personal data such as email addresses. With `contentImages`, a span in an interval with `contentLoaded` also records `vsContentLoaded`: whether it ended before the content became fully loaded, within the samples that bound that moment, or after, and by how many milliseconds. The content was not yet fully loaded when the sample before started reading the screen (`notLoadedAtMs`), and was by the end of the sample that saw it. When the interval's first sample already showed it fully loaded, `notLoadedAtMs` is `null` and only a span that ended after it is timed. A span that ended before measured too little. Exports that are not OTLP JSON, such as protobuf, are counted under `unreadableExports`, and matching spans beyond the first 500 under `droppedSpans`.
+
 ## Content comparisons
 
 `comparisons` and the HTML/terminal summaries make two relationships explicit:

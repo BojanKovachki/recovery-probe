@@ -1,3 +1,4 @@
+import type { ContentImages } from './kit.mjs'
 import { observationSummary } from './summaries.mjs'
 import {
   type ContentBeforeReadFinding,
@@ -34,25 +35,24 @@ export function contentLoaded(
   previous: TimelineEvent | undefined,
 ): ObservationInterval['contentLoaded'] {
   const images = event.ui.contentImages
-  if (
-    !showsContent(event) ||
-    !images ||
-    images.loaded + images.failed < images.total
-  )
-    return null
-  const unchanged =
-    previous?.ui.content?.textFingerprint ===
-      event.ui.content?.textFingerprint &&
-    previous?.ui.contentImages?.total === images.total
-  if (current && unchanged) return current
+  if (!showsContent(event) || !images || !settled(images)) return null
+  if (current && previous && sameContent(previous, event)) return current
   return {
     fromMs: event.fromMs,
     toMs: event.toMs,
+    notLoadedAtMs: previous?.fromMs ?? null,
     images: images.total,
     failedImages: images.failed,
     truncated: images.truncated,
   }
 }
+
+const settled = (images: ContentImages) =>
+  images.loaded + images.failed >= images.total
+
+const sameContent = (a: TimelineEvent, b: TimelineEvent) =>
+  a.ui.content?.textFingerprint === b.ui.content?.textFingerprint &&
+  a.ui.contentImages?.total === b.ui.contentImages?.total
 
 /** CONTENT_BEFORE_READ when `event` shows content before any read completed in its interval. */
 export function contentBeforeRead(

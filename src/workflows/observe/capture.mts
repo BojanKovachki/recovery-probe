@@ -9,6 +9,7 @@ import {
 import { summarizeRegion } from '../../core/screen.mjs'
 import type { ObservationAdapter } from './adapters.mjs'
 import { observationConfig, type ObservationConfig } from './config.mjs'
+import { relateSpans, SpanRecorder } from './spans.mjs'
 import { installObserverKit, removeObserverKit } from './kit.mjs'
 import { pageReadInput, pageSelectors } from './page-input.mjs'
 import type { ReadSnapshot } from './reads.mjs'
@@ -60,6 +61,7 @@ class Capture {
   readonly #readInput: ObservationReadInput
   readonly #operator = new OperatorRun()
   readonly #slowProbe: SlowReadProbe | undefined
+  readonly #spans: SpanRecorder | undefined
   #started = 0
   /** Set once the adapter is reading; the capture has a clock from then on. */
   #clock?: Clock
@@ -91,6 +93,9 @@ class Capture {
     this.#readInput = pageReadInput(config, this.#kitToken)
     this.#slowProbe = config.slowReads
       ? new SlowReadProbe(page, config.slowReads, this.#kitToken)
+      : undefined
+    this.#spans = config.spans
+      ? new SpanRecorder(page, config.spans)
       : undefined
   }
 
@@ -127,6 +132,7 @@ class Capture {
     report.metadata.ipcHook = this.#adapter.metadata?.() ?? null
     this.#started = performance.now()
     this.#clock = { elapsed: this.#elapsed, startedEpoch: Date.now() }
+    this.#spans?.start(this.#clock.startedEpoch)
     this.#lastSnapshot = await this.#adapter.snapshot()
     report.startedAt = this.#lastSnapshot.startedAt
     this.#recorder.openInterval(this.#lastSnapshot, this.#elapsed())
@@ -256,9 +262,11 @@ class Capture {
     this.#page.off('domcontentloaded', this.#noteDocumentLoad)
     const readLog = this.#adapter.readLog?.()
     await this.#slowProbe?.stop()
+    if (this.#spans) recorder.report.spans = this.#spans.stop()
     await this.#removeKit()
     await this.#stopAdapter()
     recorder.conclude(this.#slowReadsEnd(readLog))
+    relateSpans(recorder.report)
   }
 
   #slowReadsEnd(

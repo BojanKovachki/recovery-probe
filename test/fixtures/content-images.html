@@ -34,6 +34,7 @@
               ? '<div data-card style="margin-top: 10000px">Lazy' +
                 '<img loading="lazy" src="/image/d" alt="" /></div>'
               : '')
+          if (params.has('span')) exportLoadSpan(Date.now())
         }, 100)
         if (params.has('late'))
           setTimeout(
@@ -44,6 +45,47 @@
               ),
             Number(params.get('late')),
           )
+      }
+      // ?span exports an OTLP span from the card showing until its images loaded, as an app's
+      // load-time instrumentation would, plus a span the observation does not list.
+      const loaded = (url) =>
+        new Promise((resolve) => {
+          const image = new Image()
+          image.onload = image.onerror = resolve
+          image.src = url
+        })
+      const nanos = (ms) => String(BigInt(ms) * 1000000n)
+      const exportLoadSpan = async (start) => {
+        await Promise.all([loaded('/image/a?delay=600'), loaded('/image/b?delay=1200')])
+        const end = Date.now()
+        const span = (name, attributes) => ({
+          name,
+          startTimeUnixNano: nanos(start),
+          endTimeUnixNano: nanos(end),
+          status: { code: 0 },
+          attributes,
+        })
+        await fetch('/v1/traces', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            resourceSpans: [
+              {
+                scopeSpans: [
+                  {
+                    spans: [
+                      span('LoadTime cards', [
+                        { key: 'load_time.outcome', value: { stringValue: 'success' } },
+                        { key: 'email', value: { stringValue: 'person@example.test' } },
+                      ]),
+                      span('other', []),
+                    ],
+                  },
+                ],
+              },
+            ],
+          }),
+        })
       }
     </script>
   </body>

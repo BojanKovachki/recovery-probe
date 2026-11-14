@@ -17,6 +17,9 @@ import {
   networkStepSummary,
   requestStepSummary,
   fileFaultSummary,
+  contentLoadedSummary,
+  spanNotes,
+  spanSummary,
 } from '../workflows/observe/summaries.mjs'
 import { renderObservationReport } from '../workflows/observe/render.mjs'
 import type {
@@ -26,7 +29,6 @@ import type {
   ObservationReport,
 } from '../workflows/observe/report.mjs'
 import { comparisonDigest } from '../workflows/observe/comparisons.mjs'
-import { contentLoadedSummary } from '../workflows/observe/summaries.mjs'
 import {
   observationSteps,
   type ObservationStep,
@@ -235,6 +237,8 @@ function printObservation(
 ) {
   const lines = [
     ...report.intervals.map(intervalLine),
+    ...(report.spans?.spans ?? []).map((span) => `Span ${spanSummary(span)}`),
+    ...(report.spans ? spanNotes(report.spans) : []),
     ...report.findings.map(findingLine),
     ...(report.actionEffects ?? []).map(actionSummary),
     ...comparisonDigest(report),

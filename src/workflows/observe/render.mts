@@ -10,6 +10,8 @@ import {
   observationSummary,
   rowName,
   seconds,
+  spanNotes,
+  spanSummary,
 } from './summaries.mjs'
 
 const paragraphs = (lines: string[]) =>
@@ -26,6 +28,7 @@ export function renderObservationReport(report: ObservationReport): string {
     phases: phasesHtml(report),
     limitation: report.limitation ?? report.error,
     intervals: intervalsHtml(report),
+    spans: spansHtml(report),
     findings: findingsHtml(report),
     operator: stepsHtml(report),
     actions: actionsHtml(report),
@@ -60,6 +63,11 @@ function intervalsHtml(report: ObservationReport) {
       return `<tr><td>${i.index}</td><td>${reads?.calls ?? 'unknown'}</td><td>${reads?.successes ?? 'unknown'}</td><td>${reads?.errors ?? 'unknown'}</td><td>${content}${loaded ? `; ${loaded}` : ''}</td></tr>`
     })
     .join('')
+}
+
+function spansHtml({ spans }: ObservationReport) {
+  if (!spans) return ''
+  return `<h2>Exported spans</h2>${spans.spans.length ? list(spans.spans.map(spanSummary)) : '<p>No matching span was exported.</p>'}${paragraphs(spanNotes(spans))}`
 }
 
 function findingsHtml(report: ObservationReport) {
