@@ -22,7 +22,7 @@ npx playwright install chromium
 npx recovery-probe demo
 ```
 
-The next preview, `1.1.0-preview.3`, adds observation controls for minimized or covered Electron windows. After publication, install it with `npm install --save-dev recovery-probe@next playwright`. Until then, use the [source installation instructions](CONTRIBUTING.md#install-an-unpublished-source-preview).
+The next preview, `1.1.0-preview.4`, adds content-image load timing, request fault steps, exported span observation, and idle proxy warnings. After publication, install it with `npm install --save-dev recovery-probe@next playwright`. Until then, use the [source installation instructions](CONTRIBUTING.md#install-an-unpublished-source-preview).
 
 The demo runs two versions of a small app. Both load fine. Only the fixed one survives a 503, a dropped connection and a broken JSON response.
 
