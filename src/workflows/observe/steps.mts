@@ -89,6 +89,7 @@ export interface StepResult {
 
 interface StepOptions {
   network?: boolean
+  requests?: boolean
   files?: boolean
 }
 
@@ -216,7 +217,16 @@ function networkStep({ step, at, named, options }: StepInput): ObservationStep {
   }
 }
 
-function requestsStep({ step, at, named }: StepInput): ObservationStep {
+function requestsStep({
+  step,
+  at,
+  named,
+  options,
+}: StepInput): ObservationStep {
+  ensure(
+    options.requests,
+    `${at}.requests is only available in observe --steps`,
+  )
   if (step.requests === 'restore')
     return { kind: 'requests', rules: null, ...named }
   const rules = Array.isArray(step.requests) ? step.requests : [step.requests]

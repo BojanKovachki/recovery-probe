@@ -202,17 +202,15 @@ export interface RequestStepRecord {
   rules?: (RequestFaultRule & { faulted: number })[]
 }
 
-export interface ObservationRequests {
-  faults: RequestStepRecord[]
-  /** Why the rules could not be removed at the end. */
-  restoreError?: string
-}
-
-export interface ObservationNetwork {
-  faults: NetworkStepRecord[]
+/** What a capture's fault steps did. */
+export interface FaultSteps<StepRecord> {
+  faults: StepRecord[]
   /** Why the faults could not be removed at the end. */
   restoreError?: string
 }
+
+export type ObservationNetwork = FaultSteps<NetworkStepRecord>
+export type ObservationRequests = FaultSteps<RequestStepRecord>
 
 /** What became of a damaged file by the end of the capture. */
 export type FileFaultOutcome =
@@ -330,12 +328,12 @@ export function faultMode(report: ObservationReport): string {
   return `observation with ${kinds.length ? `${kinds.join(', ')} and ${last}` : last} faults`
 }
 
-/** Adds a coverage gap once; the capture is complete only without gaps. */
+/** Adds a coverage gap once; a capture with a gap is not complete. */
 export function addCoverageGap(report: ObservationReport, code: string): void {
   const gaps = report.coverage?.gaps
   if (!gaps) return
   if (!gaps.includes(code)) gaps.push(code)
-  report.captureComplete = report.status === 'complete' && gaps.length === 0
+  report.captureComplete = false
 }
 
 export function observationMetadata(): ObservationMetadata {

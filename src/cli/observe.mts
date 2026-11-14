@@ -20,6 +20,7 @@ import {
 } from '../workflows/observe/summaries.mjs'
 import { renderObservationReport } from '../workflows/observe/render.mjs'
 import type {
+  FaultSteps,
   ObservationFinding,
   ObservationInterval,
   ObservationReport,
@@ -141,6 +142,7 @@ async function readInputs(options: ObserveOptions) {
     ? await readConfig(options.steps, (list) =>
         observationSteps(list, {
           network: Boolean(options.network),
+          requests: true,
           files: Boolean(options.files),
         }),
       )
@@ -282,9 +284,9 @@ function printStepOutcomes(report: ObservationReport) {
 }
 
 /** What each fault step did, and an error when its faults could not be removed. */
-function printFaults<Step>(
-  evidence: { faults: Step[]; restoreError?: string } | undefined,
-  summary: (record: Step) => string,
+function printFaults<StepRecord>(
+  evidence: FaultSteps<StepRecord> | undefined,
+  summary: (record: StepRecord) => string,
   unrestored: (error: string) => string,
 ) {
   for (const record of evidence?.faults ?? []) console.log(summary(record))

@@ -8,13 +8,16 @@ import {
 } from '../../dist/workflows/observe/requests.mjs'
 import { faultMode } from '../../dist/workflows/observe/report.mjs'
 import { requestStepSummary } from '../../dist/workflows/observe/summaries.mjs'
+import { renderObservationReport } from '../../dist/workflows/observe/render.mjs'
 import { fake } from '../helpers/fake.mjs'
 
 /** @typedef {import('../../dist/workflows/observe/report.mjs').ObservationReport} ObservationReport */
 
+const observeSteps = (steps) => observationSteps(steps, { requests: true })
+
 test('request steps take one rule, a list of rules, or "restore"', () => {
   assert.deepEqual(
-    observationSteps([
+    observeSteps([
       { requests: { url: '**/image/*', fault: 'abort' } },
       { requests: [{ url: '**/api/*', fault: 'status', status: 503 }] },
       { requests: 'restore', name: 'back' },
@@ -36,7 +39,42 @@ test('request steps take one rule, a list of rules, or "restore"', () => {
     [{ url: '*', fault: 'abort', count: 1 }, /Unsupported .* property: count/],
     [[], /must list 1–10 rules/],
   ])
-    assert.throws(() => observationSteps([{ requests }]), message)
+    assert.throws(() => observeSteps([{ requests }]), message)
+  // `action` setup steps have no page routes to fail requests with.
+  assert.throws(
+    () => observationSteps([{ requests: 'restore' }]),
+    /requests is only available in observe --steps/,
+  )
+})
+
+test('the HTML report lists what fault steps did, and faults that were not removed', () => {
+  const html = renderObservationReport(
+    fake({
+      status: 'complete',
+      findings: [],
+      intervals: [],
+      network: {
+        faults: [{ step: 1, restored: true }],
+        restoreError: 'proxy gone',
+      },
+      requests: {
+        faults: [
+          {
+            step: 2,
+            rules: [{ url: '**/image/*', fault: 'abort', faulted: 3 }],
+          },
+        ],
+        restoreError: 'page closed',
+      },
+    }),
+  )
+  for (const text of [
+    'Step 1: network restored',
+    'Network faults were not removed: proxy gone',
+    'Step 2: 3 request(s) to **/image/* aborted',
+    'Request faults were not removed: page closed',
+  ])
+    assert.ok(html.includes(text), text)
 })
 
 /** A page whose routes the test answers the way the browser would send requests through them. */
@@ -74,7 +112,7 @@ test('request steps fail matching requests, count them and remove their routes',
   const requests = requestSteps(page)
   await runSteps(
     page,
-    observationSteps([
+    observeSteps([
       {
         requests: [
           { url: '**/image/*', fault: 'abort' },
