@@ -15,6 +15,7 @@ import {
   validateHttpTarget,
   validateIpcTarget,
 } from './target-config.mjs'
+import { spansConfig, type SpansConfig } from './spans.mjs'
 
 const NAME = /^[\w.-]{1,40}$/
 
@@ -52,6 +53,8 @@ export interface ObservationConfig {
   rows?: RowsConfig
   actions?: ObservedActionConfig[]
   slowReads?: SlowReadsConfig
+  /** Lists the spans the page exports over OTLP/HTTP JSON during the capture. */
+  spans?: SpansConfig
   lagThresholdMs: number
   minUnchangedReads: number
   detail: 'content' | 'region'
@@ -80,6 +83,7 @@ const DEFAULTS = {
   rows: undefined,
   actions: undefined,
   slowReads: undefined,
+  spans: undefined,
   lagThresholdMs: 2000,
   minUnchangedReads: 2,
   detail: 'content',
@@ -130,6 +134,7 @@ export function observationConfig(input: unknown): ObservationConfig {
   if (c.rows !== undefined) c.rows = rowsConfig(c.rows)
   if (c.actions !== undefined) c.actions = actionsConfig(c.actions)
   if (c.slowReads !== undefined) c.slowReads = slowReadsConfig(c.slowReads)
+  if (c.spans !== undefined) c.spans = spansConfig(c.spans)
   validateFlags(c)
   if (c.transport === 'http') validateHttpTarget(c)
   else validateIpcTarget(c)

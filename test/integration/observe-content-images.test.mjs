@@ -22,7 +22,11 @@ before(async () => {
   )
   server = createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://fixture')
-    if (url.pathname === '/image/missing') {
+    if (url.pathname === '/v1/traces') {
+      request.resume()
+      response.writeHead(200)
+      response.end()
+    } else if (url.pathname === '/image/missing') {
       response.writeHead(404)
       response.end()
     } else if (url.pathname.startsWith('/image/'))
@@ -54,12 +58,13 @@ after(async () => {
  * Opens the fixture with `query` and observes its cards for 5 s; by default it renders them once
  * the capture is ready.
  * @param {string} query
- * @param {{ contentImages?: boolean, hooks?: (page: import('playwright').Page) => import('../../dist/workflows/observe/capture.mjs').ObservationHooks }} [options]
+ * @param {{ contentImages?: boolean, spans?: unknown, hooks?: (page: import('playwright').Page) => import('../../dist/workflows/observe/capture.mjs').ObservationHooks }} [options]
  */
 async function observe(
   query,
   {
     contentImages = true,
+    spans = undefined,
     hooks = (page) => ({ onReady: () => page.evaluate('window.render()') }),
   } = {},
 ) {
@@ -73,6 +78,7 @@ async function observe(
     sampleMs: 50,
     observationMs: 5000,
     contentImages,
+    ...(spans ? { spans } : {}),
   })
   // Rendering after the capture starts makes the image delays lower bounds for its timing.
   const report = await runObservation(
@@ -154,4 +160,19 @@ test('request steps fail the page’s own requests, and are removed afterwards',
   assert.equal(interval.contentLoaded?.failedImages, 2)
   assert.ok(after.evidence?.faults[0].rules?.every((rule) => rule.faulted >= 1))
   assert.equal(after.statusAfter, 200)
+})
+
+test('exported spans are listed, and timed against the fully loaded content', async () => {
+  const { report } = await observe('span', {
+    spans: { names: ['LoadTime *'], attributes: ['load_time.outcome'] },
+  })
+  const [span, ...others] = report.spans?.spans ?? []
+  assert.equal(others.length, 0, 'only the listed span names')
+  assert.equal(span?.name, 'LoadTime cards')
+  assert.equal(span?.interval, 1)
+  assert.deepEqual(span?.attributes, { 'load_time.outcome': 'success' })
+  // The span ends when the images load, and contentLoaded is the sample that saw it.
+  assert.notEqual(span?.vsContentLoaded?.ended, 'before')
+  assert.ok((span?.vsContentLoaded?.byMs ?? Infinity) < 500)
+  assert.equal(report.spans?.unreadableExports, 0)
 })

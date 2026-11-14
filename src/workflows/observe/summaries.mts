@@ -8,6 +8,7 @@ import type {
   RequestStepRecord,
   UnexpectedRowStateFinding,
 } from './report.mjs'
+import type { ObservationSpans, ObservedSpan } from './spans.mjs'
 import type { FileFault } from './steps.mjs'
 
 export const seconds = (ms: number) => (Math.round(ms / 100) / 10).toFixed(1)
@@ -130,6 +131,31 @@ export const requestStepSummary = (record: RequestStepRecord): string => {
         `Step ${record.step}: ${rule.faulted} request(s) to ${rule.url} ${rule.fault === 'abort' ? 'aborted' : `answered with ${rule.status}`}`,
     )
     .join('; ')
+}
+
+export function spanSummary(span: ObservedSpan): string {
+  const loaded = span.vsContentLoaded
+  const timing = !loaded
+    ? ''
+    : loaded.ended === 'within'
+      ? '; ended as the content fully loaded, between two samples'
+      : `; ended ${loaded.byMs} ms ${loaded.ended} the content fully loaded`
+  const attributes = Object.entries(span.attributes)
+    .map(([key, value]) => `${key}=${value}`)
+    .join(', ')
+  return `${span.name}${span.interval ? ` (interval ${span.interval})` : ''}: ${span.durationMs} ms${span.status === 'unset' ? '' : `, ${span.status}`}${timing}${attributes ? `; ${attributes}` : ''}`
+}
+
+/** What the span list leaves out. */
+export function spanNotes(spans: ObservationSpans): string[] {
+  return [
+    ...(spans.unreadableExports
+      ? [`${spans.unreadableExports} span export(s) were not OTLP JSON.`]
+      : []),
+    ...(spans.droppedSpans
+      ? [`${spans.droppedSpans} more matching span(s) were not listed.`]
+      : []),
+  ]
 }
 
 export const networkStepSummary = (record: NetworkStepRecord): string => {

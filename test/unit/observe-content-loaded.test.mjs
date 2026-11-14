@@ -43,6 +43,13 @@ test('contentLoaded starts at the latest stretch of unchanged, fully loaded cont
     assert.equal(current?.fromMs ?? null, expectedFromMs, `at ${event.fromMs}`)
     previous = event
   }
+  // It became fully loaded after the sample before it read the screen; the interval's first
+  // sample has no sample before it.
+  assert.equal(
+    contentLoaded(null, sample(200), sample(100, { loaded: 1 }))?.notLoadedAtMs,
+    100,
+  )
+  assert.equal(contentLoaded(null, sample(200), undefined)?.notLoadedAtMs, null)
 })
 
 test('the interval summary tells content that never showed from content still loading', () => {
@@ -65,6 +72,7 @@ test('the interval summary tells content that never showed from content still lo
       contentLoaded: {
         fromMs: 1600,
         toMs: 1650,
+        notLoadedAtMs: 1550,
         images: 3,
         failedImages: 1,
         truncated: true,
@@ -87,6 +95,7 @@ test('the HTML report shows when each interval’s content fully loaded', () => 
           contentLoaded: {
             fromMs: 600,
             toMs: 650,
+            notLoadedAtMs: 550,
             images: 2,
             failedImages: 0,
             truncated: false,

@@ -1,6 +1,7 @@
 import { version } from '../../core/package.mjs'
 import type { RegionRead } from '../../core/region-read.mjs'
 import type { WindowReport } from '../../targets/visibility.mjs'
+import type { ObservationSpans } from './spans.mjs'
 import type { NetworkRuleSummary } from '../../transports/net/types.mjs'
 import type { ActionEffect } from './action-effects.mjs'
 import type { ContentComparison } from './comparisons.mjs'
@@ -162,6 +163,11 @@ export interface ObservationInterval {
   contentLoaded?: {
     fromMs: number
     toMs: number
+    /**
+     * When the sample before started reading the screen: the content became fully loaded after
+     * this. Null when the interval's first sample already showed it fully loaded.
+     */
+    notLoadedAtMs: number | null
     images: number
     failedImages: number
     /** The content had more elements than were checked for images. */
@@ -304,6 +310,8 @@ export interface ObservationReport {
   cleanupError?: string
   /** Set by the CLI when closing the browser connection failed. */
   disconnectError?: string
+  /** The spans the page exported during the capture, with `spans`. */
+  spans?: ObservationSpans
   /** The target window's state when the capture started, and what putting it back did. */
   window?: WindowReport
   windowRestoreError?: string

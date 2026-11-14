@@ -1,5 +1,6 @@
 import { setTimeout as sleep } from 'node:timers/promises'
 import type { Locator, Page } from 'playwright'
+import { escapeRegExp } from '../../core/regexp.mjs'
 import type { SelectorSpec } from '../../core/selector.mjs'
 import type {
   FileStepControl,
@@ -21,9 +22,6 @@ export interface RunStepsOptions {
 
 /** A step that acts on or waits for an element: click, fill, press, waitFor or expect. */
 type TargetStep = Extract<ObservationStep, { timeoutMs: number }>
-
-const escapeRegExp = (value: string) =>
-  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 export function locate(page: Page, spec: SelectorSpec): Locator {
   if (typeof spec === 'string') return page.locator(spec)
