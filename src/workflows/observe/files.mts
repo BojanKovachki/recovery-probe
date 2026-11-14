@@ -1,6 +1,6 @@
 import { lstat, readdir } from 'node:fs/promises'
 import { join, relative, sep } from 'node:path'
-import type { ObservationReport } from './report.mjs'
+import { addCoverageGap, type ObservationReport } from './report.mjs'
 
 export interface FileSnapshot {
   /** Size in bytes of each regular file, by path relative to the directory. */
@@ -163,12 +163,6 @@ export function applyFileEvidence(
       .find((interval) => interval.index === changes.interval)
       ?.findings.push('LOCAL_FILES_REMOVED')
   }
-  const gaps = report.coverage?.gaps
-  if (!gaps) return
-  if (
-    evidence.intervals.some((changes) => changes.incomplete) &&
-    !gaps.includes('FILE_SNAPSHOT_INCOMPLETE')
-  )
-    gaps.push('FILE_SNAPSHOT_INCOMPLETE')
-  report.captureComplete = report.status === 'complete' && gaps.length === 0
+  if (evidence.intervals.some((changes) => changes.incomplete))
+    addCoverageGap(report, 'FILE_SNAPSHOT_INCOMPLETE')
 }

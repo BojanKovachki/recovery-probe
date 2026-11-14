@@ -15,10 +15,12 @@ import {
   observationSummary,
   actionSummary,
   networkStepSummary,
+  requestStepSummary,
   fileFaultSummary,
 } from '../workflows/observe/summaries.mjs'
 import { renderObservationReport } from '../workflows/observe/render.mjs'
 import type {
+  FaultSteps,
   ObservationFinding,
   ObservationInterval,
   ObservationReport,
@@ -61,8 +63,9 @@ UNEXPECTED_ROW_STATE reports a tracked row shown in a state listed in rows.unexp
 --steps runs an explicit, opt-in list of same-document navigations, clicks, waits,
 expectations and interval marks during the capture. Steps act on the app: use a
 test account. An expect step that sees nothing in time adds EXPECTATION_NOT_MET.
+Request steps fail the page's own requests, such as its images, by URL glob;
 --network names a running recovery-probe net, so network steps can fail the app's
-own HTTPS connections; they are removed when the capture ends.
+own HTTPS connections. Both are removed when the capture ends.
 --files compares a directory's files at each interval and reports files the app
 removed or shrank (LOCAL_FILES_REMOVED, a lead). Paths stay in a private files.json.
 File steps remove, truncate or corrupt a file under it; a file the app has not
@@ -139,6 +142,7 @@ async function readInputs(options: ObserveOptions) {
     ? await readConfig(options.steps, (list) =>
         observationSteps(list, {
           network: Boolean(options.network),
+          requests: true,
           files: Boolean(options.files),
         }),
       )
@@ -264,12 +268,27 @@ function printStepOutcomes(report: ObservationReport) {
     console.log(
       `Scripted steps: ${report.operator.status}${report.operator.error ? ' — ' + report.operator.error : ''}`,
     )
-  for (const record of report.network?.faults ?? [])
-    console.log(networkStepSummary(record))
-  if (report.network?.restoreError)
-    console.error(
-      `Network faults were not removed: ${report.network.restoreError}. Stop recovery-probe net to restore the app's network.`,
-    )
+  printFaults(
+    report.network,
+    networkStepSummary,
+    (error) =>
+      `Network faults were not removed: ${error}. Stop recovery-probe net to restore the app's network.`,
+  )
+  printFaults(
+    report.requests,
+    requestStepSummary,
+    (error) => `Request faults were not removed: ${error}.`,
+  )
   for (const record of report.fileFaults ?? [])
     console.log(fileFaultSummary(record))
+}
+
+/** What each fault step did, and an error when its faults could not be removed. */
+function printFaults<StepRecord>(
+  evidence: FaultSteps<StepRecord> | undefined,
+  summary: (record: StepRecord) => string,
+  unrestored: (error: string) => string,
+) {
+  for (const record of evidence?.faults ?? []) console.log(summary(record))
+  if (evidence?.restoreError) console.error(unrestored(evidence.restoreError))
 }

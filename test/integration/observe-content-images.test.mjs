@@ -6,6 +6,7 @@ import { chromium } from 'playwright'
 import { observationConfig } from '../../dist/workflows/observe/config.mjs'
 import { runObservation } from '../../dist/workflows/observe/capture.mjs'
 import { httpObservationAdapter } from '../../dist/workflows/observe/adapters.mjs'
+import { requestSteps } from '../../dist/workflows/observe/requests.mjs'
 import { listen } from '../helpers/ports.mjs'
 
 // A 1×1 transparent PNG.
@@ -49,8 +50,19 @@ after(async () => {
     })
 })
 
-/** Opens the fixture with `query`, renders its cards once the capture is ready and observes them for 5 s. */
-async function observe(query, { contentImages = true } = {}) {
+/**
+ * Opens the fixture with `query` and observes its cards for 5 s; by default it renders them once
+ * the capture is ready.
+ * @param {string} query
+ * @param {{ contentImages?: boolean, hooks?: (page: import('playwright').Page) => import('../../dist/workflows/observe/capture.mjs').ObservationHooks }} [options]
+ */
+async function observe(
+  query,
+  {
+    contentImages = true,
+    hooks = (page) => ({ onReady: () => page.evaluate('window.render()') }),
+  } = {},
+) {
   const page = await browser.newPage()
   await page.goto(`${origin}/?${query}`)
   const config = observationConfig({
@@ -67,7 +79,7 @@ async function observe(query, { contentImages = true } = {}) {
     page,
     config,
     httpObservationAdapter(page, config),
-    { onReady: () => page.evaluate('window.render()') },
+    hooks(page),
   )
   await page.close()
   const [interval] = report.intervals
@@ -111,4 +123,35 @@ test('without contentImages nothing about images is read or recorded', async () 
     report.timeline.some((event) => 'contentImages' in event.ui),
     false,
   )
+})
+
+test('request steps fail the page’s own requests, and are removed afterwards', async () => {
+  /** @type {{ evidence?: import('../../dist/workflows/observe/report.mjs').ObservationRequests, statusAfter?: unknown }} */
+  const after = {}
+  const { interval } = await observe('', {
+    hooks: (page) => {
+      const requests = requestSteps(page)
+      return {
+        async operator() {
+          await requests.arm(
+            [
+              { url: '**/image/a*', fault: 'status', status: 503 },
+              { url: '**/image/b*', fault: 'abort' },
+            ],
+            0,
+          )
+          await page.evaluate('window.render()')
+          await new Promise((resolve) => setTimeout(resolve, 3000))
+          after.evidence = await requests.finish()
+          after.statusAfter = await page.evaluate(
+            'fetch("/image/b").then((response) => response.status)',
+          )
+        },
+      }
+    },
+  })
+  assert.equal(interval.contentLoaded?.images, 2)
+  assert.equal(interval.contentLoaded?.failedImages, 2)
+  assert.ok(after.evidence?.faults[0].rules?.every((rule) => rule.faulted >= 1))
+  assert.equal(after.statusAfter, 200)
 })

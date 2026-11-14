@@ -14,6 +14,8 @@ import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { DAMAGED, fileFaultSummary } from './summaries.mjs'
 import {
+  addCoverageGap,
+  faultMode,
   intervalAt,
   type FileFaultRecord,
   type ObservationReport,
@@ -189,19 +191,13 @@ export function applyFileFaultEvidence(
   evidence: FileFaultEvidence,
 ): void {
   if (!evidence.faults.length) return
-  report.mode = report.network
-    ? 'observation with network and file faults'
-    : 'observation with file faults'
   report.fileFaults = evidence.faults
+  report.mode = faultMode(report)
   for (const record of evidence.faults)
     if (record.outcome === 'damaged' || record.outcome === 'changed')
       addNotRepaired(report, record)
-  const gaps = report.coverage?.gaps
-  if (!gaps) return
-  const unrestored = evidence.faults.some((record) => record.error)
-  if (unrestored && !gaps.includes('FILE_FAULTS_NOT_RESTORED'))
-    gaps.push('FILE_FAULTS_NOT_RESTORED')
-  report.captureComplete = report.status === 'complete' && gaps.length === 0
+  if (evidence.faults.some((record) => record.error))
+    addCoverageGap(report, 'FILE_FAULTS_NOT_RESTORED')
 }
 
 function addNotRepaired(report: ObservationReport, record: FileFaultRecord) {

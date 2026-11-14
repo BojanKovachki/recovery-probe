@@ -222,6 +222,21 @@ Clicks and waits need a page that draws frames. Electron stops drawing a window 
 
 `"restoreWindow": true` un-minimizes the window for the capture and minimizes it again at the end. `"keepRendering": true` (IPC transport) asks the development hook to turn off the window's background throttling for the capture, so a minimized or covered window keeps drawing where it is, and puts the previous setting back at the end. A window the app hid itself draws nothing either way. The report records the window's state at the start, and what putting it back did, under `window`. A window that could not be put back is a cleanup error, so the capture exits with 2.
 
+### Request steps
+
+Request steps fail the page's own requests, the ones the browser makes for it: images, scripts, and `fetch` or XHR reads. `url` is a Playwright URL glob. `"fault": "abort"` fails the request as if it could not be sent, and `"fault": "status"` with a `status` from 400 to 599 answers it with that status and an empty body. A step takes one rule or a list of up to 10. A later request step replaces the rules, `"restore"` removes them, and the capture removes them when it ends. Requests that an app makes outside the page, such as an Electron main process or an SDK, need [network steps](#network-steps) instead.
+
+```json
+[
+  { "requests": { "url": "**/images/**", "fault": "abort" } },
+  { "click": { "role": "link", "name": "Community" } },
+  { "wait": 10000 },
+  { "requests": "restore" }
+]
+```
+
+The report lists, under `requests`, how many requests each rule failed, and the mode names request faults. A rule that failed no request adds `REQUEST_FAULT_NOT_TRIGGERED`, and rules that could not be removed add `REQUEST_FAULTS_NOT_RESTORED`. Playwright turns off the browser cache while a rule is set, so cached images and scripts are fetched again. With `contentImages`, a failed background image may count twice, because the probe that checks it fails as well.
+
 ### Network steps
 
 With `--network URL`, steps can also take hosts away from the app's own HTTPS connections through a running [`recovery-probe net`](net.md). Use them when the app's data comes through native code, such as an SDK in the main process. Start `recovery-probe net` without `--rules` first, start the app with its `HTTPS_PROXY`, then pass its URL to `--network`.
