@@ -111,7 +111,7 @@ async function readRules(path: string | undefined) {
 const startHint = (url: string) =>
   `Is the app running, and was it started with HTTPS_PROXY=${url}?`
 
-/** Warns once, on stderr, when no connection reached the proxy within `delayMs`; returns how to stop. */
+/** Warns once when no connection reached the proxy within `delayMs`; returns a function that cancels it. */
 export function warnIfIdle(
   proxy: Pick<NetworkFaultProxy, 'summary' | 'url'>,
   delayMs: number,

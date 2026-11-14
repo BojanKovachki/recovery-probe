@@ -315,19 +315,22 @@ test('the net command says when no connection reached it', async () => {
   )
 })
 
-test('net warns once when nothing has connected in time, and only then', async () => {
+test('net warns once when nothing has connected in time, and only then', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
   /** @param {number} connections */
   const proxy = (connections) =>
     fake({ url: 'http://127.0.0.1:1', summary: () => fake({ connections }) })
-  const idle = [],
-    busy = [],
-    stopped = []
-  warnIfIdle(proxy(0), 20, (message) => idle.push(message))
-  warnIfIdle(proxy(3), 20, (message) => busy.push(message))
-  warnIfIdle(proxy(0), 20, (message) => stopped.push(message))()
-  await delay(80)
+  const idle = []
+  const busy = []
+  const stopped = []
+  warnIfIdle(proxy(0), 30_000, (message) => idle.push(message))
+  warnIfIdle(proxy(3), 30_000, (message) => busy.push(message))
+  warnIfIdle(proxy(0), 30_000, (message) => stopped.push(message))()
+  t.mock.timers.tick(29_999)
+  assert.deepEqual(idle, [], 'not before the delay')
+  t.mock.timers.tick(60_001)
   assert.deepEqual(idle, [
-    'Recovery Probe: no connection has reached the proxy in 0.02 s. Is the app running, and was it started with HTTPS_PROXY=http://127.0.0.1:1?',
+    'Recovery Probe: no connection has reached the proxy in 30 s. Is the app running, and was it started with HTTPS_PROXY=http://127.0.0.1:1?',
   ])
   assert.deepEqual(busy, [])
   assert.deepEqual(stopped, [])
