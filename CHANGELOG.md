@@ -4,6 +4,11 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## Unreleased
+
+- Experimental: `plan` and the MCP tool `plan_verification` propose the checks of a verify plan for a change. They match the files changed since a Git reference (committed, staged, unstaged, untracked, deleted and renamed) against a scenario registry, `recovery-probe.registry.json`, that maps source files to existing checks. Each proposed check says which file selected it, what it checks, where its expectation came from and what it does not cover. Files only an import ties to a scenario become suggestions to review; files nothing covers, open questions, missing expectations and invalid entries are listed for a person. Planning runs nothing, never gives a verdict, and writes the candidate plan only when asked, never over an existing one without `--force`. It also says when a baseline would have to come from a checkout of the base because the working tree already holds the change.
+- `npm run eval:planner` runs a deterministic evaluation of the planner and the verify workflow on synthetic apps with known defects, unrelated changes and unknown requirements; see [Plan](docs/plan.md#the-evaluation).
+
 ## 1.1.0-preview.5 (2026-11-17)
 
 - `observe` with `rows.progress` follows each row's progress, read from a progress bar or from text such as "45%" or "0.3 / 1.2 GB"; only the percentage is kept. A row that shows less progress than it showed earlier, while it stays in the region, adds a `PROGRESS_WENT_BACK` lead with the drop, its samples, when the row was back, and the action before it. A capture in which no row showed a readable progress value adds the coverage gap `PROGRESS_NOT_OBSERVED`.

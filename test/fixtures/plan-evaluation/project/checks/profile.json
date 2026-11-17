@@ -1,0 +1,10 @@
+{
+  "pageUrl": "{{origin}}/profile.html",
+  "endpoint": "{{origin}}/api/profile",
+  "readySelector": "#profile",
+  "readyText": "Synthetic Example",
+  "recovery": "automatic",
+  "faults": ["http-error"],
+  "times": 2,
+  "timeoutMs": 4000
+}

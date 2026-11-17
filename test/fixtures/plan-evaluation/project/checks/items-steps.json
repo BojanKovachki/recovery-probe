@@ -1,0 +1,10 @@
+[
+  { "click": "#open-items" },
+  { "waitFor": "#items li", "timeoutMs": 3000 },
+  { "requests": { "url": "**/api/items", "fault": "status", "status": 503 } },
+  { "click": "#refresh" },
+  { "wait": 500 },
+  { "expect": "#items li", "timeoutMs": 1000, "name": "items-kept" },
+  { "requests": "restore" },
+  { "click": "#home" }
+]

@@ -4,7 +4,7 @@
 
 ## The plan
 
-List the checks that prove the change in `.recovery-probe/verify.json`:
+List the checks that prove the change in `.recovery-probe/verify.json`. With a scenario registry, [`plan`](plan.md) (experimental) proposes them from the files the change touches and writes the same format:
 
 ```json
 {

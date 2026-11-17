@@ -1,0 +1,53 @@
+{
+  "scenarios": [
+    {
+      "name": "profile-retries",
+      "paths": ["src/profile.js", "public/profile.html"],
+      "check": ["check", "--config", "checks/profile.json"],
+      "behavior": "After two failed profile reads in a row, the page retries on its own and shows the profile.",
+      "expectation": "Requirement PRF-3: a failed profile read is retried up to three times before an error is shown.",
+      "limits": "Only HTTP 503 failures of the profile read on the profile page."
+    },
+    {
+      "name": "items-keep-content",
+      "paths": ["src/items.js", "public/items.html"],
+      "check": [
+        "observe",
+        "--config",
+        "checks/items.json",
+        "--steps",
+        "checks/items-steps.json"
+      ],
+      "behavior": "When a refresh of a loaded item list fails, the items stay on screen.",
+      "expectation": "Requirement ITM-7: a failed refresh keeps the last items and shows an error.",
+      "limits": "One HTTP 503 refresh failure on the item list; not offline mode or first loads."
+    },
+    {
+      "name": "jobs-status",
+      "paths": ["src/jobs.js", "public/jobs.html"],
+      "check": [
+        "observe",
+        "--config",
+        "checks/jobs.json",
+        "--steps",
+        "checks/jobs-steps.json"
+      ],
+      "behavior": "After a successful status read, the export job's row shows its current state.",
+      "expectation": "Requirement JOB-2: a job row shows the state of the last successful status read.",
+      "limits": "The export job's state text only; not the row's other fields or other jobs."
+    },
+    {
+      "name": "inbox-empty-state",
+      "paths": ["src/inbox.js", "public/inbox.html"],
+      "check": ["check", "--config", "checks/inbox.json"],
+      "behavior": "An inbox with no messages shows its empty state, also after a failed read is retried.",
+      "expectation": "Requirement INB-1: an empty inbox shows \"No messages\"; it is not an error.",
+      "limits": "Only the empty inbox; an inbox with messages is not checked."
+    },
+    {
+      "name": "sync-partial-failure",
+      "paths": ["src/sync.js"],
+      "question": "When a sync fails halfway through, should the list keep the items that already synced, or roll back to the list from before the sync?"
+    }
+  ]
+}

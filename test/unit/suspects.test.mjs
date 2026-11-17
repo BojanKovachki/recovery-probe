@@ -189,12 +189,16 @@ test('lists the source files a branch changed, uncommitted and untracked ones in
     git('commit', '-q', '-m', 'start')
     await writeFile(join(root, 'src/old.ts'), 'export const a = 2\n')
     await writeFile(join(root, 'src/new.ts'), 'export const c = 1\n')
+    // Git quotes names like these unless it lists them NUL-separated.
+    await writeFile(join(root, 'src/äpfel.ts'), 'export const d = 1\n')
+    await writeFile(join(root, 'src/same.ts'), 'export const b = 2\n')
+    git('mv', 'src/same.ts', 'src/größe.ts')
     const changed = await changedSourceFiles('main', { cwd: join(root, 'src') })
     assert.deepEqual(
       changed
         .map((file) => file.replaceAll('\\', '/').split('/').at(-1))
         .sort(),
-      ['new.ts', 'old.ts'],
+      ['größe.ts', 'new.ts', 'old.ts', 'äpfel.ts'],
     )
   } finally {
     await rm(root, { recursive: true, force: true })

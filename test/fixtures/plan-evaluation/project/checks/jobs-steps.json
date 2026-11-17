@@ -1,0 +1,15 @@
+[
+  { "click": "#open-jobs" },
+  {
+    "waitFor": { "css": "[data-job=export] .state", "text": "Running" },
+    "timeoutMs": 3000
+  },
+  { "click": "#check" },
+  { "wait": 500 },
+  {
+    "expect": { "css": "[data-job=export] .state", "text": "Done" },
+    "timeoutMs": 1000,
+    "name": "status-current"
+  },
+  { "click": "#home" }
+]

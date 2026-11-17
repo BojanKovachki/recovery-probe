@@ -1,0 +1,9 @@
+{
+  "pageUrl": "{{origin}}/inbox.html",
+  "endpoint": "{{origin}}/api/inbox",
+  "readySelector": "#inbox-empty",
+  "readyText": "No messages",
+  "recovery": "automatic",
+  "faults": ["http-error"],
+  "timeoutMs": 4000
+}

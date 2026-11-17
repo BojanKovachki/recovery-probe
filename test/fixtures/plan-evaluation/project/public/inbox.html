@@ -1,0 +1,7 @@
+<!doctype html><meta charset="utf-8"><title>Inbox</title>
+<main><h1>Inbox</h1><p id="inbox-error" role="alert" hidden>Could not load the inbox.</p>
+<p id="inbox-empty" hidden>No messages</p><ul id="messages"></ul></main>
+<script type="module">
+import { loadInbox } from '/src/inbox.js'
+loadInbox(document)
+</script>

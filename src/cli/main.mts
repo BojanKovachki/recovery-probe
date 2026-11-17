@@ -113,6 +113,10 @@ const groups: [string, Record<string, Entry>][] = [
         summary: 'Rerun a check and the suspect scan on every save',
         load: raw(() => import('./watch.mjs'), 'watchMain'),
       },
+      plan: {
+        summary: 'Propose the checks that verify a change (experimental)',
+        load: raw(() => import('./plan.mjs'), 'planMain'),
+      },
       verify: {
         summary: 'Say whether a change is done',
         load: raw(() => import('./verify.mjs'), 'verifyMain'),
