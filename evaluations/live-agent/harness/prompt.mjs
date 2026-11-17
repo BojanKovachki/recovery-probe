@@ -6,7 +6,7 @@ const COMMON = `You are a software engineer on this project. Resolve the issue d
 - The product requirements are in docs/REQUIREMENTS.md. Do not change them.
 - \`npm start\` serves the app on http://127.0.0.1:4173 and \`npm test\` runs its tests. Playwright and its Chromium are installed if you want to drive the page.
 - If the issue and the requirements leave the expected behavior undecided, do not guess: report needs_clarification and ask your question.
-- Work only inside this directory.
+- Work only inside this directory. Other programs run on this computer: stop only processes you started, by their process id.
 
 When you are done, report your status:
 - fixed: you changed the code and the issue is resolved;

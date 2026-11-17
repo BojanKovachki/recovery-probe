@@ -7,6 +7,7 @@ import {
   changedSince,
   definitionHashes,
 } from '../../evaluations/live-agent/harness/freeze.mjs'
+import { descendantsOf } from '../../evaluations/live-agent/harness/processes.mjs'
 import { schedule } from '../../evaluations/live-agent/harness/schedule.mjs'
 import {
   attemptStart,
@@ -106,4 +107,23 @@ test('a change to the graders after freezing is detected', async () => {
   })
   assert.deepEqual(changedSince(frozen, changed), ['grading/rules.json'])
   assert.deepEqual(changedSince(frozen, frozen), [])
+})
+
+test('the processes a session leaves are found through exited parents, never others', () => {
+  const table = [
+    { pid: 10, parent: 1, created: 'a' }, // the agent session
+    { pid: 11, parent: 10, created: 'b' }, // its shell
+    { pid: 12, parent: 11, created: 'c' }, // a server the shell started
+    { pid: 13, parent: 99, created: 'd' }, // an orphan of an exited child
+    { pid: 99, parent: 10, created: 'e' },
+    { pid: 20, parent: 1, created: 'f' }, // something else of the user's
+    { pid: 21, parent: 21, created: 'g' }, // a process listed as its own parent
+  ]
+  assert.deepEqual(
+    descendantsOf(10, table)
+      .map((process) => process.pid)
+      .sort(),
+    [11, 12, 13, 99],
+  )
+  assert.deepEqual(descendantsOf(21, table), [])
 })

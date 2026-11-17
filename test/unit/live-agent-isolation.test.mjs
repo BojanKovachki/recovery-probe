@@ -96,8 +96,12 @@ test('both conditions get the same prompt, settings and limits; B names its extr
   assert.equal(allowed(argsA), 'Bash,PowerShell')
   assert.equal(allowed(argsB), 'Bash,PowerShell,mcp__recovery-probe')
   const without = (args) =>
-    args.filter((_, i) => i !== 1 && i !== args.indexOf('--allowedTools') + 1)
+    args.filter((_, i) => i !== args.indexOf('--allowedTools') + 1)
   assert.deepEqual(without(argsA), without(argsB))
+  // The prompt goes in on stdin: a search by command line must not find the session.
+  for (const args of [argsA, argsB])
+    assert.ok(!args.some((arg) => arg.includes('ISSUE.md')))
+  assert.match(a, /stop only processes you started/)
   for (const flag of [
     '--strict-mcp-config',
     '--no-session-persistence',

@@ -6,7 +6,7 @@ import { execFileSync, spawn } from 'node:child_process'
 import { readdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { delimiter, join } from 'node:path'
-import { promptFor, REPORT_SCHEMA } from './prompt.mjs'
+import { REPORT_SCHEMA } from './prompt.mjs'
 
 /** The Claude Code CLI of `version`: CLAUDE_CODE_CLI, or the VS Code extension's binary. */
 export function claudeCli(version) {
@@ -89,7 +89,6 @@ export function agentArgs({
 }) {
   return [
     '-p',
-    promptFor(condition),
     '--model',
     model,
     '--effort',
@@ -158,15 +157,29 @@ export function killTree(pid) {
   } catch {}
 }
 
-/** Runs the CLI until it exits or `timeoutMs` passes. The transcript stays in memory, to be sealed. */
-export async function runAgent({ cli, args, env, cwd, timeoutMs }) {
+/**
+ * Runs the CLI until it exits or `timeoutMs` passes; `onStart` gets its process id. The transcript
+ * stays in memory, to be sealed.
+ */
+export async function runAgent({
+  cli,
+  args,
+  prompt,
+  env,
+  cwd,
+  timeoutMs,
+  onStart,
+}) {
   const child = spawn(cli, args, {
     cwd,
     env,
-    stdio: ['ignore', 'pipe', 'pipe'],
+    stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true,
     detached: process.platform !== 'win32',
   })
+  if (child.pid) onStart?.(child.pid)
+  // The prompt goes in on stdin: a process search by command line must not find the session.
+  child.stdin.end(prompt)
   let stdout = ''
   let stderr = ''
   child.stdout.on('data', (chunk) => (stdout += chunk))

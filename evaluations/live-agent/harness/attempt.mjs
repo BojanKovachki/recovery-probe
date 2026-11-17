@@ -14,6 +14,8 @@ import {
   mcpServers,
   runAgent,
 } from './agent.mjs'
+import { trackSession } from './processes.mjs'
+import { promptFor } from './prompt.mjs'
 import { attemptStart, loadTask, scenarioFiles } from './tasks.mjs'
 import { events, outsideReach, summarize } from './transcript.mjs'
 import { createWorkspace, finalChanges } from './workspace.mjs'
@@ -80,15 +82,30 @@ const initOf = (all) => {
 }
 
 /**
- * Runs `attempt` and returns its artifacts as files: attempt.json, transcript.jsonl,
- * final.diff and stderr.txt. `context` holds the pilot, the unsealed hidden tree, the CLI, the
- * tools, the app's node_modules template and the paths watched for reach outside.
+ * Runs `attempt` and returns its artifacts as files (attempt.json, transcript.jsonl, final.diff
+ * and stderr.txt) and `cleanup`, to call once they are kept: it ends what the session left
+ * running and removes the workspace, and throws if it cannot. `context` holds the pilot, the
+ * unsealed hidden tree, the CLI, the tools, the app's node_modules template and the paths
+ * watched for reach outside.
  */
 export async function runAttempt(attempt, context) {
   const { pilot, hidden, cli, tools, nodeModules, watched } = context
   const task = await loadTask(attempt.task)
   const workspace = join(TEMP, 'rp-live-eval-ws', randomUUID())
   const control = await mkdtemp(join(TEMP, 'rp-live-eval-ctl-'))
+  const session = trackSession()
+  const cleanup = async () => {
+    await session.end()
+    freePorts()
+    // Indexers and scanners can hold fresh files for a moment.
+    for (const folder of [workspace, control])
+      await rm(folder, {
+        recursive: true,
+        force: true,
+        maxRetries: 20,
+        retryDelay: 500,
+      })
+  }
   freePorts()
   try {
     const scenarios =
@@ -118,9 +135,11 @@ export async function runAttempt(attempt, context) {
         settingsFile,
         mcpFile,
       }),
+      prompt: promptFor(attempt.condition),
       env: agentEnv(attempt.condition, tools.toolsBin),
       cwd: workspace,
       timeoutMs: pilot.agent.minutes * 60000,
+      onStart: session.start,
     })
     const endedAt = new Date()
     const all = events(outcome.stdout)
@@ -148,16 +167,16 @@ export async function runAttempt(attempt, context) {
         watched: watched.marks,
       }),
     }
-    return {
+    const artifacts = {
       'attempt.json': json(record),
       'transcript.jsonl': outcome.stdout,
       'final.diff': changes.diff,
       'stderr.txt': outcome.stderr,
     }
-  } finally {
-    freePorts()
-    await rm(workspace, { recursive: true, force: true, maxRetries: 10 })
-    await rm(control, { recursive: true, force: true, maxRetries: 10 })
+    return { artifacts, cleanup }
+  } catch (error) {
+    await cleanup().catch(() => {})
+    throw error
   }
 }
 

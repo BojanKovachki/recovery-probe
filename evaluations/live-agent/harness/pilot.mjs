@@ -179,14 +179,18 @@ async function run() {
     if (existsSync(file)) continue
     if (ran++ >= limit) break
     console.log(`${new Date().toISOString()} ${attempt.id}: running`)
-    const artifacts = await runAttempt(attempt, context)
+    const { artifacts, cleanup } = await runAttempt(attempt, context)
     const record = JSON.parse(artifacts['attempt.json'])
-    if (unavailable(record, artifacts))
+    if (unavailable(record, artifacts)) {
+      await cleanup()
       throw new Error(
         `${attempt.id}: the model service refused the session (usage limit or overload). Nothing was recorded for it; run again to resume.`,
       )
+    }
     await mkdir(dirname(file), { recursive: true })
     await writeFile(file, seal(artifacts, key))
+    // A workspace that cannot be removed stops the run: no later attempt may see it.
+    await cleanup()
     console.log(
       `${new Date().toISOString()} ${attempt.id}: ${record.report?.status ?? 'no report'}; exit ${record.execution.exitCode}${record.execution.timedOut ? ', timed out' : ''}; ${record.outsideReach.length} flag(s)`,
     )
@@ -207,10 +211,11 @@ async function smoke() {
   }
   attempt.id = `smoke-${attempt.task}-${attempt.condition}`
   const context = await attemptContext(await hiddenFromDisk())
-  const artifacts = await runAttempt(attempt, context)
+  const { artifacts, cleanup } = await runAttempt(attempt, context)
   const stamp = new Date().toISOString().replaceAll(':', '-').slice(0, 19)
   const folder = join(EVALUATION, 'runs', `smoke-${stamp}`)
   await writeTree(folder, artifacts)
+  await cleanup()
   const { init, execution, report, metrics, outsideReach } = JSON.parse(
     artifacts['attempt.json'],
   )

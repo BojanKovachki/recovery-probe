@@ -26,7 +26,7 @@ A task's starting code is the app with one defect (`tasks/<id>/start/` replaces 
 - **A**: Claude Code with its normal tools: editor, shell, the app's tests, and Playwright with Chromium in the project.
 - **B**: the same, plus Recovery Probe (its MCP server and its command) and prepared scenarios: `recovery-probe/<app>/` adds a registry and check configurations to the workspace.
 
-Both conditions get the same model and CLI version, prompt (B adds one paragraph naming the tool), starting code, requirements, time and turn limits, and settings. Each attempt runs in a fresh session and a fresh workspace, and the attempts run one at a time in a shuffled order with a recorded seed.
+Both conditions get the same model, effort and CLI version, prompt (B adds one paragraph naming the tool and how to open the browser its `observe` checks attach to), starting code, requirements, time and turn limits, and settings. Each attempt runs in a fresh session and a fresh workspace, and the attempts run one at a time in a shuffled order with a recorded seed.
 
 The pilot uses **prepared** scenarios. Someone who knew the app wrote and validated them before the pilot; it measures Recovery Probe with working scenarios, not automatic onboarding. Their authoring cost is recorded separately in [setup-effort.md](setup-effort.md). The registry is the same for every task of an app, and its expectations only cite requirements both conditions can read. There is no scenario for the sync behavior, because no requirement covers it.
 
@@ -56,6 +56,8 @@ The pilot ran on the Windows host, by the maintainer's choice. There, an agent's
 - File tools are denied reads of the checkout, the key folder, the harness's private files and Claude's own files. Web tools are off for both conditions.
 - No CLAUDE.md, auto memory, hooks, skills or user settings are loaded, and no API key: attempts use the subscription login.
 - Every tool call that names one of those places is flagged in the results. An attempt's shell could still read them on purpose; the flags show whether one did.
+- The agent's shell can also affect the rest of the machine. In a smoke attempt before the pilot, an agent stopped every `chrome*` process to restart its browser. The prompt now asks both conditions to stop only processes they started, by their id. The prompt goes in on stdin, so a search by command line does not find the session itself. After each attempt, the harness ends every process the session started, recorded while it ran, and removes the workspace before the next attempt; if it cannot, the run stops.
+- Both conditions get the same built-in tools: shells, file editing and search, subagents and background tasks. On Windows the CLI's shell tool is PowerShell. Account features such as scheduled or remote agents are left out.
 
 On Linux or WSL2, Claude Code's sandbox can enforce the same boundary for shell commands too; the harness keeps its paths and settings in `harness/agent.mjs` and `harness/pilot.mjs` for that.
 
