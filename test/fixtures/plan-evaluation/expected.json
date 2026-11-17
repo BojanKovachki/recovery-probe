@@ -1,0 +1,74 @@
+{
+  "failed-read-clears-content": {
+    "summary": "A failed refresh clears a loaded list; the change keeps the items.",
+    "relevant": ["items-keep-content"],
+    "suggested": [],
+    "questions": [],
+    "uncovered": [],
+    "defectBeforeChange": true,
+    "verdict": "VERIFIED"
+  },
+  "repeated-failures-no-retry": {
+    "summary": "Two failed reads in a row leave the profile empty; the change retries as required.",
+    "relevant": ["profile-retries"],
+    "suggested": [],
+    "questions": [],
+    "uncovered": [],
+    "defectBeforeChange": true,
+    "verdict": "VERIFIED"
+  },
+  "row-obsolete-state": {
+    "summary": "A successful status read leaves a row showing its old state; the change shows the current one.",
+    "relevant": ["jobs-status"],
+    "suggested": [],
+    "questions": [],
+    "uncovered": [],
+    "defectBeforeChange": true,
+    "verdict": "VERIFIED"
+  },
+  "legitimate-empty": {
+    "summary": "A refactor of an inbox whose empty result is legitimate; neither side may report a defect.",
+    "relevant": ["inbox-empty-state"],
+    "suggested": [],
+    "questions": [],
+    "uncovered": [],
+    "defectBeforeChange": false,
+    "verdict": "VERIFIED"
+  },
+  "unrelated-change": {
+    "summary": "A theme change no scenario covers; the plan must say so instead of calling it safe.",
+    "relevant": [],
+    "suggested": [],
+    "questions": [],
+    "uncovered": ["src/theme.js"],
+    "defectBeforeChange": null,
+    "verdict": null
+  },
+  "unknown-requirement": {
+    "summary": "A sync change whose expected behavior nobody has stated; the plan must ask.",
+    "relevant": [],
+    "suggested": [],
+    "questions": ["sync-partial-failure"],
+    "uncovered": [],
+    "defectBeforeChange": null,
+    "verdict": null
+  },
+  "regression-introduced": {
+    "summary": "A change that stops retrying after two failures; verify must not call it verified.",
+    "relevant": ["profile-retries"],
+    "suggested": [],
+    "questions": [],
+    "uncovered": [],
+    "defectBeforeChange": false,
+    "verdict": "NOT_VERIFIED"
+  },
+  "shared-helper": {
+    "summary": "A change to a helper only an import ties to a scenario; a suggestion to review, not a planned check.",
+    "relevant": [],
+    "suggested": ["jobs-status"],
+    "questions": [],
+    "uncovered": [],
+    "defectBeforeChange": null,
+    "verdict": null
+  }
+}

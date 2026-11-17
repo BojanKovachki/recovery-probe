@@ -1,0 +1,15 @@
+<!doctype html><meta charset="utf-8"><title>Jobs</title>
+<main><nav><button id="home">Home</button><button id="open-jobs">Jobs</button></nav><section id="view"></section></main>
+<script type="module">
+import { createJobList } from '/src/jobs.js'
+const view = document.querySelector('#view')
+const home = () => { view.innerHTML = '<h1>Home</h1>' }
+document.querySelector('#home').addEventListener('click', home)
+document.querySelector('#open-jobs').addEventListener('click', () => {
+  view.innerHTML = '<h1>Jobs</h1><button id="check">Check status</button><section id="jobs-region"><ul id="jobs"></ul></section>'
+  const jobs = createJobList(document)
+  document.querySelector('#check').addEventListener('click', () => jobs.checkStatus())
+  jobs.load()
+})
+home()
+</script>

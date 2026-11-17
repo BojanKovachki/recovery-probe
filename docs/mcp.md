@@ -58,6 +58,7 @@ See [the reproducible MCP demonstration](mcp-demo.md) for a clean installation a
 | `start_network_faults`, `set_network_faults`, `network_fault_summary`, `stop_network_faults` | Run a [network fault proxy](net.md) for the app's own HTTPS connections, such as an SDK, a main process or a test run started with the returned environment. |
 | `find_suspects` | Reads the project's JavaScript and TypeScript, or only what changed since a Git reference, for error handling that can lose data. Each suspect names the read to fail and how to check it. See [Suspect scanner](suspects.md). |
 | `compare_reports` | Compares reports of the same check from before and after a change and returns a verdict, what happened to each problem, and a Markdown block for the pull request. A problem counts as gone only when a complete run after the change checked it. See [Before and after](compare.md). |
+| `plan_verification` | Experimental. Proposes the checks of a verify plan from the project's [scenario registry](plan.md) and the files changed since a Git reference, with the reason for each, the files no check covers, and what needs a person. It runs nothing and never gives a verdict. |
 | `verify_change` | Records the checks of a [verify plan](verify.md) before a change (`baseline: true`), and afterwards reruns them, compares the runs and scans the changed lines for suspects. It answers VERIFIED or NOT_VERIFIED with the reasons. |
 | `run_recovery_probe` | Runs `check`, `discover`, `action`, `observe`, `refresh`, `reads`, `windows`, `android --list` or `doctor` with your arguments, for checks that need a configuration file. Examples are discovery in an Electron app and observation with network or file steps. |
 
@@ -68,7 +69,7 @@ A typical loop for a screen that loads data:
 3. If a fault is caught, read `fix-brief.md`, change the code, and run the same check again.
 4. `compare_reports` with the report from step 2 as `before` and the new one as `after` shows whether the change fixed it.
 
-While changing code, `find_suspects` with `changedSince: "main"` points at the reads worth failing.
+While changing code, `find_suspects` with `changedSince: "main"` points at the reads worth failing. With a scenario registry, `plan_verification` proposes the verify plan for the change before the baseline; [Plan](plan.md#the-workflow) has the whole sequence, and examples of repository instructions for agents that should follow it. The server's instructions are guidance: they do not make a host agent call any tool.
 
 ## Results the agent must report as they are
 
@@ -79,7 +80,8 @@ The server gives the agent these rules when it connects:
 - When a check can't attach to the app or the IPC hook doesn't answer, run `doctor --json` and follow its fixes.
 - Findings such as `LOCAL_FILES_REMOVED` or `DELAYED_UI_UPDATE`, and suspects from `find_suspects`, are leads to investigate, not verdicts. `EXPECTATION_NOT_MET` is different: the app did not show what an `expect` step required.
 - Before saying a change fixed something, compare reports of the same check from before and after it with `compare_reports`, and quote its verdict. A run that stopped early is never evidence of a fix.
-- With a verify plan, call `verify_change` with `baseline: true` before changing the code, and `verify_change` before saying the change is done; a NOT_VERIFIED change is not done.
+- With a scenario registry, call `plan_verification` before recording a baseline. It proposes checks and never verifies anything; report its uncovered files and requests for input as they are, and never invent an expectation, selector or endpoint to fill a gap.
+- With a verify plan, call `verify_change` with `baseline: true` before changing the code, and `verify_change` before saying the change is done; a NOT_VERIFIED change is not done. A baseline run after the code changed is not a before-change baseline.
 - Use development or test apps and accounts only: checks reload pages and fail their reads.
 
 ## Limits

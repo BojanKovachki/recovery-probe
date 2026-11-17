@@ -50,16 +50,28 @@ export async function sourceFiles(
   return files
 }
 
-const git = (cwd: string, args: string[]) =>
-  promisify(execFile)('git', args, { cwd, maxBuffer: 16 * 1024 * 1024 }).then(
-    ({ stdout }) => stdout.split('\n').filter(Boolean),
+const run = (cwd: string, args: string[]) =>
+  promisify(execFile)('git', args, { cwd, maxBuffer: 16 * 1024 * 1024 })
+
+/** The non-empty lines a Git command prints. */
+export const git = (cwd: string, args: string[]) =>
+  run(cwd, args).then(({ stdout }) => stdout.split('\n').filter(Boolean))
+
+/**
+ * The paths a Git command prints with -z: NUL-separated, so none is quoted or escaped,
+ * whatever its characters.
+ */
+export const gitPaths = (cwd: string, args: string[]) =>
+  run(cwd, [...args, '-z']).then(({ stdout }) =>
+    stdout.split('\0').filter(Boolean),
   )
 
-const untrackedFiles = (cwd: string) =>
-  git(cwd, ['ls-files', '--others', '--exclude-standard', '--full-name'])
+/** Files Git neither tracks nor ignores, relative to the repository root. */
+export const untrackedFiles = (cwd: string) =>
+  gitPaths(cwd, ['ls-files', '--others', '--exclude-standard', '--full-name'])
 
 // Relative to cwd, so paths keep its spelling, such as a Windows short name.
-const repositoryRoot = async (cwd: string) =>
+export const repositoryRoot = async (cwd: string) =>
   resolve(cwd, (await git(cwd, ['rev-parse', '--show-cdup']))[0] ?? '')
 
 /** Source files changed since `ref` in the Git work tree around `cwd`, including uncommitted and untracked ones. */
@@ -72,7 +84,12 @@ export async function changedSourceFiles(
 ): Promise<string[]> {
   const root = await repositoryRoot(cwd)
   const changed = new Set([
-    ...(await git(cwd, ['diff', '--name-only', '--diff-filter=ACMR', ref])),
+    ...(await gitPaths(cwd, [
+      'diff',
+      '--name-only',
+      '--diff-filter=ACMR',
+      ref,
+    ])),
     ...(await untrackedFiles(cwd)),
   ])
   return [...changed]
