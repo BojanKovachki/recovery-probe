@@ -4,7 +4,7 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
-## Unreleased
+## 1.1.0-preview.5 (2026-11-17)
 
 - `observe` with `rows.progress` follows each row's progress, read from a progress bar or from text such as "45%" or "0.3 / 1.2 GB"; only the percentage is kept. A row that shows less progress than it showed earlier, while it stays in the region, adds a `PROGRESS_WENT_BACK` lead with the drop, its samples, when the row was back, and the action before it. A capture in which no row showed a readable progress value adds the coverage gap `PROGRESS_NOT_OBSERVED`.
 
