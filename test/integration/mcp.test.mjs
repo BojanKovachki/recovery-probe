@@ -44,7 +44,8 @@ test('says why the healthy baseline failed', async () => {
       endpoint: `${server.url}/api/profile`,
       readySelector: 'p',
       faults: ['http-error'],
-      timeoutMs: 300,
+      // The reload shares this budget, so it must outlast a slow runner's reload.
+      timeoutMs: 2000,
     },
     context,
   )

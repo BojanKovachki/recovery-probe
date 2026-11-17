@@ -104,7 +104,8 @@ test(
       }
       const first = await runStart({ target: 'web', url, dir }, io, {
         launchWeb: async () => (browser = await chromium.launch()),
-        durationMs: 200,
+        // Long enough for both reads to answer on a slow runner, or only one is offered.
+        durationMs: 2000,
         pick: (page) => clickMarker(page, '[data-testid="profile"]'),
       })
       assert.equal(answers.length, 0)

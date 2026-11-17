@@ -27,12 +27,14 @@ const { version } = JSON.parse(
 
 test(
   'a clean consumer installs the packed package and verifies exports, types and CLI',
-  { timeout: 60000 },
+  { timeout: 300000 },
   async () => {
     const temp = await mkdtemp(join(tmpdir(), 'recovery-probe-consumer-'))
     const consumer = join(temp, 'consumer')
     const npmCli = process.env.npm_execpath
     assert.ok(npmCli, 'Run this integration check with npm run test:package')
+    // Installing the tarball has taken over 25 s on a busy Windows runner.
+    const npmTimeoutMs = 120000
     const npm = async (args, cwd) =>
       exec(
         process.execPath,
@@ -48,12 +50,16 @@ test(
         ],
         {
           cwd,
-          timeout: 25000,
+          timeout: npmTimeoutMs,
           // A parent `npm publish --dry-run` exports this setting. The nested pack
           // must still create a tarball so the consumer-install check remains real.
           env: { ...process.env, npm_config_dry_run: 'false' },
         },
-      )
+      ).catch((error) => {
+        // npm stopped at the timeout prints nothing, so say why it failed.
+        if (error.killed) error.message += `\nStopped after ${npmTimeoutMs} ms.`
+        throw error
+      })
     try {
       await mkdir(consumer)
       await writeFile(
