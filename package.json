@@ -95,7 +95,7 @@
   },
   "publishConfig": {
     "access": "public",
-    "tag": "latest"
+    "tag": "next"
   },
   "keywords": [
     "playwright",
