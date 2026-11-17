@@ -7,3 +7,8 @@ BUSINESS.md
 
 .recovery-probe/
 dist/
+
+# Live-agent evaluation: sealed copies are redundant once unsealed; smoke runs are setup checks.
+evaluations/live-agent/runs/*/hidden.sealed
+evaluations/live-agent/runs/*/attempts/*.sealed
+evaluations/live-agent/runs/smoke-*/

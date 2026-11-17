@@ -1,0 +1,19 @@
+[
+  { "click": "header a[href='#/orders']" },
+  {
+    "waitFor": "#orders-view:has(#status:empty) #orders li",
+    "timeoutMs": 5000
+  },
+  { "wait": 500 },
+  { "requests": { "url": "**/api/orders", "fault": "status", "status": 503 } },
+  { "click": "#refresh" },
+  { "wait": 1500 },
+  { "expect": "#orders li", "timeoutMs": 1000, "name": "orders-kept" },
+  {
+    "expect": { "css": "#error", "text": "Could not refresh orders." },
+    "timeoutMs": 1000,
+    "name": "refresh-error-shown"
+  },
+  { "requests": "restore" },
+  { "click": "header a[href='#/']" }
+]

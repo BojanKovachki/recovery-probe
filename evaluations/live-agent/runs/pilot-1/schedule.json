@@ -1,0 +1,254 @@
+[
+  {
+    "task": "filter-race",
+    "condition": "B",
+    "repetition": 2,
+    "order": 1,
+    "id": "01-filter-race-B2"
+  },
+  {
+    "task": "partial-sync",
+    "condition": "B",
+    "repetition": 3,
+    "order": 2,
+    "id": "02-partial-sync-B3"
+  },
+  {
+    "task": "filter-race",
+    "condition": "B",
+    "repetition": 3,
+    "order": 3,
+    "id": "03-filter-race-B3"
+  },
+  {
+    "task": "health-gives-up",
+    "condition": "B",
+    "repetition": 1,
+    "order": 4,
+    "id": "04-health-gives-up-B1"
+  },
+  {
+    "task": "filter-race",
+    "condition": "B",
+    "repetition": 1,
+    "order": 5,
+    "id": "05-filter-race-B1"
+  },
+  {
+    "task": "shipped-row-stale",
+    "condition": "A",
+    "repetition": 2,
+    "order": 6,
+    "id": "06-shipped-row-stale-A2"
+  },
+  {
+    "task": "empty-notifications",
+    "condition": "A",
+    "repetition": 2,
+    "order": 7,
+    "id": "07-empty-notifications-A2"
+  },
+  {
+    "task": "empty-notifications",
+    "condition": "B",
+    "repetition": 1,
+    "order": 8,
+    "id": "08-empty-notifications-B1"
+  },
+  {
+    "task": "shipped-row-stale",
+    "condition": "B",
+    "repetition": 1,
+    "order": 9,
+    "id": "09-shipped-row-stale-B1"
+  },
+  {
+    "task": "shipped-row-stale",
+    "condition": "A",
+    "repetition": 3,
+    "order": 10,
+    "id": "10-shipped-row-stale-A3"
+  },
+  {
+    "task": "shipped-row-stale",
+    "condition": "B",
+    "repetition": 3,
+    "order": 11,
+    "id": "11-shipped-row-stale-B3"
+  },
+  {
+    "task": "refresh-clears-orders",
+    "condition": "A",
+    "repetition": 3,
+    "order": 12,
+    "id": "12-refresh-clears-orders-A3"
+  },
+  {
+    "task": "filter-race",
+    "condition": "A",
+    "repetition": 3,
+    "order": 13,
+    "id": "13-filter-race-A3"
+  },
+  {
+    "task": "empty-notifications",
+    "condition": "B",
+    "repetition": 2,
+    "order": 14,
+    "id": "14-empty-notifications-B2"
+  },
+  {
+    "task": "health-gives-up",
+    "condition": "A",
+    "repetition": 2,
+    "order": 15,
+    "id": "15-health-gives-up-A2"
+  },
+  {
+    "task": "shipped-row-stale",
+    "condition": "A",
+    "repetition": 1,
+    "order": 16,
+    "id": "16-shipped-row-stale-A1"
+  },
+  {
+    "task": "empty-notifications",
+    "condition": "B",
+    "repetition": 3,
+    "order": 17,
+    "id": "17-empty-notifications-B3"
+  },
+  {
+    "task": "refresh-clears-orders",
+    "condition": "B",
+    "repetition": 3,
+    "order": 18,
+    "id": "18-refresh-clears-orders-B3"
+  },
+  {
+    "task": "health-gives-up",
+    "condition": "B",
+    "repetition": 3,
+    "order": 19,
+    "id": "19-health-gives-up-B3"
+  },
+  {
+    "task": "partial-sync",
+    "condition": "A",
+    "repetition": 3,
+    "order": 20,
+    "id": "20-partial-sync-A3"
+  },
+  {
+    "task": "empty-notifications",
+    "condition": "A",
+    "repetition": 3,
+    "order": 21,
+    "id": "21-empty-notifications-A3"
+  },
+  {
+    "task": "health-gives-up",
+    "condition": "A",
+    "repetition": 3,
+    "order": 22,
+    "id": "22-health-gives-up-A3"
+  },
+  {
+    "task": "partial-sync",
+    "condition": "B",
+    "repetition": 2,
+    "order": 23,
+    "id": "23-partial-sync-B2"
+  },
+  {
+    "task": "empty-notifications",
+    "condition": "A",
+    "repetition": 1,
+    "order": 24,
+    "id": "24-empty-notifications-A1"
+  },
+  {
+    "task": "refresh-clears-orders",
+    "condition": "A",
+    "repetition": 2,
+    "order": 25,
+    "id": "25-refresh-clears-orders-A2"
+  },
+  {
+    "task": "health-gives-up",
+    "condition": "B",
+    "repetition": 2,
+    "order": 26,
+    "id": "26-health-gives-up-B2"
+  },
+  {
+    "task": "shipped-row-stale",
+    "condition": "B",
+    "repetition": 2,
+    "order": 27,
+    "id": "27-shipped-row-stale-B2"
+  },
+  {
+    "task": "partial-sync",
+    "condition": "A",
+    "repetition": 1,
+    "order": 28,
+    "id": "28-partial-sync-A1"
+  },
+  {
+    "task": "filter-race",
+    "condition": "A",
+    "repetition": 1,
+    "order": 29,
+    "id": "29-filter-race-A1"
+  },
+  {
+    "task": "filter-race",
+    "condition": "A",
+    "repetition": 2,
+    "order": 30,
+    "id": "30-filter-race-A2"
+  },
+  {
+    "task": "refresh-clears-orders",
+    "condition": "B",
+    "repetition": 2,
+    "order": 31,
+    "id": "31-refresh-clears-orders-B2"
+  },
+  {
+    "task": "health-gives-up",
+    "condition": "A",
+    "repetition": 1,
+    "order": 32,
+    "id": "32-health-gives-up-A1"
+  },
+  {
+    "task": "refresh-clears-orders",
+    "condition": "A",
+    "repetition": 1,
+    "order": 33,
+    "id": "33-refresh-clears-orders-A1"
+  },
+  {
+    "task": "partial-sync",
+    "condition": "B",
+    "repetition": 1,
+    "order": 34,
+    "id": "34-partial-sync-B1"
+  },
+  {
+    "task": "refresh-clears-orders",
+    "condition": "B",
+    "repetition": 1,
+    "order": 35,
+    "id": "35-refresh-clears-orders-B1"
+  },
+  {
+    "task": "partial-sync",
+    "condition": "A",
+    "repetition": 2,
+    "order": 36,
+    "id": "36-partial-sync-A2"
+  }
+]

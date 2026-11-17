@@ -1,0 +1,5 @@
+{
+  "id": "refresh-clears-orders",
+  "title": "Orders disappear when Refresh fails",
+  "app": "dispatch"
+}

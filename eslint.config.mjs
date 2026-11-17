@@ -49,6 +49,14 @@ export default [
     languageOptions: { globals: { ...globals.node, ...globals.browser } },
   },
   {
+    // The live-agent evaluation's apps run these scripts in the page.
+    files: [
+      'evaluations/live-agent/apps/*/public/**/*.js',
+      'evaluations/live-agent/tasks/*/start/public/**/*.js',
+    ],
+    languageOptions: { globals: globals.browser },
+  },
+  {
     rules: {
       // Empty catch blocks are deliberate best-effort cleanup and polling.
       'no-empty': ['error', { allowEmptyCatch: true }],
