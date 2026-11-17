@@ -297,10 +297,14 @@ export class ObservationRecorder {
     pageErrors: number,
   ) {
     const report = this.report
+    // Progress alone adds no event: a moving bar would fill the timeline.
     const signature = JSON.stringify([
       event.interval,
       event.ui,
-      rows,
+      rows && [
+        rows.truncated,
+        rows.items.map(({ row, state }) => [row, state]),
+      ],
       event.reads,
       event.dataEvents,
       pageErrors,

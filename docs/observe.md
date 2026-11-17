@@ -196,7 +196,7 @@ Each stretch of consecutive samples in which a row shows an unexpected state add
 
 ### Progress and `PROGRESS_WENT_BACK`
 
-`rows.progress` names the element inside each row that shows its progress. It can be a progress bar (`<progress>`, or an element with `aria-valuenow`, read against `aria-valuemin` and `aria-valuemax`) or any element whose text shows progress, such as "45%", "0.3 / 1.2 GB" or "300 MB of 1.2 GB". A percentage in the text wins over amounts, and an amount without a unit takes the other amount's unit. Each sample's `rows` keeps only the resulting percentage, never the text. `progress` is enough on its own: `state` and `markers` become optional.
+`rows.progress` names the element inside each row that shows its progress. It can be a progress bar (`<progress>`, or an element with `aria-valuenow`, read against `aria-valuemin` and `aria-valuemax`) or any element whose text shows progress, such as "45%", "0.3 / 1.2 GB" or "300 MB of 1.2 GB". A percentage in the text wins over amounts, and an amount without a unit takes the other amount's unit. Numbers can use a decimal point or comma and group thousands either way ("1,024 MB", "1.024 MB"). Units count in 1024s, so a download that moves from "1023 MB" to "1.0 GB" does not seem to go back. Each sample's `rows` keeps only the resulting percentage, never the text. `progress` is enough on its own: `state` and `markers` become optional.
 
 ```json
 {

@@ -107,16 +107,18 @@ export function installObserverKit({
       truncated: nodes.length > 2000,
     }
   }
-  // A progress bar's value as "done / total" (null while a <progress> is indeterminate); otherwise the element's text.
+  // A progress bar's value as a percentage (null while a <progress> is indeterminate); otherwise
+  // the element's text. Two decimals, so Node never reads them as a thousands group.
   const progressOf = (e: Element) => {
+    const percent = (share: number) => `${(100 * share).toFixed(2)}%`
     if (e instanceof HTMLProgressElement)
-      return e.position === -1 ? null : `${e.value} / ${e.max}`
+      return e.position === -1 ? null : percent(e.position)
     const now = e.getAttribute('aria-valuenow')
     if (now === null)
       return normalize((e as HTMLElement).innerText).slice(0, 100)
     const min = Number(e.getAttribute('aria-valuemin') ?? 0)
     const max = Number(e.getAttribute('aria-valuemax') ?? 100)
-    return `${Number(now) - min} / ${max - min}`
+    return percent((Number(now) - min) / (max - min))
   }
   const implicitRole = (e: Element) => {
     const tag = e.tagName.toLowerCase()

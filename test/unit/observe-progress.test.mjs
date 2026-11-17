@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { observationConfig } from '../../dist/workflows/observe/config.mjs'
 import { progressPercent } from '../../dist/workflows/observe/progress.mjs'
+import { ObservationRecorder } from '../../dist/workflows/observe/recorder.mjs'
 import {
   summarizeRows,
   RowTracker,
@@ -17,15 +18,17 @@ test('progress is read from percentages and from done / total amounts', () => {
     ['45%', 45],
     ['45,5 %', 45.5],
     ['0.3 / 1.2 GB', 25],
+    ['0,3 / 1,2 GB', 25],
     ['0.0 GB / 1.2 GB', 0],
-    ['300 MB of 1.2 GB', 25],
+    ['300 MB of 1.2 GB', 24.41],
     ['512 KiB / 1 MiB', 50],
+    ['1,024 MB / 2,048 MB', 50],
+    ['1.234,5 / 2.469 MB', 50],
+    ['0.375 / 1.5 GB', 25],
     ['3 of 12', 25],
     ['1 / 3', 33.33],
     // A percentage wins over amounts in the same text.
     ['Downloading 30% (0.3 / 1.2 GB)', 30],
-    // What a progress bar's value is read as.
-    ['25 / 100', 25],
     ['0.3 GB · 3.2 MB/s', null],
     ['1 / 0', null],
     ['NaN / 100', null],
@@ -34,6 +37,19 @@ test('progress is read from percentages and from done / total amounts', () => {
   ]
   for (const [text, percent] of cases)
     assert.equal(progressPercent(text), percent, text)
+})
+
+test('a download that only grows never reads as going back when its text changes format', () => {
+  for (const texts of [
+    ['999 MB / 2,048 MB', '1,000 MB / 2,048 MB'],
+    ['999 MB / 2.048 MB', '1.000 MB / 2.048 MB'],
+    // Apps that move from MB to GB at 1024 and at 1000.
+    ['1023 MB / 1.2 GB', '1.0 GB / 1.2 GB'],
+    ['999 MB / 1.2 GB', '1.0 GB / 1.2 GB'],
+  ]) {
+    const [before, after] = texts.map(progressPercent)
+    assert.ok(after >= before, `${texts.join(' → ')}: ${before} → ${after}`)
+  }
 })
 
 test('row summaries keep the progress number, never its text', () => {
@@ -179,4 +195,56 @@ test('progress is not tracked unless rows.progress is configured', () => {
   assert.deepEqual(findings, [])
   assert.equal(progressSeen, false)
   assert.equal(track([undefined, undefined]).progressSeen, false)
+})
+
+test('progress alone adds no timeline event, so a moving bar cannot fill the timeline', () => {
+  const endpoint = 'http://127.0.0.1:1/api/downloads'
+  const recorder = new ObservationRecorder(
+    observationConfig({
+      transport: 'http',
+      endpoint,
+      regionSelector: '#downloads',
+      contentSelector: 'li',
+      rows: { selector: 'li', progress: 'progress' },
+    }),
+  )
+  const reads = {
+    startedAt: 0,
+    capturedAt: 0,
+    channels: {
+      [endpoint]: {
+        calls: 0,
+        successes: 0,
+        errors: 0,
+        pending: 0,
+        firstReadAt: null,
+        lastReadAt: null,
+        firstCompletedAt: null,
+        lastCompletedAt: null,
+        lastSuccessAt: null,
+      },
+    },
+  }
+  recorder.openInterval(reads, 0)
+  for (let i = 0; i < 5; i++)
+    recorder.addSample(
+      fake({
+        before: reads,
+        after: reads,
+        fromMs: i * 100,
+        ui: { visible: true },
+        rows: {
+          truncated: false,
+          items: [{ row: 'download', state: 'none', progress: i * 10 }],
+        },
+        actions: [],
+        phases: {},
+      }),
+      { elapsed: () => i * 100 + 50, startedEpoch: 0 },
+      0,
+    )
+  assert.equal(recorder.report.timeline.length, 1)
+  assert.deepEqual(recorder.report.timeline[0].rows.items, [
+    { row: 'download', state: 'none', progress: 0 },
+  ])
 })

@@ -149,11 +149,12 @@ test(
   },
 )
 
-test('progress bars are read from their value, other elements from their text', async () => {
+test('progress bars are read as percentages, other elements as their text', async () => {
   const page = await browser.newPage()
   try {
+    // 512.125 would read as a thousands group if it reached Node as it is.
     await page.setContent(`
-      <progress id="bar" value="0.3" max="1.2"></progress>
+      <progress id="bar" value="512.125" max="1024"></progress>
       <progress id="indeterminate"></progress>
       <div id="aria" role="progressbar" aria-valuenow="30" aria-valuemin="10" aria-valuemax="50"></div>
       <div id="aria-default" role="progressbar" aria-valuenow="45"></div>
@@ -170,7 +171,7 @@ test('progress bars are read from their value, other elements from their text', 
           ),
         ids,
       ),
-      ['0.3 / 1.2', null, '20 / 40', '45 / 100', '0.3 / 1.2 GB'],
+      ['50.01%', null, '50.00%', '45.00%', '0.3 / 1.2 GB'],
     )
   } finally {
     await page.close()

@@ -36,7 +36,7 @@ export interface RegionRead {
     truncated: boolean
     /**
      * `marker` is the index of the first configured marker found in the row; `progress` is
-     * the progress element's text, or a progress bar's value as "done / total".
+     * the progress element's text, or a progress bar's value as a percentage.
      */
     items: {
       key: string

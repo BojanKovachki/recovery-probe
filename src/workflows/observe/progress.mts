@@ -18,25 +18,24 @@ export interface ProgressWentBackFinding extends ObservationFinding {
   afterAction: SeenAfterAction | null
 }
 
-const AMOUNT = String.raw`(\d+(?:[.,]\d+)?)(?:\s*([kmgt]i?b|b))?`
-const PERCENT = /(\d+(?:[.,]\d+)?)\s*%/
+const NUMBER = String.raw`\d+(?:[.,]\d+)*`
+const AMOUNT = String.raw`(${NUMBER})(?:\s*([kmgt]i?b|b))?`
+const PERCENT = new RegExp(String.raw`(${NUMBER})\s*%`)
 const PART_OF_TOTAL = new RegExp(
   String.raw`${AMOUNT}\s*(?:\/|\bof\b)\s*${AMOUNT}`,
   'i',
 )
-const BYTES: Record<string, number> = {
-  b: 1,
-  kb: 1e3,
-  mb: 1e6,
-  gb: 1e9,
-  tb: 1e12,
-  kib: 2 ** 10,
-  mib: 2 ** 20,
-  gib: 2 ** 30,
-  tib: 2 ** 40,
-}
 
-const number = (text: string) => Number(text.replace(',', '.'))
+/**
+ * A number with a decimal point or comma and thousands grouped either way. A last separator
+ * before exactly three digits groups them ("1,024", "1.024"), unless the number starts with 0.
+ */
+const number = (text: string) => {
+  const parts = text.split(/[.,]/)
+  const last = parts.pop()!
+  const grouped = !parts.length || (last.length === 3 && parts[0] !== '0')
+  return Number(grouped ? parts.join('') + last : `${parts.join('')}.${last}`)
+}
 const hundredths = (value: number) => Math.round(value * 100) / 100
 
 /**
@@ -49,10 +48,11 @@ export function progressPercent(text: string): number | null {
   const amounts = PART_OF_TOTAL.exec(text)
   if (!amounts) return null
   const [, done, doneUnit, total, totalUnit] = amounts
-  const scale = (unit = doneUnit ?? totalUnit) =>
-    unit ? BYTES[unit.toLowerCase()] : 1
-  const of = number(total) * scale(totalUnit)
-  return of > 0 ? hundredths((100 * number(done) * scale(doneUnit)) / of) : null
+  // Units count in 1024s, so an app that moves from MB to GB at 1000 or at 1024 never seems to go back.
+  const bytes = (amount: string, unit = doneUnit ?? totalUnit ?? 'b') =>
+    number(amount) * 1024 ** ('kmgt'.indexOf(unit[0].toLowerCase()) + 1)
+  const of = bytes(total, totalUnit)
+  return of > 0 ? hundredths((100 * bytes(done, doneUnit)) / of) : null
 }
 
 interface ProgressEntry {
