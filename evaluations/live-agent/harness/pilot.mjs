@@ -13,7 +13,6 @@ import { parseArgs } from 'node:util'
 import { claudeCli, everythingUnder } from './agent.mjs'
 import { listeners, PORTS, runAttempt, unavailable } from './attempt.mjs'
 import { assertFrozen, definitionHashes } from './freeze.mjs'
-import { gradeRun } from './grade.mjs'
 import { schedule } from './schedule.mjs'
 import { newKey, seal, unseal } from './seal.mjs'
 import { EVALUATION, HIDDEN, hiddenFromDisk, loadPilot } from './tasks.mjs'
@@ -227,7 +226,8 @@ async function unsealRun() {
     unseal(await readFile(join(runDirectory, 'hidden.sealed')), key),
   )
   const folder = join(runDirectory, 'attempts')
-  for (const name of await readdir(folder))
+  const names = existsSync(folder) ? await readdir(folder) : []
+  for (const name of names)
     if (name.endsWith('.sealed'))
       await writeTree(
         join(folder, name.slice(0, -'.sealed'.length)),
@@ -240,7 +240,8 @@ const commands = {
   freeze,
   run,
   unseal: unsealRun,
-  grade: () => gradeRun(runDirectory),
+  // The graders are sealed during a pilot, so they load only to grade.
+  grade: async () => (await import('./grade.mjs')).gradeRun(runDirectory),
   smoke,
 }
 const command = commands[positionals[0]]

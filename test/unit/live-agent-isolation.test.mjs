@@ -1,5 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   agentArgs,
   agentEnv,
@@ -192,4 +195,24 @@ test('sealed material is unreadable without its key', () => {
   assert.ok(!sealed.includes(Buffer.from('quick-filter')))
   assert.deepEqual(unseal(sealed, key), tree)
   assert.throws(() => unseal(sealed, newKey()))
+})
+
+test('running a pilot loads nothing that is sealed while it runs', async () => {
+  const harness = fileURLToPath(
+    new URL('../../evaluations/live-agent/harness/', import.meta.url),
+  )
+  const loaded = new Set()
+  async function follow(file) {
+    if (loaded.has(file)) return
+    loaded.add(file)
+    const source = await readFile(file, 'utf8')
+    for (const [, path] of source.matchAll(
+      /^import\s[^;]*?from\s+'(\.[^']+)'/gms,
+    ))
+      await follow(resolve(dirname(file), path))
+  }
+  await follow(join(harness, 'pilot.mjs'))
+  assert.ok(loaded.has(join(harness, 'attempt.mjs')))
+  for (const file of loaded)
+    assert.doesNotMatch(file, /[\\/](grading|apps)[\\/]|[\\/]grade\.mjs$/, file)
 })

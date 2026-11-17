@@ -1,5 +1,5 @@
 {
-  "at": "2026-11-17T18:26:11.708Z",
+  "at": "2026-11-17T18:29:28.005Z",
   "files": {
     "apps/dispatch/README.md": "96947c095e7a6bdf2b52e1c401d7eddd4b667e5a3e21029e0a2dd33b48ebde42",
     "apps/dispatch/data/orders.json": "f39b203770a0b27a0baf589132a35aaf45082d8cef5a021270328d024941a9fb",
@@ -46,7 +46,7 @@
     "harness/attempt.mjs": "0a20b8dfeb07239887de53f61e03163485d8cf9761fb60bf1a4e43e0b4cddfcb",
     "harness/freeze.mjs": "648607e5a4daa3814d09ebc65fa051099cdf266e951fe2db8e43b97bdb3e3fcd",
     "harness/grade.mjs": "943f0d0912d233f5df231db3443752d7a829dfe786f579fe0a97cbeee987b795",
-    "harness/pilot.mjs": "71a9e0ca1464399ee598b7d21d891e009cf3d9221642495965753c969645834b",
+    "harness/pilot.mjs": "908305567eb09d74e1c77d52c9ad0adecb8e9d57fa387f5e1541368af73db425",
     "harness/prompt.mjs": "5364fae7370681dfbb6a435114d889b6f587397cd3a8e74d4135cdb7e1b9bb17",
     "harness/report.mjs": "50213f90387ea84c3a0c1cb1141d4cac564c76e839d0e46ab7f83fb5668c68c9",
     "harness/schedule.mjs": "1e68f5518e8e6a259ea7a9a4d88fd3db728446f6335e561722e3fc1ead39a0ef",
