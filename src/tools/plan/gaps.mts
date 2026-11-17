@@ -2,6 +2,7 @@ import type { Suspect } from '../suspects/source.mjs'
 import type { ChangedFile } from './changes.mjs'
 import type { Registry } from './registry.mjs'
 import type { Selection, Suggestion } from './select.mjs'
+import type { SelfCheckStatus } from './self-check-status.mjs'
 
 /** Something a person has to supply or decide before the plan can cover a change. */
 export interface InputRequest {
@@ -15,6 +16,7 @@ export interface InputRequest {
     | 'scenario-needed'
     | 'unknown-entry'
     | 'too-many-checks'
+    | 'self-check'
   entry?: string
   /** The changed files it concerns. */
   files?: string[]
@@ -31,10 +33,23 @@ interface GapInput {
   stale: { entry: string; pattern: string }[]
   expectations: Record<string, string>
   planned: number
+  selfChecks: { entry: string; status: SelfCheckStatus }[]
 }
 
 const filesOf = (found: Selection[], entry: string) =>
   found.filter((s) => s.entry === entry).map((s) => s.file)
+
+/** Planned scenarios whose saved self-check was not clean, or whose check changed since. */
+const selfCheckRequests = (input: GapInput): InputRequest[] =>
+  input.selfChecks
+    .filter(({ status }) => status.inputsChanged || status.outcome !== 'clean')
+    .map(({ entry, status }) => ({
+      kind: 'self-check' as const,
+      entry,
+      message: status.inputsChanged
+        ? `${entry}: its check or the files it reads changed since the self-check of ${status.at}; run the self-check again before relying on it`
+        : `${entry}: the self-check of ${status.at} on the reference build "${status.reference}" had the outcome ${status.outcome}; see .recovery-probe/self-check/report.md before relying on it`,
+    }))
 
 /** What the registry itself needs: unusable and invalid entries, stale patterns, unknown names. */
 function registryRequests(input: GapInput): InputRequest[] {
@@ -124,6 +139,7 @@ export function gapsOf(input: GapInput) {
       input,
       uncovered.map((change) => change.path),
     ),
+    ...selfCheckRequests(input),
     ...(input.planned > 20
       ? [
           {

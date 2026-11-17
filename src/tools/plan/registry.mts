@@ -1,16 +1,15 @@
-import { existsSync } from 'node:fs'
-import { readFile, realpath } from 'node:fs/promises'
-import { isAbsolute, join, relative } from 'node:path'
+import { readFile } from 'node:fs/promises'
 import { isNonEmptyString, isRecord } from '../../core/validate.mjs'
-import { validateCheckCommand } from '../watch/checks.mjs'
+import { preflightCheck, type Preflight } from '../scenarios/preflight.mjs'
 import { PlanInputError } from './changes.mjs'
+import { safeRelativePath } from './paths.mjs'
 
 /** A scenario the team registered for some source files, or an open question about them. */
 export interface RegistryEntry {
   name: string
   /** Repository-relative file patterns: `*` within a folder, `**` across folders. */
   paths: string[]
-  /** An existing Recovery Probe check, as a verify plan lists it. */
+  /** An existing Recovery Probe check, as a verify plan lists it; kept when the entry has a problem. */
   check?: string[]
   /** What the check shows. */
   behavior?: string
@@ -22,6 +21,8 @@ export interface RegistryEntry {
   question?: string
   /** Why the entry can't be used; its paths still say which changes it concerns. */
   problem?: string
+  /** The static preflight of the check of a well-formed entry. */
+  preflight?: Preflight
 }
 
 export interface Registry {
@@ -31,6 +32,8 @@ export interface Registry {
   /** Entries too malformed to say which files they concern. */
   unusable: { index: number; message: string }[]
 }
+
+export const DEFAULT_REGISTRY = 'recovery-probe.registry.json'
 
 const NAME = /^[\w.-]{1,40}$/
 const KEYS = [
@@ -43,54 +46,18 @@ const KEYS = [
   'question',
 ]
 const TEXTS = ['behavior', 'expectation', 'limits', 'question'] as const
-// Check arguments that name a file or folder the check reads.
-const PATH_FLAGS = ['--config', '--steps', '--state', '--files']
 
-/** A registry path as a safe relative path with forward slashes, or undefined when it is not one. */
-export function safeRelativePath(value: string): string | undefined {
-  const path = value.replaceAll('\\', '/').replace(/^\.\//, '')
-  const parts = path.split('/')
-  if (
-    isAbsolute(value) ||
-    /^[a-zA-Z]:/.test(value) ||
-    parts.some((part) => part === '' || part === '..')
-  )
-    return undefined
-  return path
+/** Why a check can't run as registered, from its static preflight, or undefined. */
+const problemOf = ({ errors, unresolved }: Preflight) => {
+  const problems = [
+    ...errors,
+    ...unresolved.map((value) => `unresolved ${value}`),
+  ]
+  return problems.length ? problems.join('; ') : undefined
 }
 
-/** Why `path` is not a file or folder inside `root`, following symlinks; undefined when it is. */
-async function outsideProblem(root: string, path: string) {
-  const safe = safeRelativePath(path)
-  if (!safe) return `${path} is not a relative path inside the project`
-  const target = join(root, safe)
-  if (!existsSync(target)) return `${path} does not exist`
-  const inside = relative(await realpath(root), await realpath(target))
-  if (!inside || inside.startsWith('..') || isAbsolute(inside))
-    return `${path} leads outside the project`
-  return undefined
-}
-
-/** Why a check's command can't run as registered, or undefined. */
-async function checkProblem(root: string, check: string[]) {
-  try {
-    validateCheckCommand(check)
-  } catch (error) {
-    return (error as Error).message
-  }
-  for (const [i, arg] of check.entries()) {
-    if (!PATH_FLAGS.includes(arg)) continue
-    const problem = await outsideProblem(root, check[i + 1] ?? '')
-    if (problem) return problem
-    if (arg === '--files') continue
-    try {
-      JSON.parse(await readFile(join(root, check[i + 1]), 'utf8'))
-    } catch {
-      return `${check[i + 1]} is not valid JSON`
-    }
-  }
-  return undefined
-}
+const isArguments = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((arg) => typeof arg === 'string')
 
 /** Why the entry's check fields are malformed, or undefined. */
 function checkFields(entry: Record<string, unknown>): string | undefined {
@@ -98,10 +65,7 @@ function checkFields(entry: Record<string, unknown>): string | undefined {
     return entry.question === undefined
       ? 'needs a check, a question, or both'
       : undefined
-  if (
-    !Array.isArray(entry.check) ||
-    !entry.check.every((arg) => typeof arg === 'string')
-  )
+  if (!isArguments(entry.check))
     return 'check must be a list of Recovery Probe arguments'
   if (entry.behavior === undefined)
     return 'a check needs a behavior: what it shows'
@@ -147,16 +111,16 @@ async function readEntry(
   const fields: RegistryEntry = {
     name: entry.name as string,
     paths: (entry.paths as string[]).map((path) => safeRelativePath(path)!),
+    ...(isArguments(entry.check) ? { check: entry.check } : {}),
   }
-  const problem =
-    entryFields(entry) ??
-    (entry.check
-      ? await checkProblem(root, entry.check as string[])
-      : undefined)
-  if (problem) return { ...fields, problem }
-  for (const key of ['check', ...TEXTS] as const)
+  const malformed = entryFields(entry)
+  if (malformed) return { ...fields, problem: malformed }
+  for (const key of TEXTS)
     if (entry[key] !== undefined) Object.assign(fields, { [key]: entry[key] })
-  return fields
+  if (!fields.check) return fields
+  const preflight = await preflightCheck(root, fields.check)
+  const problem = problemOf(preflight)
+  return { ...fields, preflight, ...(problem ? { problem } : {}) }
 }
 
 /**

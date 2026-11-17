@@ -1,0 +1,10 @@
+{
+  "transport": "http",
+  "cdp": "{{cdp}}",
+  "pageUrl": "{{origin}}/items.html",
+  "endpoint": "{{origin}}/api/items",
+  "regionSelector": "#items-region",
+  "contentSelector": "#items .item-row",
+  "observationMs": 6000,
+  "sampleMs": 100
+}

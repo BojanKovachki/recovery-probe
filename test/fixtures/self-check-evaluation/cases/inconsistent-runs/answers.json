@@ -1,0 +1,6 @@
+{
+  "/api/jobs/status": [
+    [{ "id": "export", "state": "Done" }],
+    [{ "id": "export", "state": "Running" }]
+  ]
+}

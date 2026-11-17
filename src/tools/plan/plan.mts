@@ -1,14 +1,20 @@
 import { existsSync } from 'node:fs'
-import { lstat, mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import type { Suspect } from '../suspects/source.mjs'
 import { scanForSuspects } from '../suspects/scan.mjs'
 import { verifyPlan, type VerifyPlan } from '../verify.mjs'
 import { baselineStatus, type BaselineStatus } from './baseline.mjs'
 import { changesSince, PlanInputError, type ChangedFile } from './changes.mjs'
+import { safeOutputPath } from './output.mjs'
 import {
+  attachSelfChecks,
+  readSavedSelfCheck,
+  type SelfCheckStatus,
+} from './self-check-status.mjs'
+import {
+  DEFAULT_REGISTRY,
   readRegistry,
-  safeRelativePath,
   type Registry,
   type RegistryEntry,
 } from './registry.mjs'
@@ -21,7 +27,7 @@ import {
 } from './select.mjs'
 import { gapsOf, type InputRequest } from './gaps.mjs'
 
-export const DEFAULT_REGISTRY = 'recovery-probe.registry.json'
+export { DEFAULT_REGISTRY } from './registry.mjs'
 export const DEFAULT_PLAN = join('.recovery-probe', 'verify.json')
 
 export interface PlanOptions {
@@ -48,6 +54,8 @@ export interface PlannedCheck {
     /** Where the expectation came from: the registry, or the user for this plan. */
     expectationFrom: 'registry' | 'user'
     notCovered: string
+    /** What the last saved self-check said about this scenario, when there is one. */
+    selfCheck?: SelfCheckStatus
   }[]
   selectedBy: Selection[]
   /** Suspects on the changed lines of the files that selected it. */
@@ -80,6 +88,7 @@ const LIMITS = [
   'No matching check never means a change is safe: uncovered files have no known runtime check at all.',
   'Each check covers only the read, screen and expectation its configuration names.',
   'Selection follows the registry and one step of relative imports; it does not analyze the whole program.',
+  'A saved self-check shows what a scenario did on the build declared then. Matching file hashes show that its files are unchanged, not that the running app, its data or its environment are the same.',
 ]
 
 async function scanSuspects(base: string, root: string) {
@@ -166,25 +175,7 @@ export async function writeCandidatePlan(
   force = false,
 ): Promise<string | undefined> {
   if (!report.candidatePlan) return undefined
-  const safe = safeRelativePath(path)
-  if (!safe)
-    throw new PlanInputError(
-      `Write the plan inside the working directory, with a relative path: ${path}`,
-    )
-  // Reject links in every existing component, including dangling destination
-  // links. Check before mkdir so even directory creation cannot escape.
-  let current = process.cwd()
-  for (const component of safe.split('/')) {
-    current = join(current, component)
-    const info = await lstat(current).catch((error: NodeJS.ErrnoException) => {
-      if (error.code === 'ENOENT') return undefined
-      throw error
-    })
-    if (info?.isSymbolicLink())
-      throw new PlanInputError(
-        `Plan output must not traverse a symbolic link: ${path}`,
-      )
-  }
+  const safe = await safeOutputPath(path, 'plan')
   if (existsSync(safe) && !force)
     throw new PlanInputError(
       `${safe} already exists: review it, then replace it with the force option`,
@@ -265,6 +256,11 @@ async function select(
   const found = selections(changes, entries)
   const suspects = await scanSuspects(options.base, root)
   const checks = plannedChecks(found, entries, options, suspects.onChangedLines)
+  const selfChecks = attachSelfChecks(
+    checks,
+    entries,
+    await readSavedSelfCheck(),
+  )
   const suggestions = await suggestionsFor(root, entries, changes, found)
   const deleted = changes
     .filter((c) => c.status === 'deleted')
@@ -279,6 +275,7 @@ async function select(
     stale: await stalePatterns(root, entries, deleted),
     expectations: options.expectations ?? {},
     planned: checks.length,
+    selfChecks,
   })
   const candidatePlan = candidateOf(checks, options)
   return { checks, suggestions, uncovered, needsInput, suspects, candidatePlan }

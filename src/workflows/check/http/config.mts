@@ -67,6 +67,31 @@ const isFaultList = (value: unknown) =>
   isUnique(value) &&
   value.every(isFaultKind)
 
+/** Whether a check attaches to a running app or browser; otherwise it opens Chromium at pageUrl. */
+export const attaches = (config: Record<string, unknown>, cdp?: string) =>
+  cdp !== undefined || config.cdp !== undefined || config.page !== undefined
+
+/** What an attached check validates: the command line's page and port on top, 9222 by default. */
+export function attachedInput(
+  config: Record<string, unknown>,
+  { cdp, page }: { cdp?: string; page?: number },
+) {
+  return {
+    ...config,
+    ...(page !== undefined ? { page } : {}),
+    cdp: cdp ?? (config.cdp as string | undefined) ?? 'http://127.0.0.1:9222',
+  }
+}
+
+/** What a check that opens its own Chromium validates: recovery is automatic unless configured. */
+export const launchedInput = (
+  config: Record<string, unknown>,
+): Record<string, unknown> => ({
+  recovery: 'automatic',
+  ...config,
+  target: 'web',
+})
+
 // Configurations also come from JSON files, so every field is checked at runtime.
 // Other keys pass through to scenario.json, which the reproduction reads.
 export function validateDesktopConfig(

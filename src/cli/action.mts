@@ -3,6 +3,7 @@ import { reportFolder } from '../reports/folder.mjs'
 import { writeActionReport } from '../reports/action.mjs'
 import { actionConfig } from '../workflows/action/config.mjs'
 import { checkAction } from '../workflows/action/run.mjs'
+import { withCommandLine } from '../workflows/command-line.mjs'
 import {
   readConfig,
   text,
@@ -38,13 +39,10 @@ export async function run(values: Values): Promise<void> {
   const path = text(values, 'config')
   if (!path) throw new UsageError('--config is required')
   const raw = await readConfig(path)
-  const cdp = text(values, 'cdp')
-  const inspector = text(values, 'inspector')
-  const config = {
-    ...raw,
-    ...(cdp ? { cdp } : {}),
-    ...(inspector ? { inspector } : {}),
-  }
+  const config = withCommandLine(raw, {
+    cdp: text(values, 'cdp'),
+    inspector: text(values, 'inspector'),
+  })
   // Fails fast on a bad config; checkAction validates it again itself.
   validated(() => actionConfig(config))
   const directory = await reportFolder('action', text(values, 'out'))

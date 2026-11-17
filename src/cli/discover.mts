@@ -8,6 +8,7 @@ import {
 } from '../workflows/discover/http.mjs'
 import { discoverIpc, discoveryConfig } from '../workflows/discover/ipc.mjs'
 import { screenshotsIn } from '../workflows/discover/screenshots.mjs'
+import { withCommandLine } from '../workflows/command-line.mjs'
 import {
   integerOption,
   readConfig,
@@ -70,17 +71,13 @@ type Screenshot = ReturnType<typeof screenshotsIn> | undefined
 type Report = Awaited<ReturnType<typeof discoverHttp | typeof discoverIpc>>
 
 /** The config file's options with the command line's on top. */
-function withFlags(raw: Record<string, unknown>, values: Values) {
-  const cdp = text(values, 'cdp')
-  const page = integerOption(values, 'page', [0, 1000])
-  return {
-    ...raw,
-    ...(cdp ? { cdp } : {}),
-    ...(page !== undefined ? { page } : {}),
-    ...(text(values, 'inspector') ? { inspector: values.inspector } : {}),
-    ...(values['restore-window'] ? { restoreWindow: true } : {}),
-  }
-}
+const withFlags = (raw: Record<string, unknown>, values: Values) =>
+  withCommandLine(raw, {
+    cdp: text(values, 'cdp'),
+    page: integerOption(values, 'page', [0, 1000]),
+    inspector: text(values, 'inspector'),
+    restoreWindow: values['restore-window'] === true,
+  })
 
 async function discoverOverIpc(input: object, screenshot: Screenshot) {
   const config = validated(() =>

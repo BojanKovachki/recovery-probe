@@ -1,0 +1,52 @@
+{
+  "clean-reference": {
+    "summary": "The corrected items scenario on an app that keeps its items after a failed refresh.",
+    "scenario": "items-keep-content",
+    "outcome": "clean",
+    "problems": []
+  },
+  "capture-too-late": {
+    "summary": "The app opens the list as the page loads, so the capture starts after the content arrived.",
+    "scenario": "items-keep-content",
+    "outcome": "findings",
+    "problems": ["CONTENT_BEFORE_READ"],
+    "contentBeforeRead": ["NO_READ_OBSERVED_IN_INTERVAL"]
+  },
+  "endpoint-mismatch": {
+    "summary": "The jobs scenario names the status read, but the list on screen comes from another read.",
+    "scenario": "jobs-status",
+    "outcome": "findings",
+    "problems": ["CONTENT_BEFORE_READ"],
+    "contentBeforeRead": ["NO_READ_OBSERVED_IN_INTERVAL"]
+  },
+  "unavailable-runtime": {
+    "summary": "Nothing answers on the scenario's debugging address: the runs cannot do their work.",
+    "scenario": "items-keep-content",
+    "outcome": "execution-failed",
+    "problems": []
+  },
+  "incomplete-evidence": {
+    "summary": "The content selector matches nothing on the screen, so the capture never sees the content.",
+    "scenario": "items-keep-content",
+    "outcome": "incomplete",
+    "gaps": ["CONTENT_MARKER_NOT_OBSERVED"]
+  },
+  "inconsistent-runs": {
+    "summary": "The status read answers Done and Running in turn, so the runs of one build disagree.",
+    "scenario": "jobs-status",
+    "outcome": "inconsistent",
+    "differences": ["EXPECTATION_NOT_MET"]
+  },
+  "legitimate-empty": {
+    "summary": "An inbox with no messages shows its empty state; the empty result is not a finding.",
+    "scenario": "inbox-empty-state",
+    "outcome": "clean",
+    "problems": []
+  },
+  "defect-still-detected": {
+    "summary": "The corrected items scenario on an app whose failed refresh clears the items: it still shows the defect.",
+    "scenario": "items-keep-content",
+    "outcome": "findings",
+    "problems": ["EXPECTATION_NOT_MET"]
+  }
+}
