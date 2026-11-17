@@ -4,7 +4,12 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
-## Unreleased
+## 1.1.0 (2026-11-17)
+
+- Stable release of the 1.1 preview series: expanded observation, request fault steps, exported span timing, row progress tracking, and the experimental verification planner. The planner and repair remain experimental.
+- Planner output rejects symbolic links in destination paths, including dangling links and parent directories, even with `--force`.
+- Corrected timing races in integration tests and increased package-test installation budgets for slower runners (#106).
+- Changed-file suspect scanning handles non-ASCII filenames.
 
 - Experimental: `plan` and the MCP tool `plan_verification` propose the checks of a verify plan for a change. They match the files changed since a Git reference (committed, staged, unstaged, untracked, deleted and renamed) against a scenario registry, `recovery-probe.registry.json`, that maps source files to existing checks. Each proposed check says which file selected it, what it checks, where its expectation came from and what it does not cover. Files only an import ties to a scenario become suggestions to review; files nothing covers, open questions, missing expectations and invalid entries are listed for a person. Planning runs nothing, never gives a verdict, and writes the candidate plan only when asked, never over an existing one without `--force`. It also says when a baseline would have to come from a checkout of the base because the working tree already holds the change.
 - `npm run eval:planner` runs a deterministic evaluation of the planner and the verify workflow on synthetic apps with known defects, unrelated changes and unknown requirements; see [Plan](docs/plan.md#the-evaluation).

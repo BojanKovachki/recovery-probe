@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import type { Suspect } from '../suspects/source.mjs'
 import { scanForSuspects } from '../suspects/scan.mjs'
@@ -171,12 +171,28 @@ export async function writeCandidatePlan(
     throw new PlanInputError(
       `Write the plan inside the working directory, with a relative path: ${path}`,
     )
+  // Reject links in every existing component, including dangling destination
+  // links. Check before mkdir so even directory creation cannot escape.
+  let current = process.cwd()
+  for (const component of safe.split('/')) {
+    current = join(current, component)
+    const info = await lstat(current).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT') return undefined
+      throw error
+    })
+    if (info?.isSymbolicLink())
+      throw new PlanInputError(
+        `Plan output must not traverse a symbolic link: ${path}`,
+      )
+  }
   if (existsSync(safe) && !force)
     throw new PlanInputError(
       `${safe} already exists: review it, then replace it with the force option`,
     )
   await mkdir(dirname(resolve(safe)), { recursive: true })
-  await writeFile(safe, `${JSON.stringify(report.candidatePlan, null, 2)}\n`)
+  await writeFile(safe, `${JSON.stringify(report.candidatePlan, null, 2)}\n`, {
+    flag: force ? 'w' : 'wx',
+  })
   return safe
 }
 

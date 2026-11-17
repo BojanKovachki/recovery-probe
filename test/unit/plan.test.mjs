@@ -640,3 +640,50 @@ test('glob patterns match within and across folders', () => {
   assert.ok(!globRegExp('src/a.js').test('src/a.jsx'))
   assert.ok(!globRegExp('src/a+b.js').test('src/aab.js'))
 })
+
+test('plan output rejects linked parents and existing or dangling destination links, even with force', async (t) => {
+  const root = await project()
+  const outside = await mkdtemp(join(tmpdir(), 'plan-outside-'))
+  try {
+    await inside(root, async () => {
+      await write(root, { 'src/profile.js': 'export const profile = 2\n' })
+      const report = await plan()
+      try {
+        await symlink(
+          outside,
+          join(root, 'linked'),
+          process.platform === 'win32' ? 'junction' : 'dir',
+        )
+      } catch (error) {
+        if (['EPERM', 'EACCES'].includes(error.code)) {
+          t.skip('symlink privilege unavailable')
+          return
+        }
+        throw error
+      }
+      for (const force of [false, true])
+        await assert.rejects(
+          writeCandidatePlan(report, 'linked/new/plan.json', force),
+          /symbolic link/,
+        )
+      assert.ok(!existsSync(join(outside, 'new')))
+      await writeFile(join(outside, 'keep.json'), 'unchanged')
+      for (const target of ['keep.json', 'missing.json']) {
+        await symlink(join(outside, target), join(root, 'output.json'), 'file')
+        for (const force of [false, true])
+          await assert.rejects(
+            writeCandidatePlan(report, 'output.json', force),
+            /symbolic link/,
+          )
+        await unlink(join(root, 'output.json'))
+      }
+      assert.equal(
+        await readFile(join(outside, 'keep.json'), 'utf8'),
+        'unchanged',
+      )
+      assert.ok(!existsSync(join(outside, 'missing.json')))
+    })
+  } finally {
+    await rm(outside, { recursive: true, force: true })
+  }
+})

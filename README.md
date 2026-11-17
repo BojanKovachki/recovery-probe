@@ -22,7 +22,17 @@ npx playwright install chromium
 npx recovery-probe demo
 ```
 
-The next preview, `1.1.0-preview.5`, adds row progress tracking and `PROGRESS_WENT_BACK` leads for progress that goes backwards. After publication, install it with `npm install --save-dev recovery-probe@next playwright`. Until then, use the [source installation instructions](CONTRIBUTING.md#install-an-unpublished-source-preview).
+Version `1.1.0` adds an experimental verification planner, row progress tracking, and expanded runtime observation. Install the stable release with the command above.
+
+### Plan checks for a code change
+
+Register existing scenarios in `recovery-probe.registry.json`, then run:
+
+```bash
+npx recovery-probe plan --changed-since main --write .recovery-probe/verify.json
+```
+
+The experimental planner selects registered checks, explains why, and lists missing coverage or expectations. It does not invent tests or declare a change correct. Review the plan, record a baseline against the before-change application, then use `verify` after the change. See [planning and registry setup](docs/plan.md). Coding agents can use the matching `plan_verification` MCP tool.
 
 The demo runs two versions of a small app. Both load fine. Only the fixed one survives a 503, a dropped connection and a broken JSON response.
 

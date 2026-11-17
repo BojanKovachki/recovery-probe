@@ -83,7 +83,7 @@ Options:
 - `--expect NAME=TEXT`: the expectation, and its source, for an entry that has none, for this plan only. The report marks it as stated for this plan.
 - `--task TEXT`: what the change is for. The report keeps its first 2,000 characters as given.
 - `--runs N`: runs per check and side in the candidate plan, 3 by default.
-- `--write FILE`: writes the candidate plan, which `verify` reads as it is. An existing file is replaced only with `--force`. With nothing to plan, nothing is written.
+- `--write FILE`: writes the candidate plan, which `verify` reads as it is. An existing file is replaced only with `--force`. Output paths must not contain symbolic links, including links to locations inside the project. This check assumes the local directory tree is not being concurrently replaced by another process. With nothing to plan, nothing is written.
 - `--json`: the full report.
 
 The exit code is 0 when every changed file has a planned check and nothing needs input, and 2 when something needs review; 3 means a wrong reference, registry or option. Planning reads Git, the registry, the check files it names and the changed sources. It starts no app, runs no check, injects no fault, changes no project file and contacts no service.
