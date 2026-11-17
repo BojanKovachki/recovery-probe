@@ -1,0 +1,32 @@
+<!doctype html><meta charset="utf-8"><title>Synthetic downloads fixture</title>
+<section id="controls"><button data-pause>Pause</button><button data-resume>Resume</button></section>
+<section id="downloads"><ul id="list"></ul></section>
+<script>
+// Synthetic downloads list with one download. The broken variant shows it from zero while a
+// resume is being sent, as one that started the download over would; the fixed one keeps its
+// progress.
+const fixed = new URLSearchParams(location.search).get('fixed') === 'true';
+let download;
+let resuming = false;
+const render = () => {
+  const done = resuming && !fixed ? 0 : download.done;
+  document.querySelector('#list').innerHTML = `<li data-item><span class="name">synthetic-private-download</span>
+    <span class="state">${download.paused ? 'Paused' : 'Downloading'}</span>
+    <span class="progress-text">${done.toFixed(1)} / ${download.total.toFixed(1)} GB</span>
+    <progress value="${done}" max="${download.total}"></progress></li>`;
+};
+const refresh = async () => { download = await fetch('/api/downloads').then(r => r.json()); render(); };
+document.querySelector('[data-pause]').addEventListener('click', async () => {
+  await fetch('/api/downloads/pause', { method: 'POST' });
+  await refresh();
+});
+document.querySelector('[data-resume]').addEventListener('click', async () => {
+  resuming = true;
+  render();
+  await fetch('/api/downloads/resume', { method: 'POST' });
+  resuming = false;
+  await refresh();
+});
+setInterval(refresh, 200);
+refresh();
+</script>

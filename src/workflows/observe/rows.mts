@@ -5,11 +5,17 @@ import {
   type ObservationConfig,
   type RowsConfig,
 } from './config.mjs'
+import {
+  progressPercent,
+  ProgressTracker,
+  type ProgressWentBackFinding,
+} from './progress.mjs'
 import { observationSummary } from './summaries.mjs'
 import {
   type DelayedUiUpdateFinding,
   type ObservedAction,
   type RowTransition,
+  type SeenAfterAction,
   type SummarizedRows,
   type TrackedRow,
   type UnexpectedRowStateFinding,
@@ -18,7 +24,7 @@ import {
 const rowKeyHash = (text: string) =>
   createHash('sha256').update(text).digest('hex').slice(0, 16)
 
-// Row keys are hashed; only allowlisted state labels and configured aliases are kept.
+// Row keys are hashed; only allowlisted state labels, configured aliases and progress numbers are kept.
 export function summarizeRows(
   raw: RegionRead['rows'],
   r: Pick<RowsConfig, 'states' | 'markers' | 'aliases'>,
@@ -32,18 +38,20 @@ export function summarizeRows(
   )
   const markers = Object.keys(r.markers ?? {})
   const seen = new Map<string, number>()
-  const items = raw.items.map(({ key, state, marker }) => {
+  const items = raw.items.map(({ key, state, marker, progress }) => {
     let id = aliasOf.get(key) ?? `key:${rowKeyHash(key)}`
     const n = (seen.get(id) ?? 0) + 1
     seen.set(id, n)
     if (n > 1) id += `#${n}`
     // A matching marker names the state; otherwise the state element's text does.
     const label = marker === undefined ? undefined : markers[marker]
+    const percent = progress == null ? null : progressPercent(progress)
     return {
       row: id,
       state:
         label ??
         (state === null ? 'none' : r.states.includes(state) ? state : 'other'),
+      ...(percent === null ? {} : { progress: percent }),
     }
   })
   return { truncated: raw.truncated, items }
@@ -60,7 +68,8 @@ export interface RowSample {
   data: { count: number; lastAtMs: number | null } | null
 }
 
-type RowFinding = DelayedUiUpdateFinding | UnexpectedRowStateFinding
+type RowFinding =
+  DelayedUiUpdateFinding | ProgressWentBackFinding | UnexpectedRowStateFinding
 
 interface RowEntry {
   row: string
@@ -74,7 +83,8 @@ interface RowEntry {
  * Tracks allowlisted row states across samples. A state that survived several completed
  * selected reads and then changed with no data event to explain it is reported as
  * DELAYED_UI_UPDATE: an observation that needs review, not a defect verdict. A row
- * shown in a state configured as unexpected is reported as UNEXPECTED_ROW_STATE.
+ * shown in a state configured as unexpected is reported as UNEXPECTED_ROW_STATE, and one
+ * whose progress went back as PROGRESS_WENT_BACK.
  */
 export class RowTracker {
   readonly #config: ObservationConfig
@@ -83,6 +93,7 @@ export class RowTracker {
   readonly #rows = new Map<string, RowEntry>()
   readonly #findings: RowFinding[] = []
   readonly #actions: ObservedAction[] = []
+  readonly #progress: ProgressTracker | null
   /** Each row's current UNEXPECTED_ROW_STATE finding and the last sample that extended it. */
   readonly #shown = new Map<
     string,
@@ -93,6 +104,12 @@ export class RowTracker {
     this.#config = config
     this.#labels = stateLabels(config.rows!)
     this.#unexpected = new Set(config.rows!.unexpected ?? [])
+    this.#progress = config.rows!.progress
+      ? new ProgressTracker(
+          (finding) => this.#findings.push(finding),
+          (s) => this.#seenAfterAction(s),
+        )
+      : null
   }
 
   addActions(list: ObservedAction[]) {
@@ -100,8 +117,9 @@ export class RowTracker {
   }
 
   add(s: RowSample) {
-    for (const { row, state } of s.rows?.items ?? []) {
+    for (const { row, state, progress } of s.rows?.items ?? []) {
       this.#showUnexpected(row, state, s)
+      this.#progress?.add(row, progress, s)
       const entry = this.#rows.get(row)
       if (!entry) this.#rows.set(row, this.#firstSighting(row, state, s))
       else if (entry.current.state === state) entry.current.last = s
@@ -109,11 +127,15 @@ export class RowTracker {
     }
   }
 
-  snapshot(): { rows: TrackedRow[]; findings: RowFinding[] } {
-    // These findings grow while the row keeps the state, so their summaries are written last.
+  snapshot(): {
+    rows: TrackedRow[]
+    findings: RowFinding[]
+    /** Whether any row showed a readable progress value. */
+    progressSeen: boolean
+  } {
+    // Findings can grow until the capture ends, so their summaries are written last.
     for (const finding of this.#findings)
-      if (finding.code === 'UNEXPECTED_ROW_STATE')
-        finding.summary = observationSummary(finding)
+      finding.summary = observationSummary(finding)
     return {
       rows: [...this.#rows.values()].map(
         ({ row, firstSeen, transitions, current }) => ({
@@ -124,11 +146,26 @@ export class RowTracker {
         }),
       ),
       findings: this.#findings,
+      progressSeen: this.#progress?.seen ?? false,
     }
   }
 
   #lastActionBefore(ms: number) {
     return this.#actions.filter((a) => a.atMs <= ms).at(-1) ?? null
+  }
+
+  #seenAfterAction(s: RowSample): SeenAfterAction | null {
+    const action = this.#lastActionBefore(s.toMs)
+    return (
+      action && {
+        name: action.name,
+        atMs: action.atMs,
+        seenAfterActionMs: [
+          Math.max(0, s.fromMs - action.atMs),
+          s.toMs - action.atMs,
+        ],
+      }
+    )
   }
 
   #firstSighting(row: string, state: string, s: RowSample): RowEntry {
@@ -184,7 +221,6 @@ export class RowTracker {
     state: string,
     s: RowSample,
   ): UnexpectedRowStateFinding {
-    const action = this.#lastActionBefore(s.toMs)
     return {
       code: 'UNEXPECTED_ROW_STATE',
       kind: 'observation',
@@ -195,14 +231,7 @@ export class RowTracker {
       firstSeenMs: [s.fromMs, s.toMs],
       lastSeenMs: s.toMs,
       samples: 1,
-      afterAction: action && {
-        name: action.name,
-        atMs: action.atMs,
-        seenAfterActionMs: [
-          Math.max(0, s.fromMs - action.atMs),
-          s.toMs - action.atMs,
-        ],
-      },
+      afterAction: this.#seenAfterAction(s),
       note: 'The region showed a row in a state its configuration lists as unexpected. The rule comes from the configuration, so check that it holds for every row the region can show.',
     }
   }
@@ -270,7 +299,7 @@ export class RowTracker {
   ): DelayedUiUpdateFinding {
     const startedAfterActionMs = this.#startedAfterActionMs(first)
     const action = transition.afterAction
-    const finding: DelayedUiUpdateFinding = {
+    return {
       code: 'DELAYED_UI_UPDATE',
       kind: 'observation',
       confidence: s.data && startedAfterActionMs !== null ? 'medium' : 'low',
@@ -302,7 +331,5 @@ export class RowTracker {
         : null,
       note: 'Row state persisted across completed selected reads and then changed without a data event in the sampled window. Read contents are not recorded, so this needs review against the application logic; it is not a defect verdict.',
     }
-    finding.summary = observationSummary(finding)
-    return finding
   }
 }

@@ -29,6 +29,8 @@ export interface RowsConfig {
   markers?: Record<string, SelectorSpec>
   /** States this region must not show. */
   unexpected?: string[]
+  /** The element that shows the row's progress: a progress bar, or text such as "45%" or "0.3 / 1.2 GB". */
+  progress?: SelectorSpec
   aliases: Record<string, string>
 }
 
@@ -189,6 +191,7 @@ const ROW_KEYS = new Set([
   'states',
   'markers',
   'unexpected',
+  'progress',
   'aliases',
 ])
 
@@ -198,13 +201,13 @@ const isStateLabel = (s: unknown) =>
 function rowsConfig(input: unknown): RowsConfig {
   ensure(
     isRecord(input),
-    'rows must be { selector, key?, state?, states?, markers?, unexpected?, aliases? }',
+    'rows must be { selector, key?, state?, states?, markers?, unexpected?, progress?, aliases? }',
   )
   for (const key of Object.keys(input))
     ensure(ROW_KEYS.has(key), `Unsupported rows property: ${key}`)
   ensure(
-    input.state !== undefined || input.markers !== undefined,
-    'rows needs state and states, markers, or both',
+    ['state', 'markers', 'progress'].some((key) => input[key] !== undefined),
+    'rows needs state and states, markers, progress, or a combination',
   )
   const states = rowStates(input)
   const markers =
@@ -225,6 +228,9 @@ function rowsConfig(input: unknown): RowsConfig {
     states: [...states],
     ...(markers === undefined ? {} : { markers }),
     ...(unexpected === undefined ? {} : { unexpected }),
+    ...(input.progress === undefined
+      ? {}
+      : { progress: selectorSpec(input.progress, 'rows.progress') }),
     aliases,
   }
 }

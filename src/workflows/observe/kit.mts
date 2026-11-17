@@ -29,6 +29,7 @@ export interface ObserverKit {
   select(root: ParentNode, spec: SelectorSpec): Element[]
   normalize(value: unknown): string
   imagesIn(elements: Element[]): ContentImages
+  progressOf(element: Element): string | null
   lastPolledAt(): number
   drainActions(): RecordedAction[]
   stop(): void
@@ -105,6 +106,17 @@ export function installObserverKit({
       failed: count('failed'),
       truncated: nodes.length > 2000,
     }
+  }
+  // A progress bar's value as "done / total" (null while a <progress> is indeterminate); otherwise the element's text.
+  const progressOf = (e: Element) => {
+    if (e instanceof HTMLProgressElement)
+      return e.position === -1 ? null : `${e.value} / ${e.max}`
+    const now = e.getAttribute('aria-valuenow')
+    if (now === null)
+      return normalize((e as HTMLElement).innerText).slice(0, 100)
+    const min = Number(e.getAttribute('aria-valuemin') ?? 0)
+    const max = Number(e.getAttribute('aria-valuemax') ?? 100)
+    return `${Number(now) - min} / ${max - min}`
   }
   const implicitRole = (e: Element) => {
     const tag = e.tagName.toLowerCase()
@@ -233,6 +245,7 @@ export function installObserverKit({
       select,
       normalize,
       imagesIn,
+      progressOf,
       lastPolledAt: () => polledAt,
       drainActions: () => {
         polledAt = Date.now()

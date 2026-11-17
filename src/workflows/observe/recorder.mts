@@ -13,7 +13,10 @@ import {
   type ReadSnapshot,
 } from './reads.mjs'
 import { actionEffects } from './action-effects.mjs'
-import { ContentComparisons } from './comparisons.mjs'
+import {
+  ContentComparisons,
+  omitUnattributableComparisons,
+} from './comparisons.mjs'
 import { samplingMetrics, type SamplingTimings } from './sampling.mjs'
 import {
   type ObservationInterval,
@@ -195,9 +198,15 @@ export class ObservationRecorder {
       const tracked = this.#tracker.snapshot()
       report.rows = tracked.rows
       report.findings.push(...tracked.findings)
+      if (
+        this.#config.rows!.progress &&
+        this.#samples > 0 &&
+        !tracked.progressSeen
+      )
+        this.gap('PROGRESS_NOT_OBSERVED')
     }
     if (report.actions) report.actionEffects = actionEffects(report)
-    this.#omitUnattributableComparisons()
+    omitUnattributableComparisons(report, this.#samples)
     if (this.#samples > 0 && !report.intervals.some((i) => i.firstContent))
       this.gap('CONTENT_MARKER_NOT_OBSERVED')
     report.captureComplete =
@@ -306,28 +315,5 @@ export class ObservationRecorder {
         report.comparisons.push(comparison)
       else this.gap('COMPARISON_LIMIT_REACHED')
     }
-  }
-
-  // Read-completion comparisons are not meaningful when many selected reads finish during every sample.
-  #omitUnattributableComparisons() {
-    const report = this.report
-    const samples = this.#samples
-    const completions = report.intervals.reduce(
-      (sum, i) => sum + (i.reads ? completedOf(i.reads) : 0),
-      0,
-    )
-    if (samples === 0 || completions / samples <= 2) return
-    const omitted = report.comparisons.filter(
-      (cmp) => cmp.basis === 'READ_COMPLETION',
-    ).length
-    report.comparisons = report.comparisons.filter(
-      (cmp) => cmp.basis !== 'READ_COMPLETION',
-    )
-    report.notes.push({
-      code: 'READ_COMPLETION_COMPARISONS_OMITTED',
-      completionsPerSample: Math.round((completions / samples) * 100) / 100,
-      omitted,
-      note: 'The selected target completed more than two reads per sample on average, so per-completion comparisons cannot attribute UI changes. Select specific methods to narrow the target.',
-    })
   }
 }

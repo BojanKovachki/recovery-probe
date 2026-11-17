@@ -463,7 +463,7 @@ test('the row tracker reports a state that outlived completed reads and changed 
   assert.deepEqual(finding.afterAction.changedAfterActionMs, [2950, 3050])
   assert.equal(finding.previousStateStartedAfterActionMs, 100)
   assert.match(
-    observationSummary(finding),
+    finding.summary,
     /^Row ‘second’ stayed Pause for 2\.9 s across 7 completed selected reads, then changed to Move up; no data event arrived in the change window \(the last one was 2\.8 s earlier\)\. The change came 3\.0–3\.1 s after action ‘start’; the earlier state started right after it\.$/,
   )
 })

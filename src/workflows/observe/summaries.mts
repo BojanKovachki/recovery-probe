@@ -6,8 +6,10 @@ import type {
   ObservationFinding,
   ObservationInterval,
   RequestStepRecord,
+  SeenAfterAction,
   UnexpectedRowStateFinding,
 } from './report.mjs'
+import type { ProgressWentBackFinding } from './progress.mjs'
 import type { ObservationSpans, ObservedSpan } from './spans.mjs'
 import type { FileFault } from './steps.mjs'
 
@@ -51,6 +53,10 @@ const isUnexpectedRowState = (
 ): finding is UnexpectedRowStateFinding =>
   finding.code === 'UNEXPECTED_ROW_STATE'
 
+const isProgressWentBack = (
+  finding: ObservationFinding,
+): finding is ProgressWentBackFinding => finding.code === 'PROGRESS_WENT_BACK'
+
 // These findings are summarized where they are found.
 const SUMMARIZED_WHERE_FOUND = new Set([
   'LOCAL_FILES_REMOVED',
@@ -73,6 +79,7 @@ const CONTENT_BEFORE_READ = new Map([
 export function observationSummary(finding: ObservationFinding): string {
   if (isDelayedUiUpdate(finding)) return delayedUpdateSummary(finding)
   if (isUnexpectedRowState(finding)) return unexpectedStateSummary(finding)
+  if (isProgressWentBack(finding)) return progressSummary(finding)
   if (SUMMARIZED_WHERE_FOUND.has(finding.code) && finding.summary)
     return finding.summary
   return (
@@ -92,11 +99,22 @@ function delayedUpdateSummary(finding: DelayedUiUpdateFinding) {
   return `${capitalizedRowName(finding.row)} stayed ${finding.from} for ${seconds(finding.persistedMs)} s across ${finding.unchangedReadCompletions} completed selected reads, then changed to ${finding.to}${data}.${action}`
 }
 
-function unexpectedStateSummary(finding: UnexpectedRowStateFinding) {
-  const action = finding.afterAction
-    ? `; first seen ${range(finding.afterAction.seenAfterActionMs)} after action ‘${finding.afterAction.name}’`
+const firstSeenAfter = (action: SeenAfterAction | null) =>
+  action
+    ? `; first seen ${range(action.seenAfterActionMs)} after action ‘${action.name}’`
     : ''
-  return `${capitalizedRowName(finding.row)} showed ${finding.state}, which this region must not show, in ${plural(finding.samples, 'sample')} from ${range(finding.firstSeenMs)} to ${seconds(finding.lastSeenMs)} s${action}.`
+
+function unexpectedStateSummary(finding: UnexpectedRowStateFinding) {
+  return `${capitalizedRowName(finding.row)} showed ${finding.state}, which this region must not show, in ${plural(finding.samples, 'sample')} from ${range(finding.firstSeenMs)} to ${seconds(finding.lastSeenMs)} s${firstSeenAfter(finding.afterAction)}.`
+}
+
+function progressSummary(finding: ProgressWentBackFinding) {
+  const { from, recoveredByMs } = finding
+  const back =
+    recoveredByMs === null
+      ? `; still below ${from}% when last seen`
+      : `; back at ${from}% or more by ${seconds(recoveredByMs)} s`
+  return `${capitalizedRowName(finding.row)} went back from ${from}% to ${finding.to}% in ${plural(finding.samples, 'sample')} from ${range(finding.firstSeenMs)} to ${seconds(finding.lastSeenMs)} s${back}${firstSeenAfter(finding.afterAction)}.`
 }
 
 export function actionSummary(effect: ActionEffect): string {

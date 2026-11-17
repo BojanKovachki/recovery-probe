@@ -59,15 +59,23 @@ export interface TimelineEvent extends ObservationSample {
   pageErrors: number
 }
 
-/** Row keys are hashed or aliased; states are allowlisted labels, 'none' or 'other'. */
+/**
+ * Row keys are hashed or aliased; states are allowlisted labels, 'none' or 'other'. With
+ * `rows.progress`, `progress` is the percent the row showed, when it showed a readable one.
+ */
 export interface SummarizedRows {
   truncated: boolean
-  items: { row: string; state: string }[]
+  items: { row: string; state: string; progress?: number }[]
 }
 
 export interface ActionRef {
   name: string
   atMs: number
+}
+
+/** The last action before a sample, and how long after it the sample was read. */
+export type SeenAfterAction = ActionRef & {
+  seenAfterActionMs: [number, number]
 }
 
 export interface ObservedAction extends ActionRef {
@@ -132,7 +140,7 @@ export interface UnexpectedRowStateFinding extends ObservationFinding {
   /** End of the last of the consecutive samples that showed it. */
   lastSeenMs: number
   samples: number
-  afterAction: (ActionRef & { seenAfterActionMs: [number, number] }) | null
+  afterAction: SeenAfterAction | null
 }
 
 export interface ContentBeforeReadFinding extends ObservationFinding {
