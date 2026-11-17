@@ -1,0 +1,70 @@
+{
+  "task": "filter-race",
+  "condition": "A",
+  "repetition": 2,
+  "order": 30,
+  "id": "30-filter-race-A2",
+  "startCommit": "0ab9f52067ea3c08ca468eb7075327001231341e",
+  "startedAt": "2026-11-17T19:15:38.344Z",
+  "endedAt": "2026-11-17T19:16:07.170Z",
+  "agent": {
+    "runtime": "claude-code",
+    "version": "2.1.322",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "maxTurns": 80,
+    "minutes": 25
+  },
+  "recoveryProbe": null,
+  "init": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Task",
+      "Edit",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "PowerShell",
+      "Read",
+      "StructuredOutput",
+      "TaskStop",
+      "ToolSearch",
+      "Write"
+    ],
+    "mcpServers": [],
+    "claudeCodeVersion": "2.1.322"
+  },
+  "execution": {
+    "exitCode": 0,
+    "timedOut": false,
+    "resultSubtype": "success",
+    "error": null
+  },
+  "report": {
+    "status": "fixed",
+    "summary": "Cause: `load()` in `public/src/store.js` applied whichever response arrived last. Opening Orders starts a load for the current filter (All). A quick click on Shipped starts a second load. If the All response arrived after the Shipped one, it overwrote the Shipped list with new and packed orders. That is also why it showed up mostly right after Orders opened, when the first request is slowest. Fix: each `load()` takes a sequence number, and a response or failure is applied only if it belongs to the latest load. Stale successes and stale errors, including a late error from an older refresh, no longer change the orders, the loading flag or the error message. Added two regression tests in `test/store.test.js`: an out-of-order success and an out-of-order failure.",
+    "verification": "`npm test` passes (6 of 6), including the two new tests that resolve the earlier filter's request after the later one. I did not run the new tests against the old code, and I did not exercise the page in a browser."
+  },
+  "metrics": {
+    "durationMs": 27236,
+    "turns": 13,
+    "costUsd": 0.0783372,
+    "inputTokens": 12,
+    "outputTokens": 2985,
+    "cacheReadTokens": 94072,
+    "cacheCreationTokens": 9764,
+    "toolCalls": 12,
+    "tools": {
+      "Read": 6,
+      "Glob": 1,
+      "PowerShell": 2,
+      "Edit": 2,
+      "StructuredOutput": 1
+    },
+    "recoveryProbeCalls": 0,
+    "wallMs": 28826
+  },
+  "changedPaths": ["public/src/store.js", "test/store.test.js"],
+  "outsideReach": []
+}

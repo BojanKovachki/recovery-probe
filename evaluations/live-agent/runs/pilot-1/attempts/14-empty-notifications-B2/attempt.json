@@ -1,0 +1,87 @@
+{
+  "task": "empty-notifications",
+  "condition": "B",
+  "repetition": 2,
+  "order": 14,
+  "id": "14-empty-notifications-B2",
+  "startCommit": "d0347fa65af490d9db6b75772589302a574485bd",
+  "startedAt": "2026-11-17T19:05:22.631Z",
+  "endedAt": "2026-11-17T19:05:55.646Z",
+  "agent": {
+    "runtime": "claude-code",
+    "version": "2.1.322",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "maxTurns": 80,
+    "minutes": 25
+  },
+  "recoveryProbe": "1.2.0-preview.1",
+  "init": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Task",
+      "Edit",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "PowerShell",
+      "Read",
+      "StructuredOutput",
+      "TaskStop",
+      "ToolSearch",
+      "Write",
+      "mcp__recovery-probe__check_read_recovery",
+      "mcp__recovery-probe__compare_reports",
+      "mcp__recovery-probe__find_page_reads",
+      "mcp__recovery-probe__find_suspects",
+      "mcp__recovery-probe__network_fault_summary",
+      "mcp__recovery-probe__plan_verification",
+      "mcp__recovery-probe__run_recovery_probe",
+      "mcp__recovery-probe__self_check_scenarios",
+      "mcp__recovery-probe__set_network_faults",
+      "mcp__recovery-probe__start_network_faults",
+      "mcp__recovery-probe__stop_network_faults",
+      "mcp__recovery-probe__verify_change"
+    ],
+    "mcpServers": [
+      {
+        "name": "recovery-probe",
+        "status": "connected",
+        "source": "dynamic"
+      }
+    ],
+    "claudeCodeVersion": "2.1.322"
+  },
+  "execution": {
+    "exitCode": 0,
+    "timedOut": false,
+    "resultSubtype": "success",
+    "error": null
+  },
+  "report": {
+    "status": "no_change_needed",
+    "summary": "I found no bug. The panel shows \"You're all caught up\" because the server has no notifications for `dana`. `data/notifications.json` has `\"dana\": []`, and only `lee` has entries (n-201 and n-202). `GET /api/notifications` returns `notifications[account.user]`, and `data/account.json` says the signed-in user is `dana`. I started the server and confirmed the API returns `[]` for Dana. `public/src/notifications.js` handles this as NTF-1 and NTF-2 require: it lists notifications newest first, shows the empty message only after a successful read that returned nothing, and shows \"Could not load notifications.\" with a Retry button on a failed read. I changed no code. If Dana is meant to have notifications, they are missing from the data or from whatever feeds it, and I can't tell from the repo which. The requirements and the issue don't say what her notifications should be, so I didn't invent any.",
+    "verification": "I read the notifications code, `api.js`, `main.js`, `server.mjs` and the data files. I started `node server.mjs` and queried `/api/account` (returned dana) and `/api/notifications` (returned `[]`). I stopped the server by its process id. I did not run `npm test`, the Recovery Probe checks or a browser session. The only fault-path evidence is from reading the code."
+  },
+  "metrics": {
+    "durationMs": 30956,
+    "turns": 9,
+    "costUsd": 0.0700569,
+    "inputTokens": 12,
+    "outputTokens": 1673,
+    "cacheReadTokens": 100069,
+    "cacheCreationTokens": 10824,
+    "toolCalls": 8,
+    "tools": {
+      "Read": 2,
+      "Glob": 1,
+      "PowerShell": 4,
+      "StructuredOutput": 1
+    },
+    "recoveryProbeCalls": 0,
+    "wallMs": 33015
+  },
+  "changedPaths": [],
+  "outsideReach": []
+}

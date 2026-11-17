@@ -1,0 +1,65 @@
+{
+  "task": "partial-sync",
+  "condition": "A",
+  "repetition": 2,
+  "order": 36,
+  "id": "36-partial-sync-A2",
+  "startCommit": "46c7f84d7744d9e306ba9ce5b63d7a694a69b62c",
+  "startedAt": "2026-11-17T19:20:00.154Z",
+  "endedAt": "2026-11-17T19:20:40.705Z",
+  "agent": {
+    "runtime": "claude-code",
+    "version": "2.1.322",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "maxTurns": 80,
+    "minutes": 25
+  },
+  "recoveryProbe": null,
+  "init": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Task",
+      "Edit",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "PowerShell",
+      "Read",
+      "StructuredOutput",
+      "TaskStop",
+      "ToolSearch",
+      "Write"
+    ],
+    "mcpServers": [],
+    "claudeCodeVersion": "2.1.322"
+  },
+  "execution": {
+    "exitCode": 0,
+    "timedOut": false,
+    "resultSubtype": "success",
+    "error": null
+  },
+  "report": null,
+  "metrics": {
+    "durationMs": 39023,
+    "turns": 15,
+    "costUsd": 0.1185588,
+    "inputTokens": 22,
+    "outputTokens": 4750,
+    "cacheReadTokens": 186308,
+    "cacheCreationTokens": 13096,
+    "toolCalls": 13,
+    "tools": {
+      "Read": 6,
+      "Glob": 1,
+      "PowerShell": 2,
+      "StructuredOutput": 4
+    },
+    "recoveryProbeCalls": 0,
+    "wallMs": 40551
+  },
+  "changedPaths": [],
+  "outsideReach": []
+}

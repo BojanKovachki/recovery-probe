@@ -1,0 +1,88 @@
+{
+  "task": "health-gives-up",
+  "condition": "B",
+  "repetition": 3,
+  "order": 19,
+  "id": "19-health-gives-up-B3",
+  "startCommit": "3b5f91c2d8c408e7bae6a11870c47c2b0fadda87",
+  "startedAt": "2026-11-17T19:08:49.412Z",
+  "endedAt": "2026-11-17T19:09:19.475Z",
+  "agent": {
+    "runtime": "claude-code",
+    "version": "2.1.322",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "maxTurns": 80,
+    "minutes": 25
+  },
+  "recoveryProbe": "1.2.0-preview.1",
+  "init": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Task",
+      "Edit",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "PowerShell",
+      "Read",
+      "StructuredOutput",
+      "TaskStop",
+      "ToolSearch",
+      "Write",
+      "mcp__recovery-probe__check_read_recovery",
+      "mcp__recovery-probe__compare_reports",
+      "mcp__recovery-probe__find_page_reads",
+      "mcp__recovery-probe__find_suspects",
+      "mcp__recovery-probe__network_fault_summary",
+      "mcp__recovery-probe__plan_verification",
+      "mcp__recovery-probe__run_recovery_probe",
+      "mcp__recovery-probe__self_check_scenarios",
+      "mcp__recovery-probe__set_network_faults",
+      "mcp__recovery-probe__start_network_faults",
+      "mcp__recovery-probe__stop_network_faults",
+      "mcp__recovery-probe__verify_change"
+    ],
+    "mcpServers": [
+      {
+        "name": "recovery-probe",
+        "status": "connected",
+        "source": "dynamic"
+      }
+    ],
+    "claudeCodeVersion": "2.1.322"
+  },
+  "execution": {
+    "exitCode": 0,
+    "timedOut": false,
+    "resultSubtype": "success",
+    "error": null
+  },
+  "report": {
+    "status": "fixed",
+    "summary": "The cause was in `public/src/retry.js`. `withRetry` gave up on the second consecutive HTTP 503 (`error.status === 503 && attempt > 0`), with a comment about not loading an overloaded server. The health panel is the only caller. During the incident, the first 503 and the first retry's 503 ended the retries after about 1 second. The panel then showed \"Service health unavailable\" until someone pressed Retry. That contradicts HLT-2, which asks for three retries after 1, 2 and 4 seconds. I removed the special case. Now `withRetry` retries every failed read up to the three delays and rethrows the last error. The final failure still shows \"Service health unavailable\" with a Retry button, and `health.js` is unchanged. I also added a regression test in `test/board.test.js`: three 503s followed by a success returns the services, with waits of 1000, 2000 and 4000 ms.",
+    "verification": "`npm test` passes, 5 of 5, including the new 503 test. I did not drive the page in a browser. I also did not run the Recovery Probe `health-recovers-by-itself` check. I had already edited the code before considering it, so any run now would have no before-change baseline to compare against. Treat the UI behavior as covered only by the unit tests."
+  },
+  "metrics": {
+    "durationMs": 28037,
+    "turns": 12,
+    "costUsd": 0.07545790000000001,
+    "inputTokens": 14,
+    "outputTokens": 2273,
+    "cacheReadTokens": 118399,
+    "cacheCreationTokens": 10215,
+    "toolCalls": 11,
+    "tools": {
+      "Read": 3,
+      "Glob": 1,
+      "PowerShell": 4,
+      "Edit": 2,
+      "StructuredOutput": 1
+    },
+    "recoveryProbeCalls": 1,
+    "wallMs": 30063
+  },
+  "changedPaths": ["public/src/retry.js", "test/board.test.js"],
+  "outsideReach": []
+}

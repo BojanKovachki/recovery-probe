@@ -1,0 +1,42 @@
+{
+  "appSource": ["public/", "data/", "docs/", "server.mjs", "package.json"],
+  "tasks": {
+    "refresh-clears-orders": {
+      "app": "dispatch",
+      "kind": "fix",
+      "required": ["failed-refresh-keeps-orders"]
+    },
+    "health-gives-up": {
+      "app": "statusboard",
+      "kind": "fix",
+      "required": [
+        "health-recovers-after-two-failures",
+        "health-gives-up-after-three-retries"
+      ]
+    },
+    "shipped-row-stale": {
+      "app": "dispatch",
+      "kind": "fix",
+      "required": ["shipping-updates-the-row"]
+    },
+    "filter-race": {
+      "app": "dispatch",
+      "kind": "fix",
+      "required": ["quick-filter-change-shows-latest"]
+    },
+    "empty-notifications": {
+      "app": "statusboard",
+      "kind": "control",
+      "required": [
+        "empty-notifications-say-caught-up",
+        "failed-notifications-are-not-empty",
+        "notifications-newest-first"
+      ]
+    },
+    "partial-sync": {
+      "app": "statusboard",
+      "kind": "clarify",
+      "required": []
+    }
+  }
+}

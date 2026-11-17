@@ -1,0 +1,199 @@
+diff --git a/public/src/store.js b/public/src/store.js
+index e57ca55..bb4fa19 100644
+--- a/public/src/store.js
++++ b/public/src/store.js
+@@ -1,68 +1,75 @@
+-import * as ordersApi from './api.js'
+-
+-/** The orders screen's state. Views subscribe and re-render when it changes. */
+-export function createStore(api = ordersApi) {
+-  let state = {
+-    orders: [],
+-    filter: '',
+-    loading: true,
+-    loaded: false,
+-    error: null,
+-  }
+-  const listeners = new Set()
+-
+-  function set(changes) {
+-    const next = { ...state, ...changes }
+-    // Views re-render only when something they show changed.
+-    if (Object.keys(changes).every((key) => next[key] === state[key])) return
+-    state = next
+-    for (const listener of listeners) listener(state)
+-  }
+-
+-  async function load(filter = state.filter) {
+-    // Another filter is another list: the old rows must not show under it.
+-    set({
+-      filter,
+-      loading: true,
+-      ...(filter === state.filter ? {} : { orders: [] }),
+-    })
+-    try {
+-      const orders = await api.listOrders(filter)
+-      set({ orders, loading: false, loaded: true, error: null })
+-    } catch {
+-      set({
+-        loading: false,
+-        error: state.loaded
+-          ? 'Could not refresh orders.'
+-          : 'Could not load orders.',
+-      })
+-    }
+-  }
+-
+-  async function ship(id) {
+-    try {
+-      const updated = await api.updateStatus(id, 'shipped')
+-      set({
+-        orders: state.orders.map((order) =>
+-          order.id === updated.id ? updated : order,
+-        ),
+-        error: null,
+-      })
+-    } catch {
+-      set({ error: 'Could not update the order.' })
+-    }
+-  }
+-
+-  return {
+-    get state() {
+-      return state
+-    },
+-    subscribe(listener) {
+-      listeners.add(listener)
+-      return () => listeners.delete(listener)
+-    },
+-    load,
+-    refresh: () => load(),
+-    ship,
+-  }
+-}
++import * as ordersApi from './api.js'
++
++/** The orders screen's state. Views subscribe and re-render when it changes. */
++export function createStore(api = ordersApi) {
++  let state = {
++    orders: [],
++    filter: '',
++    loading: true,
++    loaded: false,
++    error: null,
++  }
++  const listeners = new Set()
++
++  function set(changes) {
++    const next = { ...state, ...changes }
++    // Views re-render only when something they show changed.
++    if (Object.keys(changes).every((key) => next[key] === state[key])) return
++    state = next
++    for (const listener of listeners) listener(state)
++  }
++
++  let latestLoad = 0
++
++  async function load(filter = state.filter) {
++    // Only the most recent load may update the screen; answers to earlier
++    // requests (possibly for another filter) are ignored when they arrive.
++    const token = ++latestLoad
++    // Another filter is another list: the old rows must not show under it.
++    set({
++      filter,
++      loading: true,
++      ...(filter === state.filter ? {} : { orders: [] }),
++    })
++    try {
++      const orders = await api.listOrders(filter)
++      if (token !== latestLoad) return
++      set({ orders, loading: false, loaded: true, error: null })
++    } catch {
++      if (token !== latestLoad) return
++      set({
++        loading: false,
++        error: state.loaded
++          ? 'Could not refresh orders.'
++          : 'Could not load orders.',
++      })
++    }
++  }
++
++  async function ship(id) {
++    try {
++      const updated = await api.updateStatus(id, 'shipped')
++      set({
++        orders: state.orders.map((order) =>
++          order.id === updated.id ? updated : order,
++        ),
++        error: null,
++      })
++    } catch {
++      set({ error: 'Could not update the order.' })
++    }
++  }
++
++  return {
++    get state() {
++      return state
++    },
++    subscribe(listener) {
++      listeners.add(listener)
++      return () => listeners.delete(listener)
++    },
++    load,
++    refresh: () => load(),
++    ship,
++  }
++}
+diff --git a/test/store.test.js b/test/store.test.js
+index 3e2079c..d4eac06 100644
+--- a/test/store.test.js
++++ b/test/store.test.js
+@@ -26,6 +26,46 @@ test('loading asks for the selected filter and shows its orders', async () => {
+   assert.equal(store.state.loading, false)
+ })
+ 
++test('a slow answer for an earlier filter does not replace the last filter', async () => {
++  const pending = {}
++  const store = createStore({
++    listOrders: (status) =>
++      new Promise((resolve, reject) => {
++        pending[status || 'all'] = { resolve, reject }
++      }),
++  })
++  const first = store.load('')
++  const second = store.load('shipped')
++  pending.shipped.resolve([])
++  await second
++  pending.all.resolve(ORDERS)
++  await first
++  assert.equal(store.state.filter, 'shipped')
++  assert.deepEqual(store.state.orders, [])
++  assert.equal(store.state.loading, false)
++})
++
++test('a stale failure does not show an error over the last filter', async () => {
++  const pending = {}
++  const store = createStore({
++    listOrders: (status) =>
++      new Promise((resolve, reject) => {
++        pending[status || 'all'] = { resolve, reject }
++      }),
++  })
++  const first = store.load('')
++  const second = store.load('packed')
++  pending.packed.resolve([ORDERS[1]])
++  await second
++  pending.all.reject(new Error('HTTP 503'))
++  await first
++  assert.equal(store.state.error, null)
++  assert.deepEqual(
++    store.state.orders.map((order) => order.id),
++    ['ORD-2'],
++  )
++})
++
+ test('a failed first load says the orders could not be loaded', async () => {
+   const store = createStore({
+     listOrders: async () => {

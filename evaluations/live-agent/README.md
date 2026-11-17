@@ -90,3 +90,4 @@ node evaluations/live-agent/harness/pilot.mjs grade --run my-pilot
 | `grading/` | behavior checks, rules, validation results | no |
 | `harness/` | workspace builder, agent runner, sealing, scoring, report | no |
 | `runs/<name>/` | frozen definition, schedule, every attempt and its grade, results | no |
+| `analysis/` | descriptive analysis of the transcripts, outside the frozen scoring | no |

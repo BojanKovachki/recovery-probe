@@ -1,0 +1,78 @@
+diff --git a/public/src/store.js b/public/src/store.js
+index e57ca55..eb78378 100644
+--- a/public/src/store.js
++++ b/public/src/store.js
+@@ -19,7 +19,12 @@ export function createStore(api = ordersApi) {
+     for (const listener of listeners) listener(state)
+   }
+ 
++  let latestLoad = 0
++
+   async function load(filter = state.filter) {
++    // Only the most recent load may change the screen; answers to earlier
++    // requests (an older filter, or an older refresh) are dropped.
++    const mine = ++latestLoad
+     // Another filter is another list: the old rows must not show under it.
+     set({
+       filter,
+@@ -28,8 +33,10 @@ export function createStore(api = ordersApi) {
+     })
+     try {
+       const orders = await api.listOrders(filter)
++      if (mine !== latestLoad) return
+       set({ orders, loading: false, loaded: true, error: null })
+     } catch {
++      if (mine !== latestLoad) return
+       set({
+         loading: false,
+         error: state.loaded
+diff --git a/test/store.test.js b/test/store.test.js
+index 3e2079c..4e487d7 100644
+--- a/test/store.test.js
++++ b/test/store.test.js
+@@ -26,6 +26,45 @@ test('loading asks for the selected filter and shows its orders', async () => {
+   assert.equal(store.state.loading, false)
+ })
+ 
++test('a slow answer for an earlier filter does not replace the latest filter', async () => {
++  const pending = {}
++  const store = createStore({
++    listOrders: (status) =>
++      new Promise((resolve, reject) => {
++        pending[status] = { resolve, reject }
++      }),
++  })
++  const first = store.load('')
++  const second = store.load('shipped')
++  pending.shipped.resolve([
++    { id: 'ORD-3', customer: 'C', status: 'shipped', total: 5, updatedAt: '' },
++  ])
++  await second
++  pending[''].resolve(ORDERS)
++  await first
++  assert.equal(store.state.filter, 'shipped')
++  assert.deepEqual(
++    store.state.orders.map((order) => order.id),
++    ['ORD-3'],
++  )
++  assert.equal(store.state.loading, false)
++})
++
++test('a late failure of an earlier load is ignored', async () => {
++  const pending = []
++  const store = createStore({
++    listOrders: () => new Promise((resolve, reject) => pending.push({ resolve, reject })),
++  })
++  const first = store.load('')
++  const second = store.load('new')
++  pending[1].resolve([ORDERS[0]])
++  await second
++  pending[0].reject(new Error('HTTP 503'))
++  await first
++  assert.equal(store.state.error, null)
++  assert.deepEqual(store.state.orders.map((order) => order.id), ['ORD-1'])
++})
++
+ test('a failed first load says the orders could not be loaded', async () => {
+   const store = createStore({
+     listOrders: async () => {

@@ -1,0 +1,156 @@
+{
+  "at": "2026-11-17T18:51:02.551Z",
+  "runs": 3,
+  "results": {
+    "refresh-clears-orders / start": {
+      "orders-filter-latest-wins": {
+        "outcome": "clean",
+        "problems": [],
+        "gaps": []
+      },
+      "orders-refresh-keeps-orders": {
+        "outcome": "findings",
+        "problems": ["EXPECTATION_NOT_MET"],
+        "gaps": []
+      },
+      "orders-ship-updates-row": {
+        "outcome": "clean",
+        "problems": [],
+        "gaps": []
+      }
+    },
+    "refresh-clears-orders / reference": {
+      "orders-filter-latest-wins": {
+        "outcome": "clean",
+        "problems": [],
+        "gaps": []
+      },
+      "orders-refresh-keeps-orders": {
+        "outcome": "clean",
+        "problems": [],
+        "gaps": []
+      },
+      "orders-ship-updates-row": {
+        "outcome": "clean",
+        "problems": [],
+        "gaps": []
+      }
+    },
+    "health-gives-up / start": {
+      "health-recovers-by-itself": {
+        "outcome": "findings",
+        "problems": ["RECOVERY_NOT_OBSERVED"],
+        "gaps": []
+      },
+      "notifications-empty-state": {
+        "outcome": "clean",
+        "problems": [],
+        "gaps": []
+      }
+    },
+    "health-gives-up / reference": {
+      "health-recovers-by-itself": {
+        "outcome": "clean",
+        "problems": [],
+        "gaps": []
+      },
+      "notifications-empty-state": {
+        "outcome": "clean",
+        "problems": [],
+        "gaps": []
+      }
+    },
+    "shipped-row-stale / start": {
+      "orders-filter-latest-wins": {
+        "outcome": "clean",
+        "problems": [],
+        "gaps": []
+      },
+      "orders-refresh-keeps-orders": {
+        "outcome": "clean",
+        "problems": [],
+        "gaps": []
+      },
+      "orders-ship-updates-row": {
+        "outcome": "findings",
+        "problems": ["EXPECTATION_NOT_MET"],
+        "gaps": []
+      }
+    },
+    "shipped-row-stale / reference": {
+      "orders-filter-latest-wins": {
+        "outcome": "clean",
+        "problems": [],
+        "gaps": []
+      },
+      "orders-refresh-keeps-orders": {
+        "outcome": "clean",
+        "problems": [],
+        "gaps": []
+      },
+      "orders-ship-updates-row": {
+        "outcome": "clean",
+        "problems": [],
+        "gaps": []
+      }
+    },
+    "filter-race / start": {
+      "orders-filter-latest-wins": {
+        "outcome": "findings",
+        "problems": ["UNEXPECTED_ROW_STATE"],
+        "gaps": []
+      },
+      "orders-refresh-keeps-orders": {
+        "outcome": "clean",
+        "problems": [],
+        "gaps": []
+      },
+      "orders-ship-updates-row": {
+        "outcome": "clean",
+        "problems": [],
+        "gaps": []
+      }
+    },
+    "filter-race / reference": {
+      "orders-filter-latest-wins": {
+        "outcome": "clean",
+        "problems": [],
+        "gaps": []
+      },
+      "orders-refresh-keeps-orders": {
+        "outcome": "clean",
+        "problems": [],
+        "gaps": []
+      },
+      "orders-ship-updates-row": {
+        "outcome": "clean",
+        "problems": [],
+        "gaps": []
+      }
+    },
+    "empty-notifications / start (the reference: no defect)": {
+      "health-recovers-by-itself": {
+        "outcome": "clean",
+        "problems": [],
+        "gaps": []
+      },
+      "notifications-empty-state": {
+        "outcome": "clean",
+        "problems": [],
+        "gaps": []
+      }
+    },
+    "partial-sync / start (the reference: no defect)": {
+      "health-recovers-by-itself": {
+        "outcome": "clean",
+        "problems": [],
+        "gaps": []
+      },
+      "notifications-empty-state": {
+        "outcome": "clean",
+        "problems": [],
+        "gaps": []
+      }
+    }
+  }
+}

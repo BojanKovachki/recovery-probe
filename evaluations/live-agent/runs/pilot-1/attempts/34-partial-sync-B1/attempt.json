@@ -1,0 +1,88 @@
+{
+  "task": "partial-sync",
+  "condition": "B",
+  "repetition": 1,
+  "order": 34,
+  "id": "34-partial-sync-B1",
+  "startCommit": "482ccbf0744fa283da08db12adb4c70b94521686",
+  "startedAt": "2026-11-17T19:18:15.190Z",
+  "endedAt": "2026-11-17T19:18:44.822Z",
+  "agent": {
+    "runtime": "claude-code",
+    "version": "2.1.322",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "maxTurns": 80,
+    "minutes": 25
+  },
+  "recoveryProbe": "1.2.0-preview.1",
+  "init": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Task",
+      "Edit",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "PowerShell",
+      "Read",
+      "StructuredOutput",
+      "TaskStop",
+      "ToolSearch",
+      "Write",
+      "mcp__recovery-probe__check_read_recovery",
+      "mcp__recovery-probe__compare_reports",
+      "mcp__recovery-probe__find_page_reads",
+      "mcp__recovery-probe__find_suspects",
+      "mcp__recovery-probe__network_fault_summary",
+      "mcp__recovery-probe__plan_verification",
+      "mcp__recovery-probe__run_recovery_probe",
+      "mcp__recovery-probe__self_check_scenarios",
+      "mcp__recovery-probe__set_network_faults",
+      "mcp__recovery-probe__start_network_faults",
+      "mcp__recovery-probe__stop_network_faults",
+      "mcp__recovery-probe__verify_change"
+    ],
+    "mcpServers": [
+      {
+        "name": "recovery-probe",
+        "status": "connected",
+        "source": "dynamic"
+      }
+    ],
+    "claudeCodeVersion": "2.1.322"
+  },
+  "execution": {
+    "exitCode": 0,
+    "timedOut": false,
+    "resultSubtype": "success",
+    "error": null
+  },
+  "report": {
+    "status": "needs_clarification",
+    "summary": "I made no code changes. The cause is that server.mjs sync() overwrites only the services upstream answers for and returns { syncedAt, updated, failed }. public/src/sync.js ignores `failed`, always shows \"Last synced at …\" and reloads the panel, so fresh and stale rows look identical. SYN-1 only describes the case where every service answers, so it doesn't say what a partial failure should do. Two fixes are valid: (1) all-or-nothing, where no states change, no \"Last synced\" is shown, and a failure message names the services that timed out; (2) a partial update where the services that answered are updated, timed-out services are marked as out of date with their last-checked time, and the status line says the sync was partial. I recommend (2), but it is a product decision.",
+    "question": "When some services time out during Sync now, should the sync be all-or-nothing (keep all old states and show a failure naming the services that timed out), or a partial update (apply the states that arrived and visibly mark the timed-out services as not updated)? If partial, should \"Last synced at HH:MM\" still appear alongside the warning?",
+    "verification": "I read ISSUE.md, docs/REQUIREMENTS.md, README.md, server.mjs, public/src/sync.js, api.js, main.js, health.js and data/upstream.json. I did not run the app or tests, since I changed nothing."
+  },
+  "metrics": {
+    "durationMs": 27656,
+    "turns": 8,
+    "costUsd": 0.0703293,
+    "inputTokens": 10,
+    "outputTokens": 1983,
+    "cacheReadTokens": 79993,
+    "cacheCreationTokens": 10620,
+    "toolCalls": 7,
+    "tools": {
+      "Read": 2,
+      "Glob": 1,
+      "PowerShell": 3,
+      "StructuredOutput": 1
+    },
+    "recoveryProbeCalls": 0,
+    "wallMs": 29632
+  },
+  "changedPaths": [],
+  "outsideReach": []
+}

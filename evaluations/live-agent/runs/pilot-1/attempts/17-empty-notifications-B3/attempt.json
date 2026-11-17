@@ -1,0 +1,87 @@
+{
+  "task": "empty-notifications",
+  "condition": "B",
+  "repetition": 3,
+  "order": 17,
+  "id": "17-empty-notifications-B3",
+  "startCommit": "d0347fa65af490d9db6b75772589302a574485bd",
+  "startedAt": "2026-11-17T19:07:16.075Z",
+  "endedAt": "2026-11-17T19:07:46.330Z",
+  "agent": {
+    "runtime": "claude-code",
+    "version": "2.1.322",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "maxTurns": 80,
+    "minutes": 25
+  },
+  "recoveryProbe": "1.2.0-preview.1",
+  "init": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Task",
+      "Edit",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "PowerShell",
+      "Read",
+      "StructuredOutput",
+      "TaskStop",
+      "ToolSearch",
+      "Write",
+      "mcp__recovery-probe__check_read_recovery",
+      "mcp__recovery-probe__compare_reports",
+      "mcp__recovery-probe__find_page_reads",
+      "mcp__recovery-probe__find_suspects",
+      "mcp__recovery-probe__network_fault_summary",
+      "mcp__recovery-probe__plan_verification",
+      "mcp__recovery-probe__run_recovery_probe",
+      "mcp__recovery-probe__self_check_scenarios",
+      "mcp__recovery-probe__set_network_faults",
+      "mcp__recovery-probe__start_network_faults",
+      "mcp__recovery-probe__stop_network_faults",
+      "mcp__recovery-probe__verify_change"
+    ],
+    "mcpServers": [
+      {
+        "name": "recovery-probe",
+        "status": "connected",
+        "source": "dynamic"
+      }
+    ],
+    "claudeCodeVersion": "2.1.322"
+  },
+  "execution": {
+    "exitCode": 0,
+    "timedOut": false,
+    "resultSubtype": "success",
+    "error": null
+  },
+  "report": {
+    "status": "no_change_needed",
+    "summary": "The app behaves as NTF-1 and NTF-2 require, so I changed nothing. Dana's account has no notifications in the data. `data/notifications.json` has `\"dana\": []`, and `GET /api/notifications` returns `[]` for her. Showing \"You're all caught up\" is therefore correct. The panel code (`public/src/notifications.js`) lists notifications newest first when there are any. It shows the empty message only after a successful read that returns nothing. A failed read shows \"Could not load notifications.\" with a Retry button instead. Only `lee` has notifications (n-201, n-202). If Dana should be seeing notifications, the problem is in the data or in whatever creates them, not in the board. I can't tell from the repo whether notifications were meant to be addressed to her, so someone should check that upstream.",
+    "verification": "I read the server, API client, panel and data files. I started the server on port 4199, which I stopped by process id afterward, and confirmed `/api/notifications` returns `[]`. `npm test` passed all 4 tests. I did not drive the page in a browser or run the Recovery Probe checks. I did not use plan_verification either, since I made no code change."
+  },
+  "metrics": {
+    "durationMs": 27785,
+    "turns": 9,
+    "costUsd": 0.0692208,
+    "inputTokens": 12,
+    "outputTokens": 1582,
+    "cacheReadTokens": 100208,
+    "cacheCreationTokens": 10839,
+    "toolCalls": 8,
+    "tools": {
+      "Read": 2,
+      "Glob": 1,
+      "PowerShell": 4,
+      "StructuredOutput": 1
+    },
+    "recoveryProbeCalls": 0,
+    "wallMs": 30255
+  },
+  "changedPaths": [],
+  "outsideReach": []
+}

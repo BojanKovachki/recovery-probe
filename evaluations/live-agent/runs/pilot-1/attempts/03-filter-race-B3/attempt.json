@@ -1,0 +1,88 @@
+{
+  "task": "filter-race",
+  "condition": "B",
+  "repetition": 3,
+  "order": 3,
+  "id": "03-filter-race-B3",
+  "startCommit": "93bd7b8711288ca6c8616a24ad9b44d69bc39ce4",
+  "startedAt": "2026-11-17T18:56:16.572Z",
+  "endedAt": "2026-11-17T18:56:50.536Z",
+  "agent": {
+    "runtime": "claude-code",
+    "version": "2.1.322",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "maxTurns": 80,
+    "minutes": 25
+  },
+  "recoveryProbe": "1.2.0-preview.1",
+  "init": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Task",
+      "Edit",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "PowerShell",
+      "Read",
+      "StructuredOutput",
+      "TaskStop",
+      "ToolSearch",
+      "Write",
+      "mcp__recovery-probe__check_read_recovery",
+      "mcp__recovery-probe__compare_reports",
+      "mcp__recovery-probe__find_page_reads",
+      "mcp__recovery-probe__find_suspects",
+      "mcp__recovery-probe__network_fault_summary",
+      "mcp__recovery-probe__plan_verification",
+      "mcp__recovery-probe__run_recovery_probe",
+      "mcp__recovery-probe__self_check_scenarios",
+      "mcp__recovery-probe__set_network_faults",
+      "mcp__recovery-probe__start_network_faults",
+      "mcp__recovery-probe__stop_network_faults",
+      "mcp__recovery-probe__verify_change"
+    ],
+    "mcpServers": [
+      {
+        "name": "recovery-probe",
+        "status": "connected",
+        "source": "dynamic"
+      }
+    ],
+    "claudeCodeVersion": "2.1.322"
+  },
+  "execution": {
+    "exitCode": 0,
+    "timedOut": false,
+    "resultSubtype": "success",
+    "error": null
+  },
+  "report": {
+    "status": "fixed",
+    "summary": "Cause: `load()` in `public/src/store.js` applied every response when it arrived. If you opened Orders (which loads the unfiltered list) and clicked Shipped quickly, the slower \"all orders\" response could arrive after the Shipped response and overwrite it. That left new and packed orders under the Shipped tab. Routing to Orders triggers a load, so this was most likely right after Orders opens. Fix: each `load()` takes a sequence token, and a response or failure is ignored unless it belongs to the latest load. The list therefore always matches the filter selected last (ORD-2). A late failure from an earlier filter can no longer show an error or clear the loading state. ORD-3 and ORD-5 behaviour for the latest load is unchanged. I added two tests to `test/store.test.js`: a stale success and a stale failure, each arriving after a newer filter's response.",
+    "verification": "`npm test` passes 6 of 6 with the fix. With the fix reverted, the two new tests fail (4 pass, 2 fail), so they catch the bug. I then reapplied the fix and all 6 passed again. I did not drive the page in a browser, and I did not run Recovery Probe checks. The check was at store level, with out-of-order promises standing in for slow requests."
+  },
+  "metrics": {
+    "durationMs": 32070,
+    "turns": 14,
+    "costUsd": 0.0866765,
+    "inputTokens": 14,
+    "outputTokens": 3071,
+    "cacheReadTokens": 121305,
+    "cacheCreationTokens": 10952,
+    "toolCalls": 13,
+    "tools": {
+      "Read": 6,
+      "Glob": 1,
+      "PowerShell": 3,
+      "Edit": 2,
+      "StructuredOutput": 1
+    },
+    "recoveryProbeCalls": 0,
+    "wallMs": 33964
+  },
+  "changedPaths": ["public/src/store.js", "test/store.test.js"],
+  "outsideReach": []
+}

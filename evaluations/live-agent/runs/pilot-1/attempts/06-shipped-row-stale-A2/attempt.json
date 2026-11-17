@@ -1,0 +1,70 @@
+{
+  "task": "shipped-row-stale",
+  "condition": "A",
+  "repetition": 2,
+  "order": 6,
+  "id": "06-shipped-row-stale-A2",
+  "startCommit": "212fa52796ee66c02d4ebe3ed945c89e9991a08d",
+  "startedAt": "2026-11-17T18:59:32.260Z",
+  "endedAt": "2026-11-17T19:00:20.921Z",
+  "agent": {
+    "runtime": "claude-code",
+    "version": "2.1.322",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "maxTurns": 80,
+    "minutes": 25
+  },
+  "recoveryProbe": null,
+  "init": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Task",
+      "Edit",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "PowerShell",
+      "Read",
+      "StructuredOutput",
+      "TaskStop",
+      "ToolSearch",
+      "Write"
+    ],
+    "mcpServers": [],
+    "claudeCodeVersion": "2.1.322"
+  },
+  "execution": {
+    "exitCode": 0,
+    "timedOut": false,
+    "resultSubtype": "success",
+    "error": null
+  },
+  "report": {
+    "status": "fixed",
+    "summary": "Cause: in public/src/store.js, ship() mutated the existing order object in place and then called set({ orders: state.orders }) with the same array reference. set() skips updates when every changed value is identical by reference, so the view never re-rendered, even though the server update succeeded (hence \"Shipped\" after a reload). It also held a stale order reference captured before the request. Fix: after the server confirms, ship() builds a new orders list, replacing the matching order (looked up by id in the current state) with a new merged object, so subscribers re-render and the row shows \"Shipped\" with the button gone. Failure path unchanged: the row keeps its status and \"Could not update the order.\" is shown. Added two store tests (successful ship notifies and updates the row; failed update keeps the row and shows the error). Note: under the Packed filter, a just-shipped row stays visible as \"Shipped\" until the next load, following ORD-4 literally; ORD-2 could be read as wanting it removed, and the requirements don't say which wins.",
+    "verification": "npm test passes (6/6, including 2 new tests). Also ran the server on spare port 4199 and drove the page with Playwright: clicked \"Mark shipped\" on ORD-1002 and the row showed \"Shipped\" with an updated time, no reload. Stopped the server by its process id afterwards."
+  },
+  "metrics": {
+    "durationMs": 46855,
+    "turns": 17,
+    "costUsd": 0.11810499999999999,
+    "inputTokens": 20,
+    "outputTokens": 4445,
+    "cacheReadTokens": 167910,
+    "cacheCreationTokens": 14206,
+    "toolCalls": 15,
+    "tools": {
+      "Read": 8,
+      "Glob": 1,
+      "PowerShell": 3,
+      "Edit": 2,
+      "StructuredOutput": 1
+    },
+    "recoveryProbeCalls": 0,
+    "wallMs": 48661
+  },
+  "changedPaths": ["public/src/store.js", "test/store.test.js"],
+  "outsideReach": []
+}

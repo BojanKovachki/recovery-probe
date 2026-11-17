@@ -1,0 +1,91 @@
+{
+  "task": "filter-race",
+  "condition": "B",
+  "repetition": 1,
+  "order": 5,
+  "id": "05-filter-race-B1",
+  "startCommit": "93bd7b8711288ca6c8616a24ad9b44d69bc39ce4",
+  "startedAt": "2026-11-17T18:57:57.393Z",
+  "endedAt": "2026-11-17T18:59:28.494Z",
+  "agent": {
+    "runtime": "claude-code",
+    "version": "2.1.322",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "maxTurns": 80,
+    "minutes": 25
+  },
+  "recoveryProbe": "1.2.0-preview.1",
+  "init": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Task",
+      "Edit",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "PowerShell",
+      "Read",
+      "StructuredOutput",
+      "TaskStop",
+      "ToolSearch",
+      "Write",
+      "mcp__recovery-probe__check_read_recovery",
+      "mcp__recovery-probe__compare_reports",
+      "mcp__recovery-probe__find_page_reads",
+      "mcp__recovery-probe__find_suspects",
+      "mcp__recovery-probe__network_fault_summary",
+      "mcp__recovery-probe__plan_verification",
+      "mcp__recovery-probe__run_recovery_probe",
+      "mcp__recovery-probe__self_check_scenarios",
+      "mcp__recovery-probe__set_network_faults",
+      "mcp__recovery-probe__start_network_faults",
+      "mcp__recovery-probe__stop_network_faults",
+      "mcp__recovery-probe__verify_change"
+    ],
+    "mcpServers": [
+      {
+        "name": "recovery-probe",
+        "status": "connected",
+        "source": "dynamic"
+      }
+    ],
+    "claudeCodeVersion": "2.1.322"
+  },
+  "execution": {
+    "exitCode": 0,
+    "timedOut": false,
+    "resultSubtype": "success",
+    "error": null
+  },
+  "report": {
+    "status": "fixed",
+    "summary": "Cause: in `public/src/store.js`, `load()` applied whatever response arrived last. When Orders opened with the unfiltered list still loading and the user clicked Shipped, the slow All response came back after the Shipped one and replaced it. The screen then showed New and Packed rows under the Shipped tab. A slow response to an earlier request could also overwrite a newer filter's loading state or error. Fix: each `load()` now takes a sequence number, and a response (success or failure) is ignored unless it belongs to the most recent load. The list therefore always matches the filter selected last (ORD-2). Refresh, ship and error handling are otherwise unchanged. I added a regression test in `test/store.test.js` where the older All response arrives after the Shipped one.",
+    "verification": "`npm test` passes, 5 of 5 including the new test. I ran the prepared check `orders-filter-latest-wins` (Orders, then Shipped at once) in a browser against both builds. I did not record the baseline before editing, so I stashed my change, ran the check on the original code, then restored it. The original showed 5 New/Packed rows under Shipped (`UNEXPECTED_ROW_STATE`, about 1.0–2.7 s). The fixed build showed only Shipped rows and no findings. `compare_reports` gave IMPROVED (1 problem gone, none new). This was one run per side and covers only Shipped right after Orders opens. I stopped the server and browser helper I started and deleted the `.recovery-probe` output."
+  },
+  "metrics": {
+    "durationMs": 89190,
+    "turns": 23,
+    "costUsd": 0.21696100000000001,
+    "inputTokens": 30,
+    "outputTokens": 4343,
+    "cacheReadTokens": 362950,
+    "cacheCreationTokens": 34294,
+    "toolCalls": 22,
+    "tools": {
+      "Read": 6,
+      "Glob": 1,
+      "PowerShell": 8,
+      "Edit": 2,
+      "ToolSearch": 1,
+      "mcp__recovery-probe__run_recovery_probe": 2,
+      "mcp__recovery-probe__compare_reports": 1,
+      "StructuredOutput": 1
+    },
+    "recoveryProbeCalls": 4,
+    "wallMs": 91101
+  },
+  "changedPaths": ["public/src/store.js", "test/store.test.js"],
+  "outsideReach": []
+}

@@ -1,0 +1,71 @@
+{
+  "task": "health-gives-up",
+  "condition": "A",
+  "repetition": 2,
+  "order": 15,
+  "id": "15-health-gives-up-A2",
+  "startCommit": "86ec9243c97434ef44eddd8033ddc402a99eeb66",
+  "startedAt": "2026-11-17T19:05:58.964Z",
+  "endedAt": "2026-11-17T19:06:26.769Z",
+  "agent": {
+    "runtime": "claude-code",
+    "version": "2.1.322",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "maxTurns": 80,
+    "minutes": 25
+  },
+  "recoveryProbe": null,
+  "init": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Task",
+      "Edit",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "PowerShell",
+      "Read",
+      "StructuredOutput",
+      "TaskStop",
+      "ToolSearch",
+      "Write"
+    ],
+    "mcpServers": [],
+    "claudeCodeVersion": "2.1.322"
+  },
+  "execution": {
+    "exitCode": 0,
+    "timedOut": false,
+    "resultSubtype": "success",
+    "error": null
+  },
+  "report": {
+    "status": "fixed",
+    "summary": "The cause was in `public/src/retry.js`. `withRetry` gave up early whenever a retry (not the first attempt) got an HTTP 503, with the comment \"more retries only add load\". During the incident the endpoint kept answering 503, so the panel stopped after the first retry, about 1 second in. It then showed \"Service health unavailable\" until someone pressed Retry. That contradicts HLT-2, which asks for three retries after 1, 2 and 4 seconds whatever the failure. I removed the 503 special case. Now `withRetry` retries up to `delays.length` times (1s, 2s, 4s), returns the services as soon as one attempt succeeds, and rethrows the last error after the final failure. The Retry button then restarts the cycle. Only the health panel uses `withRetry`, so nothing else is affected. I added a regression test in `test/board.test.js`.",
+    "verification": "I ran `npm test` and all 5 tests pass. The new test has the read fail with 503 three times and then succeed. It checks that the services are returned, that there are 4 calls, and that the waits are [1000, 2000, 4000]. I did not run a browser check against a live 503, because the local server never returns a 503."
+  },
+  "metrics": {
+    "durationMs": 26137,
+    "turns": 16,
+    "costUsd": 0.0785505,
+    "inputTokens": 14,
+    "outputTokens": 2689,
+    "cacheReadTokens": 112725,
+    "cacheCreationTokens": 10090,
+    "toolCalls": 15,
+    "tools": {
+      "Read": 7,
+      "Glob": 1,
+      "PowerShell": 2,
+      "Grep": 2,
+      "Edit": 2,
+      "StructuredOutput": 1
+    },
+    "recoveryProbeCalls": 0,
+    "wallMs": 27805
+  },
+  "changedPaths": ["public/src/retry.js", "test/board.test.js"],
+  "outsideReach": []
+}

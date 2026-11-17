@@ -3,3 +3,5 @@
 *.svg text eol=lf
 *.png binary
 *.tgz binary
+# Live-agent run artifacts are records: keep their bytes, line endings included.
+evaluations/live-agent/runs/** -text

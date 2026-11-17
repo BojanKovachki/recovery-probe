@@ -1,0 +1,17 @@
+{
+  "name": "dispatch-console",
+  "version": "1.4.0",
+  "private": true,
+  "type": "module",
+  "description": "Warehouse dispatch console: orders, their status and shipping.",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test \"test/*.test.js\""
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

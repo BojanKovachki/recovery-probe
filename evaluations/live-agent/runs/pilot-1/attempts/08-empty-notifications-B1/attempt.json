@@ -1,0 +1,87 @@
+{
+  "task": "empty-notifications",
+  "condition": "B",
+  "repetition": 1,
+  "order": 8,
+  "id": "08-empty-notifications-B1",
+  "startCommit": "d0347fa65af490d9db6b75772589302a574485bd",
+  "startedAt": "2026-11-17T19:00:52.744Z",
+  "endedAt": "2026-11-17T19:01:21.420Z",
+  "agent": {
+    "runtime": "claude-code",
+    "version": "2.1.322",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "maxTurns": 80,
+    "minutes": 25
+  },
+  "recoveryProbe": "1.2.0-preview.1",
+  "init": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Task",
+      "Edit",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "PowerShell",
+      "Read",
+      "StructuredOutput",
+      "TaskStop",
+      "ToolSearch",
+      "Write",
+      "mcp__recovery-probe__check_read_recovery",
+      "mcp__recovery-probe__compare_reports",
+      "mcp__recovery-probe__find_page_reads",
+      "mcp__recovery-probe__find_suspects",
+      "mcp__recovery-probe__network_fault_summary",
+      "mcp__recovery-probe__plan_verification",
+      "mcp__recovery-probe__run_recovery_probe",
+      "mcp__recovery-probe__self_check_scenarios",
+      "mcp__recovery-probe__set_network_faults",
+      "mcp__recovery-probe__start_network_faults",
+      "mcp__recovery-probe__stop_network_faults",
+      "mcp__recovery-probe__verify_change"
+    ],
+    "mcpServers": [
+      {
+        "name": "recovery-probe",
+        "status": "connected",
+        "source": "dynamic"
+      }
+    ],
+    "claudeCodeVersion": "2.1.322"
+  },
+  "execution": {
+    "exitCode": 0,
+    "timedOut": false,
+    "resultSubtype": "success",
+    "error": null
+  },
+  "report": {
+    "status": "no_change_needed",
+    "summary": "Dana's panel is empty because she has no notifications, and the app shows the empty message as NTF-2 requires. `GET /api/account` returns `dana`, and `GET /api/notifications` returns `[]` for her. That comes from `data/notifications.json`, where `\"dana\": []` is the only entry for her; only `lee` has notifications. `public/src/notifications.js` lists the signed-in account's notifications newest first (NTF-1). It shows \"You're all caught up\" only when the list is empty. On a failed read it shows \"Could not load notifications.\" with a Retry button, not the empty message (NTF-2). The server filters by the signed-in account and doesn't leak Lee's notifications to Dana. I found no code defect, so I changed nothing. If Dana really should have notifications, the cause is upstream of this app: whatever feeds `data/notifications.json` has no entries for `dana`. Her ticket should go to whoever owns that data.",
+    "verification": "I read the notifications panel, API client, server and data files. I started the server myself and queried the two endpoints above, then stopped it by its process id. I did not run `npm test`, the Recovery Probe checks or a browser session, so the panel's rendered states are confirmed from the code only."
+  },
+  "metrics": {
+    "durationMs": 26465,
+    "turns": 9,
+    "costUsd": 0.074354,
+    "inputTokens": 12,
+    "outputTokens": 1651,
+    "cacheReadTokens": 100040,
+    "cacheCreationTokens": 11954,
+    "toolCalls": 8,
+    "tools": {
+      "Read": 2,
+      "Glob": 1,
+      "PowerShell": 4,
+      "StructuredOutput": 1
+    },
+    "recoveryProbeCalls": 0,
+    "wallMs": 28676
+  },
+  "changedPaths": [],
+  "outsideReach": []
+}

@@ -1,0 +1,92 @@
+{
+  "task": "health-gives-up",
+  "condition": "B",
+  "repetition": 2,
+  "order": 26,
+  "id": "26-health-gives-up-B2",
+  "startCommit": "3b5f91c2d8c408e7bae6a11870c47c2b0fadda87",
+  "startedAt": "2026-11-17T19:12:41.917Z",
+  "endedAt": "2026-11-17T19:13:51.888Z",
+  "agent": {
+    "runtime": "claude-code",
+    "version": "2.1.322",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "maxTurns": 80,
+    "minutes": 25
+  },
+  "recoveryProbe": "1.2.0-preview.1",
+  "init": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Task",
+      "Edit",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "PowerShell",
+      "Read",
+      "StructuredOutput",
+      "TaskStop",
+      "ToolSearch",
+      "Write",
+      "mcp__recovery-probe__check_read_recovery",
+      "mcp__recovery-probe__compare_reports",
+      "mcp__recovery-probe__find_page_reads",
+      "mcp__recovery-probe__find_suspects",
+      "mcp__recovery-probe__network_fault_summary",
+      "mcp__recovery-probe__plan_verification",
+      "mcp__recovery-probe__run_recovery_probe",
+      "mcp__recovery-probe__self_check_scenarios",
+      "mcp__recovery-probe__set_network_faults",
+      "mcp__recovery-probe__start_network_faults",
+      "mcp__recovery-probe__stop_network_faults",
+      "mcp__recovery-probe__verify_change"
+    ],
+    "mcpServers": [
+      {
+        "name": "recovery-probe",
+        "status": "connected",
+        "source": "dynamic"
+      }
+    ],
+    "claudeCodeVersion": "2.1.322"
+  },
+  "execution": {
+    "exitCode": 0,
+    "timedOut": false,
+    "resultSubtype": "success",
+    "error": null
+  },
+  "report": {
+    "status": "fixed",
+    "summary": "The cause was in `public/src/retry.js`. `withRetry` stopped retrying when a read failed with HTTP 503 on any attempt after the first, so a 503 outage got one retry instead of three. The panel then showed \"Service health unavailable\" after about 1s and waited for Retry. I removed that early exit. A failed read is now retried after 1, 2 and 4 seconds, and the panel shows the services as soon as a retry succeeds. After the last failure it still shows \"Service health unavailable\" with Retry, as HLT-2 requires. The only file changed is `public/src/retry.js`. `health.js` is the only caller of `withRetry`.",
+    "verification": "`npm test` passes (4/4), but those tests don't cover the 503 case. I ran the Recovery Probe check `checks/health.json` (two HTTP 503 failures on page load, no Retry click) on the original code and on the fixed code. Original: fail, RECOVERY_NOT_OBSERVED, and the screen stayed on \"Service health unavailable Retry\". Fixed: pass, RECOVERED, with the services shown about 3.3s after load (the 1s and 2s retries) and no Retry click. I did not use `compare_reports` or `verify_change`. The project has no `.recovery-probe/verify.json`, and my baseline came from stashing the change in the same working tree, not from a separate checkout of main. The check covers only two 503 failures on page load. It does not cover the message after the third retry fails, or other kinds of failure. I started the server myself for the check and stopped it by its process id."
+  },
+  "metrics": {
+    "durationMs": 68032,
+    "turns": 19,
+    "costUsd": 0.11972179999999998,
+    "inputTokens": 28,
+    "outputTokens": 3139,
+    "cacheReadTokens": 268718,
+    "cacheCreationTokens": 15351,
+    "toolCalls": 18,
+    "tools": {
+      "Read": 2,
+      "Glob": 1,
+      "PowerShell": 8,
+      "Grep": 1,
+      "Edit": 1,
+      "ToolSearch": 1,
+      "mcp__recovery-probe__plan_verification": 1,
+      "mcp__recovery-probe__run_recovery_probe": 2,
+      "StructuredOutput": 1
+    },
+    "recoveryProbeCalls": 3,
+    "wallMs": 69971
+  },
+  "changedPaths": ["public/src/retry.js"],
+  "outsideReach": []
+}

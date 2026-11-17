@@ -1,0 +1,32 @@
+[
+  {
+    "id": "api",
+    "name": "Public API",
+    "state": "degraded",
+    "checkedAt": "2026-11-02T08:00:00.000Z"
+  },
+  {
+    "id": "billing",
+    "name": "Billing",
+    "state": "operational",
+    "checkedAt": "2026-11-02T08:00:00.000Z"
+  },
+  {
+    "id": "search",
+    "name": "Search",
+    "state": "operational",
+    "checkedAt": "2026-11-02T08:00:00.000Z"
+  },
+  {
+    "id": "email",
+    "name": "Email delivery",
+    "state": "outage",
+    "checkedAt": "2026-11-02T08:00:00.000Z"
+  },
+  {
+    "id": "storage",
+    "name": "File storage",
+    "state": "operational",
+    "checkedAt": "2026-11-02T08:00:00.000Z"
+  }
+]

@@ -1,0 +1,69 @@
+{
+  "task": "empty-notifications",
+  "condition": "A",
+  "repetition": 3,
+  "order": 21,
+  "id": "21-empty-notifications-A3",
+  "startCommit": "c43d03db2f7abc558d091a36d4e18fc6c9749354",
+  "startedAt": "2026-11-17T19:09:51.827Z",
+  "endedAt": "2026-11-17T19:10:14.277Z",
+  "agent": {
+    "runtime": "claude-code",
+    "version": "2.1.322",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "maxTurns": 80,
+    "minutes": 25
+  },
+  "recoveryProbe": null,
+  "init": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Task",
+      "Edit",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "PowerShell",
+      "Read",
+      "StructuredOutput",
+      "TaskStop",
+      "ToolSearch",
+      "Write"
+    ],
+    "mcpServers": [],
+    "claudeCodeVersion": "2.1.322"
+  },
+  "execution": {
+    "exitCode": 0,
+    "timedOut": false,
+    "resultSubtype": "success",
+    "error": null
+  },
+  "report": {
+    "status": "no_change_needed",
+    "summary": "The app already behaves as NTF-1 and NTF-2 require, so I changed no code. The server returns notifications for the signed-in account only: `server.mjs:61` looks up `notifications[account.user]`. The signed-in account is `dana`, and `data/notifications.json` has `\"dana\": []`, so she has no notifications. Under NTF-2, an account with none should see \"You're all caught up\", and that is what she sees. Only `lee` has notifications (n-201 and n-202). The client in `public/src/notifications.js` lists whatever the API returns, newest first. It shows the error message and Retry button only when the read fails, and never shows the empty message in that case. I found no bug in the account lookup, the API, the client or the sorting. If Dana really should have notifications, they are missing from the data, which is a data or upstream question and not a code defect. I changed nothing because I can't tell what she should be seeing.",
+    "verification": "I read `server.mjs`, `public/src/notifications.js`, `api.js`, `format.js`, `main.js` and the data files. `npm test` passes all 4 tests, including the one for newest-first ordering. I did not drive the page in a browser."
+  },
+  "metrics": {
+    "durationMs": 20834,
+    "turns": 15,
+    "costUsd": 0.0680943,
+    "inputTokens": 12,
+    "outputTokens": 2088,
+    "cacheReadTokens": 93983,
+    "cacheCreationTokens": 9448,
+    "toolCalls": 14,
+    "tools": {
+      "Read": 10,
+      "Glob": 1,
+      "PowerShell": 2,
+      "StructuredOutput": 1
+    },
+    "recoveryProbeCalls": 0,
+    "wallMs": 22450
+  },
+  "changedPaths": [],
+  "outsideReach": []
+}
