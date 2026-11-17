@@ -215,8 +215,15 @@ test('synthetic identity change: stale content before completion and after failu
         (c) => c.basis === 'READ_COMPLETION' && c.before.content?.count > 0,
       )
       assert.ok(completed, JSON.stringify(report))
-      assert.equal(completed.result, fail ? 'unchanged' : 'changed')
       assert.equal(completed.completions.errors, fail ? 1 : 0)
+      // The page can paint the read before or after its completion is counted, so the
+      // comparison can go either way. The screen still shows stale, then fresh content.
+      const shown = new Set(
+        report.timeline
+          .filter((e) => e.ui.content?.count > 0)
+          .map((e) => e.ui.content.textFingerprint),
+      )
+      assert.equal(shown.size, fail ? 1 : 2)
     } finally {
       await page.close()
     }

@@ -13,7 +13,10 @@ import {
   actionSummary,
 } from '../../dist/workflows/observe/summaries.mjs'
 import { actionEffects } from '../../dist/workflows/observe/action-effects.mjs'
-import { comparisonDigest } from '../../dist/workflows/observe/comparisons.mjs'
+import {
+  comparisonDigest,
+  ContentComparisons,
+} from '../../dist/workflows/observe/comparisons.mjs'
 import { selectorSpec } from '../../dist/core/selector.mjs'
 import { fake } from '../helpers/fake.mjs'
 
@@ -743,4 +746,29 @@ test('a mark from the operator opens an interval; a failing operator is reported
   assert.equal(report.operator.status, 'failed')
   assert.ok(report.coverage.gaps.includes('OPERATOR_STEPS_INCOMPLETE'))
   assert.equal(report.captureComplete, false)
+})
+
+test('a read completion compares the sample before it with the first settled sample after it', () => {
+  const comparisons = new ContentComparisons()
+  /** @returns {Parameters<ContentComparisons['add']>[0]} */
+  const sample = (fromMs, text, completedBefore, completedAfter) =>
+    fake({
+      interval: 1,
+      fromMs,
+      toMs: fromMs + 50,
+      ui: {
+        visible: true,
+        content: { count: 1, textFingerprint: text, truncated: false },
+      },
+      before: { successes: completedBefore, errors: 0 },
+      after: { successes: completedAfter, errors: 0 },
+    })
+  assert.deepEqual(comparisons.add(sample(0, 'stale', 0, 0)), [])
+  // A completion during the screen read is ambiguous, so the comparison waits.
+  assert.deepEqual(comparisons.add(sample(100, 'stale', 0, 1)), [])
+  const [completion] = comparisons.add(sample(200, 'fresh', 1, 1))
+  assert.equal(completion.basis, 'READ_COMPLETION')
+  assert.equal(completion.result, 'changed')
+  assert.equal(completion.before.fromMs, 0)
+  assert.deepEqual(completion.completions, { successes: 1, errors: 0 })
 })
