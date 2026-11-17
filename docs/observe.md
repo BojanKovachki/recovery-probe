@@ -141,7 +141,7 @@ These options are opt-in and extend the same fault-free capture. They answer "ho
 
 ### Selectors
 
-`contentSelector`, `rows.selector`, `rows.key`, `rows.state` and action selectors accept a CSS string or `{ "css", "role", "name", "text" }`. `role` matches an explicit `role` attribute or the element's implicit role (button, link, row, cell, listitem, heading and similar). `name` matches the accessible name approximated as `aria-label`, `aria-labelledby` text, visible text, `title` or `alt`. `text` matches the element's normalized visible text exactly. `name` requires `role`. These literal values stay in the private `scenario.json`; the report never copies them.
+`contentSelector`, `rows.selector`, `rows.key`, `rows.state`, `rows.progress` and action selectors accept a CSS string or `{ "css", "role", "name", "text" }`. `role` matches an explicit `role` attribute or the element's implicit role (button, link, row, cell, listitem, heading and similar). `name` matches the accessible name approximated as `aria-label`, `aria-labelledby` text, visible text, `title` or `alt`. `text` matches the element's normalized visible text exactly. `name` requires `role`. These literal values stay in the private `scenario.json`; the report never copies them.
 
 ### Actions
 
@@ -149,7 +149,7 @@ These options are opt-in and extend the same fault-free capture. They answer "ho
 
 ### Tracked rows
 
-`rows` follows each visible row in the region. The row key text is hashed (`key:` plus 16 hex characters) unless it exactly matches a configured alias, so the report can say "row ‘second’" without storing its text. The state element's text is recorded only if it is in the `states` allowlist; other text becomes `other`, and a missing state element becomes `none`. States shown by an icon can be named with [markers](#state-markers-and-unexpected_row_state). Row identity is only as stable as the key text you select: choose a name, not a progress value.
+`rows` follows each visible row in the region. The row key text is hashed (`key:` plus 16 hex characters) unless it exactly matches a configured alias, so the report can say "row ‘second’" without storing its text. The state element's text is recorded only if it is in the `states` allowlist; other text becomes `other`, and a missing state element becomes `none`. States shown by an icon can be named with [markers](#state-markers-and-unexpected_row_state), and a progress bar or figure can be followed with [`progress`](#progress-and-progress_went_back). Row identity is only as stable as the key text you select: choose a name, not a progress value.
 
 ### Shared IPC channels and data events
 
@@ -193,6 +193,28 @@ Some screens show a row's state with an icon or badge rather than text. `rows.ma
 ```
 
 Each stretch of consecutive samples in which a row shows an unexpected state adds one `UNEXPECTED_ROW_STATE` finding; a row that leaves the region or shows another state ends the stretch. It records the row, the state, the bounds of the first sample, the end of the last sample, the number of samples, and the last configured action before it. For example: "Row ‘queued’ showed not installed, which this region must not show, in 40 samples from 1.2–1.3 s to 6.0 s; first seen 0.1–0.2 s after action ‘show-installed’." The rule comes from your configuration, so check that it holds for every row the region can show. A state shown only between samples can be missed.
+
+### Progress and `PROGRESS_WENT_BACK`
+
+`rows.progress` names the element inside each row that shows its progress. It can be a progress bar (`<progress>`, or an element with `aria-valuenow`, read against `aria-valuemin` and `aria-valuemax`) or any element whose text shows progress, such as "45%", "0.3 / 1.2 GB" or "300 MB of 1.2 GB". A percentage in the text wins over amounts, and an amount without a unit takes the other amount's unit. Numbers can use a decimal point or comma and group thousands either way ("1,024 MB", "1.024 MB"). Units count in 1024s, so a download that moves from "1023 MB" to "1.0 GB" does not seem to go back. Each sample's `rows` keeps only the resulting percentage, never the text. `progress` is enough on its own: `state` and `markers` become optional.
+
+```json
+{
+  "regionSelector": "#downloads",
+  "contentSelector": "li[data-item]",
+  "rows": {
+    "selector": "li[data-item]",
+    "key": ".name",
+    "state": ".state",
+    "states": ["Downloading", "Paused"],
+    "progress": ".progress-text"
+  }
+}
+```
+
+A row that shows less progress than it showed earlier, while it stays in the region, adds one `PROGRESS_WENT_BACK` finding. The finding lasts until the row is back at its earlier high or leaves the region; a row that leaves and comes back starts over, as a new download of the same item would. It records the highest progress before the drop (`from`), the lowest during it (`to`), the bounds of the first lower sample, the end of the last one, the number of samples, when the row was back (`recoveredByMs`, null if it never was), and the last configured action before it. For example: "Row ‘download’ went back from 25% to 0% in 3 samples from 0.4–0.5 s to 0.8 s; back at 25% or more by 0.9 s; first seen 0.0–0.1 s after action ‘resume’."
+
+Progress is compared as a share of the total, so a total that grows lowers it too. A restart or a new phase can also lower progress on purpose, so the finding is a lead, not a verdict. Samples in which the element is missing or shows no number are skipped. If no row shows a readable progress value during the capture, the report adds the coverage gap `PROGRESS_NOT_OBSERVED`.
 
 ### Busy targets
 
@@ -359,7 +381,7 @@ Capture ends without touching UI state. HTTP listeners are detached; the owned I
 
 `snapshot` remains the last observation snapshot, explicitly labelled `snapshotStage: "before-cleanup"`. `cleanupEvidence` separately records HTTP listener detachment or the verified IPC readback (owned run id, capture time, expired/cleared observation lease, no armed fault and zero injections). A pre-cleanup snapshot with an active lease does not contradict successful cleanup. Failed cleanup remains incomplete; setup failures may have no cleanup evidence.
 
-A document reload/navigation ends capture as incomplete because the renderer state may have been reset; SPA navigation is allowed. Hidden-document samples and truncated regions are coverage gaps. Very short flashes between samples may be missed. If the content marker is never observed, `CONTENT_MARKER_NOT_OBSERVED` records the missing evidence; it may reflect an empty screen, an unvisited route, or a wrong selector. Exit `0` means the bounded capture completed without recorded coverage gaps; `2` means incomplete coverage or a setup/cleanup error; `130` means operator interruption. None means a recovery or security pass.
+A document reload/navigation ends capture as incomplete because the renderer state may have been reset; SPA navigation is allowed. Hidden-document samples and truncated regions are coverage gaps. Very short flashes between samples may be missed. If the content marker is never observed, `CONTENT_MARKER_NOT_OBSERVED` records the missing evidence; it may reflect an empty screen, an unvisited route, or a wrong selector. `PROGRESS_NOT_OBSERVED` does the same for `rows.progress`. Exit `0` means the bounded capture completed without recorded coverage gaps; `2` means incomplete coverage or a setup/cleanup error; `130` means operator interruption. None means a recovery or security pass.
 
 ## Supported inspector API
 

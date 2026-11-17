@@ -17,6 +17,7 @@ export interface ObservationReadInput {
     key?: SelectorSpec
     state?: SelectorSpec
     markers?: SelectorSpec[]
+    progress?: SelectorSpec
   }
 }
 
@@ -33,8 +34,16 @@ export interface RegionRead {
   contentImages?: ContentImages
   rows?: {
     truncated: boolean
-    /** `marker` is the index of the first configured marker found in the row. */
-    items: { key: string; state: string | null; marker?: number }[]
+    /**
+     * `marker` is the index of the first configured marker found in the row; `progress` is
+     * the progress element's text, or a progress bar's value as a percentage.
+     */
+    items: {
+      key: string
+      state: string | null
+      marker?: number
+      progress?: string | null
+    }[]
   }
   truncated?: boolean
   visible: boolean
@@ -140,23 +149,28 @@ export function readRegion(
     return { content: { texts, truncated }, elements }
   }
 
-  // Row key and state text are returned transiently; Node hashes keys and keeps only allowlisted states.
+  // Row key, state and progress text are returned transiently; Node hashes keys and keeps only
+  // allowlisted states and progress numbers.
   const rowsOf = (
     root: Element,
     r: NonNullable<ObservationReadInput['rows']>,
   ): RegionRead['rows'] => {
     const row = (element: Element) => {
-      const keyElement = r.key ? select(element, r.key).find(visible) : element
-      const stateElement = r.state
-        ? select(element, r.state).find(visible)
-        : undefined
+      const first = (spec?: SelectorSpec) =>
+        spec ? select(element, spec).find(visible) : undefined
+      const keyElement = r.key ? first(r.key) : element
+      const stateElement = first(r.state)
       const marker = (r.markers ?? []).findIndex((spec) =>
         select(element, spec).some(visible),
       )
+      const progressElement = first(r.progress)
       return {
         key: keyElement ? innerText(keyElement).slice(0, 500) : '',
         state: stateElement ? innerText(stateElement).slice(0, 100) : null,
         ...(marker === -1 ? {} : { marker }),
+        ...(progressElement && kit
+          ? { progress: kit.progressOf(progressElement) }
+          : {}),
       }
     }
     const elements = select(root, r.selector).filter(visible)
@@ -261,6 +275,14 @@ export function readRegion(
     contentImages?: RegionRead['contentImages']
   }
 
+  const contentRead = (observed: Observed): RegionRead => ({
+    presence: 'visible',
+    contentCount: observed.content.texts.length,
+    ...observed,
+    truncated: observed.content.truncated,
+    ...page(),
+  })
+
   const structuralRead = (
     root: HTMLElement,
     regionSelector: string | null,
@@ -271,13 +293,7 @@ export function readRegion(
     return {
       text,
       ...familiesOf(root, nodes),
-      ...(observed
-        ? {
-            presence: 'visible' as const,
-            contentCount: observed.content.texts.length,
-            ...observed,
-          }
-        : {}),
+      ...(observed ? contentRead(observed) : {}),
       region: regionSelector
         ? 'selected'
         : root === document.body
@@ -290,14 +306,6 @@ export function readRegion(
       ...indicatorsOf(root, text),
     }
   }
-
-  const contentRead = (observed: Observed): RegionRead => ({
-    presence: 'visible',
-    contentCount: observed.content.texts.length,
-    ...observed,
-    truncated: observed.content.truncated,
-    ...page(),
-  })
 
   const read = (): RegionRead => {
     const regionSelector = observation

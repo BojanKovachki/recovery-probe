@@ -20,6 +20,7 @@ export function pageReadInput(
             state: c.rows.state,
             // Only the selectors reach the page; it answers with an index into them.
             markers: Object.values(c.rows.markers ?? {}),
+            progress: c.rows.progress,
           },
         }
       : {}),
@@ -36,6 +37,7 @@ export const pageSelectors = (c: ObservationConfig) => [
         ...(c.rows.key ? [c.rows.key] : []),
         ...(c.rows.state ? [c.rows.state] : []),
         ...Object.values(c.rows.markers ?? {}),
+        ...(c.rows.progress ? [c.rows.progress] : []),
       ]
     : []),
 ]

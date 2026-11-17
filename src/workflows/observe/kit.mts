@@ -29,6 +29,7 @@ export interface ObserverKit {
   select(root: ParentNode, spec: SelectorSpec): Element[]
   normalize(value: unknown): string
   imagesIn(elements: Element[]): ContentImages
+  progressOf(element: Element): string | null
   lastPolledAt(): number
   drainActions(): RecordedAction[]
   stop(): void
@@ -105,6 +106,19 @@ export function installObserverKit({
       failed: count('failed'),
       truncated: nodes.length > 2000,
     }
+  }
+  // A progress bar's value as a percentage (null while a <progress> is indeterminate); otherwise
+  // the element's text. Two decimals, so Node never reads them as a thousands group.
+  const progressOf = (e: Element) => {
+    const percent = (share: number) => `${(100 * share).toFixed(2)}%`
+    if (e instanceof HTMLProgressElement)
+      return e.position === -1 ? null : percent(e.position)
+    const now = e.getAttribute('aria-valuenow')
+    if (now === null)
+      return normalize((e as HTMLElement).innerText).slice(0, 100)
+    const min = Number(e.getAttribute('aria-valuemin') ?? 0)
+    const max = Number(e.getAttribute('aria-valuemax') ?? 100)
+    return percent((Number(now) - min) / (max - min))
   }
   const implicitRole = (e: Element) => {
     const tag = e.tagName.toLowerCase()
@@ -233,6 +247,7 @@ export function installObserverKit({
       select,
       normalize,
       imagesIn,
+      progressOf,
       lastPolledAt: () => polledAt,
       drainActions: () => {
         polledAt = Date.now()

@@ -4,6 +4,10 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
+## Unreleased
+
+- `observe` with `rows.progress` follows each row's progress, read from a progress bar or from text such as "45%" or "0.3 / 1.2 GB"; only the percentage is kept. A row that shows less progress than it showed earlier, while it stays in the region, adds a `PROGRESS_WENT_BACK` lead with the drop, its samples, when the row was back, and the action before it. A capture in which no row showed a readable progress value adds the coverage gap `PROGRESS_NOT_OBSERVED`.
+
 ## 1.1.0-preview.4 (2026-11-14)
 
 - `net` warns on stderr when no connection has reached the proxy after 30 seconds, and its summary says so when none did, with the `HTTPS_PROXY` value to start the app with. Before, a proxy the app never used ran silently until it stopped.

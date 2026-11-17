@@ -1,3 +1,5 @@
+import type { CaptureReport } from './initial-report.mjs'
+import { completedOf } from './reads.mjs'
 import type {
   ContentSummary,
   ObservationSample,
@@ -194,6 +196,30 @@ export class ContentComparisons {
     this.#anchor = event
     return [contentComparison('READ_COMPLETION', anchor, event)]
   }
+}
+
+// Read-completion comparisons are not meaningful when many selected reads finish during every sample.
+export function omitUnattributableComparisons(
+  report: Pick<CaptureReport, 'comparisons' | 'intervals' | 'notes'>,
+  samples: number,
+) {
+  const completions = report.intervals.reduce(
+    (sum, i) => sum + (i.reads ? completedOf(i.reads) : 0),
+    0,
+  )
+  if (samples === 0 || completions / samples <= 2) return
+  const omitted = report.comparisons.filter(
+    (cmp) => cmp.basis === 'READ_COMPLETION',
+  ).length
+  report.comparisons = report.comparisons.filter(
+    (cmp) => cmp.basis !== 'READ_COMPLETION',
+  )
+  report.notes.push({
+    code: 'READ_COMPLETION_COMPARISONS_OMITTED',
+    completionsPerSample: Math.round((completions / samples) * 100) / 100,
+    omitted,
+    note: 'The selected target completed more than two reads per sample on average, so per-completion comparisons cannot attribute UI changes. Select specific methods to narrow the target.',
+  })
 }
 
 /** One line per interval instead of one per comparison. */

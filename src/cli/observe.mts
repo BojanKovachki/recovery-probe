@@ -61,7 +61,8 @@ Sampling defaults to detail: "content"; use "region" for full DOM diagnostics.
 Navigate manually during the bounded capture. Enter marks a new interval in an
 interactive terminal; --interactive also enables newline markers on piped input.
 Ctrl+C saves partial evidence. CONTENT_BEFORE_READ and DELAYED_UI_UPDATE are observations, not defects.
-UNEXPECTED_ROW_STATE reports a tracked row shown in a state listed in rows.unexpected.
+UNEXPECTED_ROW_STATE reports a tracked row shown in a state listed in rows.unexpected,
+and PROGRESS_WENT_BACK one whose rows.progress went lower than it had shown (a lead).
 --steps runs an explicit, opt-in list of same-document navigations, clicks, waits,
 expectations and interval marks during the capture. Steps act on the app: use a
 test account. An expect step that sees nothing in time adds EXPECTATION_NOT_MET.
@@ -78,6 +79,7 @@ IPC requires the observation-capable development hook. See docs/observe.md.`
 const NAMED_FINDINGS = [
   'DELAYED_UI_UPDATE',
   'UNEXPECTED_ROW_STATE',
+  'PROGRESS_WENT_BACK',
   'LOCAL_FILE_NOT_REPAIRED',
   'EXPECTATION_NOT_MET',
   'SLOW_READ',
