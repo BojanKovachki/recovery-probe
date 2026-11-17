@@ -6,12 +6,12 @@
     "url": "https://github.com/BojanKovachki/recovery-probe",
     "source": "github"
   },
-  "version": "1.1.0-preview.4",
+  "version": "1.1.0-preview.5",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "recovery-probe",
-      "version": "1.1.0-preview.4",
+      "version": "1.1.0-preview.5",
       "runtimeHint": "npx",
       "runtimeArguments": [
         {
