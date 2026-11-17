@@ -22,7 +22,7 @@ import { chromium } from 'playwright'
 import { readRunEvidence } from '../../dist/tools/compare/reports.mjs'
 import { freePort, listen } from './ports.mjs'
 
-const fixtures = fileURLToPath(
+export const fixtures = fileURLToPath(
   new URL('../fixtures/plan-evaluation/', import.meta.url),
 )
 const cli = fileURLToPath(
@@ -42,15 +42,24 @@ const API = {
   '/api/inbox': [],
 }
 
-/** Serves the synthetic app from whichever checkout `root` names, read on every request. */
-async function startApp() {
+/**
+ * Serves the synthetic app from whichever checkout `root` names, read on every request. A read
+ * with scripted answers gets them in turn, one per request, starting over after the last.
+ */
+export async function startApp() {
   let root = ''
+  let scripted = {}
   const server = createServer(async (request, response) => {
     const path = new URL(request.url, 'http://localhost').pathname
     response.setHeader('Cache-Control', 'no-store')
     if (path in API) {
+      const turn = scripted[path]
       response.writeHead(200, { 'Content-Type': 'application/json' })
-      response.end(JSON.stringify(API[path]))
+      response.end(
+        JSON.stringify(
+          turn ? turn.answers[turn.calls++ % turn.answers.length] : API[path],
+        ),
+      )
       return
     }
     const file = path.startsWith('/src/')
@@ -81,9 +90,17 @@ async function startApp() {
   return {
     origin,
     cdp: `http://127.0.0.1:${port}`,
+    /** A debugging address nothing answers on. */
+    closed: `http://127.0.0.1:${await freePort()}`,
     /** Serves `directory` and reloads the open pages, as restarting the app would. */
-    async serve(directory) {
+    async serve(directory, answers = {}) {
       root = directory
+      scripted = Object.fromEntries(
+        Object.entries(answers).map(([path, list]) => [
+          path,
+          { answers: list, calls: 0 },
+        ]),
+      )
       await Promise.all(
         ['items', 'jobs'].map((name, i) =>
           pages[i].goto(`${origin}/${name}.html`),
@@ -111,19 +128,20 @@ async function filesUnder(directory) {
 }
 
 /** Copies `from`, when it exists, over `to`, filling the app's address into the check configurations. */
-async function overlay(from, to, app) {
+export async function overlay(from, to, app) {
   if (!existsSync(from)) return
   for (const file of await filesUnder(from)) {
     const text = (await readFile(join(from, file), 'utf8'))
       .replaceAll('{{origin}}', app.origin)
       .replaceAll('{{cdp}}', app.cdp)
+      .replaceAll('{{closed}}', app.closed)
     await mkdir(dirname(join(to, file)), { recursive: true })
     await writeFile(join(to, file), text)
   }
 }
 
 /** Runs the CLI in `cwd`; resolves with its exit code and output. */
-function recoveryProbe(args, cwd) {
+export function recoveryProbe(args, cwd) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [cli, ...args], {
       cwd,

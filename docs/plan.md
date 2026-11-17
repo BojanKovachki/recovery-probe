@@ -36,7 +36,7 @@
 
 - `name`: unique, letters, digits, `.`, `_` and `-`; it becomes the check's name in the verify plan.
 - `paths`: 1–50 patterns relative to the repository root. `*` matches within a folder, `**` across folders, `?` one character. A pattern with `..` or an absolute path is rejected.
-- `check`: the Recovery Probe arguments of an existing check, exactly as a [verify plan](verify.md#the-plan) lists them: `check`, `discover`, `action`, `observe` or `refresh`, with `--config` and without `--out`. Files it names (`--config`, `--steps`, `--state`, `--files`) must exist inside the project, relative to where you run verify. A symlink that leads outside is rejected.
+- `check`: the Recovery Probe arguments of an existing check, exactly as a [verify plan](verify.md#the-plan) lists them: `check`, `discover`, `action`, `observe` or `refresh`, with `--config` and without `--out`. Files it names (`--config`, `--steps`, `--state`, `--files`) must exist inside the project, relative to where you run verify. A symlink that leads outside is rejected. The configuration and steps must pass the validators of the command itself, and must not hold values left to fill in, such as `{{origin}}`.
 - `behavior`: what the check shows. Required with `check`.
 - `expectation`: the expected behavior and where it comes from, such as a requirement, a ticket or a product owner's answer. A check without one is not planned: the plan asks for it.
 - `limits`: what the check does not cover.
@@ -86,13 +86,13 @@ Options:
 - `--write FILE`: writes the candidate plan, which `verify` reads as it is. An existing file is replaced only with `--force`. Output paths must not contain symbolic links, including links to locations inside the project. This check assumes the local directory tree is not being concurrently replaced by another process. With nothing to plan, nothing is written.
 - `--json`: the full report.
 
-The exit code is 0 when every changed file has a planned check and nothing needs input, and 2 when something needs review; 3 means a wrong reference, registry or option. Planning reads Git, the registry, the check files it names and the changed sources. It starts no app, runs no check, injects no fault, changes no project file and contacts no service.
+The exit code is 0 when every changed file has a planned check and nothing needs input, and 2 when something needs review; 3 means a wrong reference, registry or option. Planning reads Git, the registry, the check files it names, the changed sources and the last saved [self-check](self-check.md#with-the-planner). It starts no app, runs no check, injects no fault, changes no project file and contacts no service.
 
 ## The workflow
 
 1. **Inspect the change or the task**: what it is for and which screens it touches.
 2. **Plan**: `recovery-probe plan --changed-since main --write .recovery-probe/verify.json`, and review the plan.
-3. **Resolve what it asks for**: answer questions, state missing expectations, register scenarios for uncovered files that need one, and fix invalid entries. Do not invent selectors, endpoints, expected text or product requirements to fill a gap; ask whoever owns them.
+3. **Resolve what it asks for**: answer questions, state missing expectations, register scenarios for uncovered files that need one, and fix invalid entries. Do not invent selectors, endpoints, expected text or product requirements to fill a gap; ask whoever owns them. For a new or changed scenario, [`self-check`](self-check.md) (experimental) shows whether it can run and whether it behaves the same on every run of a build you name.
 4. **Record the baseline against the app before the change**: start that version, then `recovery-probe verify --baseline`.
 5. **Change the code**, and restart or reload the app.
 6. **Rerun the same checks**: `recovery-probe verify`.
@@ -127,10 +127,13 @@ The [MCP server](mcp.md) offers the planner as `plan_verification` (the same rep
 
 ## Writing scenarios that can verify a fix
 
-Verify calls a change VERIFIED only when each check improved or stayed clean, so a check must come out clean when the app is right. The evaluation below found two ways to write a scenario that never can:
+Verify calls a change VERIFIED only when each check improved or stayed clean, so a check must come out clean when the app is right, and the same on every run. The evaluations found three ways to write a scenario that cannot:
 
 - **An `observe` scenario that starts on content loaded before the capture** reports `CONTENT_BEFORE_READ` on every run, before and after a fix. Start each run on a screen without the content, let the steps open it, and end by leaving it, so every run starts the same way.
 - **An `observe` scenario whose `endpoint` is not the read that produces the content marker** reports `CONTENT_BEFORE_READ` whenever a sample lands between the two reads, so it passes once and fails over three runs. Point `endpoint` at the read that draws the marker; use `expect` steps for what later reads should change.
+- **An `observe` scenario that changes the screen right after a `waitFor`** can miss content that is on screen for less than one sampling interval (`sampleMs`), so some runs report `CONTENT_MARKER_NOT_OBSERVED` and others do not. Wait a few samples, such as `{ "wait": 500 }`, before the step that changes the screen.
+
+`self-check --run` on a build you name finds these before you rely on a scenario: see [Check your scenarios](self-check.md).
 
 ## The evaluation
 
@@ -165,6 +168,6 @@ No such comparison has been run yet.
 ## Limits
 
 - A plan covers what the registry covers. Files nobody mapped stay uncovered, and an outdated registry plans outdated checks: the plan flags patterns that match no file, but not checks that no longer test what their description says.
-- Check files are checked for existence, location and valid JSON, not run or fully validated; verify runs them.
+- Check files are validated statically, with the validators of their command, and not run. A selector that matches nothing or an app that is not running shows only when the check runs, in verify or in a [self-check](self-check.md) run.
 - Suggestions come from relative imports one step away. Re-exports, aliases, dynamic paths and indirect effects are not followed.
 - Passing the planned checks shows that those checks passed, not that the application is correct. Keep type checking, tests and review.

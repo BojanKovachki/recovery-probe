@@ -46,12 +46,21 @@ const scenario = (name, paths, overrides = {}) => ({
   ...overrides,
 })
 
+/** A check configuration the HTTP check's own validator accepts. */
+const checkConfig = (name) =>
+  `${JSON.stringify({
+    pageUrl: 'http://127.0.0.1:9/',
+    endpoint: `http://127.0.0.1:9/api/${name}`,
+    readySelector: `#${name}`,
+    recovery: 'automatic',
+  })}\n`
+
 const BASE_FILES = {
   'src/profile.js': 'export const profile = 1\n',
   'src/items.js': 'export const items = 1\n',
   'src/theme.js': 'export const theme = 1\n',
-  'checks/profile.json': '{ "pageUrl": "http://127.0.0.1:9/" }\n',
-  'checks/items.json': '{ "pageUrl": "http://127.0.0.1:9/" }\n',
+  'checks/profile.json': checkConfig('profile'),
+  'checks/items.json': checkConfig('items'),
 }
 
 async function write(root, files) {
@@ -669,7 +678,18 @@ test('plan output rejects linked parents and existing or dangling destination li
       assert.ok(!existsSync(join(outside, 'new')))
       await writeFile(join(outside, 'keep.json'), 'unchanged')
       for (const target of ['keep.json', 'missing.json']) {
-        await symlink(join(outside, target), join(root, 'output.json'), 'file')
+        try {
+          await symlink(
+            join(outside, target),
+            join(root, 'output.json'),
+            'file',
+          )
+        } catch (error) {
+          // Windows creates directory junctions without the privilege file links need.
+          if (['EPERM', 'EACCES'].includes(error.code))
+            return t.skip('file symlink privilege unavailable')
+          throw error
+        }
         for (const force of [false, true])
           await assert.rejects(
             writeCandidatePlan(report, 'output.json', force),

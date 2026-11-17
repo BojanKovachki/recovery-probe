@@ -62,6 +62,7 @@ Each run saves an HTML and JSON report. Run the same command again to repeat the
 | Fail an SDK's or a main process's own HTTPS connections | `net` | [Network faults](docs/net.md) |
 | Find code that turns a failed read into "no data" | `suspects` | [Suspects](docs/suspects.md) |
 | Choose the checks a change needs (experimental) | `plan` | [Plan](docs/plan.md) |
+| Check registered scenarios before relying on them (experimental) | `self-check` | [Self-check](docs/self-check.md) |
 | Prove a change fixed it | `compare`, `watch`, `verify` | [Compare](docs/compare.md), [Watch](docs/watch.md), [Verify](docs/verify.md) |
 
 ## Use it from a coding agent
@@ -138,7 +139,7 @@ Consumers should tolerate additional JSON fields. Exact terminal wording, HTML l
 
 ## Docs
 
-[Guided start](docs/start.md) · [Desktop and browsers](docs/desktop.md) · [IPC](docs/ipc.md) · [Discovery](docs/discovery.md) · [Observe](docs/observe.md) · [Refresh](docs/refresh.md) · [Network faults](docs/net.md) · [Android](docs/android.md) · [Suspects](docs/suspects.md) · [Compare](docs/compare.md) · [Watch](docs/watch.md) · [Plan](docs/plan.md) · [Verify](docs/verify.md) · [MCP](docs/mcp.md) · [API](docs/api.md) · [JSON runner](docs/runner.md) · [CI](docs/ci.md) · [Repair](docs/repair.md) · [Changelog](CHANGELOG.md)
+[Guided start](docs/start.md) · [Desktop and browsers](docs/desktop.md) · [IPC](docs/ipc.md) · [Discovery](docs/discovery.md) · [Observe](docs/observe.md) · [Refresh](docs/refresh.md) · [Network faults](docs/net.md) · [Android](docs/android.md) · [Suspects](docs/suspects.md) · [Compare](docs/compare.md) · [Watch](docs/watch.md) · [Plan](docs/plan.md) · [Self-check](docs/self-check.md) · [Verify](docs/verify.md) · [MCP](docs/mcp.md) · [API](docs/api.md) · [JSON runner](docs/runner.md) · [CI](docs/ci.md) · [Repair](docs/repair.md) · [Changelog](CHANGELOG.md)
 
 ## Contributing
 

@@ -4,6 +4,10 @@ import { writeActionReport } from '../reports/action.mjs'
 import { actionConfig } from '../workflows/action/config.mjs'
 import { checkAction } from '../workflows/action/run.mjs'
 import {
+  CHECK_COMMAND_OPTIONS,
+  withConnection,
+} from '../workflows/command-line.mjs'
+import {
   readConfig,
   text,
   UsageError,
@@ -26,25 +30,13 @@ Options:
 Exit codes: 0 only feedback that differs from success, 2 findings to review or
 inconclusive, 3 wrong usage or config, 4 couldn't run.`
 
-export const options = {
-  config: { type: 'string' },
-  cdp: { type: 'string' },
-  inspector: { type: 'string' },
-  out: { type: 'string' },
-  json: { type: 'boolean' },
-} as const
+export const options = CHECK_COMMAND_OPTIONS.action
 
 export async function run(values: Values): Promise<void> {
   const path = text(values, 'config')
   if (!path) throw new UsageError('--config is required')
   const raw = await readConfig(path)
-  const cdp = text(values, 'cdp')
-  const inspector = text(values, 'inspector')
-  const config = {
-    ...raw,
-    ...(cdp ? { cdp } : {}),
-    ...(inspector ? { inspector } : {}),
-  }
+  const config = withConnection(raw, values)
   // Fails fast on a bad config; checkAction validates it again itself.
   validated(() => actionConfig(config))
   const directory = await reportFolder('action', text(values, 'out'))

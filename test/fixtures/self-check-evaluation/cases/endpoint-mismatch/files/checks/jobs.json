@@ -1,0 +1,10 @@
+{
+  "transport": "http",
+  "cdp": "{{cdp}}",
+  "pageUrl": "{{origin}}/jobs.html",
+  "endpoint": "{{origin}}/api/jobs/status",
+  "regionSelector": "#jobs-region",
+  "contentSelector": "#jobs li",
+  "observationMs": 6000,
+  "sampleMs": 100
+}

@@ -117,6 +117,11 @@ const groups: [string, Record<string, Entry>][] = [
         summary: 'Propose the checks that verify a change (experimental)',
         load: raw(() => import('./plan.mjs'), 'planMain'),
       },
+      'self-check': {
+        summary:
+          'Check registered scenarios on a reference build (experimental)',
+        load: raw(() => import('./self-check.mjs'), 'selfCheckMain'),
+      },
       verify: {
         summary: 'Say whether a change is done',
         load: raw(() => import('./verify.mjs'), 'verifyMain'),

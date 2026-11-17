@@ -57,4 +57,4 @@ The [MCP server](mcp.md) offers the same steps as `verify_change`: `baseline: tr
 
 ## What it does not cover
 
-Verify is only as good as its plan. It shows that the planned checks improved or stayed clean and that the changed lines add no known data-loss pattern; it does not review style, design or code it has no check for.
+Verify is only as good as its plan. It shows that the planned checks improved or stayed clean and that the changed lines add no known data-loss pattern; it does not review style, design or code it has no check for. [`self-check`](self-check.md) (experimental) shows whether a planned scenario can run and behaves the same on every run of a build you name, before you rely on it here.

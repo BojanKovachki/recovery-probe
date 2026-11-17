@@ -4,6 +4,7 @@
     "waitFor": { "css": "[data-job=export] .state", "text": "Running" },
     "timeoutMs": 3000
   },
+  { "wait": 500 },
   { "click": "#check" },
   { "wait": 500 },
   {

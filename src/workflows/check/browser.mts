@@ -27,7 +27,8 @@ export interface ProbeRow {
 type Fault = (typeof defaultFaults)[number]
 type InFreshPage = <T>(fn: (page: Page) => Promise<T>) => Promise<T>
 
-function checkScenario(config: RecoveryConfig) {
+/** Throws when a JSON runner scenario is incomplete or unsafe; returns its wait limit. */
+export function checkScenario(config: RecoveryConfig) {
   const fields = config as unknown as Record<string, unknown> | undefined
   for (const name of [
     'url',

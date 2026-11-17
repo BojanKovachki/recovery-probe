@@ -9,7 +9,10 @@ import {
 import { discoverIpc, discoveryConfig } from '../workflows/discover/ipc.mjs'
 import { screenshotsIn } from '../workflows/discover/screenshots.mjs'
 import {
-  integerOption,
+  CHECK_COMMAND_OPTIONS,
+  discoveryInput,
+} from '../workflows/command-line.mjs'
+import {
   readConfig,
   text,
   UsageError,
@@ -37,22 +40,13 @@ Options:
 Exit codes: 0 only observations, 2 findings to review or inconclusive,
 3 wrong usage or config, 4 couldn't run. Findings are never verified failures.`
 
-export const options = {
-  config: { type: 'string' },
-  cdp: { type: 'string' },
-  page: { type: 'string' },
-  inspector: { type: 'string' },
-  screenshots: { type: 'boolean' },
-  'restore-window': { type: 'boolean' },
-  out: { type: 'string' },
-  json: { type: 'boolean' },
-} as const
+export const options = CHECK_COMMAND_OPTIONS.discover
 
 export async function run(values: Values): Promise<void> {
   const path = text(values, 'config')
   if (!path) throw new UsageError('--config is required')
   const raw = await readConfig(path)
-  const input = withFlags(raw, values)
+  const input = discoveryInput(raw, values)
   const directory = await reportFolder('discover', text(values, 'out'))
   const screenshot = values.screenshots ? screenshotsIn(directory) : undefined
   const { config, report } =
@@ -68,19 +62,6 @@ export async function run(values: Values): Promise<void> {
 
 type Screenshot = ReturnType<typeof screenshotsIn> | undefined
 type Report = Awaited<ReturnType<typeof discoverHttp | typeof discoverIpc>>
-
-/** The config file's options with the command line's on top. */
-function withFlags(raw: Record<string, unknown>, values: Values) {
-  const cdp = text(values, 'cdp')
-  const page = integerOption(values, 'page', [0, 1000])
-  return {
-    ...raw,
-    ...(cdp ? { cdp } : {}),
-    ...(page !== undefined ? { page } : {}),
-    ...(text(values, 'inspector') ? { inspector: values.inspector } : {}),
-    ...(values['restore-window'] ? { restoreWindow: true } : {}),
-  }
-}
 
 async function discoverOverIpc(input: object, screenshot: Screenshot) {
   const config = validated(() =>
