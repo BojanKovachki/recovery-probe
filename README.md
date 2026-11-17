@@ -24,6 +24,8 @@ npx recovery-probe demo
 
 Version `1.1.0` adds an experimental verification planner, row progress tracking, and expanded runtime observation. Install the stable release with the command above.
 
+The next preview, `1.2.0-preview.1`, adds an experimental scenario self-check: it validates registered scenarios statically and, on request, runs them a few times on a build you name, before you rely on them to verify a change. After publication, install it with `npm install --save-dev recovery-probe@next playwright`. Until then, use the [source installation instructions](CONTRIBUTING.md#install-an-unpublished-source-preview).
+
 ### Plan checks for a code change
 
 Register existing scenarios in `recovery-probe.registry.json`, then run:

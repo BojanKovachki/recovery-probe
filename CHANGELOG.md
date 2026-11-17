@@ -4,7 +4,7 @@ All notable changes to Recovery Probe are documented here. The project follows [
 
 Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-only prototypes.
 
-## Unreleased
+## 1.2.0-preview.1 (2026-11-17)
 
 - Experimental: `self-check` and the MCP tool `self_check_scenarios` check registered scenarios before they are relied on for before/after verification. By default only statically: each check's command line as its command parses it, its files, values left to fill in, and its configuration and steps against the validators its command uses; nothing is started or contacted. Registry entries that cannot be checked are listed and count against the result. With `--run --reference LABEL`, each scenario that passes runs a few times (3 by default, up to 10) against the running application, which the user declares as the reference build, and is reported as `execution-failed`, `incomplete`, `inconsistent`, `findings` or `clean`, with the differences between runs and cautious guidance. Clean never means the app is correct or a change is verified. `npm run eval:self-check` runs a deterministic evaluation; see [Self-check](docs/self-check.md).
 - `plan` validates registered checks with their command's own validators, not only as JSON, and reports values left to fill in. It shows the last saved self-check of each planned scenario, and asks for a new one when it was not clean or the check's command or files changed since. Planned checks stay planned.
