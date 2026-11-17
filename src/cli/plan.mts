@@ -15,7 +15,7 @@ const HELP = `${USAGE}
 Proposes the checks that verify a change, before you record a baseline. It
 matches the files changed since REF (main by default; committed, staged,
 unstaged, untracked, deleted and renamed) against the scenario registry
-(.recovery-probe/registry.json), adds the suspects on the changed lines, and
+(recovery-probe.registry.json), adds the suspects on the changed lines, and
 lists what has no known check or needs a decision. It runs nothing.
 
   --expect NAME=TEXT  the expected behavior, and its source, for a registry

@@ -25,7 +25,7 @@ export const planVerificationTool: McpTool = {
   name: 'plan_verification',
   title: 'Propose the checks that verify a code change',
   description:
-    'Experimental. Before recording a baseline, proposes which existing Recovery Probe checks verify a change: it matches the files changed since a Git reference (committed, staged, unstaged, untracked, deleted, renamed) against the project scenario registry (.recovery-probe/registry.json) and the suspects on the changed lines. Each check says which file selected it, what it checks, where its expectation came from and what it does not cover. It also lists suggestions to review, changed files with no known check, and what needs a person: open questions, missing expectations, invalid entries. It runs nothing. The result is a proposal, never a verdict: no matching check does not mean the change is safe. Resolve needsInput, then record the baseline with verify_change from the version before the change.',
+    'Experimental. Before recording a baseline, proposes which existing Recovery Probe checks verify a change: it matches the files changed since a Git reference (committed, staged, unstaged, untracked, deleted, renamed) against the project scenario registry (recovery-probe.registry.json) and the suspects on the changed lines. Each check says which file selected it, what it checks, where its expectation came from and what it does not cover. It also lists suggestions to review, changed files with no known check, and what needs a person: open questions, missing expectations, invalid entries. It runs nothing. The result is a proposal, never a verdict: no matching check does not mean the change is safe. Resolve needsInput, then record the baseline with verify_change from the version before the change.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -37,7 +37,7 @@ export const planVerificationTool: McpTool = {
       registry: {
         type: 'string',
         description:
-          'The scenario registry, relative to the working directory. Default: .recovery-probe/registry.json.',
+          'The scenario registry, relative to the working directory. Default: recovery-probe.registry.json.',
       },
       expectations: {
         type: 'object',

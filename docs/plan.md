@@ -12,7 +12,7 @@
 
 ## The registry
 
-`.recovery-probe/registry.json` maps source files to existing checks. Commit it with the code it describes.
+`recovery-probe.registry.json`, in the folder you run Recovery Probe from, maps source files to existing checks. Commit it with the code it describes; it sits outside `.recovery-probe/`, which holds private reports and is usually ignored by Git.
 
 ```json
 {

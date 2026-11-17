@@ -75,7 +75,7 @@ async function project(
   git(root, 'init', '-q', '-b', 'main')
   await write(root, {
     ...BASE_FILES,
-    '.recovery-probe/registry.json': JSON.stringify({ scenarios }),
+    'recovery-probe.registry.json': JSON.stringify({ scenarios }),
   })
   git(root, 'add', '.')
   git(root, 'commit', '-q', '-m', 'start')

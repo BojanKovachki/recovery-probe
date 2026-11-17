@@ -21,7 +21,7 @@ import {
 } from './select.mjs'
 import { gapsOf, type InputRequest } from './gaps.mjs'
 
-export const DEFAULT_REGISTRY = join('.recovery-probe', 'registry.json')
+export const DEFAULT_REGISTRY = 'recovery-probe.registry.json'
 export const DEFAULT_PLAN = join('.recovery-probe', 'verify.json')
 
 export interface PlanOptions {
