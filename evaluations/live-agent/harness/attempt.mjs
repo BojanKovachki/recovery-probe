@@ -160,7 +160,7 @@ export async function runAttempt(attempt, context) {
         error: outcome.exitCode === null ? 'the CLI did not start' : null,
       },
       report,
-      metrics: { ...metrics, wallMs: endedAt - startedAt },
+      metrics: { ...metrics, wallMs: endedAt.getTime() - startedAt.getTime() },
       changedPaths: changes.paths,
       outsideReach: outsideReach(all, {
         workspace,

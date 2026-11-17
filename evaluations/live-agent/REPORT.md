@@ -9,7 +9,7 @@ How the pilot was built is in [README.md](README.md), and what preparing conditi
 | | |
 | --- | --- |
 | When | 17 November 2026, 18:55–19:21 UTC, 36 attempts one after another |
-| Definition | frozen in commit `4f8f95f` ([`runs/pilot-1/frozen.json`](runs/pilot-1/frozen.json)); graders and reference apps sealed until every attempt had run |
+| Definition | frozen in commit `4f8f95f` ([`runs/pilot-1/frozen.json`](runs/pilot-1/frozen.json)); graders and reference apps sealed until every attempt had run. Recorded and graded as commit `a898e62`; to grade pilot-1 again, check out that commit |
 | Agent | Claude Code 2.1.322, model `claude-sonnet-5-5`, effort high, at most 80 turns and 25 minutes, on a subscription |
 | Condition B | Recovery Probe 1.2.0-preview.1 (MCP server and command) with five prepared scenarios |
 | Order | shuffled with seed 20261117 ([`runs/pilot-1/schedule.json`](runs/pilot-1/schedule.json)) |
@@ -97,6 +97,7 @@ This part is descriptive, from the transcripts; it is not part of the frozen sco
 - **Isolation on the Windows host.** File tools were denied the checkout, the key and Claude's own files, and both conditions had web tools off. Shell commands could not be confined, so a check flagged any tool call that named those places: there were no flags. The plain graders also existed in the evaluation author's own session files on the same machine. An attempt would have had to look for them deliberately; none named them.
 - **Before freezing,** five smoke attempts checked the setup and are not counted. One showed that an agent's shell can affect the whole machine: it stopped every `chrome*` process. The prompt now asks both conditions to stop only their own processes. Two earlier freezes were replaced before any attempt was recorded: the first could not start and the second lost its first attempt in a cleanup error, unseen. The commits record both.
 - **One model, one effort level, one runtime and one operating system.** Results for other models, or for Linux with shell sandboxing, may differ.
+- **A record field can mislead.** If a session were killed at its time limit, `attempt.json` would also say "the CLI did not start" in `execution.error`, next to `timedOut: true`. No attempt timed out, and scoring reads `timedOut` first.
 - **Costs are the CLI's own estimates.** The attempts ran on a subscription and were not billed per token.
 
 ## What the pilot does not show

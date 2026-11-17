@@ -128,6 +128,7 @@ export function agentArgs({
  * The attempt's environment: the harness's, without credentials for paid API use or this
  * session's Claude variables, with CLAUDE.md and auto memory off and the app's port set.
  * Condition B also finds the `recovery-probe` command on the PATH.
+ * @returns {Record<string, string>}
  */
 export function agentEnv(condition, toolsBin, base = process.env) {
   const env = Object.fromEntries(

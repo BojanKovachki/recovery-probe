@@ -5,8 +5,12 @@ import { join } from 'node:path'
 
 async function freePort() {
   const server = createServer()
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
-  const { port } = server.address()
+  await new Promise((resolve) =>
+    server.listen(0, '127.0.0.1', () => resolve(undefined)),
+  )
+  const { port } = /** @type {import('node:net').AddressInfo} */ (
+    server.address()
+  )
   await new Promise((resolve) => server.close(resolve))
   return port
 }

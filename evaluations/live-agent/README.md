@@ -77,6 +77,8 @@ node evaluations/live-agent/harness/pilot.mjs grade --run my-pilot
 
 `freeze` seals `apps/` and `grading/`, removes their plain copies, and records the hash of everything that defines the pilot. `run` and `grade` refuse to continue if any of it changed. `run` installs each app's dependencies and Recovery Probe once, outside the workspaces. It runs every attempt that has no sealed result yet, so it can stop and resume. `grade` rebuilds each attempt from its start commit and diff, runs the graders, and writes `runs/<name>/results.json` and `summary.md`. Each attempt folder holds `attempt.json`, the transcript, the final diff and the grade.
 
+A run is tied to the commit it was graded at. Later commits that touch the pilot's definition, even its type annotations, make `grade` refuse it: pilot-1 is graded again at commit `a898e62`.
+
 `npm run test:unit` covers the harness's isolation, reset and scoring rules (`test/unit/live-agent-*.test.mjs`).
 
 ## Files

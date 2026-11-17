@@ -30,7 +30,7 @@ export function unseal(sealed, key) {
     Buffer.concat([decipher.update(sealed.subarray(28)), decipher.final()]),
   )
   return Object.fromEntries(
-    Object.entries(JSON.parse(json)).map(([path, content]) => [
+    Object.entries(JSON.parse(json.toString('utf8'))).map(([path, content]) => [
       path,
       Buffer.from(content, 'base64'),
     ]),
