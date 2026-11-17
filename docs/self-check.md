@@ -22,12 +22,17 @@ npx recovery-probe self-check items-keep-content    # only the named scenarios
 For each registered check it looks at:
 
 - the command, as [verify](verify.md#the-plan) takes it: `check`, `discover`, `action`, `observe` or `refresh`, with `--config` and without `--out`;
+- its command line, parsed the way the command itself parses it: an unknown option, a missing value or a stray argument fails here, as it would when the check runs;
 - the files it names (`--config`, `--steps`, `--state`, `--files`): inside the project, no symbolic link leading out, readable, and valid JSON (a JSON object for the configuration);
 - values left to fill in, such as `{{origin}}` or `${HOST}`;
 - the configuration and steps, with the validators the command itself uses and the command-line flags it merges (`--cdp`, `--page`, `--inspector`, `--restore-window`, and `--network` and `--files` for steps);
 - what must be running for the check: the page, a debugging port, the IPC hook or a network proxy.
 
-It starts nothing, runs nothing, contacts nothing and writes nothing. `--registry FILE` reads another registry, and `--json` prints the full report. The exit code is 0 when every selected scenario passed, 2 when something needs review (a scenario failed, or a name is not in the registry with a check), and 3 for a wrong option or registry.
+It starts nothing, runs nothing, contacts nothing and writes nothing. `--registry FILE` reads another registry, and `--json` prints the full report.
+
+Registry entries that cannot be checked are never left out. An entry that is not an object, or has a bad or repeated name, bad paths or a malformed `check`, is listed under `invalidEntries` with the reason. It counts against the result when it concerns the selection: always when no names are given, and when it carries one of the names given otherwise.
+
+The report's `passed` is true, and the exit code 0, only when every selected scenario passed, every name was found, and no invalid entry concerns the selection. Otherwise the exit code is 2; 3 means a wrong option or registry.
 
 ## Run on a reference build
 
@@ -41,7 +46,7 @@ npx recovery-probe self-check items-keep-content --run --reference "main at 7c43
 - Each run injects the faults and performs the actions its configuration names. Use development or test apps and accounts. The command says so on stderr before the first run.
 - Each scenario runs `--runs N` times, one run after another (3 by default, up to 10). The runs use verify's safeguards: the same validated command, and a separate report folder for each run.
 - The report goes to `.recovery-probe/self-check/report.json` and `report.md`. Each run's report is under `runs/NAME/run-N/`, and its output is in `run-N.log`. A new run replaces the earlier runs. `--out FOLDER` writes elsewhere: a relative path inside the project. Neither the folder nor the report files in it may be symbolic links; if one is, nothing runs.
-- The exit code is 0 only when every selected scenario is clean.
+- `passed` is true, and the exit code 0, only when every selected scenario is clean and the rest holds as above.
 
 ## Outcomes
 

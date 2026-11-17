@@ -55,10 +55,20 @@ export function markdownOf(report: SelfCheckReport): string {
     '',
     reference,
     '',
+    `Result: ${report.passed ? 'passed' : 'needs review'}.`,
+    '',
     ...report.scenarios.flatMap(scenarioLines),
+    ...list(
+      'Registry entries that could not be checked',
+      report.invalidEntries.map(
+        (e) =>
+          `${e.entry}: ${e.message}${e.selected ? '' : ' (not among the selected scenarios)'}`,
+      ),
+    ),
     ...(report.unknown.length
-      ? [`Not in the registry with a check: ${report.unknown.join(', ')}.`, '']
+      ? ['', `Not in the registry: ${report.unknown.join(', ')}.`]
       : []),
+    '',
     '#### What this does not show',
     '',
     ...report.limits.map((limit) => `- ${limit}`),

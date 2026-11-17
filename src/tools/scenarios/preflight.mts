@@ -1,15 +1,17 @@
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import {
+  parseOptions,
+  text,
+  UsageError,
+  type Values,
+} from '../../core/options.mjs'
 import { isRecord } from '../../core/validate.mjs'
+import { CHECK_COMMAND_OPTIONS } from '../../workflows/command-line.mjs'
 import { outsideProblem } from '../plan/paths.mjs'
 import { validateCheckCommand } from '../watch/checks.mjs'
-import {
-  flagsOf,
-  requirementsOf,
-  validateConfig,
-  validateSteps,
-} from './validators.mjs'
+import { requirementsOf, validateConfig, validateSteps } from './validators.mjs'
 
 /** A file a scenario reads, with the hash of its content (none for a folder). */
 export interface ScenarioInput {
@@ -28,9 +30,9 @@ export interface Preflight {
   inputs: ScenarioInput[]
 }
 
-// Check arguments that name a file or folder the check reads, and those read as JSON.
-const PATH_FLAGS = ['--config', '--steps', '--state', '--files']
-const JSON_FLAGS = ['--config', '--steps', '--state']
+// Options that name a file or folder the check reads, and those read as JSON.
+const PATH_OPTIONS = ['config', 'steps', 'state', 'files']
+const JSON_OPTIONS = ['config', 'steps', 'state']
 const PLACEHOLDER = /\{\{[^{}\n]*\}\}|\$\{[^{}\n]*\}/g
 
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex')
@@ -46,29 +48,40 @@ function placeholders(value: unknown, found = new Set<string>()): Set<string> {
   return found
 }
 
-/** Reads the files the command names, recording problems; returns the parsed JSON by flag. */
-async function readInputs(root: string, command: string[], result: Preflight) {
+/**
+ * The check's command line as its command parses it, with the command's own option spec; throws
+ * what the command would reject, without running it.
+ */
+function commandLine(command: string[]): Values {
+  validateCheckCommand(command)
+  const spec =
+    CHECK_COMMAND_OPTIONS[command[0] as keyof typeof CHECK_COMMAND_OPTIONS]
+  return parseOptions(command.slice(1), spec).values
+}
+
+/** Reads the files the command names, recording problems; returns the parsed JSON by option. */
+async function readInputs(root: string, values: Values, result: Preflight) {
   const parsed: Record<string, unknown> = {}
-  for (const [i, flag] of command.entries()) {
-    if (!PATH_FLAGS.includes(flag)) continue
-    const path = command[i + 1] ?? ''
+  for (const name of PATH_OPTIONS) {
+    const path = text(values, name)
+    if (path === undefined) continue
     const problem = await outsideProblem(root, path)
     if (problem) {
       result.errors.push(problem)
       continue
     }
-    if (!JSON_FLAGS.includes(flag)) {
+    if (!JSON_OPTIONS.includes(name)) {
       result.inputs.push({ path, sha256: null })
       continue
     }
-    const text = await readFile(join(root, path), 'utf8').catch(() => null)
-    if (text === null) {
+    const content = await readFile(join(root, path), 'utf8').catch(() => null)
+    if (content === null) {
       result.errors.push(`${path} is not a readable file`)
       continue
     }
-    result.inputs.push({ path, sha256: sha256(text) })
+    result.inputs.push({ path, sha256: sha256(content) })
     try {
-      parsed[flag] = JSON.parse(text)
+      parsed[name] = JSON.parse(content)
     } catch {
       result.errors.push(`${path} is not valid JSON`)
     }
@@ -76,40 +89,39 @@ async function readInputs(root: string, command: string[], result: Preflight) {
   return parsed
 }
 
-const fileOf = (command: string[], flag: string) =>
-  command[command.indexOf(flag) + 1]
-
 /** Validates the configuration, and observe's steps, with the command's own validators. */
 async function validate(
-  command: string[],
+  name: string,
+  values: Values,
   parsed: Record<string, unknown>,
   result: Preflight,
 ) {
-  const config = parsed['--config']
+  const { config, steps } = parsed
   if (!isRecord(config)) {
-    result.errors.push(`${fileOf(command, '--config')} must hold a JSON object`)
+    result.errors.push(`${values.config} must hold a JSON object`)
     return
   }
   try {
-    const validated = await validateConfig(command, config)
-    result.requires = requirementsOf(validated, flagsOf(command))
+    const validated = await validateConfig(name, values, config)
+    result.requires = requirementsOf(validated, values)
   } catch (error) {
+    const { message } = error as Error
+    // A bad --page is a mistake on the command line, not in the configuration.
     result.errors.push(
-      `${fileOf(command, '--config')}: ${(error as Error).message}`,
+      error instanceof UsageError ? message : `${values.config}: ${message}`,
     )
   }
-  if (parsed['--steps'] === undefined) return
+  if (steps === undefined) return
   try {
-    await validateSteps(command, parsed['--steps'])
+    await validateSteps(values, steps)
   } catch (error) {
-    result.errors.push(
-      `${fileOf(command, '--steps')}: ${(error as Error).message}`,
-    )
+    result.errors.push(`${values.steps}: ${(error as Error).message}`)
   }
 }
 
 /**
- * Checks a registered command without running it: the command model, the files it names (inside
+ * Checks a registered command without running it: the command model and its command line, as
+ * the command parses it, the files it names (inside
  * `root`, no links out, valid JSON), placeholders left in them, and its configuration and steps
  * against the validators the command itself uses. Starts nothing and contacts nothing.
  */
@@ -123,19 +135,18 @@ export async function preflightCheck(
     requires: [],
     inputs: [],
   }
+  let values: Values
   try {
-    validateCheckCommand(command)
+    values = commandLine(command)
   } catch (error) {
     result.errors.push((error as Error).message)
     return result
   }
-  const parsed = await readInputs(root, command, result)
-  result.unresolved = Object.entries(parsed).flatMap(([flag, value]) =>
-    [...placeholders(value)].map(
-      (found) => `${found} in ${fileOf(command, flag)}`,
-    ),
+  const parsed = await readInputs(root, values, result)
+  result.unresolved = Object.entries(parsed).flatMap(([name, value]) =>
+    [...placeholders(value)].map((found) => `${found} in ${values[name]}`),
   )
   if (!result.errors.length && !result.unresolved.length)
-    await validate(command, parsed, result)
+    await validate(command[0], values, parsed, result)
   return result
 }

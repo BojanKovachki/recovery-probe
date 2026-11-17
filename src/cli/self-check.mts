@@ -3,7 +3,6 @@ import { markdownOf } from '../tools/scenarios/render.mjs'
 import {
   selfCheck,
   type SelfCheckOptions,
-  type SelfCheckReport,
 } from '../tools/scenarios/self-check.mjs'
 import {
   integerOption,
@@ -60,16 +59,6 @@ function runOptions(values: Values): SelfCheckOptions['run'] {
   }
 }
 
-/** 0 when every selected scenario passed: clean when run, its preflight otherwise. */
-const exitCodeOf = (report: SelfCheckReport) => {
-  const passed = report.mode === 'runtime' ? 'clean' : 'preflight-passed'
-  return !report.unknown.length &&
-    report.scenarios.length &&
-    report.scenarios.every((s) => s.outcome === passed)
-    ? 0
-    : 2
-}
-
 export async function selfCheckMain(args: string[]) {
   if (args.includes('--help')) {
     console.log(HELP)
@@ -101,7 +90,7 @@ export async function selfCheckMain(args: string[]) {
     console.log(
       values.json ? JSON.stringify(report, null, 2) : markdownOf(report),
     )
-    process.exitCode = exitCodeOf(report)
+    process.exitCode = report.passed ? 0 : 2
   } catch (error) {
     if (error instanceof PlanInputError) throw new UsageError(error.message)
     throw error

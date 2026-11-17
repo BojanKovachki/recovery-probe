@@ -3,11 +3,12 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { packageUrl } from '../../core/package.mjs'
+import { CHECK_COMMAND_OPTIONS } from '../../workflows/command-line.mjs'
 import { readRunEvidence } from '../compare/reports.mjs'
 import type { RunEvidence } from '../compare/types.mjs'
 
 // Commands whose reports compare run to run; each needs --config.
-const CHECKS = ['check', 'discover', 'action', 'observe', 'refresh']
+const CHECKS = Object.keys(CHECK_COMMAND_OPTIONS)
 // Flags a rerun sets itself, or that need a person at the keyboard.
 const NOT_IN_A_RERUN = ['--out', '--interactive', '--help', '--list']
 // Each check runs as its own CLI process, so a hung or crashing check can be stopped

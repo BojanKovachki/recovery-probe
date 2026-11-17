@@ -11,6 +11,7 @@ import {
 } from '../workflows/refresh/session.mjs'
 import { escapeHtml, renderTemplate } from '../reports/template.mjs'
 import { reportFolder } from '../reports/folder.mjs'
+import { CHECK_COMMAND_OPTIONS } from '../workflows/command-line.mjs'
 import { parseOptions, readConfig, text, UsageError } from './args.mjs'
 import { withEvidence } from '../reports/evidence.mjs'
 
@@ -22,11 +23,7 @@ export async function refreshMain(args: string[]) {
     console.log(HELP)
     return
   }
-  const { values } = parseOptions(args, {
-    config: { type: 'string' },
-    out: { type: 'string' },
-    json: { type: 'boolean' },
-  })
+  const { values } = parseOptions(args, CHECK_COMMAND_OPTIONS.refresh)
   const path = text(values, 'config')
   if (!path) throw new UsageError('--config is required')
   const config = await readConfig(path, refreshConfig)

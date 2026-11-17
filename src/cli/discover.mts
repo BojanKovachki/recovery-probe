@@ -8,9 +8,11 @@ import {
 } from '../workflows/discover/http.mjs'
 import { discoverIpc, discoveryConfig } from '../workflows/discover/ipc.mjs'
 import { screenshotsIn } from '../workflows/discover/screenshots.mjs'
-import { withCommandLine } from '../workflows/command-line.mjs'
 import {
-  integerOption,
+  CHECK_COMMAND_OPTIONS,
+  discoveryInput,
+} from '../workflows/command-line.mjs'
+import {
   readConfig,
   text,
   UsageError,
@@ -38,22 +40,13 @@ Options:
 Exit codes: 0 only observations, 2 findings to review or inconclusive,
 3 wrong usage or config, 4 couldn't run. Findings are never verified failures.`
 
-export const options = {
-  config: { type: 'string' },
-  cdp: { type: 'string' },
-  page: { type: 'string' },
-  inspector: { type: 'string' },
-  screenshots: { type: 'boolean' },
-  'restore-window': { type: 'boolean' },
-  out: { type: 'string' },
-  json: { type: 'boolean' },
-} as const
+export const options = CHECK_COMMAND_OPTIONS.discover
 
 export async function run(values: Values): Promise<void> {
   const path = text(values, 'config')
   if (!path) throw new UsageError('--config is required')
   const raw = await readConfig(path)
-  const input = withFlags(raw, values)
+  const input = discoveryInput(raw, values)
   const directory = await reportFolder('discover', text(values, 'out'))
   const screenshot = values.screenshots ? screenshotsIn(directory) : undefined
   const { config, report } =
@@ -69,15 +62,6 @@ export async function run(values: Values): Promise<void> {
 
 type Screenshot = ReturnType<typeof screenshotsIn> | undefined
 type Report = Awaited<ReturnType<typeof discoverHttp | typeof discoverIpc>>
-
-/** The config file's options with the command line's on top. */
-const withFlags = (raw: Record<string, unknown>, values: Values) =>
-  withCommandLine(raw, {
-    cdp: text(values, 'cdp'),
-    page: integerOption(values, 'page', [0, 1000]),
-    inspector: text(values, 'inspector'),
-    restoreWindow: values['restore-window'] === true,
-  })
 
 async function discoverOverIpc(input: object, screenshot: Screenshot) {
   const config = validated(() =>

@@ -35,6 +35,7 @@ import {
   type StepResult,
 } from '../workflows/observe/steps.mjs'
 import { reportFolder } from '../reports/folder.mjs'
+import { CHECK_COMMAND_OPTIONS } from '../workflows/command-line.mjs'
 import { parseOptions, readConfig, UsageError } from './args.mjs'
 import { withEvidence } from '../reports/evidence.mjs'
 
@@ -90,15 +91,7 @@ export async function observeMain(args: string[]) {
     console.log(HELP)
     return
   }
-  const { values } = parseOptions(args, {
-    config: { type: 'string' },
-    out: { type: 'string' },
-    steps: { type: 'string' },
-    network: { type: 'string' },
-    files: { type: 'string' },
-    json: { type: 'boolean' },
-    interactive: { type: 'boolean' },
-  })
+  const { values } = parseOptions(args, CHECK_COMMAND_OPTIONS.observe)
   const options = values as ObserveOptions
   const { config, steps, filesDirectory } = await readInputs(options)
   const network = options.network

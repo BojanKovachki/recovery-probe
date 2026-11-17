@@ -574,6 +574,100 @@ test('the planner shows a saved self-check, its changed inputs, and keeps every 
   })
 })
 
+test('registry entries that cannot be checked are reported, and fail the selection they concern', async () => {
+  const root = await project(
+    [
+      httpEntry('good'),
+      httpEntry('other'),
+      'not an entry',
+      httpEntry('bad name!'),
+      { ...httpEntry('paths'), paths: ['../outside.js'] },
+      httpEntry('good'),
+      { ...httpEntry('checkless'), check: 'check --config checks/good.json' },
+    ],
+    {
+      'checks/good.json': httpConfig('good'),
+      'checks/other.json': httpConfig('other'),
+    },
+  )
+  await inside(root, async () => {
+    const all = await selfCheck({})
+    assert.equal(all.passed, false)
+    assert.deepEqual(
+      all.scenarios.map((s) => [s.name, s.outcome]),
+      [
+        ['good', 'preflight-passed'],
+        ['other', 'preflight-passed'],
+      ],
+    )
+    assert.deepEqual(
+      all.invalidEntries.map(({ entry, selected }) => [entry, selected]),
+      [
+        ['scenarios[2]', true],
+        ['bad name!', true],
+        ['paths', true],
+        ['good', true],
+        ['checkless', true],
+      ],
+    )
+    assert.deepEqual(all.invalidEntries.map((e) => e.message).slice(2), [
+      '../outside.js is not a relative path inside the project',
+      'the name good is used twice',
+      'check must be a list of Recovery Probe arguments',
+    ])
+    // Named, only the entries that carry a selected name count.
+    const other = await selfCheck({ names: ['other'] })
+    assert.equal(other.passed, true)
+    assert.ok(other.invalidEntries.every((e) => !e.selected))
+    const good = await selfCheck({ names: ['good'] })
+    assert.equal(good.passed, false, 'its duplicate concerns it')
+    const checkless = await selfCheck({ names: ['checkless'] })
+    assert.equal(checkless.passed, false)
+    assert.deepEqual(checkless.unknown, [], 'it is in the registry, invalid')
+
+    const printed = spawnSync(process.execPath, [cli, 'self-check'], {
+      cwd: root,
+      encoding: 'utf8',
+    })
+    assert.equal(printed.status, 2)
+    assert.match(printed.stdout, /Result: needs review/)
+    assert.match(
+      printed.stdout,
+      /Registry entries that could not be checked:\n {2}- scenarios\[2\]: must be an object/,
+    )
+  })
+})
+
+test('a command line its command would reject fails the preflight with the same message', async () => {
+  const commands = {
+    unknown: ['check', '--config', 'checks/good.json', '--bogus-flag', 'yes'],
+    foreign: ['observe', '--config', 'checks/observe.json', '--cdp', 'x'],
+    'no-value': ['check', '--config', 'checks/good.json', '--cdp'],
+    stray: ['check', '--config', 'checks/good.json', '--headed', 'yes'],
+    page: ['discover', '--config', 'checks/good.json', '--page', '5000'],
+  }
+  const root = await project(
+    Object.entries(commands).map(([name, check]) => entry(name, check)),
+    {
+      'checks/good.json': httpConfig('good'),
+      'checks/observe.json': '{}',
+    },
+  )
+  await inside(root, async () => {
+    const scenarios = byName(await selfCheck({}))
+    for (const [name, command] of Object.entries(commands)) {
+      assert.equal(scenarios[name].outcome, 'configuration-error', name)
+      const [error] = scenarios[name].preflight.errors
+      const real = spawnSync(process.execPath, [cli, ...command], {
+        cwd: root,
+        encoding: 'utf8',
+      })
+      assert.equal(real.status, 3, `${name}: ${real.stderr}`)
+      assert.equal(real.stderr.trim(), `Recovery Probe: ${error}`, name)
+    }
+  })
+})
+
 test('the CLI and the MCP tool take the same choices and report the same result', async () => {
   const root = await project([httpEntry('items'), httpEntry('broken')], {
     'checks/items.json': httpConfig('items'),

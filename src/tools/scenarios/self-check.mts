@@ -3,11 +3,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, relative, sep } from 'node:path'
 import { PlanInputError } from '../plan/changes.mjs'
 import { safeOutputPath } from '../plan/output.mjs'
-import {
-  DEFAULT_REGISTRY,
-  readRegistry,
-  type RegistryEntry,
-} from '../plan/registry.mjs'
+import { DEFAULT_REGISTRY, readRegistry } from '../plan/registry.mjs'
 import {
   runCheck,
   runRecoveryProbe,
@@ -26,9 +22,10 @@ import {
   type SelfCheckRun,
 } from './guidance.mjs'
 import type { Preflight } from './preflight.mjs'
+import { selection, type CheckEntry, type InvalidEntry } from './selection.mjs'
 import { markdownOf } from './render.mjs'
 
-export type { RunDifference, SelfCheckRun }
+export type { InvalidEntry, RunDifference, SelfCheckRun }
 
 export const DEFAULT_SELF_CHECK = join('.recovery-probe', 'self-check')
 
@@ -60,8 +57,15 @@ export interface SelfCheckReport {
   /** The build the user said is running. Recovery Probe does not verify which code that is. */
   reference: { label: string; declaredBy: 'user' } | null
   runs: number
+  /**
+   * Every selected scenario clean (preflight passed, without a run), every name found, and no
+   * invalid entry the selection concerns. It says nothing about the app.
+   */
+  passed: boolean
   scenarios: ScenarioSelfCheck[]
-  /** Names asked for that the registry does not list with a check. */
+  /** Registry entries the self-check could not check. */
+  invalidEntries: InvalidEntry[]
+  /** Names asked for that the registry does not list. */
   unknown: string[]
   limits: string[]
 }
@@ -169,7 +173,7 @@ interface RunPlan {
 
 /** Runs the scenario `runs` times, one after another, each into its own folder. */
 async function runScenario(
-  entry: RegistryEntry & { check: string[] },
+  entry: CheckEntry,
   { directory, runs: count, runCommand }: RunPlan,
 ) {
   const folder = join(directory, 'runs', entry.name)
@@ -190,7 +194,7 @@ async function runScenario(
 }
 
 async function selfCheckScenario(
-  entry: RegistryEntry & { check: string[] },
+  entry: CheckEntry,
   plan: RunPlan | undefined,
 ): Promise<ScenarioSelfCheck> {
   // An entry too malformed for a preflight has only its registry problem.
@@ -224,18 +228,6 @@ async function selfCheckScenario(
   }
 }
 
-/** The registered checks to look at, and the names asked for that have none. */
-function selected(entries: RegistryEntry[], names?: string[]) {
-  const withCheck = entries
-    .filter((e): e is RegistryEntry & { check: string[] } => Boolean(e.check))
-    .sort((a, b) => (a.name < b.name ? -1 : 1))
-  if (!names?.length) return { chosen: withCheck, unknown: [] }
-  return {
-    chosen: withCheck.filter((e) => names.includes(e.name)),
-    unknown: names.filter((name) => !withCheck.some((e) => e.name === name)),
-  }
-}
-
 /**
  * A folder for this self-check's runs and report, its earlier runs removed. The files it writes
  * there are checked for links before anything runs.
@@ -264,8 +256,10 @@ export async function selfCheck(
       `No registry at ${registry}: see docs/plan.md for its format`,
     )
   const run = runSettings(options.run)
-  const { entries } = await readRegistry(registry, process.cwd())
-  const { chosen, unknown } = selected(entries, options.names)
+  const { chosen, invalid, unknown } = selection(
+    await readRegistry(registry, process.cwd()),
+    options.names,
+  )
   const plan = run && {
     directory: await outputFolder(run.directory),
     runs: run.runs,
@@ -281,13 +275,32 @@ export async function selfCheck(
     registry,
     reference: run ? { label: run.reference, declaredBy: 'user' } : null,
     runs: run?.runs ?? 0,
+    passed: passedOf(
+      scenarios,
+      run ? 'clean' : 'preflight-passed',
+      invalid,
+      unknown,
+    ),
     scenarios,
+    invalidEntries: invalid,
     unknown,
     limits: LIMITS,
   }
   if (plan) await writeReport(plan.directory, report)
   return report
 }
+
+/** See SelfCheckReport.passed. */
+const passedOf = (
+  scenarios: ScenarioSelfCheck[],
+  wanted: SelfCheckOutcome,
+  invalid: InvalidEntry[],
+  unknown: string[],
+) =>
+  scenarios.length > 0 &&
+  scenarios.every((s) => s.outcome === wanted) &&
+  !invalid.some((e) => e.selected) &&
+  !unknown.length
 
 /** The run options with their defaults, or why they can't be used. */
 function runSettings(run: SelfCheckOptions['run']) {

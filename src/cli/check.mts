@@ -10,9 +10,6 @@ import {
 } from '../reports/check.mjs'
 import type { RecoveryConfig } from '../workflows/check/browser.mjs'
 import {
-  attachedInput,
-  attaches,
-  launchedInput,
   validateDesktopConfig,
   type DesktopConfig,
 } from '../workflows/check/http/config.mjs'
@@ -26,10 +23,13 @@ import {
   type IpcCheckInput,
 } from '../workflows/check/ipc/config.mjs'
 import { checkIpc, type IpcCheckReport } from '../workflows/check/ipc/run.mjs'
-import { withCommandLine } from '../workflows/command-line.mjs'
+import {
+  CHECK_COMMAND_OPTIONS,
+  httpCheckInput,
+  withConnection,
+} from '../workflows/command-line.mjs'
 import { checkWeb, type WebConfig } from '../workflows/web.mjs'
 import {
-  integerOption,
   readConfig,
   text,
   UsageError,
@@ -61,18 +61,7 @@ Options:
 Exit codes: 0 passed, 1 a fault wasn't recovered from, 2 inconclusive,
 3 wrong usage or config, 4 couldn't run.`
 
-export const options = {
-  config: { type: 'string' },
-  cdp: { type: 'string' },
-  page: { type: 'string' },
-  inspector: { type: 'string' },
-  state: { type: 'string' },
-  headed: { type: 'boolean' },
-  screenshots: { type: 'boolean' },
-  'restore-window': { type: 'boolean' },
-  out: { type: 'string' },
-  json: { type: 'boolean' },
-} as const
+export const options = CHECK_COMMAND_OPTIONS.check
 
 // A verified failure exits with 1; anything else short of a pass is inconclusive.
 export function exitCodeOf(report: {
@@ -93,9 +82,10 @@ export async function run(values: Values): Promise<void> {
   if (typeof config.channel === 'string') return checkIpcRead(config, values)
   if (typeof config.requestPattern === 'string')
     return runBrowserCheck(config as unknown as RecoveryConfig, values)
-  return attaches(config, text(values, 'cdp'))
-    ? checkAttached(config, values)
-    : checkLaunched(config, path, values)
+  const { attach, input } = httpCheckInput(config, values)
+  return attach
+    ? checkAttached(input, values)
+    : checkLaunched(input, path, values)
 }
 
 const screenshotsOf = (directory: string, values: Values) =>
@@ -127,15 +117,9 @@ function finish(report: DesktopReport, directory: string, values: Values) {
   )
 }
 
-async function checkAttached(raw: Record<string, unknown>, values: Values) {
-  const page = integerOption(values, 'page', [0, 1000])
+async function checkAttached(input: Record<string, unknown>, values: Values) {
   const config = validated(() =>
-    validateDesktopConfig(
-      attachedInput(raw, {
-        cdp: text(values, 'cdp'),
-        page,
-      }) as unknown as DesktopConfig,
-    ),
+    validateDesktopConfig(input as unknown as DesktopConfig),
   )
   const directory = await openFolder(values)
   // Closing a CDP connection disconnects this client; it doesn't close the app.
@@ -164,11 +148,10 @@ async function checkAttached(raw: Record<string, unknown>, values: Values) {
 }
 
 async function checkLaunched(
-  raw: Record<string, unknown>,
+  scenario: Record<string, unknown>,
   path: string,
   values: Values,
 ) {
-  const scenario = launchedInput(raw)
   if (typeof scenario.storageState === 'string')
     // A path in the config is relative to the config file.
     scenario.storageState = resolve(dirname(path), scenario.storageState)
@@ -186,13 +169,7 @@ async function checkLaunched(
 
 async function checkIpcRead(raw: Record<string, unknown>, values: Values) {
   const config = validated(() =>
-    validateIpcConfig(
-      withCommandLine(raw, {
-        cdp: text(values, 'cdp'),
-        inspector: text(values, 'inspector'),
-        restoreWindow: values['restore-window'] === true,
-      }) as IpcCheckInput,
-    ),
+    validateIpcConfig(withConnection(raw, values) as IpcCheckInput),
   )
   const directory = await openFolder(values)
   const report = await checkIpc(config)

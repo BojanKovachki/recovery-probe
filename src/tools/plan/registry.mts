@@ -29,8 +29,8 @@ export interface Registry {
   /** As given, relative to the working directory. */
   path: string
   entries: RegistryEntry[]
-  /** Entries too malformed to say which files they concern. */
-  unusable: { index: number; message: string }[]
+  /** Entries too malformed to say which files they concern, with their name when they have one. */
+  unusable: { index: number; name?: string; message: string }[]
 }
 
 export const DEFAULT_REGISTRY = 'recovery-probe.registry.json'
@@ -151,8 +151,14 @@ export async function readRegistry(
   const names = new Set<string>()
   for (const [index, entry] of input.scenarios.entries()) {
     const message = identity(entry, names)
-    if (message) registry.unusable.push({ index, message })
-    else {
+    if (message) {
+      const name = isRecord(entry) ? entry.name : undefined
+      registry.unusable.push({
+        index,
+        ...(typeof name === 'string' ? { name } : {}),
+        message,
+      })
+    } else {
       names.add((entry as { name: string }).name)
       registry.entries.push(
         await readEntry(root, entry as Record<string, unknown>),
