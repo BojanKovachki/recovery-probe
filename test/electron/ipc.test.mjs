@@ -233,19 +233,21 @@ test(
           assert.equal(calibration.results.length, 0)
           assert.equal(calibration.finalReset, 'not-verified')
         } else {
+          // A failed read leaves the empty region exactly as healthy, so nothing on it can be tested.
+          const invisible = mode === 'empty-region'
           assert.equal(
             calibration.error,
-            undefined,
+            invisible ? 'FAULT_NOT_VISIBLE' : undefined,
             JSON.stringify(calibration),
           )
           assert.equal(calibration.readiness.calibrationComplete, true)
           assert.ok(
             calibration.baselines.every(
-              (b) =>
-                b.ready && b.ui.images === (mode === 'empty-region' ? 0 : 13),
+              (b) => b.ready && b.ui.images === (invisible ? 0 : 13),
             ),
           )
-          assert.equal(calibration.results[0].snapshot.injected, 1)
+          if (invisible) assert.equal(calibration.results.length, 0)
+          else assert.equal(calibration.results[0].snapshot.injected, 1)
           if (mode === 'delayed-baseline')
             assert.equal(calibration.findings[0].classification, 'CONTENT_LOSS')
           else
