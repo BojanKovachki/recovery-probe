@@ -53,3 +53,19 @@ test('the spellings 1.0 removed are wrong usage that names what replaced them', 
     assert.match(removed.stderr, replacement)
   }
 })
+
+test('reads --inspector attaches to the hook window, so --url and --page are wrong usage', async () => {
+  for (const extra of [
+    ['--url', 'http://localhost:3000'],
+    ['--page', '0'],
+  ]) {
+    const wrong = await run(
+      'reads',
+      '--inspector',
+      'http://127.0.0.1:9229',
+      ...extra,
+    )
+    assert.equal(wrong.code, 3)
+    assert.match(wrong.stderr, /leave out --url and --page/)
+  }
+})

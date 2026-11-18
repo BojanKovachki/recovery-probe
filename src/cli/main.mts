@@ -85,7 +85,8 @@ const groups: [string, Record<string, Entry>][] = [
         load: () => import('./windows.mjs'),
       },
       reads: {
-        summary: 'List the JSON reads a page makes while it loads',
+        summary:
+          'List the JSON reads, or IPC calls, a page makes while it loads',
         load: () => import('./reads.mjs'),
       },
       login: {
