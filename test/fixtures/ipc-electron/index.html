@@ -27,7 +27,8 @@ async function load() {
     }
     // A successful null result fails mapping outside the transport retry branch.
     if (data === null) throw Error('null');
-    if (mode === 'delayed-control' && reloadCount === 4) { spinner.hidden = true; await new Promise(resolve => setTimeout(resolve, 1200)); }
+    // Reloads 1–3 calibrate discovery, 4 checks the screen and 5 is its first healthy control.
+    if (mode === 'delayed-control' && reloadCount === 5) { spinner.hidden = true; await new Promise(resolve => setTimeout(resolve, 1200)); }
     if (mode === 'delayed-baseline' || mode === 'unstable-baseline') { spinner.hidden = true; await new Promise(resolve => setTimeout(resolve, 600)); }
     const cards = mode === 'empty-region' ? 0 : mode === 'unstable-baseline' ? 12 + reloadCount % 2 : 13;
     if (gridMode) document.querySelector('#grid').innerHTML = Array.from({length:cards}, () => '<a href="#"><img width="12" height="12" alt="" src="data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\'/%3E"></a>').join('');

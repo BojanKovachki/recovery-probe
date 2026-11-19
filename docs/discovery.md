@@ -48,12 +48,13 @@ Other check options, such as `readySelector`, are ignored, and they are left out
 ## How a run goes
 
 1. **Calibration.** Three healthy reloads, each watched for the whole `baselineTimeoutMs`. A load that doesn't settle stops the run with `BASELINE_NOT_HEALTHY`, and loads that end on different screens stop it with `BASELINE_UNSTABLE`, both before any fault. `BASELINE_UNSTABLE` usually means the screen changes on its own; use the explicit check for it instead. An empty screen is fine if the reads behind it succeeded.
-2. **Experiments.** Every faulted reload follows a healthy reload that must match the calibrated screen. If one doesn't, the run stops with `CONTROL_UNSTABLE` and keeps that control in `failedControl`.
-3. **Cleanup.** The faults are removed, and a last healthy reload must match the calibrated screen (`finalReset: healthy`).
+2. **Screen check.** One reload with every read of the target failing: up to 10 in a row, of the first experiment's fault. If the screen still ends up exactly as the healthy one, the run stops with `FAULT_NOT_VISIBLE`, because no experiment on it would mean anything. Usually the screen doesn't show what that read loads (for example, the app is on another screen than intended), or it shows the same either way: an empty list, or content from a cache. Open the screen that uses the read, with data on it. If the app reads the target more than 10 times and a later read succeeds, the check can't tell, and the run goes on. If the app leaves the page during the check, that counts as a change; discovery returns to the page and goes on. `screenCheck` in the report records the outcome: `changed`, `unchanged` or `not-established`.
+3. **Experiments.** Every faulted reload follows a healthy reload that must match the calibrated screen. If one doesn't, the run stops with `CONTROL_UNSTABLE` and keeps that control in `failedControl`.
+4. **Cleanup.** The faults are removed, and a last healthy reload must match the calibrated screen (`finalReset: healthy`).
 
 A load counts as settled when the target and its dependencies read successfully, no watched read is pending, no loading indicator shows, and the screen hasn't changed for `settleMs`. A faulted load must also use up every planned fault and get a real successful read after it before it counts as recovered.
 
-With the defaults, a run takes at least 22 reloads and a few minutes.
+With the defaults, a run takes at least 23 reloads and a few minutes.
 
 ## Experiments
 
@@ -82,6 +83,8 @@ A suspected defect is a lead, not a verdict: check it against what the screen sh
 ## Reports
 
 Each run writes `report.html`, `report.json` and `scenario.json` to a new folder under `.recovery-probe/` (or `--out`). The HTML report starts with the findings table. Reports hold counts, structural summaries, timings and hashes of screen text, never the text, payloads or credentials. A hash isn't anonymization, and channel names and paths can still be private.
+
+The report's `page`, also printed first in the terminal, is the address of the tested page without credentials or query values. A route in the fragment, such as `#/users`, stays, so a run on the wrong screen shows at a glance; a fragment that carries values, such as a sign-in token, is left out.
 
 `--screenshots` also saves the screen after the first healthy baseline and after each faulted run, and shows them in `report.html`. They can show private data.
 

@@ -54,14 +54,15 @@ test(
         return
       }
       res.setHeader('Content-Type', 'text/html')
+      // Load 1 opens the page, 2–4 calibrate, 5 checks the screen and 6 is the first healthy control.
       loads++
       res.end(
         fixture({
           ...options,
-          renderDelay: options.lateControl && loads === 5 ? 900 : 0,
+          renderDelay: options.lateControl && loads === 6 ? 900 : 0,
         }).replace(
           '</main>',
-          (options.unstable && loads === (options.unstableAt ?? 5)
+          (options.unstable && loads === (options.unstableAt ?? 6)
             ? '<aside>changed control</aside>'
             : '') + '</main>',
         ),
@@ -104,9 +105,11 @@ test(
             recoveryTimeoutMs: 1600,
           }
           const report = await discoverHttp(page, config)
+          // A failed read looks exactly like this healthy empty screen, so nothing on it can be tested.
+          const invisible = family === 'legitimate-empty'
           assert.equal(
             report.error,
-            undefined,
+            invisible ? 'FAULT_NOT_VISIBLE' : undefined,
             JSON.stringify({
               family,
               style,
@@ -122,7 +125,7 @@ test(
             'icon-empty',
             'virtualized',
           ].includes(family)
-          const detected = finding.kind === 'suspected-defect'
+          const detected = finding?.kind === 'suspected-defect'
           metrics.push({
             family,
             style,
@@ -130,7 +133,7 @@ test(
             detected: expectedBug && detected ? 1 : 0,
             misses: expectedBug && !detected ? 1 : 0,
             falsePositives: !expectedBug && detected ? 1 : 0,
-            classification: finding.classification,
+            classification: finding?.classification ?? report.error,
           })
           assert.equal(
             detected,
@@ -157,7 +160,7 @@ test(
             )
             assert.equal(second?.call, 2, JSON.stringify(report.findings))
             assert.equal(second.kind, 'suspected-defect')
-          } else assert.equal(report.findings.length, 1)
+          } else assert.equal(report.findings.length, invisible ? 0 : 1)
           if (family === 'grid')
             assert.equal(report.results[0].observation.after.images, 0)
         }
@@ -205,7 +208,7 @@ test(
         family: 'list',
         retries: 0,
         unstable: true,
-        unstableAt: 9,
+        unstableAt: 10,
       }
       loads = 0
       await page.goto(base)

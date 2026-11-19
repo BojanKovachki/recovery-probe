@@ -36,6 +36,12 @@ export interface DiscoveryExperiment<Fault extends string = string> {
   call?: number
 }
 
+/** What to do with a finding of this classification. */
+export const advice = (classification: string) =>
+  classification === 'SILENT_EMPTY'
+    ? 'Inspect the error-to-empty UI branch. Preserve the distinction between a failed read and a successful empty result; consider an error message and retry action. This is a hypothesis to review locally.'
+    : 'Review the recorded behaviour against product expectations. A finite retry limit or explicit error state is not automatically a defect.'
+
 /** An experiment's id, such as rejection-1 or rejection-1-call2. */
 export function findingId(run: DiscoveryExperiment): string {
   return `${run.fault}-${run.times}${run.call ? `-call${run.call}` : ''}`

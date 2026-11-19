@@ -126,7 +126,17 @@ export interface DiscoveryResult<
   Fault extends string,
   Snapshot extends ReadSnapshot,
 > {
+  /** The tested page's address; see pageAddress. */
+  page?: string
   baselines: DiscoveryPhase<Fault, Snapshot>[]
+  /** One load with every read of the target failing, run after calibration. */
+  screenCheck?: {
+    fault: Fault
+    injected: number
+    outcome: 'changed' | 'unchanged' | 'not-established'
+    /** The last screen read; none when the load left the page before one. */
+    ui?: RegionSummary
+  }
   results: DiscoveryRun<Fault, Snapshot>[]
   findings: DiscoveryFinding[]
   finalReset: 'healthy' | 'not-verified'

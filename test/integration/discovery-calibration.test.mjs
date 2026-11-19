@@ -78,7 +78,7 @@ test(
 )
 
 test(
-  'HTTP discovery accepts a genuinely empty selected region after successful reads',
+  'HTTP discovery calibrates a genuinely empty region, then stops when a failed read looks the same',
   { timeout: 20000 },
   async () => {
     await withFixture('empty', async (page, config) => {
@@ -86,14 +86,22 @@ test(
         ...config,
         regionSelector: '#content',
       })
-      assert.equal(report.error, undefined, JSON.stringify(report))
       assert.ok(
         report.baselines.every(
           (baseline) => baseline.ready && baseline.ui.textLength === 0,
         ),
       )
-      assert.equal(report.results[0].snapshot.injected, 1)
-      assert.notEqual(report.findings[0].kind, 'suspected-defect')
+      assert.equal(report.readiness.calibrationComplete, true)
+      assert.equal(report.error, 'FAULT_NOT_VISIBLE', JSON.stringify(report))
+      assert.deepEqual(
+        {
+          injected: report.screenCheck.injected,
+          outcome: report.screenCheck.outcome,
+        },
+        { injected: 1, outcome: 'unchanged' },
+      )
+      assert.equal(report.results.length, 0)
+      assert.equal(report.findings.length, 0)
       assert.equal(report.finalReset, 'healthy')
     })
   },

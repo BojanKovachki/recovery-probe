@@ -6,6 +6,8 @@ import { withEvidence } from './evidence.mjs'
 
 /** The fields of an HTTP or IPC discovery report that the written report uses. */
 export interface DiscoveryReport {
+  page?: string
+  screenCheck?: { fault: string; injected: number; outcome: string }
   findings: DiscoveryFinding[]
   limitation: string
   error?: string
@@ -59,6 +61,12 @@ const experimentRows = (report: DiscoveryReport) =>
     .join('')
 
 const summaryOf = (report: DiscoveryReport) => ({
+  page: report.page,
+  screenCheck: report.screenCheck && {
+    fault: report.screenCheck.fault,
+    injected: report.screenCheck.injected,
+    outcome: report.screenCheck.outcome,
+  },
   error: report.error,
   cleanupError: report.cleanupError,
   finalReset: report.finalReset,
