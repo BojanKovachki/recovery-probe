@@ -60,6 +60,24 @@ If startup already enables the Node inspector, inspect its actual port rather th
 
 Sign in with a fixture account, open the intended route, and keep the window visible and online. With Electron's default background throttling, a minimized window hides the page and stops the check. `"restoreWindow": true` in the scenario, or `--restore-window`, un-minimizes the window for the check and minimizes it again at the end; the report records both under `window`. An [observation](observe.md#a-minimized-or-covered-window) can instead keep a minimized or covered window drawing where it is with `"keepRendering": true`, which turns off its background throttling through the hook for the capture. Preserve hash navigation; when passing a `#/route` through Git Bash tooling, check that MSYS path conversion has not rewritten it. The checker uses the actual target WebContents URL, including hash/query, and reloads the existing page without requiring a route argument.
 
+## Find the reads behind a screen
+
+With the hook loaded and the screen open, `reads --inspector` reloads the window and lists the calls it made on every channel the hook captured, in the order of their first call, with how many failed. With a `classify` function in the hook, it also shows the method labels of shared channels, such as a single channel for a whole SDK. Writes are listed too, so pick the reads. It writes `discovery.json`, and a `scenario.json` for [discovery](discovery.md) with the channel filled in when there was only one.
+
+```bash
+npx recovery-probe reads --inspector http://127.0.0.1:9229 --cdp http://127.0.0.1:9222
+```
+
+```text
+1. account:current (1 call(s))
+2. orders:list (2 call(s))
+3. bridge:invoke (6 call(s), 1 failed)
+     Catalog.Search: 4
+     Session.Refresh: 2
+```
+
+A channel the hook wasn't given can't appear, so give it every channel the app registers, not only the one you suspect. To see what a screen reads when you open it rather than when the window reloads, open another screen first and use [observation](observe.md). No faults are injected, and arguments and results are never recorded.
+
 ## 4. Generate one local scenario
 
 The local agent should derive this configuration from the real handler names, retry policy and DOM. It should not guess the spinner selector or choose a row that virtualization hides. A fixture account with one known file is the simplest setup, not a library requirement. An existing authorized staging account can also be used if the agent verifies one uniquely selected, fully loaded file row remains visible after a fresh reload under the actual sort/filter. Do not use an all-rows selector on a large virtualized table or modify account data merely to make the assertion pass. If no reliable visible marker is available, stop and request suitable fixture data.

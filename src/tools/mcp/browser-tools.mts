@@ -7,7 +7,7 @@ export const findPageReads: McpTool = {
   name: 'find_page_reads',
   title: 'Find the reads behind a page',
   description:
-    'Opens a page in headless Chromium and lists the JSON GET requests it makes while it loads. Use it to choose the endpoint for check_read_recovery. Only successful page fetch and XHR reads are seen; native, IPC and service-worker traffic is not.',
+    'Opens a page in headless Chromium and lists the JSON GET requests it makes while it loads. Use it to choose the endpoint for check_read_recovery. Only successful page fetch and XHR reads are seen; native, IPC and service-worker traffic is not. For the IPC calls of an Electron app with the hook, run reads --inspector through run_recovery_probe.',
   inputSchema: {
     type: 'object',
     properties: {
