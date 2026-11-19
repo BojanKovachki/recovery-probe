@@ -22,11 +22,11 @@ import {
 
 export const usage = `recovery-probe discover --config FILE [options]
 
-Calibrates three healthy loads, then fails the selected read in a few fixed ways,
-with a healthy load before each, and reports what the screen did. No ready
-selector needed. The config's "channel" means an IPC read in an Electron app with
-the hook; "endpoint" means an HTTP read in an app or browser on a debugging port.
-See docs/discovery.md.
+Calibrates three healthy loads, checks that failing the selected read shows on
+the screen, then fails it in a few fixed ways, with a healthy load before each,
+and reports what the screen did. No ready selector needed. The config's
+"channel" means an IPC read in an Electron app with the hook; "endpoint" means
+an HTTP read in an app or browser on a debugging port. See docs/discovery.md.
 
 Options:
   --cdp URL          the app's or browser's debugging port (default http://127.0.0.1:9222)
@@ -83,6 +83,7 @@ async function discoverOverHttp(input: object, screenshot: Screenshot) {
 }
 
 function printDiscovery(report: Report, directory: string) {
+  if (report.page) console.log(`Page: ${report.page}`)
   for (const finding of report.findings) {
     // A partial finding always carries the interpretation it observed.
     const partial = finding.partial

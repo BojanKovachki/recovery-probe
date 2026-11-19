@@ -5,12 +5,14 @@ import {
   summarizeRegion,
   type RegionSummary,
 } from '../../core/screen.mjs'
+import { pageAddress } from '../../core/urls.mjs'
 import {
   prepareVisibility,
   windowVisibility,
   type PreparedVisibility,
 } from '../../targets/visibility.mjs'
 import {
+  advice,
   callsGap,
   findingId,
   laterCalls,
@@ -18,6 +20,7 @@ import {
   type DiscoveryExperiment,
 } from './experiment.mjs'
 import { load, type LoadContext, type LoadPlan } from './load.mjs'
+import { checkScreenUsesRead } from './screen-check.mjs'
 import { screenshotRun, type DiscoveryScreenshot } from './screenshots.mjs'
 import type {
   DiscoveryPhase,
@@ -30,14 +33,10 @@ import type {
 
 const CALIBRATION_LOADS = 3
 
-const advice = (classification: string) =>
-  classification === 'SILENT_EMPTY'
-    ? 'Inspect the error-to-empty UI branch. Preserve the distinction between a failed read and a successful empty result; consider an error message and retry action. This is a hypothesis to review locally.'
-    : 'Review the recorded behaviour against product expectations. A finite retry limit or explicit error state is not automatically a defect.'
-
 /**
- * Calibrates three healthy loads, then fails the selected read in each planned
- * way, with a healthy control before every faulted load, and fills `report`.
+ * Calibrates three healthy loads, checks that failing the selected read shows on
+ * the screen, then fails it in each planned way, with a healthy control before
+ * every faulted load, and fills `report`.
  */
 export async function runDiscovery<
   Fault extends string,
@@ -87,6 +86,7 @@ class Discovery<Fault extends string, Snapshot extends ReadSnapshot> {
   async run() {
     const { page, control } = this.#setup
     page.on('pageerror', this.#countError)
+    this.#report.page = pageAddress(this.#initialUrl)
     try {
       this.#visibility = await prepareVisibility(page, {
         restoreWindow: this.#timing.restoreWindow,
@@ -129,6 +129,7 @@ class Discovery<Fault extends string, Snapshot extends ReadSnapshot> {
   async #experimentThenReset() {
     try {
       await this.#calibrate()
+      await checkScreenUsesRead(this.#loads, this.#initialUrl)
       for (const planned of this.#planned()) await this.#experiment(planned)
     } catch (error) {
       this.#report.error = (error as Error).message
