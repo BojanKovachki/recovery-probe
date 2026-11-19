@@ -157,6 +157,10 @@ test(
       assert.equal(discovered.findings[0].classification, 'RECOVERED')
       assert.equal(discovered.findings[1].classification, 'SILENT_EMPTY')
       assert.equal(discovered.findings[2].classification, 'SILENT_EMPTY')
+      // The fixture retries once, so every read failing is two failed reads.
+      assert.equal(discovered.findings[3].id, 'rejection-every-read')
+      assert.equal(discovered.findings[3].classification, 'SILENT_EMPTY')
+      assert.deepEqual(discovered.findings[3].failedReads, [2, 2, 2])
       assert.ok(discovered.findings.every((f) => f.repeatConfirmed))
       assert.equal(discovered.finalReset, 'healthy')
       assert.ok(discovered.results[0].recoveryMs >= 0)
@@ -169,7 +173,13 @@ test(
       assert.equal(twoReads.findings[0].classification, 'RECOVERED')
       assert.deepEqual(
         twoReads.findings.map((f) => f.id),
-        ['rejection-1', 'rejection-2', 'null-result-1', 'rejection-1-call2'],
+        [
+          'rejection-1',
+          'rejection-2',
+          'null-result-1',
+          'rejection-1-call2',
+          'rejection-every-read',
+        ],
       )
       assert.equal(twoReads.findings[3].call, 2)
       assert.equal(twoReads.findings[3].classification, 'SILENT_EMPTY')
@@ -470,6 +480,7 @@ test(
         'null-result-1-run1.png',
         'rejection-1-run1.png',
         'rejection-2-run1.png',
+        'rejection-every-read-run1.png',
       ])
       assert.match(
         await readFile(join(discoveryOut, 'report.html'), 'utf8'),

@@ -1,6 +1,9 @@
 /** The most calls per load that discovery fails one by one. */
 export const MAX_TARGETED_CALL = 4
 
+/** Faults armed to fail every read of one load: the most the IPC hook allows. */
+export const EVERY_READ = 10
+
 /**
  * Which later calls to fail one by one: when every healthy load read the
  * target the same number of times, the 2nd call up to MAX_TARGETED_CALL.
@@ -34,16 +37,47 @@ export interface DiscoveryExperiment<Fault extends string = string> {
   times: number
   /** The call of the load to fail first, when it is not the first. */
   call?: number
+  /** Every read of the load fails, up to `times`, so the app's retries run out. */
+  everyRead?: true
+}
+
+/**
+ * The configured experiments, one per later call when the transport can fail
+ * those, then every read failing, with the first experiment's fault.
+ */
+export function planExperiments<Fault extends string>(
+  experiments: DiscoveryExperiment<Fault>[],
+  laterCallFault: Fault | undefined,
+  callsPerLoad: number[],
+): DiscoveryExperiment<Fault>[] {
+  const later =
+    laterCallFault === undefined
+      ? []
+      : laterCalls(callsPerLoad).map((call) => ({
+          fault: laterCallFault,
+          times: 1,
+          call,
+        }))
+  const everyRead = {
+    fault: experiments[0].fault,
+    times: EVERY_READ,
+    everyRead: true as const,
+  }
+  return [...experiments, ...later, everyRead]
 }
 
 /** What to do with a finding of this classification. */
-export const advice = (classification: string) =>
-  classification === 'SILENT_EMPTY'
-    ? 'Inspect the error-to-empty UI branch. Preserve the distinction between a failed read and a successful empty result; consider an error message and retry action. This is a hypothesis to review locally.'
-    : 'Review the recorded behaviour against product expectations. A finite retry limit or explicit error state is not automatically a defect.'
+export function advice(classification: string, everyRead?: true): string {
+  if (classification === 'SILENT_EMPTY')
+    return 'Inspect the error-to-empty UI branch. Preserve the distinction between a failed read and a successful empty result; consider an error message and retry action. This is a hypothesis to review locally.'
+  if (everyRead && classification === 'LOADING_AT_DEADLINE')
+    return 'The app was still loading when the observation ended. If it retries for longer, raise the observation window (observationMs over IPC, recoveryTimeoutMs over HTTP) to see what the screen shows once its retries run out.'
+  return 'Review the recorded behaviour against product expectations. A finite retry limit or explicit error state is not automatically a defect.'
+}
 
-/** An experiment's id, such as rejection-1 or rejection-1-call2. */
+/** An experiment's id, such as rejection-1, rejection-1-call2 or rejection-every-read. */
 export function findingId(run: DiscoveryExperiment): string {
+  if (run.everyRead) return `${run.fault}-every-read`
   return `${run.fault}-${run.times}${run.call ? `-call${run.call}` : ''}`
 }
 
@@ -60,6 +94,9 @@ export interface DiscoveryFinding {
   times: number
   /** The call of the load that failed, when it was not the first. */
   call?: number
+  everyRead?: true
+  /** With everyRead, how many reads failed in each run: the app's attempts, up to the limit. */
+  failedReads?: number[]
   classification: string
   kind: string
   confidence?: string
@@ -79,6 +116,7 @@ interface DiscoveryRun {
   fault: string
   times: number
   call?: number
+  everyRead?: true
   interpretation?: DiscoveryInterpretation
   assessment?: DiscoveryInterpretation
 }
@@ -122,6 +160,7 @@ export function retainPartialFindings(
       fault: runs[0].fault,
       times: runs[0].times,
       ...(runs[0].call ? { call: runs[0].call } : {}),
+      ...(runs[0].everyRead ? { everyRead: true as const } : {}),
       classification: 'INCOMPLETE_EXPERIMENT',
       kind: 'inconclusive',
       confidence: 'low',

@@ -145,7 +145,7 @@ All reports remain local. No AI service or source upload is used. The app still 
 
 ## Discovery
 
-`discover` fails the selected channel in a few fixed ways and compares the screen with healthy runs, without a ready selector. See [Discovery](discovery.md).
+`discover` fails the selected channel in a few fixed ways, and finally on every attempt, and compares the screen with healthy runs, without a ready selector. See [Discovery](discovery.md).
 
 ## Action check
 

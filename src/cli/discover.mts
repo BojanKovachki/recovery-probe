@@ -23,10 +23,11 @@ import {
 export const usage = `recovery-probe discover --config FILE [options]
 
 Calibrates three healthy loads, checks that failing the selected read shows on
-the screen, then fails it in a few fixed ways, with a healthy load before each,
-and reports what the screen did. No ready selector needed. The config's
-"channel" means an IPC read in an Electron app with the hook; "endpoint" means
-an HTTP read in an app or browser on a debugging port. See docs/discovery.md.
+the screen, then fails it in a few fixed ways and finally on every attempt,
+with a healthy load before each, and reports what the screen did. No ready
+selector needed. The config's "channel" means an IPC read in an Electron app
+with the hook; "endpoint" means an HTTP read in an app or browser on a
+debugging port. See docs/discovery.md.
 
 Options:
   --cdp URL          the app's or browser's debugging port (default http://127.0.0.1:9222)
@@ -89,8 +90,11 @@ function printDiscovery(report: Report, directory: string) {
     const partial = finding.partial
       ? `/${finding.plannedRuns} partial; observed=${finding.observedInterpretation!.classification}`
       : ''
+    const failedReads = finding.failedReads
+      ? `; failed reads=${finding.failedReads.join(',')}`
+      : ''
     console.log(
-      `${finding.kind.toUpperCase()}: ${finding.id} — ${finding.classification}; runs=${finding.confirmations}${partial}`,
+      `${finding.kind.toUpperCase()}: ${finding.id} — ${finding.classification}; runs=${finding.confirmations}${partial}${failedReads}`,
     )
   }
   if (report.error) console.error(`Discovery stopped: ${report.error}`)

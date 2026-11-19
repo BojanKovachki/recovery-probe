@@ -4,9 +4,11 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
+  advice,
   callsGap,
   findingId,
   laterCalls,
+  planExperiments,
 } from '../../dist/workflows/discover/experiment.mjs'
 import { writeDiscoveryReport } from '../../dist/reports/discovery.mjs'
 import { retainPartialFindings } from '../../dist/workflows/discover/experiment.mjs'
@@ -24,6 +26,35 @@ test('later calls are failed one by one only when every healthy load made as man
   assert.match(callsGap([2, 2, 2], false), /Restart the app/)
 })
 
+test('every read failing comes last, with the first experiment’s fault', () => {
+  const configured = [
+    { fault: 'http-error', times: 2 },
+    { fault: 'invalid-json', times: 2 },
+  ]
+  const everyRead = /** @type {const} */ ({
+    fault: 'http-error',
+    times: 10,
+    everyRead: true,
+  })
+  assert.deepEqual(planExperiments(configured, 'http-error', [2, 2, 2]), [
+    ...configured,
+    { fault: 'http-error', times: 1, call: 2 },
+    everyRead,
+  ])
+  assert.deepEqual(planExperiments(configured, undefined, [2, 2, 2]), [
+    ...configured,
+    everyRead,
+  ])
+  assert.equal(findingId(everyRead), 'http-error-every-read')
+})
+
+test('a screen still loading when every read failed is advised to watch longer', () => {
+  const longer = /raise the observation window/
+  assert.match(advice('LOADING_AT_DEADLINE', true), longer)
+  assert.doesNotMatch(advice('LOADING_AT_DEADLINE'), longer)
+  assert.doesNotMatch(advice('RECOVERED', true), longer)
+})
+
 test('a later-call experiment keeps its own id, also when it is cut short', () => {
   assert.equal(findingId({ fault: 'rejection', times: 2 }), 'rejection-2')
   assert.equal(
@@ -36,15 +67,18 @@ test('a later-call experiment keeps its own id, also when it is cut short', () =
     results: [
       { fault: 'rejection', times: 1, interpretation },
       { fault: 'rejection', times: 1, call: 2, interpretation },
+      { fault: 'rejection', times: 10, everyRead: true, interpretation },
     ],
     findings: [{ id: 'rejection-1' }],
     error: 'CONTROL_UNSTABLE',
   })
   retainPartialFindings(report, 3)
-  assert.equal(report.findings.length, 2)
+  assert.equal(report.findings.length, 3)
   assert.equal(report.findings[1].id, 'rejection-1-call2')
   assert.equal(report.findings[1].call, 2)
   assert.equal(report.findings[1].partial, true)
+  assert.equal(report.findings[2].id, 'rejection-every-read')
+  assert.equal(report.findings[2].everyRead, true)
 })
 
 test('the discovery report shows only screenshots saved in its folder', async () => {

@@ -156,4 +156,4 @@ It keeps the live page and its sessionStorage login through reloads, and leaves 
 
 ## Discovery
 
-`discover --config FILE` fails the selected read in a few fixed ways and compares the screen with healthy runs, without a ready selector. See [Discovery](discovery.md).
+`discover --config FILE` fails the selected read in a few fixed ways, and finally on every attempt, and compares the screen with healthy runs, without a ready selector. See [Discovery](discovery.md).
