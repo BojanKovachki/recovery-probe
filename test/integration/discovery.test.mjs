@@ -32,7 +32,7 @@ function fixture(options) {
 }
 test(
   'structural HTTP fixture matrix: three fetch styles, negative controls and repeated faults',
-  { timeout: 300000 },
+  { timeout: 600000 },
   async () => {
     let options
     let loads = 0
@@ -126,6 +126,7 @@ test(
             'virtualized',
           ].includes(family)
           const detected = finding?.kind === 'suspected-defect'
+          const everyRead = report.findings.find((f) => f.everyRead)
           metrics.push({
             family,
             style,
@@ -134,12 +135,29 @@ test(
             misses: expectedBug && !detected ? 1 : 0,
             falsePositives: !expectedBug && detected ? 1 : 0,
             classification: finding?.classification ?? report.error,
+            everyRead: everyRead?.classification,
           })
           assert.equal(
             detected,
             expectedBug,
             JSON.stringify({ family, style, finding }),
           )
+          // Once its retries run out, every fixture but the explicit error shows a wrong screen.
+          if (!invisible)
+            assert.equal(
+              everyRead?.kind,
+              {
+                'explicit-error': 'observation',
+                distribution: 'decision-needed',
+              }[family] ?? 'suspected-defect',
+              JSON.stringify({ family, style, everyRead }),
+            )
+          // It recovers from three failed reads, but the fourth leaves "No items".
+          if (family === 'backoff') {
+            assert.equal(finding.classification, 'RECOVERED')
+            assert.equal(everyRead.classification, 'SILENT_EMPTY')
+            assert.deepEqual(everyRead.failedReads, [4])
+          }
           assert.ok(
             report.coverage.some((c) => c.method === 'POST' && !c.supported),
           )
@@ -160,7 +178,7 @@ test(
             )
             assert.equal(second?.call, 2, JSON.stringify(report.findings))
             assert.equal(second.kind, 'suspected-defect')
-          } else assert.equal(report.findings.length, invisible ? 0 : 1)
+          } else assert.equal(report.findings.length, invisible ? 0 : 2)
           if (family === 'grid')
             assert.equal(report.results[0].observation.after.images, 0)
         }
@@ -196,7 +214,11 @@ test(
         },
       )
       assert.equal(delayed.error, undefined, JSON.stringify(delayed))
-      assert.deepEqual(shots, ['baseline', 'http-error-2-run1'])
+      assert.deepEqual(shots, [
+        'baseline',
+        'http-error-2-run1',
+        'http-error-every-read-run1',
+      ])
       assert.equal(delayed.results[0].screenshot, 'http-error-2-run1.png')
       assert.equal(
         delayed.results[0].control.ui.fingerprint,

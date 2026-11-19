@@ -15,7 +15,7 @@ import {
   advice,
   callsGap,
   findingId,
-  laterCalls,
+  planExperiments,
   retainPartialFindings,
   type DiscoveryExperiment,
 } from './experiment.mjs'
@@ -130,7 +130,13 @@ class Discovery<Fault extends string, Snapshot extends ReadSnapshot> {
     try {
       await this.#calibrate()
       await checkScreenUsesRead(this.#loads, this.#initialUrl)
-      for (const planned of this.#planned()) await this.#experiment(planned)
+      const { experiments, laterCallFault } = this.#setup
+      const planned = planExperiments(
+        experiments,
+        laterCallFault,
+        this.#report.readiness.callsPerLoad!,
+      )
+      for (const experiment of planned) await this.#experiment(experiment)
     } catch (error) {
       this.#report.error = (error as Error).message
     } finally {
@@ -166,20 +172,6 @@ class Discovery<Fault extends string, Snapshot extends ReadSnapshot> {
       callsPerLoad,
       this.#setup.laterCallFault !== undefined,
     )
-  }
-
-  /** The configured experiments, then one per later call when the transport can fail those. */
-  #planned(): DiscoveryExperiment<Fault>[] {
-    const fault = this.#setup.laterCallFault
-    const later =
-      fault === undefined
-        ? []
-        : laterCalls(this.#report.readiness.callsPerLoad!).map((call) => ({
-            fault,
-            times: 1,
-            call,
-          }))
-    return [...this.#setup.experiments, ...later]
   }
 
   // A healthy control before every faulted load also clears the previous state.
@@ -239,11 +231,14 @@ class Discovery<Fault extends string, Snapshot extends ReadSnapshot> {
     return {
       id,
       ...planned,
+      ...(planned.everyRead
+        ? { failedReads: runs.map((r) => r.snapshot.injected) }
+        : {}),
       ...assessment,
       confirmations: runs.length,
       repeatConfirmed: consistent && runs.length >= 3,
       observationMs: this.#timing.observationMs,
-      advice: advice(assessment.classification),
+      advice: advice(assessment.classification, planned.everyRead),
       verification: this.#setup.verification,
     }
   }
@@ -303,11 +298,13 @@ function faultedRun<Fault extends string, Snapshot extends ReadSnapshot>(
   healthy: DiscoveryPhase<Fault, Snapshot>,
   result: DiscoveryPhase<Fault, Snapshot>,
 ): DiscoveryRun<Fault, Snapshot> {
+  const { injected } = result.snapshot
   const assessment = classifyObservation({
     baseline: healthy.ui,
     final: result.ui,
-    injected: result.snapshot.injected,
-    expected: planned.times,
+    injected,
+    // Every read failing takes as many faults as the app makes reads.
+    expected: planned.everyRead && injected > 0 ? injected : planned.times,
     recovered: result.ready,
     newErrors: result.newErrors,
   })

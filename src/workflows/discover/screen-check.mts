@@ -1,8 +1,6 @@
+import { EVERY_READ } from './experiment.mjs'
 import { load, type LoadContext } from './load.mjs'
 import type { DiscoveryResult, ReadSnapshot } from './types.mjs'
-
-/** Faults armed to fail every read of one load: the most the IPC hook allows. */
-const EVERY_READ = 10
 
 type ScreenCheck<
   Fault extends string,

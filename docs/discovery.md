@@ -1,6 +1,6 @@
 # Discovery
 
-Discovery fails the read behind a screen in a few fixed ways and compares the screen with a healthy run each time. You don't write a ready selector or expected text: it learns what the healthy screen looks like first.
+Discovery fails the read behind a screen in a few fixed ways, and finally on every attempt, and compares the screen with a healthy run each time. You don't write a ready selector or expected text: it learns what the healthy screen looks like first.
 
 It works over IPC in an Electron app, when the config names a `channel`, and over HTTP in a browser or an Electron renderer, when it names an `endpoint`:
 
@@ -54,7 +54,7 @@ Other check options, such as `readySelector`, are ignored, and they are left out
 
 A load counts as settled when the target and its dependencies read successfully, no watched read is pending, no loading indicator shows, and the screen hasn't changed for `settleMs`. A faulted load must also use up every planned fault and get a real successful read after it before it counts as recovered.
 
-With the defaults, a run takes at least 23 reloads and a few minutes.
+With the defaults, a run takes at least 29 reloads and a few minutes.
 
 ## Experiments
 
@@ -64,6 +64,8 @@ With the defaults, a run takes at least 23 reloads and a few minutes.
 | HTTP | each fault in `faults` (`http-error`, `connection-failure`, `invalid-json`), `times` in a row |
 
 Calibration also counts how often each healthy load reads the target (`readiness.callsPerLoad`). When every load reads it the same number of times, and more than once, discovery also fails the 2nd, 3rd and 4th call on its own: one rejection over IPC, the first listed fault over HTTP. Those findings have ids like `rejection-1-call2`. This catches a screen that ignores a failed prefetch but shows a failed second read as an empty list. When later calls aren't tried, `readiness.callsGap` says why: the counts differ between loads, a load reads more than four times, or the app runs an older IPC hook.
+
+Last, every read of the target fails, up to 10 in a row, with the first experiment's fault, so the app's retries run out. Its finding, such as `rejection-every-read`, says what the screen shows when they do, and `failedReads` how many reads failed in each run: the app's attempts. An app that retries a few times recovers from one or two failed reads, but an outage that outlasts its retries can still leave the screen empty with no error; this is the experiment that shows it. An app that reads more than 10 times and then succeeds is `RECOVERED`. The screen must reach its final state within the observation window (`observationMs` over IPC, `recoveryTimeoutMs` over HTTP). An app still retrying when the window ends usually shows `LOADING_AT_DEADLINE`, and the finding's advice says to raise the window.
 
 ## Findings
 

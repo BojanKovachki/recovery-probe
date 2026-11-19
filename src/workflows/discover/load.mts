@@ -53,6 +53,7 @@ class Load<Fault extends string, Snapshot extends ReadSnapshot> {
   readonly #fault?: Fault
   readonly #times: number
   readonly #call?: number
+  readonly #everyRead?: true
   readonly #started = performance.now()
   readonly #initialErrors: number
   readonly #timeline: DiscoveryEvent<Snapshot>[] = []
@@ -66,10 +67,11 @@ class Load<Fault extends string, Snapshot extends ReadSnapshot> {
   constructor(context: LoadContext<Fault, Snapshot>, plan: LoadPlan<Fault>) {
     this.#context = context
     this.#plan = plan
-    const { fault, times = 1, call } = plan.experiment ?? {}
+    const { fault, times = 1, call, everyRead } = plan.experiment ?? {}
     this.#fault = fault
     this.#times = times
     this.#call = call
+    this.#everyRead = everyRead
     this.#initialErrors = context.errors()
   }
 
@@ -208,6 +210,7 @@ class Load<Fault extends string, Snapshot extends ReadSnapshot> {
       fault: fault ?? 'healthy',
       times: fault ? this.#times : 0,
       ...(this.#call ? { call: this.#call } : {}),
+      ...(this.#everyRead ? { everyRead: this.#everyRead } : {}),
       ready,
       ui,
       snapshot: current,

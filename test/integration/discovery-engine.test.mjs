@@ -91,8 +91,8 @@ test(
   'repeats that disagree are an unstable, low-confidence finding',
   { timeout: 30000 },
   async () => {
-    // Load 1 opens the page, 2–4 calibrate and 5 checks the screen; then control,
-    // fault, control, fault, cleanup.
+    // Load 1 opens the page, 2–4 calibrate and 5 checks the screen; then control and
+    // fault twice for each experiment, and cleanup.
     await withPage(
       (load) => (load === 7 ? 0 : 3),
       async (page) => {
@@ -103,14 +103,17 @@ test(
         assert.equal(result.screenCheck.outcome, 'not-established')
         assert.deepEqual(
           result.results.map((r) => r.interpretation.classification),
-          ['SILENT_EMPTY', 'RECOVERED'],
+          ['SILENT_EMPTY', 'RECOVERED', 'RECOVERED', 'RECOVERED'],
         )
-        const [finding] = result.findings
+        const [finding, everyRead] = result.findings
         assert.equal(finding.classification, 'UNSTABLE')
         assert.equal(finding.kind, 'inconclusive')
         assert.equal(finding.confidence, 'low')
         assert.equal(finding.repeatConfirmed, false)
         assert.equal(finding.verification, 'Rerun it.')
+        // An app that outlasts every fault recovers.
+        assert.equal(everyRead.classification, 'RECOVERED')
+        assert.deepEqual(everyRead.failedReads, [10, 10])
         assert.equal(result.finalReset, 'healthy')
       },
     )
@@ -185,8 +188,79 @@ test(
         assert.equal(result.error, undefined, JSON.stringify(result.error))
         assert.equal(result.screenCheck.outcome, 'changed')
         assert.deepEqual(
-          result.findings.map((f) => f.classification),
-          ['RECOVERED'],
+          result.findings.map((f) => f.id),
+          ['rejection-1', 'rejection-every-read'],
+        )
+      },
+    )
+  },
+)
+
+test(
+  'failing every read reports what the screen ends with once the app stops retrying',
+  { timeout: 30000 },
+  async () => {
+    // Load 5 checks the screen, 6–7 fail one read and 8–9 fail every read.
+    await withPage(
+      (load) => (load === 5 || load === 9 ? 0 : 3),
+      async (page) => {
+        const session = fakeSession({ calls: 3 })
+        const result = report()
+        await runDiscovery(
+          setup(page, session),
+          { ...timing, repeats: 1 },
+          result,
+        )
+        assert.equal(result.error, undefined, JSON.stringify(result.error))
+        // The app recovers from one failed read, but not from all three it makes.
+        assert.deepEqual(
+          result.findings.map((f) => [f.id, f.classification]),
+          [
+            ['rejection-1', 'RECOVERED'],
+            ['rejection-every-read', 'SILENT_EMPTY'],
+          ],
+        )
+        const everyRead = result.findings[1]
+        assert.equal(everyRead.everyRead, true)
+        assert.deepEqual(everyRead.failedReads, [3])
+        // Each run carries it too, so an interrupted experiment keeps its id.
+        assert.equal(result.results[1].everyRead, true)
+        assert.equal(everyRead.kind, 'suspected-defect')
+        assert.deepEqual(
+          session.plans.filter((plan) => plan.fault),
+          [
+            { fault: 'rejection', times: 10 },
+            { fault: 'rejection', times: 1 },
+            { fault: 'rejection', times: 10 },
+          ],
+        )
+        assert.equal(result.ok, false)
+        assert.equal(result.finalReset, 'healthy')
+      },
+    )
+  },
+)
+
+test(
+  'failing every read is not triggered when no read fails',
+  { timeout: 30000 },
+  async () => {
+    await withPage(
+      () => 3,
+      async (page) => {
+        const result = report()
+        await runDiscovery(
+          setup(page, fakeSession({ calls: 0 })),
+          { ...timing, repeats: 1 },
+          result,
+        )
+        assert.equal(result.screenCheck.outcome, 'not-established')
+        assert.deepEqual(
+          result.findings.map((f) => [f.id, f.classification]),
+          [
+            ['rejection-1', 'FAULT_NOT_TRIGGERED'],
+            ['rejection-every-read', 'FAULT_NOT_TRIGGERED'],
+          ],
         )
       },
     )
@@ -210,7 +284,7 @@ test(
         assert.equal(result.error, undefined, JSON.stringify(result.error))
         assert.equal(result.screenCheck.outcome, 'changed')
         assert.equal(result.stoppedObservation, undefined)
-        assert.equal(result.findings.length, 1)
+        assert.equal(result.findings.length, 2)
         assert.equal(page.url(), screen)
         assert.equal(result.finalReset, 'healthy')
       },
@@ -242,7 +316,7 @@ test(
         )
         assert.deepEqual(
           result.findings.map((f) => f.id),
-          ['rejection-1', 'rejection-1-call2'],
+          ['rejection-1', 'rejection-1-call2', 'rejection-every-read'],
         )
         assert.ok(session.plans.some((plan) => plan.skip === 1))
         const without = report()
@@ -253,7 +327,7 @@ test(
         )
         assert.deepEqual(
           without.findings.map((f) => f.id),
-          ['rejection-1'],
+          ['rejection-1', 'rejection-every-read'],
         )
         assert.match(without.readiness.callsGap, /cannot let calls through/)
       },

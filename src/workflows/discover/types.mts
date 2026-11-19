@@ -86,6 +86,8 @@ export interface DiscoveryPhase<
   times: number
   /** The call of the load that failed, when it was not the first. */
   call?: number
+  /** Every read of the load failed, up to `times`. */
+  everyRead?: true
   screenshot?: string
   evidenceCaptureFailed?: true
   ready: boolean
