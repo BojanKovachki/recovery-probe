@@ -6,6 +6,8 @@ Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-
 
 ## Unreleased
 
+- `discover` checks that the screen shows the read before it experiments. After calibration, one reload fails every read of the target, up to 10 in a row. If the screen still ends up exactly as the healthy one, the run stops with `FAULT_NOT_VISIBLE` instead of reporting `RECOVERED` for faults nothing on the screen could show: the screen doesn't use that read, or looks the same either way, as an empty list does. Before, discovery on the wrong screen, such as a "Page not found" after a route was rewritten, reported every fault as recovered. The report's `screenCheck` records the outcome, and a run takes one more reload.
+- `discover` records the tested page's address in the report's `page` and prints it first. A route in the fragment stays; credentials, query values and fragments that carry values, such as sign-in tokens, are left out.
 - `reads --inspector` lists the IPC calls the window of an Electron app with the hook makes while it reloads: every channel the hook captured, in the order of the first call, with counts, failures and, with a `classify` function, method labels. It runs one fault-free observation and writes `discovery.json` and a `scenario.json` for `discover`. Before, nothing showed which IPC reads a screen makes; see [IPC](docs/ipc.md#find-the-reads-behind-a-screen).
 
 ## 1.2.0-preview.1 (2026-11-17)
