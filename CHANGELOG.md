@@ -6,6 +6,15 @@ Version 0.2.0 is the first npm release. Earlier 0.1.x revisions were repository-
 
 ## Unreleased
 
+- `discover` can be held to a time limit, says how long it can take, and keeps partial results.
+  - **Estimate.** At the start it prints, and records in `estimate`, how many reloads it plans and the longest it can take from its configured windows.
+  - **`maxDurationMs`.** This optional configuration field limits the whole run, cleanup included, keeping one healthy reload plus 5 s for cleanup. Without it, discovery runs as before.
+    - No step starts whose worst case doesn't fit before the reserve, and a load still running at the limit stops.
+    - The run then cleans up and reports `stoppedReason: BUDGET_EXHAUSTED`. Completed experiments keep their findings, an experiment stopped partway becomes `INCOMPLETE_EXPERIMENT`, and `notRun` lists the planned experiments that never started.
+    - A final reload that can't finish in time is reported in `cleanupError` and never as healthy.
+  - **Progress.** While it runs, the report folder's `progress.json` and `report.partial.json` are rewritten after every reload, so a long run can be followed and a killed one leaves its progress. The partial report's evidence is never complete.
+  - **Stopping.** Ctrl+C and SIGTERM now stop a run at its next step, remove the faults, make the final reload and write the report with `stoppedReason: INTERRUPTED`. Before, a stopped run wrote no report and left its cleanup undone.
+  - See [Time limit and progress](docs/discovery.md#time-limit-and-progress).
 - `discover` ends with one more experiment: every read of the target fails, up to 10 in a row, so the app's retries run out. Its finding, such as `rejection-every-read`, classifies what the screen shows then, and `failedReads` records how many reads failed in each run. Before, discovery failed at most two reads over IPC, and over HTTP exactly `times`, so a screen that recovers from a short outage but goes empty without an error after a longer one was reported as recovered. A run takes two more reloads per repeat: 29 with the defaults.
 - `discover` checks that the screen shows the read before it experiments. After calibration, one reload fails every read of the target, up to 10 in a row. If the screen still ends up exactly as the healthy one, the run stops with `FAULT_NOT_VISIBLE` instead of reporting `RECOVERED` for faults nothing on the screen could show: the screen doesn't use that read, or looks the same either way, as an empty list does. Before, discovery on the wrong screen, such as a "Page not found" after a route was rewritten, reported every fault as recovered. The report's `screenCheck` records the outcome, and a run takes one more reload.
 - `discover` records the tested page's address in the report's `page` and prints it first. A route in the fragment stays; credentials, query values and fragments that carry values, such as sign-in tokens, are left out.
