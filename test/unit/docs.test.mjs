@@ -9,9 +9,9 @@ const pages = [
   'README.md',
   'CONTRIBUTING.md',
   'SECURITY.md',
-  ...readdirSync(join(root, 'docs'))
+  ...readdirSync(join(root, 'docs'), { recursive: true, encoding: 'utf8' })
     .filter((name) => name.endsWith('.md'))
-    .map((name) => `docs/${name}`),
+    .map((name) => join('docs', name)),
 ]
 
 // GitHub's heading anchors: lower case, punctuation dropped, spaces as hyphens.
