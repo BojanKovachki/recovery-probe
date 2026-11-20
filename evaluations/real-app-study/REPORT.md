@@ -3,10 +3,10 @@
 **In short:** 24 Claude Code sessions each tested one screen of one of two proprietary applications, a desktop launcher and an admin web portal, for what the user sees when a data read fails. Half had Recovery Probe and half didn't. Everything else was identical. The claims were graded blind, and every new claim was reproduced by hand.
 
 - **Known defects.** With Recovery Probe, the agents found all 9 known defects at least once. Without it they found 7. The two they missed need an unusual trigger: a read returning `null`, and a read failing until the app's retries run out.
-- **New defects.** 31 confirmed new defects were found, about equally by both conditions.
+- **New defects.** 30 confirmed new defects were found, about equally by both conditions.
 - **Precision.** The agents with Recovery Probe made no wrong claims; those without it made 3.
 - **Cost.** Agents with Recovery Probe cost less by the CLI's estimate but took longer.
-- **By app.** On the web app the two conditions did the same. The differences are on the desktop app.
+- **By app.** On the web app the two conditions were close. Most of the difference is on the desktop app.
 
 With two attempts per task and condition, every difference is a count of one to three: descriptive, not statistical. The known defects mostly come from the tool's own [bug hunt](https://github.com/BojanKovachki/recovery-probe/pull/112) on these screens, which favours the tool. The held-out screens, below, are the fairer comparison, and there the result is mixed.
 
@@ -32,7 +32,9 @@ The protocol was written before any attempt ran:
    - An empty result that looks exactly like a user who has nothing is not a defect.
    - Keeping the last good data after a failed refresh is fine.
 
-Of 43 unique new claims, 31 were confirmed, 5 were not defects, 3 didn't reproduce, and 4 were unclear because their precondition couldn't be set up without writing data.
+Of 43 unique new claims, 30 were confirmed, 5 were not defects, 4 didn't reproduce, and 4 were unclear because their precondition couldn't be set up without writing data.
+
+One verdict was corrected after the report was first published. A code review showed that one claimed "No entries found" was text hidden under a loading skeleton that never resolves, so that claim doesn't reproduce as described. Every other verdict judged from page text was then checked against its screenshot.
 
 ## Results
 
@@ -41,7 +43,7 @@ Of 43 unique new claims, 31 were confirmed, 5 were not defects, 3 didn't reprodu
 | Claims | 60 | 47 |
 | Known defects found, per attempt (of 18 chances) | 13 | 15 |
 | Distinct known defects found (of 9) | 7 | 9 |
-| Distinct confirmed new defects (of 31) | 28 | 26 |
+| Distinct confirmed new defects (of 30) | 28 | 25 |
 | Wrong claims | 3 | 0 |
 | Unclear claims | 4 | 1 |
 | Timed out | 0 | 1 |
@@ -72,16 +74,16 @@ The two defects only B found are the triggers Recovery Probe tries on its own: a
 | Launcher Catalog | 2 / 3 (of 4) | 2 / 2 | 1 / 0 | 17 / 21 |
 | Launcher Settings | 1 / 2 (of 4) | 3 / 0 | 0 / 0 | 18 / 53 |
 | Launcher Files (held out) | 2 / 2 (of 2) | 2 / 1 | 2 / 0 | 14 / 16 |
-| Portal Users | 4 / 4 (of 4) | 4 / 4 | 0 / 0 | 12 / 11 |
+| Portal Users | 4 / 4 (of 4) | 4 / 3 | 0 / 0 | 12 / 11 |
 | Portal Catalog licences | 4 / 4 (of 4) | 4 / 4 | 0 / 0 | 9 / 15 |
 | Portal User details (held out) | – | 13 / 15 | 0 / 0 | 24 / 22 |
 
 - **Launcher Settings:** one B attempt spent its time in a long discovery run and timed out without a report. The other found both known defects but no new ones, while A's two attempts found three new Settings defects between them.
-- **Portal:** both conditions behaved alike. HTTP faults are easy to inject with Playwright routes, and every condition-A attempt on the portal did so.
+- **Portal:** the two conditions were close. They found the same known defects, and their new-defect counts were within two of each other on every screen. HTTP faults are easy to inject with Playwright routes, and every condition-A attempt on the portal did so.
 
 ### What the new defects look like
 
-In all 31, the screen states something untrue or drops data, with no error that names the failure and no way to retry. Examples:
+In all 30, the screen states something untrue or drops data, with no error that names the failure and no way to retry. Examples:
 - **Access denied for good.** One failed access check shows "Access denied" to a user who has access. The app never asks again.
 - **A wrong "not found".** One failed read of a user shows "This user could not be found".
 - **Raw ids.** A failed role catalogue shows each role as a raw id.
