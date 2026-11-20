@@ -42,6 +42,7 @@ The target is one read: an IPC channel, or the origin and path of a GET fetch/XH
 | `faults`, `times` (HTTP) | all three, 2 | Which faults to inject and how many in a row. |
 | `regionSelector` | first `main`, or `body` | The part of the screen to compare. |
 | `cdp`, `inspector` | ports 9222 and 9229 | Where to attach. |
+| `maxDurationMs` | none | The longest the whole run may take, cleanup included: 10000–86400000. See [Time limit and progress](#time-limit-and-progress). |
 
 Other check options, such as `readySelector`, are ignored, and they are left out of the saved `scenario.json`.
 
@@ -54,7 +55,58 @@ Other check options, such as `readySelector`, are ignored, and they are left out
 
 A load counts as settled when the target and its dependencies read successfully, no watched read is pending, no loading indicator shows, and the screen hasn't changed for `settleMs`. A faulted load must also use up every planned fault and get a real successful read after it before it counts as recovered.
 
-With the defaults, a run takes at least 29 reloads and a few minutes.
+With the defaults, a run takes at least 29 reloads and a few minutes. It says how long it can take when it starts.
+
+## Time limit and progress
+
+When a run starts, it prints on stderr how many reloads it plans and the longest it can take, and records both in the report's `estimate`:
+- `plannedLoads`;
+- `worstCaseMs`, from the configured windows;
+- `exact`, which turns true once calibration has counted the reads of a load and the later-call experiments are known.
+
+Each healthy load counts as `baselineTimeoutMs` plus 2 s, and each faulted one as `observationMs` (`recoveryTimeoutMs` over HTTP) more. Real runs are usually much shorter.
+
+### `maxDurationMs`
+
+`maxDurationMs` limits the whole run, cleanup included. Without it, a run takes as long as its steps do.
+
+- **Time is kept back for cleanup:** one healthy reload's worst case plus 5 s. It shows in the report as `budget.cleanupReserveMs`.
+- **Nothing starts that can't fit.** Before calibration and before each experiment, the run checks that the step's worst case fits in the time left before that reserve.
+- **A step that runs over is stopped.** A reload never waits past the limit, and a load still running when the limit arrives stops.
+- **When the time is up,** the run goes straight to cleanup, and the report says how far it got:
+  - `stoppedReason` and `error` are `BUDGET_EXHAUSTED`;
+  - completed experiments keep their findings;
+  - an experiment stopped partway becomes `INCOMPLETE_EXPERIMENT` with its completed runs;
+  - `notRun` lists the planned experiments that never started;
+  - `budget.usedMs` says how long the run took.
+- **The evidence is incomplete,** so [`compare`](compare.md) and [`verify`](verify.md) never read a stopped run as a fix.
+- **Cleanup runs in the reserved time and is reported as it went.** The faults are removed and the final reload runs.
+  - `finalReset` is `healthy` only when that reload matched the calibrated screen.
+  - A final reload that can't finish in time leaves `finalReset: not-verified` with `CLEANUP_TIMEOUT` in `cleanupError`.
+  - A final reload with no time left to start leaves `CLEANUP_SKIPPED`.
+
+### Progress
+
+While a run goes on, its report folder holds two files, rewritten after every reload. Each is written whole, so a reader never sees half a file.
+- **`progress.json`** holds:
+  - the phase: `starting`, `calibrating`, `checking-screen`, `experimenting`, `cleaning-up` or `finished`;
+  - `completedLoads` of `plannedLoads`, `elapsedMs`, and `worstCaseRemainingMs`;
+  - the planned and finished experiments;
+  - the time left under `maxDurationMs`.
+
+  Read it instead of waiting blindly for a long run.
+- **`report.partial.json`** is the report so far. Its evidence block is never complete, and carries the gap `RUN_IN_PROGRESS`.
+
+The final `report.json` replaces `report.partial.json` when the run ends. A run that is killed leaves both files behind.
+
+### Stopping a run
+
+Ctrl+C or SIGTERM stops a run at its next step, or its next look at the screen during a load. Cleanup still runs: the faults are removed and the final reload is made. The report is written with `stoppedReason: INTERRUPTED`, and the exit code is 2.
+
+A process killed outright, such as with `taskkill /F`, or on Windows by a parent process, can't clean up:
+- over IPC, the hook drops each armed fault plan at the end of its load's windows;
+- over HTTP, the faults end with the connection;
+- `progress.json` and `report.partial.json` show how far the run got.
 
 ## Experiments
 
@@ -84,7 +136,7 @@ A suspected defect is a lead, not a verdict: check it against what the screen sh
 
 ## Reports
 
-Each run writes `report.html`, `report.json` and `scenario.json` to a new folder under `.recovery-probe/` (or `--out`). The HTML report starts with the findings table. Reports hold counts, structural summaries, timings and hashes of screen text, never the text, payloads or credentials. A hash isn't anonymization, and channel names and paths can still be private.
+Each run writes `report.html`, `report.json` and `scenario.json` to a new folder under `.recovery-probe/` (or `--out`), and keeps `progress.json` there while it runs ([Progress](#progress)). The HTML report starts with the findings table. Reports hold counts, structural summaries, timings and hashes of screen text, never the text, payloads or credentials. A hash isn't anonymization, and channel names and paths can still be private.
 
 The report's `page`, also printed first in the terminal, is the address of the tested page without credentials or query values. A route in the fragment, such as `#/users`, stays, so a run on the wrong screen shows at a glance; a fragment that carries values, such as a sign-in token, is left out.
 
