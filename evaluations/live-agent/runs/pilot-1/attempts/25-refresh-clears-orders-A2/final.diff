@@ -1,0 +1,44 @@
+diff --git a/public/src/store.js b/public/src/store.js
+index 8675950..635237c 100644
+--- a/public/src/store.js
++++ b/public/src/store.js
+@@ -35,8 +35,8 @@ export function createStore(api = ordersApi) {
+       set({ orders, loading: false, loaded: true, error: null })
+     } catch {
+       if (request !== latestLoad) return
++      // Keep the orders already shown (ORD-3); only the message changes.
+       set({
+-        orders: [],
+         loading: false,
+         error: state.loaded
+           ? 'Could not refresh orders.'
+diff --git a/test/store.test.js b/test/store.test.js
+index 3e2079c..65c1165 100644
+--- a/test/store.test.js
++++ b/test/store.test.js
+@@ -37,6 +37,25 @@ test('a failed first load says the orders could not be loaded', async () => {
+   assert.equal(store.state.loading, false)
+ })
+ 
++test('a failed refresh keeps the orders and a later success clears the message', async () => {
++  let fail = false
++  const store = createStore({
++    listOrders: async () => {
++      if (fail) throw new Error('offline')
++      return ORDERS
++    },
++  })
++  await store.load('')
++  fail = true
++  await store.refresh()
++  assert.equal(store.state.error, 'Could not refresh orders.')
++  assert.equal(store.state.orders.length, 2)
++  fail = false
++  await store.refresh()
++  assert.equal(store.state.error, null)
++  assert.equal(store.state.orders.length, 2)
++})
++
+ test('subscribers hear about each change', async () => {
+   const store = createStore({ listOrders: async () => ORDERS })
+   const seen = []

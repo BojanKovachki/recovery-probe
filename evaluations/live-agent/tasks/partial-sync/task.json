@@ -1,0 +1,5 @@
+{
+  "id": "partial-sync",
+  "title": "Sync leaves a mix of old and new statuses",
+  "app": "statusboard"
+}

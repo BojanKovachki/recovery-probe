@@ -1,0 +1,92 @@
+{
+  "task": "refresh-clears-orders",
+  "condition": "B",
+  "repetition": 1,
+  "order": 35,
+  "id": "35-refresh-clears-orders-B1",
+  "startCommit": "b1a99ab65413085e1487dc0fdf28787018c375f0",
+  "startedAt": "2026-11-17T19:18:48.450Z",
+  "endedAt": "2026-11-17T19:19:56.914Z",
+  "agent": {
+    "runtime": "claude-code",
+    "version": "2.1.322",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "maxTurns": 80,
+    "minutes": 25
+  },
+  "recoveryProbe": "1.2.0-preview.1",
+  "init": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Task",
+      "Edit",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "PowerShell",
+      "Read",
+      "StructuredOutput",
+      "TaskStop",
+      "ToolSearch",
+      "Write",
+      "mcp__recovery-probe__check_read_recovery",
+      "mcp__recovery-probe__compare_reports",
+      "mcp__recovery-probe__find_page_reads",
+      "mcp__recovery-probe__find_suspects",
+      "mcp__recovery-probe__network_fault_summary",
+      "mcp__recovery-probe__plan_verification",
+      "mcp__recovery-probe__run_recovery_probe",
+      "mcp__recovery-probe__self_check_scenarios",
+      "mcp__recovery-probe__set_network_faults",
+      "mcp__recovery-probe__start_network_faults",
+      "mcp__recovery-probe__stop_network_faults",
+      "mcp__recovery-probe__verify_change"
+    ],
+    "mcpServers": [
+      {
+        "name": "recovery-probe",
+        "status": "connected",
+        "source": "dynamic"
+      }
+    ],
+    "claudeCodeVersion": "2.1.322"
+  },
+  "execution": {
+    "exitCode": 0,
+    "timedOut": false,
+    "resultSubtype": "success",
+    "error": null
+  },
+  "report": {
+    "status": "fixed",
+    "summary": "Cause: in `public/src/store.js`, the failure branch of `load()` reset `orders` to `[]`, so a failed Refresh emptied the list. I removed that reset. A failed refresh now keeps the orders on screen and shows \"Could not refresh orders.\" The next successful refresh clears the message. A failed first load still shows \"Could not load orders.\". I added a regression test in `test/store.test.js`. Not covered: after switching filters, the old rows are cleared, so a failed load there shows an empty list with the refresh message. ORD-3 does not say what to show in that case, and I did not change it. The plan_verification call found no changed files to match, so I ran the existing refresh check by hand instead of recording a verify_change baseline.",
+    "verification": "Before the change, the `orders-refresh-keeps-orders` check (one 503 on a refresh) failed with EXPECTATION_NOT_MET: the rows dropped from 8 to 0. After the change the same check had no findings and 8 rows stayed on screen. compare_reports on those two runs returned IMPROVED (\"1 problem gone (EXPECTATION_NOT_MET), none new\"). That is one run per side, covering only a 503 on the All list. `npm test` passes 5 of 5, including the new test. The suspect scan could not run because the `typescript` package is not installed. I started the server (PID 35336) and the browser helper (PID 13404) myself and stopped both. A PowerShell command that appended the test was blocked for approval, so I added the test with the Edit tool instead."
+  },
+  "metrics": {
+    "durationMs": 66428,
+    "turns": 17,
+    "costUsd": 0.1780942,
+    "inputTokens": 24,
+    "outputTokens": 3701,
+    "cacheReadTokens": 267522,
+    "cacheCreationTokens": 28571,
+    "toolCalls": 16,
+    "tools": {
+      "Read": 2,
+      "Glob": 1,
+      "PowerShell": 5,
+      "ToolSearch": 1,
+      "mcp__recovery-probe__plan_verification": 1,
+      "mcp__recovery-probe__run_recovery_probe": 2,
+      "Edit": 2,
+      "mcp__recovery-probe__compare_reports": 1,
+      "StructuredOutput": 1
+    },
+    "recoveryProbeCalls": 4,
+    "wallMs": 68464
+  },
+  "changedPaths": ["public/src/store.js", "test/store.test.js"],
+  "outsideReach": []
+}

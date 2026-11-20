@@ -1,0 +1,71 @@
+{
+  "task": "health-gives-up",
+  "condition": "A",
+  "repetition": 3,
+  "order": 22,
+  "id": "22-health-gives-up-A3",
+  "startCommit": "86ec9243c97434ef44eddd8033ddc402a99eeb66",
+  "startedAt": "2026-11-17T19:10:17.660Z",
+  "endedAt": "2026-11-17T19:10:46.240Z",
+  "agent": {
+    "runtime": "claude-code",
+    "version": "2.1.322",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "maxTurns": 80,
+    "minutes": 25
+  },
+  "recoveryProbe": null,
+  "init": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Task",
+      "Edit",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "PowerShell",
+      "Read",
+      "StructuredOutput",
+      "TaskStop",
+      "ToolSearch",
+      "Write"
+    ],
+    "mcpServers": [],
+    "claudeCodeVersion": "2.1.322"
+  },
+  "execution": {
+    "exitCode": 0,
+    "timedOut": false,
+    "resultSubtype": "success",
+    "error": null
+  },
+  "report": {
+    "status": "fixed",
+    "summary": "The cause was in `public/src/retry.js`. `withRetry` gave up early whenever a retry (not the first attempt) also got a 503. The comment said an overloaded server shouldn't get more load. In the incident the health endpoint kept answering 503, so the panel showed \"Service health unavailable\" after about 1 second instead of the 1, 2 and 4 second retries HLT-2 requires. I removed that shortcut, so a failed read is now retried up to three times after 1, 2 and 4 seconds. The panel shows the services as soon as a retry succeeds. After the last failure it shows the unavailable message with the Retry button, as before. `withRetry` is only used by the health panel, so nothing else changes. I also added a regression test in `test/board.test.js` for repeated 503s followed by a success.",
+    "verification": "`npm test` passes (5 of 5, including the new test). The new test fails if the 503 shortcut is put back. I did not drive the page in a browser against a 503-returning server."
+  },
+  "metrics": {
+    "durationMs": 26828,
+    "turns": 11,
+    "costUsd": 0.0679195,
+    "inputTokens": 14,
+    "outputTokens": 1934,
+    "cacheReadTokens": 113995,
+    "cacheCreationTokens": 9288,
+    "toolCalls": 10,
+    "tools": {
+      "Read": 2,
+      "Glob": 1,
+      "PowerShell": 3,
+      "Grep": 1,
+      "Edit": 2,
+      "StructuredOutput": 1
+    },
+    "recoveryProbeCalls": 0,
+    "wallMs": 28580
+  },
+  "changedPaths": ["public/src/retry.js", "test/board.test.js"],
+  "outsideReach": []
+}

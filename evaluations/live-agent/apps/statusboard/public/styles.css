@@ -1,0 +1,43 @@
+body {
+  font-family: system-ui, sans-serif;
+  margin: 0;
+  color: #1d2733;
+  background: #f5f7fa;
+}
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: #24364a;
+  color: #fff;
+}
+main {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  padding: 16px 20px;
+}
+ul {
+  list-style: none;
+  padding: 0;
+}
+li {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px;
+  border-bottom: 1px solid #dde3ea;
+  background: #fff;
+}
+.state.operational {
+  color: #16794a;
+}
+.state.degraded {
+  color: #9a6400;
+}
+.state.outage {
+  color: #a01818;
+}
+[role='alert'] {
+  color: #a01818;
+}

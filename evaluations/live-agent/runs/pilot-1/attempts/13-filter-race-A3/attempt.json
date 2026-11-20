@@ -1,0 +1,70 @@
+{
+  "task": "filter-race",
+  "condition": "A",
+  "repetition": 3,
+  "order": 13,
+  "id": "13-filter-race-A3",
+  "startCommit": "0ab9f52067ea3c08ca468eb7075327001231341e",
+  "startedAt": "2026-11-17T19:04:43.948Z",
+  "endedAt": "2026-11-17T19:05:19.362Z",
+  "agent": {
+    "runtime": "claude-code",
+    "version": "2.1.322",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "maxTurns": 80,
+    "minutes": 25
+  },
+  "recoveryProbe": null,
+  "init": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Task",
+      "Edit",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "PowerShell",
+      "Read",
+      "StructuredOutput",
+      "TaskStop",
+      "ToolSearch",
+      "Write"
+    ],
+    "mcpServers": [],
+    "claudeCodeVersion": "2.1.322"
+  },
+  "execution": {
+    "exitCode": 0,
+    "timedOut": false,
+    "resultSubtype": "success",
+    "error": null
+  },
+  "report": {
+    "status": "fixed",
+    "summary": "The cause was a race in `load()` in `public/src/store.js`. Every load wrote its result into the state when it finished, whichever filter it was for. Opening Orders starts a load for the current filter. If you click Shipped before that load returns, its slower answer can arrive after the Shipped answer and overwrite the list with all orders. The fix gives each load a sequence number. Only the most recently started load may update the orders, the loading flag or the error, so answers from earlier loads are dropped, including their failures. I added two regression tests in `test/store.test.js`, one for a late success and one for a late failure. The change does not touch the requirements. It also keeps ORD-3 and ORD-5 as they were, because the latest load still decides the messages.",
+    "verification": "`npm test` passes 6 of 6. With the old `store.js` temporarily restored, the two new tests failed, so they do catch the bug. I then put the fix back. I did not drive the page in a browser."
+  },
+  "metrics": {
+    "durationMs": 33862,
+    "turns": 15,
+    "costUsd": 0.0895028,
+    "inputTokens": 14,
+    "outputTokens": 3201,
+    "cacheReadTokens": 115408,
+    "cacheCreationTokens": 11481,
+    "toolCalls": 14,
+    "tools": {
+      "Read": 7,
+      "Glob": 1,
+      "PowerShell": 3,
+      "Edit": 2,
+      "StructuredOutput": 1
+    },
+    "recoveryProbeCalls": 0,
+    "wallMs": 35414
+  },
+  "changedPaths": ["public/src/store.js", "test/store.test.js"],
+  "outsideReach": []
+}

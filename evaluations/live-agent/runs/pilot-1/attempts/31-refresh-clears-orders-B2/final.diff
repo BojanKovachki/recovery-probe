@@ -1,0 +1,41 @@
+diff --git a/public/src/store.js b/public/src/store.js
+index 8675950..fb04a96 100644
+--- a/public/src/store.js
++++ b/public/src/store.js
+@@ -36,7 +36,6 @@ export function createStore(api = ordersApi) {
+     } catch {
+       if (request !== latestLoad) return
+       set({
+-        orders: [],
+         loading: false,
+         error: state.loaded
+           ? 'Could not refresh orders.'
+diff --git a/test/store.test.js b/test/store.test.js
+index 3e2079c..95f121b 100644
+--- a/test/store.test.js
++++ b/test/store.test.js
+@@ -37,6 +37,24 @@ test('a failed first load says the orders could not be loaded', async () => {
+   assert.equal(store.state.loading, false)
+ })
+ 
++test('a failed refresh keeps the orders and the next good one clears the message', async () => {
++  let fail = false
++  const store = createStore({
++    listOrders: async () => {
++      if (fail) throw new Error('HTTP 503')
++      return ORDERS
++    },
++  })
++  await store.load('')
++  fail = true
++  await store.refresh()
++  assert.equal(store.state.error, 'Could not refresh orders.')
++  assert.equal(store.state.orders.length, 2)
++  fail = false
++  await store.refresh()
++  assert.equal(store.state.error, null)
++})
++
+ test('subscribers hear about each change', async () => {
+   const store = createStore({ listOrders: async () => ORDERS })
+   const seen = []

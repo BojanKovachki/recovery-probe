@@ -1,0 +1,88 @@
+{
+  "task": "partial-sync",
+  "condition": "B",
+  "repetition": 3,
+  "order": 2,
+  "id": "02-partial-sync-B3",
+  "startCommit": "482ccbf0744fa283da08db12adb4c70b94521686",
+  "startedAt": "2026-11-17T18:55:44.637Z",
+  "endedAt": "2026-11-17T18:56:13.124Z",
+  "agent": {
+    "runtime": "claude-code",
+    "version": "2.1.322",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "maxTurns": 80,
+    "minutes": 25
+  },
+  "recoveryProbe": "1.2.0-preview.1",
+  "init": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Task",
+      "Edit",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "PowerShell",
+      "Read",
+      "StructuredOutput",
+      "TaskStop",
+      "ToolSearch",
+      "Write",
+      "mcp__recovery-probe__check_read_recovery",
+      "mcp__recovery-probe__compare_reports",
+      "mcp__recovery-probe__find_page_reads",
+      "mcp__recovery-probe__find_suspects",
+      "mcp__recovery-probe__network_fault_summary",
+      "mcp__recovery-probe__plan_verification",
+      "mcp__recovery-probe__run_recovery_probe",
+      "mcp__recovery-probe__self_check_scenarios",
+      "mcp__recovery-probe__set_network_faults",
+      "mcp__recovery-probe__start_network_faults",
+      "mcp__recovery-probe__stop_network_faults",
+      "mcp__recovery-probe__verify_change"
+    ],
+    "mcpServers": [
+      {
+        "name": "recovery-probe",
+        "status": "connected",
+        "source": "dynamic"
+      }
+    ],
+    "claudeCodeVersion": "2.1.322"
+  },
+  "execution": {
+    "exitCode": 0,
+    "timedOut": false,
+    "resultSubtype": "success",
+    "error": null
+  },
+  "report": {
+    "status": "needs_clarification",
+    "summary": "I haven't changed any code, because the issue and SYN-1 don't say what a sync should do when upstream times out for some services.\n\n**What I found**\n- `server.mjs` `sync()` asks upstream about each service in turn. It overwrites the state and `checkedAt` for services upstream answers, and silently keeps the old state for services that time out. With the sample `data/upstream.json`, `search` and `storage` time out.\n- `POST /api/sync` already returns `{ syncedAt, updated, failed }`, so the client knows which services failed.\n- `public/src/sync.js` ignores `failed`. It always shows \"Last synced at …\" and reloads the panel, so the board shows a mix of new and old states with no warning.\n- SYN-1 says only that Sync now asks upstream for every service's state, then shows \"Last synced at HH:MM\" and the services' states. It doesn't cover partial failure.\n\n**Decision I need:** what should the board do when some services time out? Two reasonable fixes would behave differently.\n1. **All-or-nothing.** If any service fails, discard the whole sync. Keep every service at its previous state, don't show \"Last synced at\", and show an error such as \"Sync failed for Search, File storage\". The board then never mixes old and new states.\n2. **Partial with stale marking.** Apply the states upstream answered, and mark the services that failed as out of date (for example \"not updated, last checked <time>\"). Replace the plain \"Last synced at HH:MM\" with something like \"Partially synced at HH:MM — 2 services not updated: Search, File storage\".\n\nThe issue text points both ways. \"Nothing tells you which services are out of date\" suggests option 2, and \"so the board can be trusted\" could mean either. Which do you want? If it's option 2, I also need the exact wording you want shown.",
+    "question": "When upstream times out for some services during Sync now, should the sync be all-or-nothing (keep all old states and report failure, with no \"Last synced at\"), or partial (apply the answered states and visibly mark the timed-out services as out of date)? If partial, what wording should the sync status line and the stale services show?",
+    "verification": "I read ISSUE.md, docs/REQUIREMENTS.md, server.mjs, public/src/sync.js, main.js, api.js, health.js, the data files and the tests. I made no code changes, so I ran no tests, probes or app checks. I also didn't run Recovery Probe or `plan_verification`: its registry only covers the health and notifications reads, not sync."
+  },
+  "metrics": {
+    "durationMs": 26281,
+    "turns": 11,
+    "costUsd": 0.0782157,
+    "inputTokens": 10,
+    "outputTokens": 2142,
+    "cacheReadTokens": 78677,
+    "cacheCreationTokens": 12227,
+    "toolCalls": 10,
+    "tools": {
+      "Read": 6,
+      "Glob": 1,
+      "PowerShell": 2,
+      "StructuredOutput": 1
+    },
+    "recoveryProbeCalls": 0,
+    "wallMs": 28487
+  },
+  "changedPaths": [],
+  "outsideReach": []
+}

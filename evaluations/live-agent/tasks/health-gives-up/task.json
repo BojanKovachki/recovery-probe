@@ -1,0 +1,5 @@
+{
+  "id": "health-gives-up",
+  "title": "Service health panel gives up during incidents",
+  "app": "statusboard"
+}

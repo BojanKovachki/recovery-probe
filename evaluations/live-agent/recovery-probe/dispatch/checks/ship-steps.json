@@ -1,0 +1,22 @@
+[
+  { "click": "header a[href='#/orders']" },
+  {
+    "waitFor": "#orders-view:has(#status:empty) #orders li",
+    "timeoutMs": 5000
+  },
+  { "click": "[data-filter='packed']" },
+  {
+    "waitFor": "#orders-view:has(#status:empty) #orders li:first-child .ship",
+    "timeoutMs": 5000
+  },
+  { "wait": 500 },
+  { "click": "#orders li:first-child .ship" },
+  { "wait": 1000 },
+  {
+    "expect": { "css": "#orders li:first-child .state", "text": "Shipped" },
+    "timeoutMs": 1500,
+    "name": "row-shows-shipped"
+  },
+  { "click": "[data-filter='']" },
+  { "click": "header a[href='#/']" }
+]

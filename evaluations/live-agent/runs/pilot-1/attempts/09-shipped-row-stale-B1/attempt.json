@@ -1,0 +1,92 @@
+{
+  "task": "shipped-row-stale",
+  "condition": "B",
+  "repetition": 1,
+  "order": 9,
+  "id": "09-shipped-row-stale-B1",
+  "startCommit": "0cf8f50455b662c6579c4c3ba82c9bc3ea4c0015",
+  "startedAt": "2026-11-17T19:01:24.888Z",
+  "endedAt": "2026-11-17T19:02:38.094Z",
+  "agent": {
+    "runtime": "claude-code",
+    "version": "2.1.322",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "maxTurns": 80,
+    "minutes": 25
+  },
+  "recoveryProbe": "1.2.0-preview.1",
+  "init": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Task",
+      "Edit",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "PowerShell",
+      "Read",
+      "StructuredOutput",
+      "TaskStop",
+      "ToolSearch",
+      "Write",
+      "mcp__recovery-probe__check_read_recovery",
+      "mcp__recovery-probe__compare_reports",
+      "mcp__recovery-probe__find_page_reads",
+      "mcp__recovery-probe__find_suspects",
+      "mcp__recovery-probe__network_fault_summary",
+      "mcp__recovery-probe__plan_verification",
+      "mcp__recovery-probe__run_recovery_probe",
+      "mcp__recovery-probe__self_check_scenarios",
+      "mcp__recovery-probe__set_network_faults",
+      "mcp__recovery-probe__start_network_faults",
+      "mcp__recovery-probe__stop_network_faults",
+      "mcp__recovery-probe__verify_change"
+    ],
+    "mcpServers": [
+      {
+        "name": "recovery-probe",
+        "status": "connected",
+        "source": "dynamic"
+      }
+    ],
+    "claudeCodeVersion": "2.1.322"
+  },
+  "execution": {
+    "exitCode": 0,
+    "timedOut": false,
+    "resultSubtype": "success",
+    "error": null
+  },
+  "report": {
+    "status": "fixed",
+    "summary": "Cause: in `ship()` in `public/src/store.js`, the store changed the order object in place and then called `set({ orders: state.orders })` with the same array. `set()` skips the update and the re-render when no value changed by reference, so the row kept saying \"Packed\" until a reload. Fix: after the server confirms, `ship()` now builds a new `orders` array. It replaces the matching row with `{ ...order, ...updated }` and clears the error. It looks the row up in the current state, so a list reload that lands during the update can't break it. The failure path is unchanged: the row keeps its status and \"Could not update the order.\" is shown.",
+    "verification": "`npm test` passes (4 of 4). I ran the registry check `orders-ship-updates-row` (checks/ship-steps.json) before and after the change. Before, it reported EXPECTATION_NOT_MET on `row-shows-shipped`. After, it completed with no problems. `compare_reports` returned IMPROVED: \"1 problem gone (EXPECTATION_NOT_MET), none new.\" That covers one successful ship of the first packed order, on one run per side. I did not test the failure path or the other filters with Recovery Probe. `plan_verification` ran before I made any changes, so it proposed no checks. The suspect scanner also couldn't run because the `typescript` package isn't installed. I stopped only the server and browser-helper processes I started."
+  },
+  "metrics": {
+    "durationMs": 71211,
+    "turns": 17,
+    "costUsd": 0.1618999,
+    "inputTokens": 28,
+    "outputTokens": 3257,
+    "cacheReadTokens": 319019,
+    "cacheCreationTokens": 24343,
+    "toolCalls": 16,
+    "tools": {
+      "Read": 2,
+      "Glob": 1,
+      "PowerShell": 6,
+      "ToolSearch": 1,
+      "mcp__recovery-probe__plan_verification": 1,
+      "mcp__recovery-probe__run_recovery_probe": 2,
+      "Edit": 1,
+      "mcp__recovery-probe__compare_reports": 1,
+      "StructuredOutput": 1
+    },
+    "recoveryProbeCalls": 5,
+    "wallMs": 73206
+  },
+  "changedPaths": ["public/src/store.js"],
+  "outsideReach": []
+}

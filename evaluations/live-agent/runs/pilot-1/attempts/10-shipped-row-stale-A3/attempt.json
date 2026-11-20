@@ -1,0 +1,70 @@
+{
+  "task": "shipped-row-stale",
+  "condition": "A",
+  "repetition": 3,
+  "order": 10,
+  "id": "10-shipped-row-stale-A3",
+  "startCommit": "212fa52796ee66c02d4ebe3ed945c89e9991a08d",
+  "startedAt": "2026-11-17T19:02:41.262Z",
+  "endedAt": "2026-11-17T19:03:26.219Z",
+  "agent": {
+    "runtime": "claude-code",
+    "version": "2.1.322",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "maxTurns": 80,
+    "minutes": 25
+  },
+  "recoveryProbe": null,
+  "init": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Task",
+      "Edit",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "PowerShell",
+      "Read",
+      "StructuredOutput",
+      "TaskStop",
+      "ToolSearch",
+      "Write"
+    ],
+    "mcpServers": [],
+    "claudeCodeVersion": "2.1.322"
+  },
+  "execution": {
+    "exitCode": 0,
+    "timedOut": false,
+    "resultSubtype": "success",
+    "error": null
+  },
+  "report": {
+    "status": "fixed",
+    "summary": "Root cause: in `public/src/store.js`, `ship()` changed the order object in place (`Object.assign`) and then called `set({ orders: state.orders })` with the same array. `set()` skips notifying subscribers when no value changed by reference, so the view never re-rendered until a reload. I changed `ship()` to build a new orders array with an updated copy of the shipped order. It looks the order up by id after the server replies, so it still works if the list was reloaded in the meantime. I also made it ignore repeat clicks while an update for the same order is in flight, since people were clicking several times. The failure path is unchanged: the status stays and \"Could not update the order.\" is shown. I added two store tests, one for shipping and one for a failed update.\n\nOne thing to know: if the Packed filter is selected, the shipped row stays on screen showing \"Shipped\" until the next load or refresh. That is what ORD-4 says literally. ORD-2 could be read as wanting the row removed from the Packed list immediately, but I did not guess at that.",
+    "verification": "`npm test` passes all 6 tests. I started the server and drove the Orders page with Playwright. I clicked Mark shipped on a packed order (ORD-1002). The row showed \"Shipped\" without a reload and its button was gone. I then stopped the server process I had started."
+  },
+  "metrics": {
+    "durationMs": 43207,
+    "turns": 17,
+    "costUsd": 0.1070022,
+    "inputTokens": 14,
+    "outputTokens": 4129,
+    "cacheReadTokens": 123042,
+    "cacheCreationTokens": 13345,
+    "toolCalls": 16,
+    "tools": {
+      "Read": 8,
+      "Glob": 1,
+      "PowerShell": 3,
+      "Edit": 3,
+      "StructuredOutput": 1
+    },
+    "recoveryProbeCalls": 0,
+    "wallMs": 44957
+  },
+  "changedPaths": ["public/src/store.js", "test/store.test.js"],
+  "outsideReach": []
+}

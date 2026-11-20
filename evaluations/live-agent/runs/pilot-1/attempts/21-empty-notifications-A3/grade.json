@@ -1,0 +1,43 @@
+{
+  "grade": {
+    "required": {
+      "empty-notifications-say-caught-up": {
+        "pass": true
+      },
+      "failed-notifications-are-not-empty": {
+        "pass": true
+      },
+      "notifications-newest-first": {
+        "pass": true
+      }
+    },
+    "regression": {
+      "lists-every-service": {
+        "pass": true
+      },
+      "health-recovers-after-two-failures": {
+        "pass": true
+      },
+      "health-gives-up-after-three-retries": {
+        "pass": true
+      },
+      "sync-shows-time-and-states": {
+        "pass": true
+      }
+    },
+    "originalTestsPass": true
+  },
+  "score": {
+    "execution": "completed",
+    "status": "no_change_needed",
+    "fixed": null,
+    "requiredFailing": [],
+    "regressions": [],
+    "sourceChanges": [],
+    "unnecessaryChange": false,
+    "clarified": null,
+    "incorrectClaim": false,
+    "success": true,
+    "isolationFlags": 0
+  }
+}

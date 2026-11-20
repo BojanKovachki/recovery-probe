@@ -1,0 +1,274 @@
+diff --git a/public/src/store.js b/public/src/store.js
+index e57ca55..ff548bb 100644
+--- a/public/src/store.js
++++ b/public/src/store.js
+@@ -1,68 +1,75 @@
+-import * as ordersApi from './api.js'
+-
+-/** The orders screen's state. Views subscribe and re-render when it changes. */
+-export function createStore(api = ordersApi) {
+-  let state = {
+-    orders: [],
+-    filter: '',
+-    loading: true,
+-    loaded: false,
+-    error: null,
+-  }
+-  const listeners = new Set()
+-
+-  function set(changes) {
+-    const next = { ...state, ...changes }
+-    // Views re-render only when something they show changed.
+-    if (Object.keys(changes).every((key) => next[key] === state[key])) return
+-    state = next
+-    for (const listener of listeners) listener(state)
+-  }
+-
+-  async function load(filter = state.filter) {
+-    // Another filter is another list: the old rows must not show under it.
+-    set({
+-      filter,
+-      loading: true,
+-      ...(filter === state.filter ? {} : { orders: [] }),
+-    })
+-    try {
+-      const orders = await api.listOrders(filter)
+-      set({ orders, loading: false, loaded: true, error: null })
+-    } catch {
+-      set({
+-        loading: false,
+-        error: state.loaded
+-          ? 'Could not refresh orders.'
+-          : 'Could not load orders.',
+-      })
+-    }
+-  }
+-
+-  async function ship(id) {
+-    try {
+-      const updated = await api.updateStatus(id, 'shipped')
+-      set({
+-        orders: state.orders.map((order) =>
+-          order.id === updated.id ? updated : order,
+-        ),
+-        error: null,
+-      })
+-    } catch {
+-      set({ error: 'Could not update the order.' })
+-    }
+-  }
+-
+-  return {
+-    get state() {
+-      return state
+-    },
+-    subscribe(listener) {
+-      listeners.add(listener)
+-      return () => listeners.delete(listener)
+-    },
+-    load,
+-    refresh: () => load(),
+-    ship,
+-  }
+-}
++import * as ordersApi from './api.js'
++
++/** The orders screen's state. Views subscribe and re-render when it changes. */
++export function createStore(api = ordersApi) {
++  let state = {
++    orders: [],
++    filter: '',
++    loading: true,
++    loaded: false,
++    error: null,
++  }
++  const listeners = new Set()
++
++  function set(changes) {
++    const next = { ...state, ...changes }
++    // Views re-render only when something they show changed.
++    if (Object.keys(changes).every((key) => next[key] === state[key])) return
++    state = next
++    for (const listener of listeners) listener(state)
++  }
++
++  let latestLoad = 0
++
++  async function load(filter = state.filter) {
++    // Only the most recent load may update the screen: answers to earlier
++    // requests (an older filter, or an earlier refresh) are dropped.
++    const request = ++latestLoad
++    // Another filter is another list: the old rows must not show under it.
++    set({
++      filter,
++      loading: true,
++      ...(filter === state.filter ? {} : { orders: [] }),
++    })
++    try {
++      const orders = await api.listOrders(filter)
++      if (request !== latestLoad) return
++      set({ orders, loading: false, loaded: true, error: null })
++    } catch {
++      if (request !== latestLoad) return
++      set({
++        loading: false,
++        error: state.loaded
++          ? 'Could not refresh orders.'
++          : 'Could not load orders.',
++      })
++    }
++  }
++
++  async function ship(id) {
++    try {
++      const updated = await api.updateStatus(id, 'shipped')
++      set({
++        orders: state.orders.map((order) =>
++          order.id === updated.id ? updated : order,
++        ),
++        error: null,
++      })
++    } catch {
++      set({ error: 'Could not update the order.' })
++    }
++  }
++
++  return {
++    get state() {
++      return state
++    },
++    subscribe(listener) {
++      listeners.add(listener)
++      return () => listeners.delete(listener)
++    },
++    load,
++    refresh: () => load(),
++    ship,
++  }
++}
+diff --git a/test/store.test.js b/test/store.test.js
+index 3e2079c..9f29e99 100644
+--- a/test/store.test.js
++++ b/test/store.test.js
+@@ -1,51 +1,70 @@
+-import { test } from 'node:test'
+-import assert from 'node:assert/strict'
+-import { createStore } from '../public/src/store.js'
+-import { money, statusLabel } from '../public/src/format.js'
+-
+-const ORDERS = [
+-  { id: 'ORD-1', customer: 'A', status: 'new', total: 10, updatedAt: '' },
+-  { id: 'ORD-2', customer: 'B', status: 'packed', total: 20, updatedAt: '' },
+-]
+-
+-test('loading asks for the selected filter and shows its orders', async () => {
+-  const asked = []
+-  const store = createStore({
+-    listOrders: async (status) => {
+-      asked.push(status)
+-      return ORDERS.filter((order) => !status || order.status === status)
+-    },
+-  })
+-  await store.load('packed')
+-  assert.deepEqual(asked, ['packed'])
+-  assert.equal(store.state.filter, 'packed')
+-  assert.deepEqual(
+-    store.state.orders.map((order) => order.id),
+-    ['ORD-2'],
+-  )
+-  assert.equal(store.state.loading, false)
+-})
+-
+-test('a failed first load says the orders could not be loaded', async () => {
+-  const store = createStore({
+-    listOrders: async () => {
+-      throw new Error('HTTP 503')
+-    },
+-  })
+-  await store.load('')
+-  assert.equal(store.state.error, 'Could not load orders.')
+-  assert.equal(store.state.loading, false)
+-})
+-
+-test('subscribers hear about each change', async () => {
+-  const store = createStore({ listOrders: async () => ORDERS })
+-  const seen = []
+-  store.subscribe((state) => seen.push(state.loading))
+-  await store.load('')
+-  assert.deepEqual(seen, [false])
+-})
+-
+-test('statuses and totals are shown the way the team reads them', () => {
+-  assert.equal(statusLabel('packed'), 'Packed')
+-  assert.equal(money(89.5), '€89.50')
+-})
++import { test } from 'node:test'
++import assert from 'node:assert/strict'
++import { createStore } from '../public/src/store.js'
++import { money, statusLabel } from '../public/src/format.js'
++
++const ORDERS = [
++  { id: 'ORD-1', customer: 'A', status: 'new', total: 10, updatedAt: '' },
++  { id: 'ORD-2', customer: 'B', status: 'packed', total: 20, updatedAt: '' },
++]
++
++test('loading asks for the selected filter and shows its orders', async () => {
++  const asked = []
++  const store = createStore({
++    listOrders: async (status) => {
++      asked.push(status)
++      return ORDERS.filter((order) => !status || order.status === status)
++    },
++  })
++  await store.load('packed')
++  assert.deepEqual(asked, ['packed'])
++  assert.equal(store.state.filter, 'packed')
++  assert.deepEqual(
++    store.state.orders.map((order) => order.id),
++    ['ORD-2'],
++  )
++  assert.equal(store.state.loading, false)
++})
++
++test('a failed first load says the orders could not be loaded', async () => {
++  const store = createStore({
++    listOrders: async () => {
++      throw new Error('HTTP 503')
++    },
++  })
++  await store.load('')
++  assert.equal(store.state.error, 'Could not load orders.')
++  assert.equal(store.state.loading, false)
++})
++
++test('subscribers hear about each change', async () => {
++  const store = createStore({ listOrders: async () => ORDERS })
++  const seen = []
++  store.subscribe((state) => seen.push(state.loading))
++  await store.load('')
++  assert.deepEqual(seen, [false])
++})
++
++test('a slow answer for an earlier filter does not replace the latest filter', async () => {
++  const pending = {}
++  const store = createStore({
++    listOrders: (status) =>
++      new Promise((resolve) => {
++        pending[status || 'all'] = resolve
++      }),
++  })
++  const first = store.load('')
++  const second = store.load('shipped')
++  pending.shipped([])
++  await second
++  pending.all(ORDERS)
++  await first
++  assert.equal(store.state.filter, 'shipped')
++  assert.deepEqual(store.state.orders, [])
++  assert.equal(store.state.loading, false)
++})
++
++test('statuses and totals are shown the way the team reads them', () => {
++  assert.equal(statusLabel('packed'), 'Packed')
++  assert.equal(money(89.5), '€89.50')
++})

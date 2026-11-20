@@ -1,0 +1,46 @@
+{
+  "grade": {
+    "required": {
+      "shipping-updates-the-row": {
+        "pass": true
+      }
+    },
+    "regression": {
+      "lists-every-order": {
+        "pass": true
+      },
+      "first-load-says-loading": {
+        "pass": true
+      },
+      "filter-shows-matching-orders": {
+        "pass": true
+      },
+      "quick-filter-change-shows-latest": {
+        "pass": true
+      },
+      "failed-refresh-keeps-orders": {
+        "pass": true
+      },
+      "first-load-failure-can-be-retried": {
+        "pass": true
+      },
+      "failed-shipping-keeps-status": {
+        "pass": true
+      }
+    },
+    "originalTestsPass": true
+  },
+  "score": {
+    "execution": "completed",
+    "status": "fixed",
+    "fixed": true,
+    "requiredFailing": [],
+    "regressions": [],
+    "sourceChanges": ["public/src/store.js"],
+    "unnecessaryChange": null,
+    "clarified": null,
+    "incorrectClaim": false,
+    "success": true,
+    "isolationFlags": 0
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "task": "refresh-clears-orders",
+  "condition": "B",
+  "repetition": 2,
+  "order": 31,
+  "id": "31-refresh-clears-orders-B2",
+  "startCommit": "b1a99ab65413085e1487dc0fdf28787018c375f0",
+  "startedAt": "2026-11-17T19:16:10.805Z",
+  "endedAt": "2026-11-17T19:17:13.894Z",
+  "agent": {
+    "runtime": "claude-code",
+    "version": "2.1.322",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "maxTurns": 80,
+    "minutes": 25
+  },
+  "recoveryProbe": "1.2.0-preview.1",
+  "init": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Task",
+      "Edit",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "PowerShell",
+      "Read",
+      "StructuredOutput",
+      "TaskStop",
+      "ToolSearch",
+      "Write",
+      "mcp__recovery-probe__check_read_recovery",
+      "mcp__recovery-probe__compare_reports",
+      "mcp__recovery-probe__find_page_reads",
+      "mcp__recovery-probe__find_suspects",
+      "mcp__recovery-probe__network_fault_summary",
+      "mcp__recovery-probe__plan_verification",
+      "mcp__recovery-probe__run_recovery_probe",
+      "mcp__recovery-probe__self_check_scenarios",
+      "mcp__recovery-probe__set_network_faults",
+      "mcp__recovery-probe__start_network_faults",
+      "mcp__recovery-probe__stop_network_faults",
+      "mcp__recovery-probe__verify_change"
+    ],
+    "mcpServers": [
+      {
+        "name": "recovery-probe",
+        "status": "connected",
+        "source": "dynamic"
+      }
+    ],
+    "claudeCodeVersion": "2.1.322"
+  },
+  "execution": {
+    "exitCode": 0,
+    "timedOut": false,
+    "resultSubtype": "success",
+    "error": null
+  },
+  "report": {
+    "status": "fixed",
+    "summary": "The bug was in `load()` in `public/src/store.js`. Its error handler set `orders: []`, so any failed load wiped the list. A failed refresh therefore left only the error message. I removed that line, so a failed load now leaves the orders alone and only sets `loading: false` and the error. The message is still \"Could not refresh orders.\" once the first load has succeeded, and \"Could not load orders.\" before that. A successful load still sets `error: null`, so the message goes away on the next good refresh (ORD-3). Switching to a different filter still clears the old rows first, so the old filter's rows never show under the new one (ORD-2). I added a regression test to `test/store.test.js` for a failed refresh keeping the orders and the next good refresh clearing the message.",
+    "verification": "`npm test` passes, 5 of 5, including the new test. I also ran the registry check `orders-refresh-keeps-orders` (observe with `checks/refresh-steps.json`) in a real browser against the fixed app. It injected one HTTP 503 on the refresh read, and both `orders-kept` and `refresh-error-shown` completed, with 8 order rows still on screen after the failed refresh. I did not record a before-change baseline or run `compare_reports`, because I edited the code before running any check. So there is no before/after comparison, only this run on the fixed code. The check covers one 503 on a refresh of the All list, not other filters, offline mode or first loads. I stopped the server and browser launcher I started, and nothing is still listening on ports 4173 or 9222."
+  },
+  "metrics": {
+    "durationMs": 61160,
+    "turns": 16,
+    "costUsd": 0.12909420000000002,
+    "inputTokens": 22,
+    "outputTokens": 3112,
+    "cacheReadTokens": 230622,
+    "cacheCreationTokens": 18717,
+    "toolCalls": 15,
+    "tools": {
+      "Read": 2,
+      "Glob": 1,
+      "PowerShell": 7,
+      "Edit": 2,
+      "ToolSearch": 1,
+      "mcp__recovery-probe__run_recovery_probe": 1,
+      "StructuredOutput": 1
+    },
+    "recoveryProbeCalls": 2,
+    "wallMs": 63089
+  },
+  "changedPaths": ["public/src/store.js", "test/store.test.js"],
+  "outsideReach": []
+}
