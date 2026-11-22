@@ -11,7 +11,7 @@ import { parseOptions, readConfig, text, UsageError } from './args.mjs'
 import { signals } from './until-stopped.mjs'
 
 const USAGE = `recovery-probe verify [--baseline] [--plan FILE] [--out FOLDER]
-recovery-probe verify --policy FILE --base REF [--out FOLDER]`
+recovery-probe verify --policy FILE --base REF [--budget MS] [--out FOLDER]`
 
 const HELP = `${USAGE}
 
@@ -29,6 +29,8 @@ complete runs on both sides, and no suspect on a changed line.
 Experimental: --policy reads recovery-probe.policy.json and its registry
 scenarios as committed on --base, judges each claim by them, and reports the
 candidate's changes to them. The base comes from this command, never a file.
+A claim with an app runs on each side's own launch of it. --budget lowers the
+policy's overall budget; nothing raises it.
 
 Ctrl+C stops the check in progress, which gets 10 s to clean up. Exit code: 0
 verified, 1 a new defect, 2 anything else to resolve. See docs/verify.md.`
@@ -46,15 +48,32 @@ function print(event: VerifyEvent) {
           : `incomplete (${event.result.evidence.gaps.join('; ')})`
         : `no report (${event.result.error})`,
     )
+  else if (event.type === 'planned')
+    console.log(
+      `The claims can take up to ${minutes(event.worstCaseMs)}, in a budget of ${minutes(event.budgetMs)}`,
+    )
   else console.log(`Scanning the lines changed since ${event.base}`)
 }
+
+const minutes = (ms: number) => `${Math.ceil(ms / 60000)} min`
 
 interface Request {
   baseline: boolean
   policy?: string
   base?: string
+  budgetMs?: number
   plan?: string
   directory?: string
+}
+
+/** --budget in milliseconds, which only goes with --policy. */
+function budgetOf(value: string | undefined, policy: string | undefined) {
+  if (value === undefined) return undefined
+  if (!policy) throw new UsageError('--budget goes with --policy')
+  const ms = Number(value)
+  if (!Number.isInteger(ms) || ms < 1000 || ms > 86400000)
+    throw new UsageError('--budget must be 1000–86400000 milliseconds')
+  return ms
 }
 
 /** What was asked, or a usage error for flags that don't go together. */
@@ -65,11 +84,13 @@ function requestOf(args: string[]): Request {
     out: { type: 'string' },
     policy: { type: 'string' },
     base: { type: 'string' },
+    budget: { type: 'string' },
   })
   const request = {
     baseline: values.baseline === true,
     policy: text(values, 'policy'),
     base: text(values, 'base'),
+    budgetMs: budgetOf(text(values, 'budget'), text(values, 'policy')),
     plan: text(values, 'plan'),
     directory: text(values, 'out'),
   }
@@ -120,6 +141,7 @@ async function verify(request: Request, signal: AbortSignal) {
         ...common,
         policy: request.policy,
         base: request.base!,
+        budgetMs: request.budgetMs,
       }),
     )
   const plan = await readConfig(

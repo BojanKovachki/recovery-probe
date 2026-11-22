@@ -103,10 +103,39 @@ npx recovery-probe verify --policy recovery-probe.policy.json --base main
 
 Exit codes keep their meaning: 1 only for a claim that failed with `NEW_FAILURE`, even when others are incomplete; 0 when every claim is verified and nothing blocks the run; 2 otherwise. A timeout is never a regression.
 
-This version doesn't yet run everything a policy describes, so a policy run can't be VERIFIED yet:
+### Each side's own app
 
-- **Scenarios** run once per path, `runs` times, against an app someone started by hand. Recovery Probe can't tell which code that app runs, so each behavior claim has the gap `APP_REVISION_UNKNOWN`. Launching the app from each side's checkout, and so the base side, comes next.
-- **Project checks** are judged and listed, but not run yet: `UNAVAILABLE`.
+A claim that names an `app` runs on both sides: the base and the candidate, each from its own checkout.
+
+```json
+"apps": {
+  "web": {
+    "setup": [],
+    "launch": ["node", "server.mjs", "4173"],
+    "url": "http://127.0.0.1:4173/items.html",
+    "ready": { "url": "http://127.0.0.1:4173/health", "timeoutMs": 20000 },
+    "fixtures": ["test/fixtures/items.json"]
+  }
+}
+```
+
+- **Checkouts.** The base commit, and a commit of the candidate's snapshot tree, are cloned into disposable folders outside the repository, as for [repair](repair.md). The snapshot commit is recorded in `revisions.candidate.snapshotCommit`. No ref moves, and the commit is never signed: it's a throwaway object.
+- **Launch.** For each side in turn:
+  - Recovery Probe refuses the run if `url` or `ready.url` is already in use, since it may be another build.
+  - It copies the base's `fixtures` into the checkout, runs `setup`, and starts `launch` there with an allowlisted environment.
+  - It waits until `ready.url` answers.
+  - Then it opens `url` in a Chromium it starts on a free loopback debugging port. Each run starts from that page, with its own copy of the approved configuration pointed at that browser.
+  - Afterwards the app, everything it started and the browser are stopped. The app's output is kept in `app.log`.
+- **Comparison.** Each path's base and candidate runs are compared as [`compare`](compare.md) does. A failure that's new on the candidate is `NEW_FAILURE`, exit 1. A failure on both sides is `FAILING_ON_BOTH`, exit 2. A fix shows as `IMPROVED` in the claim's `baseline`.
+- **Budgets.** `budgets.totalMs` limits the whole verification, setup and launches included, and `--budget` (`budgetMs` on `verify_change`) can only lower it.
+  - A launch or run starts only if its worst case still fits before `budgets.cleanupReserveMs`, and each run stops at `budgets.scenarioRunMs`. A discovery's own `maxDurationMs` is capped at that too.
+  - Work that doesn't fit is reported as `BUDGET_EXHAUSTED`, and `run.status` as `budget-exhausted`.
+  - Verify prints the worst case before it starts.
+- **Instability.** A failure and a pass of the same scenario are `UNSTABLE`. A failure on the failure path with a pass on the normal path is still a failure.
+
+A claim without `app` runs `runs` times per path, on the candidate only, against an app someone started by hand. Recovery Probe can't tell which code that app runs, so the claim has the gap `APP_REVISION_UNKNOWN` and can't be VERIFIED. Electron apps aren't launched yet. **Project checks** are judged and listed, but not run yet: `UNAVAILABLE`.
+
+`npm run eval:verifier` runs one claim on a synthetic app through six cases: a fix, a regression, a fault that never fires, a missing and a changed expectation, and a budget stop. It scores each against `test/fixtures/verifier-evaluation/expected.json`, which the verifier never reads.
 
 A policy doesn't make a local run tamper-proof. Anyone with a shell can change the base locally or edit files the run reads. The stronger setup is verify in CI, with the base supplied by CI.
 

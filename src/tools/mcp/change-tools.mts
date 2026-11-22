@@ -10,7 +10,7 @@ import {
   type Verification,
 } from '../verify.mjs'
 import { PARTIAL_SUMMARY } from '../verify/record.mjs'
-import { text } from './args.mjs'
+import { integer, text } from './args.mjs'
 import type { McpTool } from './server.mjs'
 
 const MAX_SUSPECTS = 200
@@ -186,6 +186,7 @@ const CONFLICTS: [(args: Record<string, unknown>) => unknown, string][] = [
     (a) => !a.policy && a.base,
     'base goes with policy; a plan names its own base',
   ],
+  [(a) => !a.policy && a.budgetMs !== undefined, 'budgetMs goes with policy'],
   [
     (a) => a.policy && (a.baseline || a.plan),
     'policy replaces the plan and its recorded baseline: leave out plan and baseline',
@@ -203,7 +204,8 @@ function modeOf(args: Record<string, unknown>) {
     applies({ ...args, policy, base }),
   )
   if (conflict) throw new Error(conflict[1])
-  return { policy, base, status: args.status === true }
+  const budgetMs = integer(args, 'budgetMs', [1000, 86400000])
+  return { policy, base, budgetMs, status: args.status === true }
 }
 
 async function recordPlanBaseline(
@@ -265,6 +267,13 @@ export const verifyChangeTool: McpTool = {
         description:
           'With policy: the Git reference the change starts from, such as main. The user or CI names it; never take it from a file the change can edit.',
       },
+      budgetMs: {
+        type: 'integer',
+        minimum: 1000,
+        maximum: 86400000,
+        description:
+          "With policy: lowers the policy's overall budget, in milliseconds. Nothing raises it.",
+      },
       status: {
         type: 'boolean',
         default: false,
@@ -276,10 +285,12 @@ export const verifyChangeTool: McpTool = {
   },
   annotations: { readOnlyHint: false, openWorldHint: false },
   async run(args, { signal }) {
-    const { policy, base, status } = modeOf(args)
+    const { policy, base, budgetMs, status } = modeOf(args)
     if (status) return lastVerification()
     if (policy)
-      return resultOf(await verifyPolicy({ policy, base: base!, signal }))
+      return resultOf(
+        await verifyPolicy({ policy, base: base!, budgetMs, signal }),
+      )
     if (args.baseline) return recordPlanBaseline(args, signal)
     return resultOf(await verifyChange({ plan: await planOf(args), signal }))
   },

@@ -1,0 +1,10 @@
+{
+  "transport": "http",
+  "cdp": "http://127.0.0.1:9",
+  "pageUrl": "http://127.0.0.1:{{port}}/items.html",
+  "endpoint": "http://127.0.0.1:{{port}}/api/items",
+  "regionSelector": "#items-region",
+  "contentSelector": "#items li",
+  "observationMs": 6000,
+  "sampleMs": 100
+}

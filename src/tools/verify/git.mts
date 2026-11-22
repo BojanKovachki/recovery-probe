@@ -59,6 +59,38 @@ export async function snapshotTree(root: string): Promise<string> {
 const headOf = (root: string) =>
   git(root, ['rev-parse', '--verify', '--quiet', 'HEAD']).catch(() => null)
 
+const SNAPSHOT_IDENTITY = {
+  GIT_AUTHOR_NAME: 'Recovery Probe',
+  GIT_AUTHOR_EMAIL: 'recovery-probe@localhost',
+  GIT_AUTHOR_DATE: '2000-01-01T00:00:00Z',
+  GIT_COMMITTER_NAME: 'Recovery Probe',
+  GIT_COMMITTER_EMAIL: 'recovery-probe@localhost',
+  GIT_COMMITTER_DATE: '2000-01-01T00:00:00Z',
+}
+
+/**
+ * A commit of `tree` on top of `head` that no ref points to, so the candidate can be checked
+ * out on its own. Its fixed author and date make the same tree on the same parent the same
+ * commit. It's never signed: it's a throwaway object that never leaves the machine.
+ */
+export const snapshotCommit = (
+  root: string,
+  tree: string,
+  head: string | null,
+) =>
+  git(
+    root,
+    [
+      'commit-tree',
+      '--no-gpg-sign',
+      tree,
+      ...(head ? ['-p', head] : []),
+      '-m',
+      'Recovery Probe snapshot of the working tree',
+    ],
+    SNAPSHOT_IDENTITY,
+  )
+
 /** The base and the candidate's working tree. Plan mode records what it can, and null for the rest. */
 export async function revisionsOf(
   cwd: string,

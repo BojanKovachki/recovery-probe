@@ -1,6 +1,8 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { RunBudget } from '../../core/budget.mjs'
 import { changesSince, commitOf, PlanInputError } from '../plan/changes.mjs'
+import { checkOutSides, type Checkouts } from './checkout.mjs'
 import { safeRelativePath } from '../plan/paths.mjs'
 import { DEFAULT_REGISTRY } from '../plan/registry.mjs'
 import { globRegExp, selections } from '../plan/select.mjs'
@@ -11,7 +13,13 @@ import {
   type Registries,
   type Sides,
 } from './criteria.mjs'
-import { baseGaps, baseProvenance, blobAt, revisionsOf } from './git.mjs'
+import {
+  baseGaps,
+  baseProvenance,
+  blobAt,
+  revisionsOf,
+  snapshotCommit,
+} from './git.mjs'
 import { pendingSuspectClaim, suspectClaim } from './plan-claims.mjs'
 import {
   behaviorClaim,
@@ -50,8 +58,22 @@ async function sidesOf(options: PolicyOptions) {
   const base = revisions.base.commit ?? (await commitOf(root, options.base))
   const candidate = revisions.candidate.snapshotTree
   if (!candidate) throw new Error("Git couldn't snapshot the working tree")
-  return { sides: { root, cwd, base, candidate } as Sides, revisions }
+  const commit = await snapshotCommit(root, candidate, revisions.candidate.head)
+  revisions.candidate.snapshotCommit = commit
+  return {
+    sides: { root, cwd, base, candidate } as Sides,
+    revisions,
+    commits: { base, candidate: commit },
+  }
 }
+
+/** The longest the claims can take: each run at its cap, each launch at its readiness limit. */
+const worstCaseOf = (policy: Policy) =>
+  policy.claims.reduce((sum, claim) => {
+    const runs = 2 * policy.runs * policy.budgets.scenarioRunMs
+    const app = claim.app && policy.apps[claim.app]
+    return sum + (app ? 2 * (app.ready.timeoutMs + runs) : runs)
+  }, 0)
 
 /** The base's policy and its identity, or why there's no usable one. */
 async function policyAt(sides: Sides, path: string) {
@@ -157,19 +179,28 @@ async function policyClaims(context: PolicyContext) {
   return { claims, coverage: await coverageOf(context) }
 }
 
-/** Decides every claim, then the run. Without a usable policy, only the scan runs. */
+/** Decides the scan, every claim, then the run. Without a usable policy, only the scan runs. */
 async function decide(
   context: DecideContext,
   runGaps: string[],
 ): Promise<Verification> {
-  const { options, sides, directory, log, policy, identity } = context
+  const { options, sides, directory, log, policy, identity, budget } = context
+  options.onEvent?.({ type: 'scanning', base: options.base })
+  const scan = await scanChangedLines(sides.base)
+  if (policy)
+    options.onEvent?.({
+      type: 'planned',
+      worstCaseMs: worstCaseOf(policy),
+      budgetMs: budget.maxDurationMs,
+    })
   const { claims, coverage } =
     policy && identity
       ? await policyClaims({ ...context, policy, identity })
       : { claims: [], coverage: { uncovered: [], ignored: [] } }
-  options.onEvent?.({ type: 'scanning', base: options.base })
-  const scan = await scanChangedLines(sides.base)
   claims.push(suspectClaim(options.base, scan, SCAN))
+  const stoppedByBudget = claims.some(
+    (claim) => claim.execution.status === 'budget-exhausted',
+  )
   const { verdict, exitCode } = decideRun({
     claims,
     policyRecorded: Boolean(identity),
@@ -185,10 +216,20 @@ async function decide(
     directory,
   }
   return finishVerification(log, fields, {
-    status: 'completed',
+    status: stoppedByBudget ? 'budget-exhausted' : 'completed',
     claims,
     coverage,
   })
+}
+
+/** The registry as committed on the base and as the candidate has it. */
+async function registriesOf(sides: Sides): Promise<Registries> {
+  const path = repoPathOf(sides, DEFAULT_REGISTRY)
+  return {
+    path,
+    base: await registryAt(sides, sides.base, path),
+    candidate: await registryAt(sides, sides.candidate, path),
+  }
 }
 
 /**
@@ -199,17 +240,14 @@ async function decide(
 export async function verifyPolicy(
   options: PolicyOptions,
 ): Promise<Verification> {
-  const { sides, revisions } = await sidesOf(options)
+  // The budget counts everything, the snapshot and checkouts included.
+  const started = performance.now()
+  const { sides, revisions, commits } = await sidesOf(options)
   const directory = folderOf(options)
   await rm(join(directory, 'policy'), { recursive: true, force: true })
   await mkdir(directory, { recursive: true, mode: 0o700 })
   await writeFile(join(directory, '.gitignore'), '*\n', { mode: 0o600 })
-  const path = repoPathOf(sides, DEFAULT_REGISTRY)
-  const registries: Registries = {
-    path,
-    base: await registryAt(sides, sides.base, path),
-    candidate: await registryAt(sides, sides.candidate, path),
-  }
+  const registries = await registriesOf(sides)
   const read = await policyAt(sides, repoPathOf(sides, options.policy))
   const provenance = await baseProvenance(sides.root, options.base, sides.base)
   const runGaps = [...baseGaps(provenance), ...(read.gap ? [read.gap] : [])]
@@ -225,6 +263,12 @@ export async function verifyPolicy(
     pendingOf(read.policy, options.base, registries),
   )
   const { policy, identity } = read
+  const budget = new RunBudget(
+    Math.min(policy?.budgets.totalMs ?? Infinity, options.budgetMs ?? Infinity),
+    policy?.budgets.cleanupReserveMs ?? 0,
+    started,
+  )
+  let checkouts: Promise<Checkouts> | undefined
   const context = {
     options,
     sides,
@@ -233,8 +277,14 @@ export async function verifyPolicy(
     registries,
     policy,
     identity,
+    budget,
+    checkouts: () => (checkouts ??= checkOutSides(sides.root, commits)),
   }
-  return summarizedEvenIfStopped(log, options.signal, () =>
-    decide(context, runGaps),
-  )
+  try {
+    return await summarizedEvenIfStopped(log, options.signal, () =>
+      decide(context, runGaps),
+    )
+  } finally {
+    await checkouts?.then((made) => made.remove()).catch(() => {})
+  }
 }

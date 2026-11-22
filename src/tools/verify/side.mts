@@ -14,6 +14,7 @@ export type VerifyEvent =
   | { type: 'running'; side: Side; check: string; run: number }
   | { type: 'ran'; side: Side; check: string; result: CheckResult }
   | { type: 'scanning'; base: string }
+  | { type: 'planned'; worstCaseMs: number; budgetMs: number }
 
 export interface VerifyOptions {
   plan: VerifyPlan

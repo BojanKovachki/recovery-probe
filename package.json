@@ -140,7 +140,8 @@
     "demo:browser": "npm run build --silent && node bin/recovery-probe.mjs demo",
     "benchmark:observe": "npm run build --silent && node scripts/benchmark-observe.mjs",
     "demo:mcp": "npm run build && node examples/mcp-demo.mjs",
-    "eval:self-check": "npm run build --silent && node scripts/evaluate-self-check.mjs"
+    "eval:self-check": "npm run build --silent && node scripts/evaluate-self-check.mjs",
+    "eval:verifier": "npm run build --silent && node scripts/evaluate-verifier.mjs"
   },
   "mcpName": "io.github.BojanKovachki/recovery-probe"
 }
