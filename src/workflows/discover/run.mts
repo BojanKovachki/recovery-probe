@@ -1,6 +1,5 @@
 import { readRegion } from '../../core/region-read.mjs'
 import {
-  classifyObservation,
   compareRegions,
   summarizeRegion,
   type RegionSummary,
@@ -12,7 +11,12 @@ import {
   type PreparedVisibility,
 } from '../../targets/visibility.mjs'
 import {
-  advice,
+  CALIBRATION_LOADS,
+  calibrationWorstCaseMs,
+  experimentWorstCaseMs,
+} from './budget.mjs'
+import { RunControl, type DiscoveryOptions } from './control.mjs'
+import {
   callsGap,
   findingId,
   planExperiments,
@@ -20,10 +24,10 @@ import {
   type DiscoveryExperiment,
 } from './experiment.mjs'
 import { load, type LoadContext, type LoadPlan } from './load.mjs'
+import { faultedRun, findingOf } from './runs.mjs'
 import { checkScreenUsesRead } from './screen-check.mjs'
-import { screenshotRun, type DiscoveryScreenshot } from './screenshots.mjs'
+import { screenshotRun } from './screenshots.mjs'
 import type {
-  DiscoveryPhase,
   DiscoveryResult,
   DiscoveryRun,
   DiscoverySetup,
@@ -31,12 +35,11 @@ import type {
   ReadSnapshot,
 } from './types.mjs'
 
-const CALIBRATION_LOADS = 3
-
 /**
  * Calibrates three healthy loads, checks that failing the selected read shows on
  * the screen, then fails it in each planned way, with a healthy control before
- * every faulted load, and fills `report`.
+ * every faulted load, and fills `report`. With `timing.maxDurationMs`, it starts no
+ * step that can't finish in time, stops any that runs over, and keeps time for cleanup.
  */
 export async function runDiscovery<
   Fault extends string,
@@ -45,18 +48,19 @@ export async function runDiscovery<
   setup: DiscoverySetup<Fault, Snapshot>,
   timing: DiscoveryTiming,
   report: DiscoveryResult<Fault, Snapshot>,
-  { screenshot }: { screenshot?: DiscoveryScreenshot } = {},
+  options: DiscoveryOptions<Fault, Snapshot> = {},
 ): Promise<void> {
-  await new Discovery(setup, timing, report, screenshot).run()
+  await new Discovery(setup, timing, report, options).run()
 }
 
 class Discovery<Fault extends string, Snapshot extends ReadSnapshot> {
   readonly #setup: DiscoverySetup<Fault, Snapshot>
   readonly #timing: DiscoveryTiming
   readonly #report: DiscoveryResult<Fault, Snapshot>
-  readonly #screenshot?: DiscoveryScreenshot
+  readonly #options: DiscoveryOptions<Fault, Snapshot>
   readonly #initialUrl: string
   readonly #loads: LoadContext<Fault, Snapshot>
+  readonly #control: RunControl<Fault, Snapshot>
   #errors = 0
   #trustedFingerprint?: string
   #visibility?: PreparedVisibility
@@ -66,13 +70,14 @@ class Discovery<Fault extends string, Snapshot extends ReadSnapshot> {
     setup: DiscoverySetup<Fault, Snapshot>,
     timing: DiscoveryTiming,
     report: DiscoveryResult<Fault, Snapshot>,
-    screenshot: DiscoveryScreenshot | undefined,
+    options: DiscoveryOptions<Fault, Snapshot>,
   ) {
     this.#setup = setup
     this.#timing = timing
     this.#report = report
-    this.#screenshot = screenshot
+    this.#options = options
     this.#initialUrl = setup.page.url()
+    this.#control = new RunControl(timing, report, options)
     this.#loads = {
       setup,
       timing,
@@ -80,6 +85,8 @@ class Discovery<Fault extends string, Snapshot extends ReadSnapshot> {
       screen: () => this.#screen(),
       errors: () => this.#errors,
       trustedFingerprint: () => this.#trustedFingerprint,
+      stopReason: () => this.#control.stopReason(),
+      timeLeftMs: () => this.#control.timeLeftMs(),
     }
   }
 
@@ -87,6 +94,7 @@ class Discovery<Fault extends string, Snapshot extends ReadSnapshot> {
     const { page, control } = this.#setup
     page.on('pageerror', this.#countError)
     this.#report.page = pageAddress(this.#initialUrl)
+    await this.#control.start(this.#setup)
     try {
       this.#visibility = await prepareVisibility(page, {
         restoreWindow: this.#timing.restoreWindow,
@@ -101,10 +109,13 @@ class Discovery<Fault extends string, Snapshot extends ReadSnapshot> {
       await this.#release()
     }
     this.#conclude()
+    await this.#control.progress('finished')
   }
 
-  #load(plan?: LoadPlan<Fault>) {
-    return load(this.#loads, plan)
+  async #load(plan: LoadPlan<Fault> = {}) {
+    const phase = await load(this.#loads, plan)
+    await this.#control.loaded(Boolean(plan.experiment))
+    return phase
   }
 
   async #screen(): Promise<RegionSummary> {
@@ -128,15 +139,23 @@ class Discovery<Fault extends string, Snapshot extends ReadSnapshot> {
 
   async #experimentThenReset() {
     try {
+      this.#control.beginWithin(calibrationWorstCaseMs(this.#timing))
       await this.#calibrate()
+      await this.#control.progress('checking-screen')
       await checkScreenUsesRead(this.#loads, this.#initialUrl)
+      await this.#control.loaded(true)
       const { experiments, laterCallFault } = this.#setup
       const planned = planExperiments(
         experiments,
         laterCallFault,
         this.#report.readiness.callsPerLoad!,
       )
-      for (const experiment of planned) await this.#experiment(experiment)
+      this.#control.planned(planned.map(findingId))
+      await this.#control.progress('experimenting')
+      for (const experiment of planned) {
+        this.#control.beginWithin(experimentWorstCaseMs(this.#timing))
+        await this.#experiment(experiment)
+      }
     } catch (error) {
       this.#report.error = (error as Error).message
     } finally {
@@ -146,12 +165,17 @@ class Discovery<Fault extends string, Snapshot extends ReadSnapshot> {
 
   async #calibrate() {
     const report = this.#report
+    await this.#control.progress('calibrating')
     for (let i = 0; i < CALIBRATION_LOADS; i++) {
       const baseline = await this.#load({ calibrate: true })
       if (i === 0)
         Object.assign(
           baseline,
-          await screenshotRun(this.#screenshot, this.#setup.page, 'baseline'),
+          await screenshotRun(
+            this.#options.screenshot,
+            this.#setup.page,
+            'baseline',
+          ),
         )
       report.baselines.push(baseline)
       if (!baseline.ready || baseline.newErrors)
@@ -206,7 +230,7 @@ class Discovery<Fault extends string, Snapshot extends ReadSnapshot> {
       const run = {
         ...faultedRun(planned, healthy, result),
         ...(await screenshotRun(
-          this.#screenshot,
+          this.#options.screenshot,
           this.#setup.page,
           `${id}-run${i + 1}`,
         )),
@@ -214,39 +238,28 @@ class Discovery<Fault extends string, Snapshot extends ReadSnapshot> {
       runs.push(run)
       this.#report.results.push(run)
     }
-    this.#report.findings.push(this.#finding(id, planned, runs))
-  }
-
-  #finding(
-    id: string,
-    planned: DiscoveryExperiment<Fault>,
-    runs: DiscoveryRun<Fault, Snapshot>[],
-  ) {
-    const consistent = runs.every(
-      (r) => r.assessment.classification === runs[0].assessment.classification,
+    this.#report.findings.push(
+      findingOf(id, planned, runs, {
+        observationMs: this.#timing.observationMs,
+        verification: this.#setup.verification,
+      }),
     )
-    const assessment = consistent
-      ? runs[0].assessment
-      : { classification: 'UNSTABLE', kind: 'inconclusive', confidence: 'low' }
-    return {
-      id,
-      ...planned,
-      ...(planned.everyRead
-        ? { failedReads: runs.map((r) => r.snapshot.injected) }
-        : {}),
-      ...assessment,
-      confirmations: runs.length,
-      repeatConfirmed: consistent && runs.length >= 3,
-      observationMs: this.#timing.observationMs,
-      advice: advice(assessment.classification, planned.everyRead),
-      verification: this.#setup.verification,
-    }
   }
 
-  /** One last healthy load, so the app is left as it was found. */
+  /**
+   * One last healthy load, so the app is left as it was found. It runs in the time kept
+   * for it; one that can't start or finish in time is reported, never taken as healthy.
+   */
   async #reset() {
     const report = this.#report
     const trusted = this.#trustedFingerprint
+    this.#control.cleaningUp()
+    await this.#control.progress('cleaning-up')
+    if (!this.#control.timeLeftForCleanup()) {
+      report.cleanupError =
+        'CLEANUP_SKIPPED: no time was left in maxDurationMs for the final reload'
+      return
+    }
     try {
       const cleanup = await this.#load({ expectedFingerprint: trusted })
       report.cleanup = cleanup
@@ -258,7 +271,11 @@ class Discovery<Fault extends string, Snapshot extends ReadSnapshot> {
           ? 'healthy'
           : 'not-verified'
     } catch (error) {
-      report.cleanupError = (error as Error).message
+      const message = (error as Error).message
+      report.cleanupError =
+        message === 'BUDGET_EXHAUSTED'
+          ? 'CLEANUP_TIMEOUT: the final reload did not finish within maxDurationMs'
+          : message
     }
   }
 
@@ -289,36 +306,6 @@ class Discovery<Fault extends string, Snapshot extends ReadSnapshot> {
       report.finalReset === 'healthy' &&
       report.findings.every((f) => f.kind === 'observation')
     retainPartialFindings(report, this.#timing.repeats)
-  }
-}
-
-/** A faulted load, compared with the healthy control before it. */
-function faultedRun<Fault extends string, Snapshot extends ReadSnapshot>(
-  planned: DiscoveryExperiment<Fault>,
-  healthy: DiscoveryPhase<Fault, Snapshot>,
-  result: DiscoveryPhase<Fault, Snapshot>,
-): DiscoveryRun<Fault, Snapshot> {
-  const { injected } = result.snapshot
-  const assessment = classifyObservation({
-    baseline: healthy.ui,
-    final: result.ui,
-    injected,
-    // Every read failing takes as many faults as the app makes reads.
-    expected: planned.everyRead && injected > 0 ? injected : planned.times,
-    recovered: result.ready,
-    newErrors: result.newErrors,
-  })
-  return {
-    ...result,
-    control: { ui: healthy.ui, snapshot: healthy.snapshot },
-    assessment,
-    observation: {
-      ...compareRegions(healthy.ui, result.ui),
-      injected: result.snapshot.injected,
-      channels: result.snapshot.channels,
-      recoveryMs: result.recoveryMs,
-      repeatedReads: result.repeatedReads,
-    },
-    interpretation: assessment,
+    this.#control.conclude()
   }
 }

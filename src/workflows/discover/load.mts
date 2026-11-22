@@ -30,6 +30,10 @@ export interface LoadContext<
   /** Uncaught page errors so far. */
   errors(): number
   trustedFingerprint(): string | undefined
+  /** Why the run must stop now, such as BUDGET_EXHAUSTED; none while it may go on. */
+  stopReason(): string | undefined
+  /** Time left before the run's deadline; none without a time limit. */
+  timeLeftMs(): number | undefined
 }
 
 export interface LoadPlan<Fault extends string> {
@@ -79,6 +83,7 @@ class Load<Fault extends string, Snapshot extends ReadSnapshot> {
     const { setup, timing, report } = this.#context
     const fault = this.#fault
     try {
+      this.#stopIfDue()
       await setup.session.begin(
         fault
           ? {
@@ -88,11 +93,9 @@ class Load<Fault extends string, Snapshot extends ReadSnapshot> {
             }
           : {},
       )
-      await setup.page.reload({
-        waitUntil: 'domcontentloaded',
-        timeout: timing.baselineTimeoutMs,
-      })
+      await this.#reload(timing.baselineTimeoutMs)
       while (true) {
+        this.#stopIfDue()
         const phase = await this.#poll()
         if (phase) return phase
         await sleep(POLL_MS)
@@ -109,6 +112,28 @@ class Load<Fault extends string, Snapshot extends ReadSnapshot> {
       throw error
     } finally {
       await setup.session.stop()
+    }
+  }
+
+  #stopIfDue() {
+    const reason = this.#context.stopReason()
+    if (reason) throw new Error(reason)
+  }
+
+  // A reload never waits past the run's deadline; one cut short by it stops for that reason.
+  async #reload(timeoutMs: number) {
+    const left = this.#context.timeLeftMs()
+    try {
+      await this.#context.setup.page.reload({
+        waitUntil: 'domcontentloaded',
+        timeout:
+          left === undefined
+            ? timeoutMs
+            : Math.max(1, Math.min(timeoutMs, Math.floor(left))),
+      })
+    } catch (error) {
+      this.#stopIfDue()
+      throw error
     }
   }
 
