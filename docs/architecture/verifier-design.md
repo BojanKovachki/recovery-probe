@@ -1,6 +1,6 @@
 # Verifier design: evidence before "done"
 
-**Status: Stage 0 proposal, for the owner's review. Nothing here is implemented.**
+**Status: design approved with the owner's decisions in section 12 (2026-11-20). PRs 1 to 6 of section 10 are merged (#120 to #125). The pilot waits for the owner to choose its cases and approve its budget.**
 
 Before a coding agent says a change is done, Recovery Probe should show which claims about the change were checked, the evidence for each, and what stays unverified. This document extends [`verify`](../verify.md) and the MCP tool `verify_change` toward that goal, in small reviewable steps.
 
@@ -19,7 +19,7 @@ Contents:
 9. [Pilot benchmark protocol](#9-pilot-benchmark-protocol)
 10. [Implementation sequence](#10-implementation-sequence)
 11. [Acceptance criteria and tests](#11-acceptance-criteria-and-tests)
-12. [Open decisions](#12-open-decisions)
+12. [Decisions](#12-decisions)
 
 ## What the evidence so far supports
 
@@ -139,13 +139,16 @@ reviews the report        <-
 
 ### Where approval comes from
 
-In this design, **approved means present on the base revision.** A team protects its base branch and reviews changes to the policy, the registry and the check files there, ideally with code owners. Recovery Probe records the base ref, its commit and each file's hash, so a reader can see exactly which criteria were applied.
+In this design, **approved means present on the base revision** (decision 1). A team protects its base branch and reviews changes to the policy, the registry and the check files there, ideally with code owners. Recovery Probe records the base ref, its commit and each file's hash, so a reader can see exactly which criteria were applied. It can't see whether the base was protected or reviewed.
 
-The base ref comes from the invocation: `--base`, or `base` on `verify_change`. It never comes from a file in the working tree. Today's plan `base` is in a file the agent can edit, and could name a commit the agent made itself. The report records:
-- the base commit;
-- whether it equals, or is an ancestor of, the remote-tracking branch of the same name, such as `origin/main` for `main`.
+The base ref comes from the invocation: `--base`, or `base` on `verify_change`. It never comes from a file in the working tree. Today's plan `base` is in a file the agent can edit, and could name a commit the agent made itself.
 
-A base that matches neither is reported as `BASE_NOT_PROTECTED`, and its claims are NOT_VERIFIED in policy mode. In CI, the runner passes the protected branch.
+The report keeps the base's provenance in its own `baseProvenance` record, apart from the claims:
+- the ref as given, and the commit it resolved to;
+- who supplied it: `ci`, when the CI environment passes it, or `local`;
+- whether the commit equals, or is an ancestor of, the remote-tracking branch of the same name, such as `origin/main` for `main`. This shows only that the commit is on the remote branch. It doesn't prove branch protection or human review.
+
+A local base that isn't on that remote branch adds the run-level gap `BASE_NOT_ON_REMOTE`, which blocks the overall VERIFIED. Every local report says plainly that the criteria came from a local checkout and that Recovery Probe can't tell whether anyone reviewed them. The trusted form is CI supplying the base commit from the protected branch.
 
 Approved check files are read from the base and copied into the run folder. The candidate's own copies are only compared with them, never used. So editing an `expect` step in the patch can't weaken the check that runs. It shows up as a changed expectation instead.
 
@@ -156,12 +159,12 @@ An intentional change to an expectation, such as new required wording or a new f
 1. Verify reports the claim as `NOT_VERIFIED` with `EXPECTATION_CHANGED`. It shows the approved and candidate versions, which inputs changed, and the result of the approved version on the candidate when that can still run. If the candidate fails the old expectation, that's the change working as intended. The claim stays unverified until the new expectation is approved.
 2. A reviewer approves by merging the expectation change into the base, on its own or as part of the reviewed pull request. The next verify against that base uses the new version.
 
-How an expectation change in the same pull request gets approved before merge is a decision for the owner ([12.1](#12-open-decisions)).
+The first version has no other way to approve (decision 1): no acceptance flag, and no approvals file in the candidate. An expectation changed in a pull request stays NOT_VERIFIED until it's reviewed and merged. Trusted approval before merge can come later.
 
 ### Limits of this boundary
 
 - **This is tamper-evident for in-patch changes, not tamper-proof.** An agent with a shell on the machine can change the base ref locally, rewrite local history, edit the installed package, fake report files, or run commands that alter the environment. A local run can't defend against any of that.
-  - The stronger setup is to run verify in CI. There the policy comes from the protected branch, and the candidate is untrusted input.
+  - The stronger setup is to run verify in CI, with CI supplying the base commit. There the policy comes from the protected branch, and the candidate is untrusted input.
   - The report never claims cryptographic or adversarial independence.
 - **Approved commands are executable code.** `npm test` runs the candidate's test files and the candidate's `package.json` script. The policy can pin the script text through `inputs`, but the test files themselves are the candidate's. Weakened tests are a review matter: verify lists changed and deleted test files as review signals (section 4). They don't decide the verdict.
 - **A checkout isn't a sandbox.** See section 5.
@@ -192,21 +195,42 @@ How an expectation change in the same pull request gets approved before merge is
   "claims": [
     {
       "id": "items-keep-content",
-      "scenario": "items-keep-content",
-      "normalPath": ["observe", "--config", "checks/items-healthy.json", "--steps", "checks/items-healthy-steps.json"],
+      "failurePath": "items-keep-content",
+      "normalPath": "items-healthy",
       "assertions": ["items-visible", "refresh-error-shown"],
-      "app": { "setup": [["node", "/path/to/npm-cli.js", "ci"]], "launch": ["node", "server.js"], "url": "http://127.0.0.1:4173/items" }
+      "app": "web"
     }
   ],
-  "budgets": { "totalMs": 1800000, "scenarioRunMs": 300000 },
+  "apps": {
+    "web": {
+      "setup": [["node", "/path/to/npm-cli.js", "ci"]],
+      "launch": ["node", "server.js"],
+      "url": "http://127.0.0.1:4173/items",
+      "ready": { "url": "http://127.0.0.1:4173/health", "timeoutMs": 60000 },
+      "fixtures": ["test/fixtures/items.json"]
+    }
+  },
+  "budgets": { "totalMs": 1800000, "scenarioRunMs": 300000, "cleanupReserveMs": 60000 },
   "ignore": ["docs/**", "*.md"]
 }
 ```
 
-- `claims[].scenario` names a registry entry. Its `check` is the failure-path check, and its `behavior`, `expectation` and `limits` are the claim's text. `normalPath` is the same kind of check with no fault.
-- `assertions` names the `expect` steps that must be met on both paths. They're machine-checkable, and the registry text says what they stand for.
+The policy and the registry each own one thing (decision 2):
+
+- **The policy owns** approved commands, app launches, budgets, required claims and ignore rules.
+- **The registry owns** scenario definitions: each scenario's `check`, `behavior`, `expectation` and `limits`.
+- **Claims reference scenarios by ID:**
+  - `failurePath` and `normalPath` are registry scenario names, never copies of their commands;
+  - the failure-path scenario's `check` fails a read;
+  - the normal-path scenario checks the same screen with no fault;
+  - their `behavior`, `expectation` and `limits` are the claim's text.
+- **`assertions`** names the `expect` steps that must be met on both paths. They're machine-checkable, and the registry text says what they stand for.
 - **Commands** are argument arrays, never shell strings. On Windows, run npm through Node and npm's CLI JavaScript entry point, as for [repair](../repair.md#windows-commands). The `/path/to/npm-cli.js` above is a placeholder for that path.
-- **`app`** is optional. Without it, the claim runs against an app someone started by hand, as verify does today. Recovery Probe then can't tell which code the app ran, so the claim records the gap `APP_REVISION_UNKNOWN` and can't be VERIFIED in policy mode.
+- **`apps`** launches a web app from each side's checkout (decision 5):
+  - there's an explicit readiness check (`ready`) and approved fixtures;
+  - every process is owned by the run, an occupied port is refused, and the app is stopped after each side.
+  - Electron apps aren't launched automatically yet, and existing Electron checks keep working as they do.
+- **A claim without `app`** runs against an app someone started by hand, as verify does today. Recovery Probe then can't tell which code the app ran, so the claim records the gap `APP_REVISION_UNKNOWN` and can't be VERIFIED in policy mode. That includes any manually attached Electron app.
 
 ### From a requirement to an approved assertion
 
@@ -235,6 +259,13 @@ All of today's fields stay with their current meaning: `verdict`, `exitCode`, `r
   "revisions": {
     "base": { "ref": "origin/main", "commit": "4f1c2a9e" },
     "candidate": { "head": "9b2e7c10", "snapshotTree": "1d4e8a33", "uncommittedChanges": true }
+  },
+  "baseProvenance": {
+    "ref": "main",
+    "commit": "4f1c2a9e",
+    "suppliedBy": "local",
+    "onRemoteTracking": { "ref": "origin/main", "result": "ancestor" },
+    "note": "Criteria came from a local checkout. Recovery Probe can't tell whether the base was protected or reviewed."
   },
   "policy": {
     "path": "recovery-probe.policy.json",
@@ -273,9 +304,7 @@ Execution status and claim outcome are separate fields. A completed execution ca
 Per claim, the first rule that applies decides:
 
 1. Its approved expectation is missing → `NOT_VERIFIED`, `EXPECTATION_MISSING`.
-2. The criteria aren't the approved ones → `NOT_VERIFIED`:
-   - the candidate changed the policy (`POLICY_CHANGED`), the expectation (`EXPECTATION_CHANGED`) or a check input (`CHECK_INPUT_CHANGED`); or
-   - the base isn't protected (`BASE_NOT_PROTECTED`).
+2. The candidate changed the claim's criteria → `NOT_VERIFIED`, with `POLICY_CHANGED`, `EXPECTATION_CHANGED` or `CHECK_INPUT_CHANGED`. The result against the approved, older expectation is still shown (decision 1).
 3. A candidate attempt observed a failure. That means a command that completed with a non-zero exit, an unmet assertion, or a suspected defect. A failure counts from any run, even one that stopped early, as `compare` counts problems.
    - If another attempt of the claim completed and passed → `NOT_VERIFIED`, `UNSTABLE`. Every attempt is kept.
    - Otherwise → `FAILED`, with the reason from the comparison (section 6).
@@ -285,9 +314,21 @@ Per claim, the first rule that applies decides:
 
 For the whole run:
 
-- **Verdict.** `VERIFIED` only when every claim the policy requires for the change is VERIFIED, a policy identity is recorded, and, in policy mode, no changed file is uncovered (outside `ignore`). Otherwise `NOT_VERIFIED`.
+- **Verdict.** `VERIFIED` only when all of these hold. Otherwise `NOT_VERIFIED`.
+  - every claim the policy requires for the change is VERIFIED;
+  - a policy identity is recorded;
+  - there's no run-level gap, such as `BASE_NOT_ON_REMOTE`;
+  - in policy mode, no changed file is uncovered.
+- **Coverage is strict in policy mode** (decision 3).
+  - A changed file outside the ignore rules that no claim covers blocks the overall VERIFIED. Each uncovered file is listed. Covered claims are still reported VERIFIED on their own.
+  - The ignore rules come from the base's policy, like every other criterion. A candidate that edits them gets `POLICY_CHANGED`, and coverage is still computed with the base's rules, so the edit can't remove an obligation.
+  - A file mapped to a claim is a coverage declaration, not proof that every changed behavior was exercised.
 - **Missing claims.** A required claim with no result, because the run stopped, crashed or ran out of budget, is written as `NOT_VERIFIED` with `NOT_RUN`. A missing result never counts as a pass.
-- **Exit code.** 0 when verified. 1 when any claim is `FAILED` with a new failure or a new suspected defect, the same meaning as today. Otherwise 2: pre-existing failures, instability, gaps, approvals, budget.
+- **Exit codes**, in order of precedence (decision 6):
+  - **1** when at least one new failure or regression is established, even if other checks are incomplete. That's a claim `FAILED` with `NEW_FAILURE`, or a new suspected defect.
+  - **0** when every required claim is VERIFIED and nothing blocks the verdict.
+  - **2** otherwise: verification incomplete, unstable or not comparable, or blocked by pre-existing failures, without an established new regression.
+  - A timeout is never a regression by itself. A check that fails on both revisions stays failed. Without finer evidence, the report doesn't claim it's the same failure on both.
 
 ### Examples
 
@@ -500,24 +541,39 @@ A pre-existing failure stays a failure. Telling a new test failure apart from an
 
 ### Budgets
 
-- **The overall budget** is `budgets.totalMs` from the policy. `--budget` on the CLI and `budgetMs` on `verify_change` can lower it, never raise it.
-- **Per-operation budgets:** `projectChecks[].timeoutMs`, and `budgets.scenarioRunMs` for each scenario run. Discovery gets the new `maxDurationMs`, described below.
+Approved defaults (decision 4):
+
+| Budget | Default | Where |
+| --- | --- | --- |
+| Overall | 30 minutes | `budgets.totalMs` |
+| Each scenario run | 5 minutes | `budgets.scenarioRunMs` |
+| Each project check | explicit, required | `projectChecks[].timeoutMs`: a policy without one is invalid |
+| Cleanup | reserved inside the overall budget | `budgets.cleanupReserveMs` |
+
+- **Overrides.** `--budget` on the CLI and `budgetMs` on `verify_change` can lower a budget, never raise it. Raising one means changing the approved policy.
+- **Verification always supplies a limit.** Every scenario run that verify starts gets one, including discovery's `maxDurationMs`.
+- **The budget counts everything:** setup, app launch and readiness waits, every attempt and retry, and cleanup.
 - **Estimates come first.** Each operation has a worst-case duration, from its timeouts and attempts. Verify prints the total before it starts, and orders the work:
   1. the policy identity and the suspect scan;
   2. project checks;
   3. behavioral claims.
 
-  Work that can't fit is reported up front as `budget-exhausted`, NOT_VERIFIED. Nothing is started that can't finish in the remaining budget, and cleanup time is reserved.
+  Work that can't fit is reported up front as `budget-exhausted`, NOT_VERIFIED. Nothing is started that can't finish in the remaining budget.
+- **Estimates never replace enforced deadlines.** Every operation runs under its deadline, and a deadline that passes stops it even when its estimate said it would fit.
+- **Cleanup has reserved time, and its outcome is reported as it happened.** Cleanup means removing faults, stopping processes and a final reload. When it fails or runs out of time, the report says so, and never states that a healthy final reload succeeded unless one did.
 - **Discovery's estimate.** Discovery computes its worst case from its own configuration: calibration loads × `baselineTimeoutMs`, plus each experiment's control and faulted loads and the every-read run. It prints the result at the start, and records it as `estimate.plannedLoads` and `estimate.worstCaseMs`.
 
 ### Discovery: `maxDurationMs`
 
-`maxDurationMs` is a new optional configuration field for discovery. Without it, the CLI behaves as today.
+`maxDurationMs` is a new optional configuration field for discovery. Without it, standalone discovery behaves as today.
 
-- Discovery checks the budget before each experiment. It doesn't start an experiment whose worst case doesn't fit, so experiments are never cut mid-way by the budget.
-- When the budget runs out, the report records `stoppedReason: "BUDGET_EXHAUSTED"`. Completed experiments keep their findings, and the rest are listed as not run. The evidence gets `complete: false` with the gap `BUDGET_EXHAUSTED`.
-- The faults are removed and the final healthy reload runs, from time reserved for them.
-- Verify and `verify_change` pass `min(scenarioRunMs, remaining budget)` as the run's `maxDurationMs`.
+- **Before each experiment**, discovery checks its worst case against the time left before the cleanup reserve. It doesn't start an experiment that can't fit.
+- **The deadline is also enforced while loads run.** If a load overruns, the experiment in progress stops and is reported as incomplete, and the run goes to cleanup.
+- **When the budget runs out**, the report records `stoppedReason: "BUDGET_EXHAUSTED"`.
+  - Completed experiments keep their findings, and the rest are listed as not run.
+  - The evidence gets `complete: false` with the gap `BUDGET_EXHAUSTED`.
+- **Cleanup runs from the reserved time:** the faults are removed, then the final reload. Its outcome is recorded as it happened: healthy, not healthy, or not attempted for lack of time.
+- **Verify** and `verify_change` pass `min(scenarioRunMs, remaining budget)` as the run's `maxDurationMs`.
 
 ### Cancellation
 
@@ -564,7 +620,13 @@ Decisions:
 - **Discovery's report gains optional fields:** `estimate`, and a report-level `stoppedReason` next to the existing per-experiment one. Its exit codes don't change.
 - **`run_recovery_probe` keeps `timeoutMs`.** It only stops processes more completely.
 - **Exit codes keep their meaning**: 1 only for a new failure or defect.
-- **Policy mode becomes stable** in a minor release once the pilot (section 9) supports continuing. It's documented as experimental until then.
+- **Stabilizing policy mode takes evidence, not a release count** (decision 8). It stays opt-in and experimental until all of these support it:
+  - compatibility tests;
+  - cancellation and process-cleanup tests;
+  - trust-boundary tests;
+  - the pilot (section 9).
+
+  A passing pilot alone isn't enough while reliability problems remain. Stabilization needs an explicit review, and nothing promotes it automatically after a number of releases.
 
 No migration is needed for existing plans, baselines or reports. Policy mode runs its own base side in a checkout, so it doesn't reuse a baseline recorded by hand.
 
@@ -574,8 +636,14 @@ The goal is to learn whether orchestrated verification reduces unsupported "done
 
 ### Selection rules, fixed before any run
 
-- **Projects:** public, open-source license, JavaScript or TypeScript, with a working type-check, lint or test setup, and a web UI that loads data with `fetch` or XHR, so HTTP failure paths apply. Two or three projects.
-- **Cases:** historical bugs with an identifiable buggy commit and fixing commit, the buggy commit being the fix's parent. Each needs a public issue that describes the symptom without naming the fix. Six to eight cases across the projects, covering:
+- **Projects:** two (decision 7).
+  - Each is public, open-source licensed, JavaScript or TypeScript, with a working type-check, lint or test setup, and a web UI that loads data with `fetch` or XHR, so HTTP failure paths apply.
+  - Projects are chosen for reproducible historical bugs and feasible setup, not popularity.
+  - No project is named until its candidate issues and commits have been checked.
+- **Cases:** six, one per type below.
+  - Each is a historical bug with an identifiable buggy commit and fixing commit, the buggy commit being the fix's parent.
+  - Each needs a public issue that describes the symptom without naming the fix.
+- **Approval comes first.** The owner approves the selected cases and the execution budget before any paid run.
 
 | Case type | Expected outcome, kept outside the agent's workspace |
 | --- | --- |
@@ -595,10 +663,20 @@ Before any agent runs, feed fixed candidate patches through verify: the real fix
 ### Phase 2: agents
 
 - **Arm A:** the agent is told to run the project's checks and the relevant application and failure-path checks before saying it's done. The exact approved commands and the claim's text and assertions are given as plain text, with Playwright available.
-- **Arm B:** the same agent, model, effort, time budget, task text and tools, plus the Recovery Probe MCP server and the same commands and claims as a policy file.
+- **Arm B:** the same agent, model, effort, settings, time budget, task text and tools, plus the Recovery Probe MCP server and the same commands and claims as a policy file.
 - **Extra information.** Anything B gets that A doesn't, such as estimates, progress and report contents, is logged and reported separately. The policy carries no information A's text lacks.
-- **Repetitions:** three per case and arm, in a seeded random order. Every run is preserved, including timeouts and failed setups.
-- **Grading** is blind to the arm. The ground truth is the fixing commit's tests and the claim's checks, run by the grader on the agent's final code.
+- **Size and limits:**
+  - three repetitions per case and arm, in a seeded random order: 36 agent sessions;
+  - each session is limited to 30 minutes;
+  - a total agent-cost ceiling of US$50 is proposed, covering grading and failed runs.
+
+  The ceiling is for planning. It doesn't authorize spending money or using credentials.
+- **Every run is preserved**, including timeouts and failed setups.
+- **Grading:**
+  - deterministic checks wherever possible: the fixing commit's tests and the claim's checks, run on the agent's final code;
+  - claims are classified by a separate grader, blind to the arm;
+  - the owner reviews disputed judgments;
+  - grading that can't be completed is recorded as incomplete, never forced into a class.
 
 ### Measures
 
@@ -619,21 +697,22 @@ These are practical judgements set before any data exists. Once the owner approv
   - B misses no more defects than A, and makes no more incorrect defect claims;
   - B's median wall time is at most 1.5 times A's;
   - Recovery Probe causes at most one incomplete run in the pilot.
-- **Narrow** if B's advantage comes only from behavioral claims: keep verifying behavior, and drop project-check orchestration, which agents can run themselves.
-- **Stop** if any of these holds:
-  - the differences between the arms in unsupported "done" claims and in missed defects are both at most one;
+- **Inconclusive: don't broaden yet** when the differences are too small to support either broadening or stopping. Small differences don't prove the tool has no value. This is the expected outcome for a small pilot unless the effects are large.
+- **Stop** if any of these holds. They're about cost and reliability, not small differences:
   - B's median wall time is more than twice A's;
-  - writing a policy takes more than two hours per project.
+  - writing a policy takes more than two hours per project;
+  - Recovery Probe causes incomplete runs in more than one case.
+- **Components can't be told apart.** A two-arm comparison can't show which part of Recovery Probe caused an advantage. Dropping project-check orchestration, or any other component, needs a separate component comparison first.
 
-With six to eight cases and three repetitions, results are descriptive. The report will say so and list every limitation, as the earlier study did.
+With six cases and three repetitions, results are descriptive. The report will say so and list every limitation, as the earlier study did.
 
 ## 10. Implementation sequence
 
 Each PR is reviewable on its own and leaves the package releasable.
 
-1. **Bounded discovery with durable partial results.** This is gap G7, the confirmed cause of the study's timeout pattern.
+1. **Bounded discovery with progress and durable partial results.** This is gap G7, the confirmed cause of the study's timeout pattern.
    - the worst-case estimate;
-   - `maxDurationMs` with `BUDGET_EXHAUSTED`;
+   - `maxDurationMs`: a check before each experiment, a deadline enforced during loads, `BUDGET_EXHAUSTED`, and reserved cleanup whose outcome is reported as it happened;
    - SIGINT and SIGTERM handling that runs cleanup and writes the report;
    - `report.partial.json` and `progress.json` after each experiment.
 2. **Bounded, cancellable check runs (G6, G8).**
@@ -675,24 +754,48 @@ Each PR is reviewable on its own and leaves the package releasable.
 
 | PR | Accepted when | Tests that matter |
 | --- | --- | --- |
-| 1 | A discovery run with `maxDurationMs` stops before an experiment that wouldn't fit. It keeps every completed experiment, removes its faults, ends with a healthy reload, and exits 2 with `BUDGET_EXHAUSTED`. SIGTERM mid-run writes `report.json` with what completed. `progress.json` and the estimate match the configuration. Runs without the new field behave as before. | Unit: estimate arithmetic for HTTP, IPC and later-call experiments; the scheduler refusing an experiment over budget. Integration on the existing discovery fixtures: a small budget gives `INCOMPLETE` with N of M experiments and clean routes or hook state; SIGTERM leaves the report and no armed fault; `compare` treats the partial run as incomplete. |
+| 1 | A discovery run with `maxDurationMs` stops before an experiment that wouldn't fit, and stops a load that overruns the deadline. It keeps every completed experiment, removes its faults, reports the final reload as it happened, and exits 2 with `BUDGET_EXHAUSTED`. SIGTERM mid-run writes `report.json` with what completed. `progress.json` and the estimate match the configuration. Runs without the new field behave as before. | Unit: estimate arithmetic for HTTP, IPC and later-call experiments; the scheduler refusing an experiment over budget; a cleanup that fails or runs out of time is never reported healthy. Integration on the existing discovery fixtures: a small budget gives `INCOMPLETE` with N of M experiments and clean routes or hook state; SIGTERM leaves the report and no armed fault; `compare` treats the partial run as incomplete. |
 | 2 | A hung check is stopped at its timeout, with its whole process tree, on Windows and POSIX. Cancelling `verify_change` stops its children. A killed run's partial report is kept as incomplete evidence. Existing verify results are unchanged. | A fake CLI that spawns a grandchild and sleeps: after the timeout neither process exists, and the result is `timed-out` with output kept. MCP cancel during `verify_change` ends the children (extending `test/unit/mcp.test.mjs` "cancels a running tool"). A partial report gives `complete: false` with `PROCESS_STOPPED`. Every existing `test/unit/verify.test.mjs` case passes unchanged. |
 | 3 | Without a policy, `summary.json` keeps its current fields, values and exit codes, and gains `claims`. With a policy, criteria come from the base: editing an `expect` step, the policy or a named input in the candidate gives NOT_VERIFIED with both hashes. A missing claim result is never a pass. | Table-driven tests of every aggregation rule, including empty and missing evidence. A golden test of the old fields against today's output. A fixture repository where the candidate edits a step file: the copied base file is the one that runs, and the claim reads `EXPECTATION_CHANGED`. Hashes use committed bytes, so line endings don't change them. |
 | 4 | One claim gives each expected result on the synthetic app: VERIFIED for the fix, FAILED (exit 1) for a regression, NOT_VERIFIED for a fault that doesn't trigger, a missing expectation, a changed expectation and a budget stop. Base and candidate are launched from their own checkouts, and their commits are recorded. | `npm run eval:verifier` against an `expected.json` the tool never reads, with each case's verdict, reason and exit code. A port already in use is refused. The app is stopped after each side. |
 | 5 | Proposals come with evidence and never execute. Approved commands run with an allowlisted environment, in disposable checkouts. The comparison table holds. A command that changes tracked files is flagged. | A spy proves detection runs nothing. A fixture repository with plain Node scripts covers: a new failure gives exit 1; failing on both gives FAILED and exit 2, never a pass; a resolved failure; fail-then-pass gives `UNSTABLE` with both attempts kept; a timeout leaves the other checks' evidence intact; a secret in the parent environment doesn't reach the command; a log over 32000 characters is kept whole. |
 | 6 | The protocol is merged before any agent run. Expected outcomes are unreachable from agent workspaces. | A harness self-test proves the expected outcomes are outside the workspace and the deny list, and that every attempt, including failed setups, is written to disk. |
 
-## 12. Open decisions
+## 12. Decisions
 
-1. **Approving an expectation change before merge.** This design approves only from the base revision, so an expectation changed in a pull request stays NOT_VERIFIED until it's merged. The alternatives:
-   - an approvals file guarded by code owners: reviewable, but writable by the agent in its patch, so only review protects it;
-   - a CLI-only acceptance flag: easy for a person to use, but any agent with a shell can run it too.
-2. **Where the policy lives.** A new `recovery-probe.policy.json`, as proposed, or new fields in the experimental registry. A separate file keeps the registry's planner role unchanged.
-3. **Coverage strictness in policy mode.** Proposed: uncovered changed files outside `ignore` block VERIFIED. The alternative is to report them only.
-4. **Default budgets.**
-   - Proposed defaults for policy mode: 30 minutes in total, 5 minutes per scenario run, and each project check's own timeout.
-   - Proposed: no default `maxDurationMs` for the discovery CLI, so its behavior doesn't change.
-5. **Launching apps.** The vertical slice needs verify to launch the app per side, for web apps first. Electron is deferred.
-6. **Exit codes.** Proposed: a pre-existing failure and an unstable result both exit 2, so 1 keeps meaning "new".
-7. **Pilot resources.** Which projects to use, a cap on the agent budget, and who grades, blind to the arm.
-8. **Stabilization.** Whether policy mode stays experimental until the pilot's decision, as proposed, or for a fixed number of releases.
+The owner decided these on 2026-11-20. The sections above follow them.
+
+1. **Expectation approval comes from the base revision only** (section 3).
+   - There's no acceptance flag and no approvals file in the candidate.
+   - An expectation changed in a pull request stays NOT_VERIFIED until it's reviewed and merged, and its result against the old expectation is still shown.
+   - The base's provenance is recorded on its own. Matching `origin/main` proves neither branch protection nor human approval, and the report describes local trust honestly. CI supplies the trusted base commit.
+2. **The policy lives in `recovery-probe.policy.json`**, separate from the registry (section 4). The policy owns approved commands, budgets and required claims. The registry owns scenario definitions, which claims reference by stable ID.
+3. **Coverage is strict in policy mode** (section 4).
+   - Uncovered changed files outside the base's ignore rules block the overall VERIFIED, and each is listed.
+   - Covered claims can still be VERIFIED.
+   - File mapping is a coverage declaration, not proof of exercise. Candidate changes to the ignore rules don't remove coverage obligations.
+4. **Budgets** (section 7):
+   - the defaults: 30 minutes overall, 5 minutes per scenario run, and an explicit timeout for each project check;
+   - overrides can only lower them;
+   - standalone discovery is unchanged without `maxDurationMs`, while verification always supplies a limit;
+   - setup, launch and retries count, and cleanup is reserved inside the overall limit;
+   - estimates never replace enforced deadlines, and a failed cleanup is reported as failed.
+5. **App launching is web first** (section 4): disposable checkouts, explicit readiness checks, approved fixtures, owned processes, occupied ports refused, and processes stopped after each side.
+   - Automatic Electron launching is deferred, and existing Electron functionality is preserved.
+   - A manually attached app with an unknown source revision can't produce a verified revision-specific claim.
+6. **Exit codes keep 0, 1 and 2, with explicit precedence** (section 4).
+   - 1 for any established new failure or regression, even with other checks incomplete.
+   - 0 when every required claim is verified with no blocking gap.
+   - 2 otherwise.
+   - A timeout isn't a regression. A failure on both revisions stays failed, without a claim that it's the same failure.
+7. **The pilot starts small** (section 9):
+   - two projects, six cases, three repetitions per case and arm: 36 sessions;
+   - the same model and settings in both arms, a 30-minute session limit, and a proposed US$50 cost ceiling covering grading and failed runs;
+   - the owner approves cases and budget before any paid run;
+   - the decision rules include "inconclusive: don't broaden yet", and component attribution needs its own comparison.
+8. **Stabilization is evidence-based** (section 8): compatibility, cancellation and cleanup, trust-boundary tests, and the pilot, followed by an explicit review. A release count never promotes it.
+
+Still open:
+- trusted approval before merge;
+- automatic Electron launching;
+- the pilot's specific cases and execution budget, which the owner approves before any run.
