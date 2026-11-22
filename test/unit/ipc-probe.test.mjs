@@ -230,3 +230,27 @@ test('bounded repeated faults consume atomically and reset never leaves the unus
     /times/,
   )
 })
+test('numbers the first call on each channel, even when first calls share a millisecond', async (t) => {
+  t.mock.method(Date, 'now', () => 1000)
+  const f = fixture()
+  f.probe.begin({
+    id: 'order',
+    channel: 'read',
+    requiredChannels: ['versions'],
+    observation: true,
+  })
+  await f.handlers.get('versions')(f.event)
+  await f.handlers.get('read')(f.event)
+  await f.handlers.get('versions')(f.event)
+  assert.deepEqual(
+    Object.entries(f.probe.snapshot().channels).map(([channel, row]) => [
+      channel,
+      row.firstReadAt,
+      row.firstReadOrder,
+    ]),
+    [
+      ['read', 1000, 2],
+      ['versions', 1000, 1],
+    ],
+  )
+})

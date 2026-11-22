@@ -58,6 +58,8 @@ export interface IpcSnapshot {
   channels: Record<
     string,
     IpcReadStats & {
+      /** 1 for the plan's first channel called, 2 for the next. Older hooks leave it out. */
+      firstReadOrder?: number | null
       realCalls: number
       maxDurationMs: number
       methods?: Record<string, IpcReadStats>

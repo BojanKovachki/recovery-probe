@@ -137,10 +137,21 @@ export async function discoverIpcReads(
   }
 }
 
+type ChannelRow = IpcSnapshot['channels'][string]
+
+// Older hooks record only the time of a first call, which another can share.
+const byFirstCall = (
+  [, a]: [string, ChannelRow],
+  [, b]: [string, ChannelRow],
+) =>
+  a.firstReadOrder != null && b.firstReadOrder != null
+    ? a.firstReadOrder - b.firstReadOrder
+    : (a.firstReadAt ?? 0) - (b.firstReadAt ?? 0)
+
 function calledChannels(snapshot: IpcSnapshot): IpcReads['channels'] {
   return Object.entries(snapshot.channels)
     .filter(([, row]) => row.calls > 0)
-    .sort(([, a], [, b]) => (a.firstReadAt ?? 0) - (b.firstReadAt ?? 0))
+    .sort(byFirstCall)
     .map(([channel, row]) => {
       const labels = Object.entries(row.methods ?? {})
         .filter(([, method]) => method.calls > 0)
