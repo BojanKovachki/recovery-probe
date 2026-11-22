@@ -1,0 +1,88 @@
+{
+  "task": "filter-race",
+  "condition": "B",
+  "repetition": 2,
+  "order": 1,
+  "id": "01-filter-race-B2",
+  "startCommit": "93bd7b8711288ca6c8616a24ad9b44d69bc39ce4",
+  "startedAt": "2026-11-17T18:55:08.777Z",
+  "endedAt": "2026-11-17T18:55:40.974Z",
+  "agent": {
+    "runtime": "claude-code",
+    "version": "2.1.322",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "maxTurns": 80,
+    "minutes": 25
+  },
+  "recoveryProbe": "1.2.0-preview.1",
+  "init": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Task",
+      "Edit",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "PowerShell",
+      "Read",
+      "StructuredOutput",
+      "TaskStop",
+      "ToolSearch",
+      "Write",
+      "mcp__recovery-probe__check_read_recovery",
+      "mcp__recovery-probe__compare_reports",
+      "mcp__recovery-probe__find_page_reads",
+      "mcp__recovery-probe__find_suspects",
+      "mcp__recovery-probe__network_fault_summary",
+      "mcp__recovery-probe__plan_verification",
+      "mcp__recovery-probe__run_recovery_probe",
+      "mcp__recovery-probe__self_check_scenarios",
+      "mcp__recovery-probe__set_network_faults",
+      "mcp__recovery-probe__start_network_faults",
+      "mcp__recovery-probe__stop_network_faults",
+      "mcp__recovery-probe__verify_change"
+    ],
+    "mcpServers": [
+      {
+        "name": "recovery-probe",
+        "status": "connected",
+        "source": "dynamic"
+      }
+    ],
+    "claudeCodeVersion": "2.1.322"
+  },
+  "execution": {
+    "exitCode": 0,
+    "timedOut": false,
+    "resultSubtype": "success",
+    "error": null
+  },
+  "report": {
+    "status": "fixed",
+    "summary": "Cause: `load()` in `public/src/store.js` let every response write to the screen state, so a slow earlier response could arrive after a later one. Opening Orders starts a load for the current filter (All). Clicking Shipped quickly starts a second one. If the All response arrived last, it replaced the Shipped list with new and packed orders. This breaks ORD-2. Fix: each `load()` now takes a sequence number, and only the most recently started load may update the state, on success or failure. Responses from older loads are ignored, so a stale failure can't show an error either. I added a regression test in `test/store.test.js` that resolves the older request after the newer one.",
+    "verification": "`npm test` passes (5/5). With the store fix reverted, the new test fails (4 pass, 1 fail). With the fix restored, all 5 pass. I did not drive the browser UI or run the Recovery Probe checks. Those checks cover failed reads, not out-of-order responses, so they don't address this race."
+  },
+  "metrics": {
+    "durationMs": 30362,
+    "turns": 14,
+    "costUsd": 0.082025,
+    "inputTokens": 14,
+    "outputTokens": 2747,
+    "cacheReadTokens": 121110,
+    "cacheCreationTokens": 10604,
+    "toolCalls": 13,
+    "tools": {
+      "Read": 6,
+      "Glob": 1,
+      "PowerShell": 3,
+      "Edit": 2,
+      "StructuredOutput": 1
+    },
+    "recoveryProbeCalls": 0,
+    "wallMs": 32197
+  },
+  "changedPaths": ["public/src/store.js", "test/store.test.js"],
+  "outsideReach": []
+}

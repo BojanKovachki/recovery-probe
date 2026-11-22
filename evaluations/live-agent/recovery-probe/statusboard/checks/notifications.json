@@ -1,0 +1,10 @@
+{
+  "pageUrl": "http://127.0.0.1:4173/",
+  "endpoint": "http://127.0.0.1:4173/api/notifications",
+  "readySelector": "#notifications-empty",
+  "readyText": "You're all caught up",
+  "recovery": "retry",
+  "retrySelector": "#notifications-retry",
+  "faults": ["http-error"],
+  "timeoutMs": 5000
+}

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Status board</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Status board</h1>
+      <span id="account"></span>
+    </header>
+    <main>
+      <section aria-labelledby="health-title">
+        <h2 id="health-title">Service health</h2>
+        <div class="controls">
+          <button id="sync" type="button">Sync now</button>
+          <span id="sync-status" role="status"></span>
+        </div>
+        <p id="health-status" role="status">Loading…</p>
+        <ul id="services"></ul>
+        <p id="health-error" role="alert" hidden>
+          Service health unavailable
+          <button id="health-retry" type="button">Retry</button>
+        </p>
+      </section>
+      <section aria-labelledby="notifications-title">
+        <h2 id="notifications-title">Notifications</h2>
+        <ul id="notifications"></ul>
+        <p id="notifications-empty" hidden>You're all caught up</p>
+        <p id="notifications-error" role="alert" hidden>
+          Could not load notifications.
+          <button id="notifications-retry" type="button">Retry</button>
+        </p>
+      </section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

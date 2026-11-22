@@ -1,0 +1,456 @@
+[
+  {
+    "id": "01-filter-race-B2",
+    "task": "filter-race",
+    "condition": "B",
+    "uses": {
+      "tests": 2,
+      "app": 0,
+      "browser": 0,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  },
+  {
+    "id": "02-partial-sync-B3",
+    "task": "partial-sync",
+    "condition": "B",
+    "uses": {
+      "tests": 0,
+      "app": 0,
+      "browser": 0,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  },
+  {
+    "id": "03-filter-race-B3",
+    "task": "filter-race",
+    "condition": "B",
+    "uses": {
+      "tests": 2,
+      "app": 0,
+      "browser": 0,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  },
+  {
+    "id": "04-health-gives-up-B1",
+    "task": "health-gives-up",
+    "condition": "B",
+    "uses": {
+      "tests": 1,
+      "app": 1,
+      "browser": 0,
+      "recoveryProbe": 1
+    },
+    "probe": [
+      "plan_verification",
+      "run_recovery_probe check",
+      "run_recovery_probe check"
+    ]
+  },
+  {
+    "id": "05-filter-race-B1",
+    "task": "filter-race",
+    "condition": "B",
+    "uses": {
+      "tests": 1,
+      "app": 2,
+      "browser": 2,
+      "recoveryProbe": 1
+    },
+    "probe": [
+      "run_recovery_probe observe",
+      "run_recovery_probe observe",
+      "compare_reports"
+    ]
+  },
+  {
+    "id": "06-shipped-row-stale-A2",
+    "task": "shipped-row-stale",
+    "condition": "A",
+    "uses": {
+      "tests": 1,
+      "app": 1,
+      "browser": 1,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  },
+  {
+    "id": "07-empty-notifications-A2",
+    "task": "empty-notifications",
+    "condition": "A",
+    "uses": {
+      "tests": 0,
+      "app": 1,
+      "browser": 0,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  },
+  {
+    "id": "08-empty-notifications-B1",
+    "task": "empty-notifications",
+    "condition": "B",
+    "uses": {
+      "tests": 0,
+      "app": 1,
+      "browser": 0,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  },
+  {
+    "id": "09-shipped-row-stale-B1",
+    "task": "shipped-row-stale",
+    "condition": "B",
+    "uses": {
+      "tests": 1,
+      "app": 1,
+      "browser": 1,
+      "recoveryProbe": 1
+    },
+    "probe": [
+      "plan_verification",
+      "run_recovery_probe observe",
+      "run_recovery_probe observe",
+      "compare_reports"
+    ]
+  },
+  {
+    "id": "10-shipped-row-stale-A3",
+    "task": "shipped-row-stale",
+    "condition": "A",
+    "uses": {
+      "tests": 1,
+      "app": 1,
+      "browser": 1,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  },
+  {
+    "id": "11-shipped-row-stale-B3",
+    "task": "shipped-row-stale",
+    "condition": "B",
+    "uses": {
+      "tests": 1,
+      "app": 1,
+      "browser": 1,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  },
+  {
+    "id": "12-refresh-clears-orders-A3",
+    "task": "refresh-clears-orders",
+    "condition": "A",
+    "uses": {
+      "tests": 1,
+      "app": 0,
+      "browser": 0,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  },
+  {
+    "id": "13-filter-race-A3",
+    "task": "filter-race",
+    "condition": "A",
+    "uses": {
+      "tests": 2,
+      "app": 0,
+      "browser": 0,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  },
+  {
+    "id": "14-empty-notifications-B2",
+    "task": "empty-notifications",
+    "condition": "B",
+    "uses": {
+      "tests": 0,
+      "app": 1,
+      "browser": 0,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  },
+  {
+    "id": "15-health-gives-up-A2",
+    "task": "health-gives-up",
+    "condition": "A",
+    "uses": {
+      "tests": 1,
+      "app": 0,
+      "browser": 0,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  },
+  {
+    "id": "16-shipped-row-stale-A1",
+    "task": "shipped-row-stale",
+    "condition": "A",
+    "uses": {
+      "tests": 0,
+      "app": 0,
+      "browser": 0,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  },
+  {
+    "id": "17-empty-notifications-B3",
+    "task": "empty-notifications",
+    "condition": "B",
+    "uses": {
+      "tests": 1,
+      "app": 1,
+      "browser": 0,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  },
+  {
+    "id": "18-refresh-clears-orders-B3",
+    "task": "refresh-clears-orders",
+    "condition": "B",
+    "uses": {
+      "tests": 1,
+      "app": 2,
+      "browser": 2,
+      "recoveryProbe": 0
+    },
+    "probe": ["plan_verification", "run_recovery_probe observe"]
+  },
+  {
+    "id": "19-health-gives-up-B3",
+    "task": "health-gives-up",
+    "condition": "B",
+    "uses": {
+      "tests": 1,
+      "app": 0,
+      "browser": 0,
+      "recoveryProbe": 1
+    },
+    "probe": []
+  },
+  {
+    "id": "20-partial-sync-A3",
+    "task": "partial-sync",
+    "condition": "A",
+    "uses": {
+      "tests": 0,
+      "app": 0,
+      "browser": 0,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  },
+  {
+    "id": "21-empty-notifications-A3",
+    "task": "empty-notifications",
+    "condition": "A",
+    "uses": {
+      "tests": 1,
+      "app": 0,
+      "browser": 0,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  },
+  {
+    "id": "22-health-gives-up-A3",
+    "task": "health-gives-up",
+    "condition": "A",
+    "uses": {
+      "tests": 1,
+      "app": 0,
+      "browser": 0,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  },
+  {
+    "id": "23-partial-sync-B2",
+    "task": "partial-sync",
+    "condition": "B",
+    "uses": {
+      "tests": 0,
+      "app": 0,
+      "browser": 0,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  },
+  {
+    "id": "24-empty-notifications-A1",
+    "task": "empty-notifications",
+    "condition": "A",
+    "uses": {
+      "tests": 1,
+      "app": 1,
+      "browser": 0,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  },
+  {
+    "id": "25-refresh-clears-orders-A2",
+    "task": "refresh-clears-orders",
+    "condition": "A",
+    "uses": {
+      "tests": 1,
+      "app": 0,
+      "browser": 0,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  },
+  {
+    "id": "26-health-gives-up-B2",
+    "task": "health-gives-up",
+    "condition": "B",
+    "uses": {
+      "tests": 1,
+      "app": 1,
+      "browser": 0,
+      "recoveryProbe": 0
+    },
+    "probe": [
+      "plan_verification",
+      "run_recovery_probe check",
+      "run_recovery_probe check"
+    ]
+  },
+  {
+    "id": "27-shipped-row-stale-B2",
+    "task": "shipped-row-stale",
+    "condition": "B",
+    "uses": {
+      "tests": 1,
+      "app": 1,
+      "browser": 1,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  },
+  {
+    "id": "28-partial-sync-A1",
+    "task": "partial-sync",
+    "condition": "A",
+    "uses": {
+      "tests": 0,
+      "app": 0,
+      "browser": 0,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  },
+  {
+    "id": "29-filter-race-A1",
+    "task": "filter-race",
+    "condition": "A",
+    "uses": {
+      "tests": 1,
+      "app": 0,
+      "browser": 0,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  },
+  {
+    "id": "30-filter-race-A2",
+    "task": "filter-race",
+    "condition": "A",
+    "uses": {
+      "tests": 1,
+      "app": 0,
+      "browser": 0,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  },
+  {
+    "id": "31-refresh-clears-orders-B2",
+    "task": "refresh-clears-orders",
+    "condition": "B",
+    "uses": {
+      "tests": 2,
+      "app": 2,
+      "browser": 1,
+      "recoveryProbe": 1
+    },
+    "probe": ["run_recovery_probe observe"]
+  },
+  {
+    "id": "32-health-gives-up-A1",
+    "task": "health-gives-up",
+    "condition": "A",
+    "uses": {
+      "tests": 1,
+      "app": 0,
+      "browser": 0,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  },
+  {
+    "id": "33-refresh-clears-orders-A1",
+    "task": "refresh-clears-orders",
+    "condition": "A",
+    "uses": {
+      "tests": 1,
+      "app": 0,
+      "browser": 0,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  },
+  {
+    "id": "34-partial-sync-B1",
+    "task": "partial-sync",
+    "condition": "B",
+    "uses": {
+      "tests": 0,
+      "app": 0,
+      "browser": 0,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  },
+  {
+    "id": "35-refresh-clears-orders-B1",
+    "task": "refresh-clears-orders",
+    "condition": "B",
+    "uses": {
+      "tests": 2,
+      "app": 1,
+      "browser": 1,
+      "recoveryProbe": 0
+    },
+    "probe": [
+      "plan_verification",
+      "run_recovery_probe observe",
+      "run_recovery_probe observe",
+      "compare_reports"
+    ]
+  },
+  {
+    "id": "36-partial-sync-A2",
+    "task": "partial-sync",
+    "condition": "A",
+    "uses": {
+      "tests": 0,
+      "app": 0,
+      "browser": 0,
+      "recoveryProbe": 0
+    },
+    "probe": []
+  }
+]

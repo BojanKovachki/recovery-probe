@@ -1,0 +1,25 @@
+{
+  "id": "pilot-1",
+  "question": "Does adding Recovery Probe help a coding agent fix behavioral bugs, avoid regressions and claim completion accurately?",
+  "tasks": [
+    "refresh-clears-orders",
+    "health-gives-up",
+    "shipped-row-stale",
+    "filter-race",
+    "empty-notifications",
+    "partial-sync"
+  ],
+  "conditions": ["A", "B"],
+  "repetitions": 3,
+  "seed": 20261117,
+  "agent": {
+    "runtime": "claude-code",
+    "version": "2.1.322",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "maxTurns": 80,
+    "minutes": 25
+  },
+  "recoveryProbe": "1.2.0-preview.1",
+  "playwright": "1.62.1"
+}

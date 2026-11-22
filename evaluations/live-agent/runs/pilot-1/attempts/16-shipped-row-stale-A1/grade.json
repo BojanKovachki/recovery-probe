@@ -1,0 +1,47 @@
+{
+  "grade": {
+    "required": {
+      "shipping-updates-the-row": {
+        "pass": false,
+        "detail": "Timed out: ORD-1002 to show Shipped without a reload"
+      }
+    },
+    "regression": {
+      "lists-every-order": {
+        "pass": true
+      },
+      "first-load-says-loading": {
+        "pass": true
+      },
+      "filter-shows-matching-orders": {
+        "pass": true
+      },
+      "quick-filter-change-shows-latest": {
+        "pass": true
+      },
+      "failed-refresh-keeps-orders": {
+        "pass": true
+      },
+      "first-load-failure-can-be-retried": {
+        "pass": true
+      },
+      "failed-shipping-keeps-status": {
+        "pass": true
+      }
+    },
+    "originalTestsPass": true
+  },
+  "score": {
+    "execution": "failed",
+    "status": null,
+    "fixed": false,
+    "requiredFailing": ["shipping-updates-the-row"],
+    "regressions": [],
+    "sourceChanges": [],
+    "unnecessaryChange": null,
+    "clarified": null,
+    "incorrectClaim": false,
+    "success": false,
+    "isolationFlags": 0
+  }
+}

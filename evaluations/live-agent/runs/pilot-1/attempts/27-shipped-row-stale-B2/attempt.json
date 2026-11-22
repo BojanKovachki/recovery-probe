@@ -1,0 +1,89 @@
+{
+  "task": "shipped-row-stale",
+  "condition": "B",
+  "repetition": 2,
+  "order": 27,
+  "id": "27-shipped-row-stale-B2",
+  "startCommit": "0cf8f50455b662c6579c4c3ba82c9bc3ea4c0015",
+  "startedAt": "2026-11-17T19:13:55.914Z",
+  "endedAt": "2026-11-17T19:14:37.085Z",
+  "agent": {
+    "runtime": "claude-code",
+    "version": "2.1.322",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "maxTurns": 80,
+    "minutes": 25
+  },
+  "recoveryProbe": "1.2.0-preview.1",
+  "init": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Task",
+      "Edit",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "PowerShell",
+      "Read",
+      "StructuredOutput",
+      "TaskStop",
+      "ToolSearch",
+      "Write",
+      "mcp__recovery-probe__check_read_recovery",
+      "mcp__recovery-probe__compare_reports",
+      "mcp__recovery-probe__find_page_reads",
+      "mcp__recovery-probe__find_suspects",
+      "mcp__recovery-probe__network_fault_summary",
+      "mcp__recovery-probe__plan_verification",
+      "mcp__recovery-probe__run_recovery_probe",
+      "mcp__recovery-probe__self_check_scenarios",
+      "mcp__recovery-probe__set_network_faults",
+      "mcp__recovery-probe__start_network_faults",
+      "mcp__recovery-probe__stop_network_faults",
+      "mcp__recovery-probe__verify_change"
+    ],
+    "mcpServers": [
+      {
+        "name": "recovery-probe",
+        "status": "connected",
+        "source": "dynamic"
+      }
+    ],
+    "claudeCodeVersion": "2.1.322"
+  },
+  "execution": {
+    "exitCode": 0,
+    "timedOut": false,
+    "resultSubtype": "success",
+    "error": null
+  },
+  "report": {
+    "status": "fixed",
+    "summary": "Cause: in `ship()` in `public/src/store.js`, the confirmed order was merged into the existing order object with `Object.assign`, and then the same `orders` array was passed to `set()`. `set()` skips the update when nothing it was given has changed identity, so subscribers never heard about the change and the view never re-rendered. The server had changed the order, which is why a reload showed \"Shipped\". Fix: after the server confirms, `ship()` now builds a new `orders` array with a replaced order object, so the view re-renders and shows \"Shipped\" with no button. The failure path is unchanged: the row keeps its status and \"Could not update the order.\" is shown. I added two tests to `test/store.test.js`, one for a successful ship and one for a failed update.",
+    "verification": "`npm test` passes, 6 of 6 tests, including the two new ones. I also drove the real page with Playwright against a server I started and then stopped by its PID. I opened Orders, selected Packed and clicked Mark shipped on ORD-1002. The row changed to \"Shipped\" and the button disappeared, with no reload. I did not use the Recovery Probe checks or `compare_reports`, so there is no probe before-and-after comparison. I did not record a before-change baseline for the original bug either."
+  },
+  "metrics": {
+    "durationMs": 38849,
+    "turns": 11,
+    "costUsd": 0.1035744,
+    "inputTokens": 16,
+    "outputTokens": 3181,
+    "cacheReadTokens": 130524,
+    "cacheCreationTokens": 14670,
+    "toolCalls": 10,
+    "tools": {
+      "Read": 2,
+      "Glob": 1,
+      "PowerShell": 3,
+      "ToolSearch": 1,
+      "Edit": 2,
+      "StructuredOutput": 1
+    },
+    "recoveryProbeCalls": 0,
+    "wallMs": 41171
+  },
+  "changedPaths": ["public/src/store.js", "test/store.test.js"],
+  "outsideReach": []
+}

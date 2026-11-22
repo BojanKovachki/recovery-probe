@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dispatch</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Dispatch</h1>
+      <nav aria-label="Main">
+        <a href="#/">Overview</a>
+        <a href="#/orders">Orders</a>
+      </nav>
+    </header>
+    <main>
+      <section id="overview" aria-labelledby="overview-title">
+        <h2 id="overview-title">Today</h2>
+        <p>Carrier pickup is at 17:30. Orders packed before 16:00 ship today.</p>
+        <p>Open <a href="#/orders">Orders</a> to see and ship today's orders.</p>
+      </section>
+      <section id="orders-view" aria-labelledby="orders-title" hidden>
+        <div class="toolbar">
+          <h2 id="orders-title">Orders</h2>
+          <button id="refresh" type="button">Refresh</button>
+        </div>
+        <nav aria-label="Filter orders">
+          <button type="button" data-filter="">All</button>
+          <button type="button" data-filter="new">New</button>
+          <button type="button" data-filter="packed">Packed</button>
+          <button type="button" data-filter="shipped">Shipped</button>
+        </nav>
+        <p id="status" role="status"></p>
+        <p id="error" role="alert" hidden></p>
+        <ul id="orders"></ul>
+        <p id="empty" hidden>No orders</p>
+      </section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

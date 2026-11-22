@@ -1,0 +1,29 @@
+{
+  "scenarios": [
+    {
+      "name": "health-recovers-by-itself",
+      "paths": [
+        "public/src/health.js",
+        "public/src/retry.js",
+        "public/src/api.js",
+        "public/src/main.js"
+      ],
+      "check": ["check", "--config", "checks/health.json"],
+      "behavior": "Fails two health reads in a row with HTTP 503 and waits for the panel to show the services without pressing Retry.",
+      "expectation": "HLT-2 in docs/REQUIREMENTS.md: a failed health read is retried after 1, 2 and 4 seconds, and the panel shows the services when a retry succeeds.",
+      "limits": "Two HTTP 503 failures on page load; not the message after the last retry, or other fault kinds."
+    },
+    {
+      "name": "notifications-empty-state",
+      "paths": [
+        "public/src/notifications.js",
+        "public/src/api.js",
+        "public/src/main.js"
+      ],
+      "check": ["check", "--config", "checks/notifications.json"],
+      "behavior": "Loads the board for an account without notifications, fails the notifications read and presses its Retry.",
+      "expectation": "NTF-2 in docs/REQUIREMENTS.md: an account with no notifications sees \"You're all caught up\"; a failed read offers Retry.",
+      "limits": "The signed-in account only; a list of notifications is not checked."
+    }
+  ]
+}

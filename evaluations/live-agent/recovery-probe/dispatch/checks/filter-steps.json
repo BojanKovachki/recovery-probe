@@ -1,0 +1,9 @@
+[
+  { "click": "header a[href='#/orders']" },
+  { "waitFor": "[data-filter='shipped']", "timeoutMs": 2000 },
+  { "click": "[data-filter='shipped']" },
+  { "wait": 2500 },
+  { "click": "[data-filter='']" },
+  { "wait": 1500 },
+  { "click": "header a[href='#/']" }
+]

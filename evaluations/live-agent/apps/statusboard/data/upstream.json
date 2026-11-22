@@ -1,0 +1,7 @@
+{
+  "api": "operational",
+  "billing": "degraded",
+  "search": { "error": "timeout" },
+  "email": "operational",
+  "storage": { "error": "timeout" }
+}

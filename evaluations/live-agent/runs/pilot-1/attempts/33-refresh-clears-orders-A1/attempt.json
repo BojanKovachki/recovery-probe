@@ -1,0 +1,70 @@
+{
+  "task": "refresh-clears-orders",
+  "condition": "A",
+  "repetition": 1,
+  "order": 33,
+  "id": "33-refresh-clears-orders-A1",
+  "startCommit": "513819e5c9516260adc9b5670b70f7d0e0a21bdf",
+  "startedAt": "2026-11-17T19:17:45.297Z",
+  "endedAt": "2026-11-17T19:18:11.755Z",
+  "agent": {
+    "runtime": "claude-code",
+    "version": "2.1.322",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "maxTurns": 80,
+    "minutes": 25
+  },
+  "recoveryProbe": null,
+  "init": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Task",
+      "Edit",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "PowerShell",
+      "Read",
+      "StructuredOutput",
+      "TaskStop",
+      "ToolSearch",
+      "Write"
+    ],
+    "mcpServers": [],
+    "claudeCodeVersion": "2.1.322"
+  },
+  "execution": {
+    "exitCode": 0,
+    "timedOut": false,
+    "resultSubtype": "success",
+    "error": null
+  },
+  "report": {
+    "status": "fixed",
+    "summary": "The `catch` branch of `load()` in `public/src/store.js` set `orders: []` on every failure, so a failed Refresh wiped the list. I removed that reset. A failed load now only sets `loading: false` and the error message, so the orders on screen stay and \"Could not refresh orders.\" is shown (ORD-3). Switching filters still clears the previous list, so one filter's rows never show under another (ORD-2). A failed first load still says \"Could not load orders.\" (ORD-5), and the next successful refresh still clears the message. I also added a regression test in `test/store.test.js`.",
+    "verification": "`npm test` passes (5 of 5), including the new test. It loads two orders, makes a refresh fail, and checks the error text and that both orders remain. It then lets a refresh succeed and checks the message is cleared and the orders are still there. I did not drive the page in a browser."
+  },
+  "metrics": {
+    "durationMs": 24811,
+    "turns": 14,
+    "costUsd": 0.076325,
+    "inputTokens": 16,
+    "outputTokens": 2532,
+    "cacheReadTokens": 115370,
+    "cacheCreationTokens": 9859,
+    "toolCalls": 12,
+    "tools": {
+      "Read": 6,
+      "Glob": 1,
+      "PowerShell": 2,
+      "Edit": 2,
+      "StructuredOutput": 1
+    },
+    "recoveryProbeCalls": 0,
+    "wallMs": 26458
+  },
+  "changedPaths": ["public/src/store.js", "test/store.test.js"],
+  "outsideReach": []
+}

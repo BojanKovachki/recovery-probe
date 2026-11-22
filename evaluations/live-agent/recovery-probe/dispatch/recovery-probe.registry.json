@@ -1,0 +1,63 @@
+{
+  "scenarios": [
+    {
+      "name": "orders-refresh-keeps-orders",
+      "paths": [
+        "public/src/store.js",
+        "public/src/view.js",
+        "public/src/api.js",
+        "public/src/main.js",
+        "public/index.html"
+      ],
+      "check": [
+        "observe",
+        "--config",
+        "checks/orders.json",
+        "--steps",
+        "checks/refresh-steps.json"
+      ],
+      "behavior": "Opens Orders, then fails the next orders read with HTTP 503 and presses Refresh.",
+      "expectation": "ORD-3 in docs/REQUIREMENTS.md: a failed refresh keeps the orders on screen and says \"Could not refresh orders.\"",
+      "limits": "One HTTP 503 on a refresh of the All list; not other filters, offline mode or first loads."
+    },
+    {
+      "name": "orders-ship-updates-row",
+      "paths": [
+        "public/src/store.js",
+        "public/src/view.js",
+        "public/src/api.js",
+        "public/src/main.js",
+        "server.mjs"
+      ],
+      "check": [
+        "observe",
+        "--config",
+        "checks/orders.json",
+        "--steps",
+        "checks/ship-steps.json"
+      ],
+      "behavior": "Opens Orders, selects Packed and presses Mark shipped on the first packed order.",
+      "expectation": "ORD-4 in docs/REQUIREMENTS.md: once the server confirms, the row shows \"Shipped\" without a reload.",
+      "limits": "A successful update only. Each run ships one of the 3 packed orders, so restart the server after 3 runs."
+    },
+    {
+      "name": "orders-filter-latest-wins",
+      "paths": [
+        "public/src/store.js",
+        "public/src/view.js",
+        "public/src/api.js",
+        "public/src/main.js"
+      ],
+      "check": [
+        "observe",
+        "--config",
+        "checks/filter.json",
+        "--steps",
+        "checks/filter-steps.json"
+      ],
+      "behavior": "Opens Orders and selects Shipped at once, while the unfiltered list is still loading.",
+      "expectation": "ORD-2 in docs/REQUIREMENTS.md: with Shipped selected, the list never shows new or packed orders.",
+      "limits": "The Shipped filter right after Orders opens; not other filter changes."
+    }
+  ]
+}

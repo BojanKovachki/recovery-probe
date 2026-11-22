@@ -1,0 +1,10 @@
+{
+  "transport": "http",
+  "cdp": "http://127.0.0.1:9222",
+  "pageUrl": "http://127.0.0.1:4173/",
+  "endpoint": "http://127.0.0.1:4173/api/orders",
+  "regionSelector": "#orders-view:has(#status:empty)",
+  "contentSelector": "#orders li",
+  "observationMs": 9000,
+  "sampleMs": 100
+}

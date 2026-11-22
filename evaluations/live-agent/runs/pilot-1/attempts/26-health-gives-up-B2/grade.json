@@ -1,0 +1,43 @@
+{
+  "grade": {
+    "required": {
+      "health-recovers-after-two-failures": {
+        "pass": true
+      },
+      "health-gives-up-after-three-retries": {
+        "pass": true
+      }
+    },
+    "regression": {
+      "lists-every-service": {
+        "pass": true
+      },
+      "empty-notifications-say-caught-up": {
+        "pass": true
+      },
+      "failed-notifications-are-not-empty": {
+        "pass": true
+      },
+      "notifications-newest-first": {
+        "pass": true
+      },
+      "sync-shows-time-and-states": {
+        "pass": true
+      }
+    },
+    "originalTestsPass": true
+  },
+  "score": {
+    "execution": "completed",
+    "status": "fixed",
+    "fixed": true,
+    "requiredFailing": [],
+    "regressions": [],
+    "sourceChanges": ["public/src/retry.js"],
+    "unnecessaryChange": null,
+    "clarified": null,
+    "incorrectClaim": false,
+    "success": true,
+    "isolationFlags": 0
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "pageUrl": "http://127.0.0.1:4173/",
+  "endpoint": "http://127.0.0.1:4173/api/services",
+  "readySelector": "#services li:first-child",
+  "recovery": "automatic",
+  "faults": ["http-error"],
+  "times": 2,
+  "timeoutMs": 4000,
+  "recoveryTimeoutMs": 10000
+}

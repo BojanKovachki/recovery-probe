@@ -1,0 +1,17 @@
+{
+  "name": "status-board",
+  "version": "2.3.1",
+  "private": true,
+  "type": "module",
+  "description": "Operations status board: service health, notifications and upstream sync.",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test \"test/*.test.js\""
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

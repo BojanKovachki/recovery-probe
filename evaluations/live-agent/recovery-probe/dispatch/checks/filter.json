@@ -1,0 +1,17 @@
+{
+  "transport": "http",
+  "cdp": "http://127.0.0.1:9222",
+  "pageUrl": "http://127.0.0.1:4173/",
+  "endpoint": "http://127.0.0.1:4173/api/orders",
+  "regionSelector": "#orders-view:has([data-filter='shipped'][aria-pressed='true'])",
+  "contentSelector": "#orders li",
+  "rows": {
+    "selector": "#orders li",
+    "key": ".id",
+    "state": ".state",
+    "states": ["New", "Packed", "Shipped"],
+    "unexpected": ["New", "Packed"]
+  },
+  "observationMs": 7000,
+  "sampleMs": 50
+}

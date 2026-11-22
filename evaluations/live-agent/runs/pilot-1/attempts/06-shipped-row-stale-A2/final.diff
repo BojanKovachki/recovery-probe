@@ -1,0 +1,65 @@
+diff --git a/public/src/store.js b/public/src/store.js
+index fd2b758..0ef4e25 100644
+--- a/public/src/store.js
++++ b/public/src/store.js
+@@ -45,11 +45,16 @@ export function createStore(api = ordersApi) {
+   }
+ 
+   async function ship(id) {
+-    const order = state.orders.find((candidate) => candidate.id === id)
+     try {
+       const updated = await api.updateStatus(id, 'shipped')
+-      Object.assign(order, updated)
+-      set({ orders: state.orders, error: null })
++      // Replace the row with a new object (and a new list) so views see the
++      // change; look it up now, as the list may have been reloaded meanwhile.
++      set({
++        orders: state.orders.map((order) =>
++          order.id === id ? { ...order, ...updated } : order,
++        ),
++        error: null,
++      })
+     } catch {
+       set({ error: 'Could not update the order.' })
+     }
+diff --git a/test/store.test.js b/test/store.test.js
+index 3e2079c..2762e2f 100644
+--- a/test/store.test.js
++++ b/test/store.test.js
+@@ -45,6 +45,36 @@ test('subscribers hear about each change', async () => {
+   assert.deepEqual(seen, [false])
+ })
+ 
++test('shipping a packed order updates its row once the server confirms', async () => {
++  const store = createStore({
++    listOrders: async () => ORDERS.map((order) => ({ ...order })),
++    updateStatus: async (id, status) => ({
++      ...ORDERS.find((order) => order.id === id),
++      status,
++      updatedAt: 'now',
++    }),
++  })
++  await store.load('')
++  const seen = []
++  store.subscribe((state) => seen.push(state.orders.map((o) => o.status)))
++  await store.ship('ORD-2')
++  assert.deepEqual(seen, [['new', 'shipped']])
++  assert.equal(store.state.orders[1].updatedAt, 'now')
++})
++
++test('a failed update keeps the row and shows the message', async () => {
++  const store = createStore({
++    listOrders: async () => ORDERS.map((order) => ({ ...order })),
++    updateStatus: async () => {
++      throw new Error('HTTP 500')
++    },
++  })
++  await store.load('')
++  await store.ship('ORD-2')
++  assert.equal(store.state.orders[1].status, 'packed')
++  assert.equal(store.state.error, 'Could not update the order.')
++})
++
+ test('statuses and totals are shown the way the team reads them', () => {
+   assert.equal(statusLabel('packed'), 'Packed')
+   assert.equal(money(89.5), '€89.50')

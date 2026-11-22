@@ -1,0 +1,297 @@
+{
+  "at": "2026-11-17T18:24:16.526Z",
+  "rounds": 3,
+  "results": {
+    "refresh-clears-orders": [
+      {
+        "build": "start",
+        "appTestsPass": true,
+        "rounds": [
+          {
+            "requiredFailing": [
+              "failed-refresh-keeps-orders: after the failed refresh the list showed 0 of 8 orders"
+            ],
+            "regressionFailing": [],
+            "asExpected": true
+          },
+          {
+            "requiredFailing": [
+              "failed-refresh-keeps-orders: after the failed refresh the list showed 0 of 8 orders"
+            ],
+            "regressionFailing": [],
+            "asExpected": true
+          },
+          {
+            "requiredFailing": [
+              "failed-refresh-keeps-orders: after the failed refresh the list showed 0 of 8 orders"
+            ],
+            "regressionFailing": [],
+            "asExpected": true
+          }
+        ]
+      },
+      {
+        "build": "reference",
+        "appTestsPass": true,
+        "rounds": [
+          {
+            "requiredFailing": [],
+            "regressionFailing": [],
+            "asExpected": true
+          },
+          {
+            "requiredFailing": [],
+            "regressionFailing": [],
+            "asExpected": true
+          },
+          {
+            "requiredFailing": [],
+            "regressionFailing": [],
+            "asExpected": true
+          }
+        ]
+      }
+    ],
+    "health-gives-up": [
+      {
+        "build": "start",
+        "appTestsPass": true,
+        "rounds": [
+          {
+            "requiredFailing": [
+              "health-recovers-after-two-failures: Timed out: the services after two failed reads, without pressing Retry",
+              "health-gives-up-after-three-retries: 2 health reads before giving up, not 1 and 3 retries"
+            ],
+            "regressionFailing": [],
+            "asExpected": true
+          },
+          {
+            "requiredFailing": [
+              "health-recovers-after-two-failures: Timed out: the services after two failed reads, without pressing Retry",
+              "health-gives-up-after-three-retries: 2 health reads before giving up, not 1 and 3 retries"
+            ],
+            "regressionFailing": [],
+            "asExpected": true
+          },
+          {
+            "requiredFailing": [
+              "health-recovers-after-two-failures: Timed out: the services after two failed reads, without pressing Retry",
+              "health-gives-up-after-three-retries: 2 health reads before giving up, not 1 and 3 retries"
+            ],
+            "regressionFailing": [],
+            "asExpected": true
+          }
+        ]
+      },
+      {
+        "build": "reference",
+        "appTestsPass": true,
+        "rounds": [
+          {
+            "requiredFailing": [],
+            "regressionFailing": [],
+            "asExpected": true
+          },
+          {
+            "requiredFailing": [],
+            "regressionFailing": [],
+            "asExpected": true
+          },
+          {
+            "requiredFailing": [],
+            "regressionFailing": [],
+            "asExpected": true
+          }
+        ]
+      }
+    ],
+    "shipped-row-stale": [
+      {
+        "build": "start",
+        "appTestsPass": true,
+        "rounds": [
+          {
+            "requiredFailing": [
+              "shipping-updates-the-row: Timed out: ORD-1002 to show Shipped without a reload"
+            ],
+            "regressionFailing": [],
+            "asExpected": true
+          },
+          {
+            "requiredFailing": [
+              "shipping-updates-the-row: Timed out: ORD-1002 to show Shipped without a reload"
+            ],
+            "regressionFailing": [],
+            "asExpected": true
+          },
+          {
+            "requiredFailing": [
+              "shipping-updates-the-row: Timed out: ORD-1002 to show Shipped without a reload"
+            ],
+            "regressionFailing": [],
+            "asExpected": true
+          }
+        ]
+      },
+      {
+        "build": "reference",
+        "appTestsPass": true,
+        "rounds": [
+          {
+            "requiredFailing": [],
+            "regressionFailing": [],
+            "asExpected": true
+          },
+          {
+            "requiredFailing": [],
+            "regressionFailing": [],
+            "asExpected": true
+          },
+          {
+            "requiredFailing": [],
+            "regressionFailing": [],
+            "asExpected": true
+          }
+        ]
+      }
+    ],
+    "filter-race": [
+      {
+        "build": "start",
+        "appTestsPass": true,
+        "rounds": [
+          {
+            "requiredFailing": [
+              "quick-filter-change-shows-latest: round 1: with Shipped selected, the list showed [\"New\",\"Packed\",\"Shipped\",\"Packed\",\"New\",\"Shipped\",\"Packed\",\"Shipped\"]"
+            ],
+            "regressionFailing": [],
+            "asExpected": true
+          },
+          {
+            "requiredFailing": [
+              "quick-filter-change-shows-latest: round 1: with Shipped selected, the list showed [\"New\",\"Packed\",\"Shipped\",\"Packed\",\"New\",\"Shipped\",\"Packed\",\"Shipped\"]"
+            ],
+            "regressionFailing": [],
+            "asExpected": true
+          },
+          {
+            "requiredFailing": [
+              "quick-filter-change-shows-latest: round 1: with Shipped selected, the list showed [\"New\",\"Packed\",\"Shipped\",\"Packed\",\"New\",\"Shipped\",\"Packed\",\"Shipped\"]"
+            ],
+            "regressionFailing": [],
+            "asExpected": true
+          }
+        ]
+      },
+      {
+        "build": "reference",
+        "appTestsPass": true,
+        "rounds": [
+          {
+            "requiredFailing": [],
+            "regressionFailing": [],
+            "asExpected": true
+          },
+          {
+            "requiredFailing": [],
+            "regressionFailing": [],
+            "asExpected": true
+          },
+          {
+            "requiredFailing": [],
+            "regressionFailing": [],
+            "asExpected": true
+          }
+        ]
+      }
+    ],
+    "empty-notifications": [
+      {
+        "build": "start",
+        "appTestsPass": true,
+        "rounds": [
+          {
+            "requiredFailing": [],
+            "regressionFailing": [],
+            "asExpected": true
+          },
+          {
+            "requiredFailing": [],
+            "regressionFailing": [],
+            "asExpected": true
+          },
+          {
+            "requiredFailing": [],
+            "regressionFailing": [],
+            "asExpected": true
+          }
+        ]
+      },
+      {
+        "build": "reference",
+        "appTestsPass": true,
+        "rounds": [
+          {
+            "requiredFailing": [],
+            "regressionFailing": [],
+            "asExpected": true
+          },
+          {
+            "requiredFailing": [],
+            "regressionFailing": [],
+            "asExpected": true
+          },
+          {
+            "requiredFailing": [],
+            "regressionFailing": [],
+            "asExpected": true
+          }
+        ]
+      }
+    ],
+    "partial-sync": [
+      {
+        "build": "start",
+        "appTestsPass": true,
+        "rounds": [
+          {
+            "requiredFailing": [],
+            "regressionFailing": [],
+            "asExpected": true
+          },
+          {
+            "requiredFailing": [],
+            "regressionFailing": [],
+            "asExpected": true
+          },
+          {
+            "requiredFailing": [],
+            "regressionFailing": [],
+            "asExpected": true
+          }
+        ]
+      },
+      {
+        "build": "reference",
+        "appTestsPass": true,
+        "rounds": [
+          {
+            "requiredFailing": [],
+            "regressionFailing": [],
+            "asExpected": true
+          },
+          {
+            "requiredFailing": [],
+            "regressionFailing": [],
+            "asExpected": true
+          },
+          {
+            "requiredFailing": [],
+            "regressionFailing": [],
+            "asExpected": true
+          }
+        ]
+      }
+    ]
+  }
+}

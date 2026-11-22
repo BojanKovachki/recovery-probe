@@ -1,0 +1,58 @@
+[
+  {
+    "id": "ORD-1001",
+    "customer": "Acme Corp",
+    "status": "new",
+    "total": 120,
+    "updatedAt": "2026-11-02T08:10:00.000Z"
+  },
+  {
+    "id": "ORD-1002",
+    "customer": "Birch & Co",
+    "status": "packed",
+    "total": 89.5,
+    "updatedAt": "2026-11-02T08:42:00.000Z"
+  },
+  {
+    "id": "ORD-1003",
+    "customer": "Cobalt Labs",
+    "status": "shipped",
+    "total": 310,
+    "updatedAt": "2026-11-01T16:05:00.000Z"
+  },
+  {
+    "id": "ORD-1004",
+    "customer": "Delta Foods",
+    "status": "packed",
+    "total": 45.25,
+    "updatedAt": "2026-11-02T09:15:00.000Z"
+  },
+  {
+    "id": "ORD-1005",
+    "customer": "Evergreen Ltd",
+    "status": "new",
+    "total": 72,
+    "updatedAt": "2026-11-02T09:30:00.000Z"
+  },
+  {
+    "id": "ORD-1006",
+    "customer": "Fjord Supplies",
+    "status": "shipped",
+    "total": 199.99,
+    "updatedAt": "2026-11-01T11:20:00.000Z"
+  },
+  {
+    "id": "ORD-1007",
+    "customer": "Granite Works",
+    "status": "packed",
+    "total": 560,
+    "updatedAt": "2026-11-02T10:02:00.000Z"
+  },
+  {
+    "id": "ORD-1008",
+    "customer": "Harbor Bakery",
+    "status": "shipped",
+    "total": 33.4,
+    "updatedAt": "2026-11-01T09:45:00.000Z"
+  }
+]

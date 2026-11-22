@@ -1,0 +1,70 @@
+{
+  "task": "health-gives-up",
+  "condition": "A",
+  "repetition": 1,
+  "order": 32,
+  "id": "32-health-gives-up-A1",
+  "startCommit": "86ec9243c97434ef44eddd8033ddc402a99eeb66",
+  "startedAt": "2026-11-17T19:17:17.409Z",
+  "endedAt": "2026-11-17T19:17:41.822Z",
+  "agent": {
+    "runtime": "claude-code",
+    "version": "2.1.322",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "maxTurns": 80,
+    "minutes": 25
+  },
+  "recoveryProbe": null,
+  "init": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Task",
+      "Edit",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "PowerShell",
+      "Read",
+      "StructuredOutput",
+      "TaskStop",
+      "ToolSearch",
+      "Write"
+    ],
+    "mcpServers": [],
+    "claudeCodeVersion": "2.1.322"
+  },
+  "execution": {
+    "exitCode": 0,
+    "timedOut": false,
+    "resultSubtype": "success",
+    "error": null
+  },
+  "report": {
+    "status": "fixed",
+    "summary": "The cause was in `public/src/retry.js`. `withRetry` gave up as soon as a second consecutive 503 arrived, with the comment \"an overloaded server answers 503 again: more retries only add load\". During the incident the health endpoint answered 503, so the panel showed \"Service health unavailable\" after about 1 second, with no 2 s or 4 s retry. That contradicts HLT-2, which asks for retries after 1, 2 and 4 seconds whatever the failure. I removed the 503 short-circuit. Now a failed read is retried after 1, 2 and 4 s, the panel shows the services as soon as a retry succeeds, and after the last failure it shows the error and the Retry button as before. I added a regression test in `test/board.test.js` for a 503 that fails three times and then succeeds.",
+    "verification": "`npm test` passes, 5 of 5, including the new test. I did not drive the page in a browser or simulate a 503 against the running server."
+  },
+  "metrics": {
+    "durationMs": 22729,
+    "turns": 10,
+    "costUsd": 0.0620828,
+    "inputTokens": 12,
+    "outputTokens": 1674,
+    "cacheReadTokens": 92308,
+    "cacheCreationTokens": 9022,
+    "toolCalls": 9,
+    "tools": {
+      "Read": 2,
+      "Glob": 1,
+      "PowerShell": 4,
+      "Edit": 1,
+      "StructuredOutput": 1
+    },
+    "recoveryProbeCalls": 0,
+    "wallMs": 24413
+  },
+  "changedPaths": ["public/src/retry.js", "test/board.test.js"],
+  "outsideReach": []
+}

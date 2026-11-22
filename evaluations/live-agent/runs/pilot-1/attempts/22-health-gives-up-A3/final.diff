@@ -1,0 +1,47 @@
+diff --git a/public/src/retry.js b/public/src/retry.js
+index 96a1164..f525572 100644
+--- a/public/src/retry.js
++++ b/public/src/retry.js
+@@ -13,9 +13,7 @@ export async function withRetry(
+     try {
+       return await read()
+     } catch (error) {
+-      // An overloaded server answers 503 again: more retries only add load.
+-      const overloaded = error.status === 503 && attempt > 0
+-      if (attempt >= delays.length || overloaded) throw error
++      if (attempt >= delays.length) throw error
+       await sleep(delays[attempt])
+     }
+   }
+diff --git a/test/board.test.js b/test/board.test.js
+index 9c531a0..759b76e 100644
+--- a/test/board.test.js
++++ b/test/board.test.js
+@@ -35,6 +35,27 @@ test('the retries wait the delays they are given', async () => {
+   assert.deepEqual(waited, [1000, 2000, 4000])
+ })
+ 
++test('repeated 503 answers are still retried until a retry succeeds', async () => {
++  let calls = 0
++  const waited = []
++  const result = await withRetry(
++    async () => {
++      calls++
++      if (calls < 4) {
++        const error = new Error('HTTP 503')
++        error.status = 503
++        throw error
++      }
++      return 'services'
++    },
++    [1000, 2000, 4000],
++    async (ms) => waited.push(ms),
++  )
++  assert.equal(result, 'services')
++  assert.equal(calls, 4)
++  assert.deepEqual(waited, [1000, 2000, 4000])
++})
++
+ test('states read the way the team names them', () => {
+   assert.equal(stateLabel('degraded'), 'Degraded')
+ })

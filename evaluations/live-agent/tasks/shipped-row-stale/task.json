@@ -1,0 +1,5 @@
+{
+  "id": "shipped-row-stale",
+  "title": "Shipped orders still say \"Packed\"",
+  "app": "dispatch"
+}

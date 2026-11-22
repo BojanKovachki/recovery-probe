@@ -1,0 +1,46 @@
+body {
+  font-family: system-ui, sans-serif;
+  margin: 0;
+  color: #1d2733;
+  background: #f5f7fa;
+}
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: #1d2733;
+  color: #fff;
+}
+main {
+  padding: 16px 20px;
+}
+nav button[aria-pressed='true'] {
+  font-weight: 700;
+  text-decoration: underline;
+}
+#error {
+  color: #a01818;
+}
+#orders {
+  list-style: none;
+  padding: 0;
+}
+#orders li {
+  display: grid;
+  grid-template-columns: 90px 1fr 90px 90px 120px 120px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border-bottom: 1px solid #dde3ea;
+  background: #fff;
+}
+header nav a {
+  color: #fff;
+  margin-left: 16px;
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}

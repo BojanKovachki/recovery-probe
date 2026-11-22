@@ -1,0 +1,91 @@
+{
+  "task": "refresh-clears-orders",
+  "condition": "B",
+  "repetition": 3,
+  "order": 18,
+  "id": "18-refresh-clears-orders-B3",
+  "startCommit": "b1a99ab65413085e1487dc0fdf28787018c375f0",
+  "startedAt": "2026-11-17T19:07:50.105Z",
+  "endedAt": "2026-11-17T19:08:45.805Z",
+  "agent": {
+    "runtime": "claude-code",
+    "version": "2.1.322",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "maxTurns": 80,
+    "minutes": 25
+  },
+  "recoveryProbe": "1.2.0-preview.1",
+  "init": {
+    "model": "claude-sonnet-5-5",
+    "permissionMode": "acceptEdits",
+    "tools": [
+      "Task",
+      "Edit",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "PowerShell",
+      "Read",
+      "StructuredOutput",
+      "TaskStop",
+      "ToolSearch",
+      "Write",
+      "mcp__recovery-probe__check_read_recovery",
+      "mcp__recovery-probe__compare_reports",
+      "mcp__recovery-probe__find_page_reads",
+      "mcp__recovery-probe__find_suspects",
+      "mcp__recovery-probe__network_fault_summary",
+      "mcp__recovery-probe__plan_verification",
+      "mcp__recovery-probe__run_recovery_probe",
+      "mcp__recovery-probe__self_check_scenarios",
+      "mcp__recovery-probe__set_network_faults",
+      "mcp__recovery-probe__start_network_faults",
+      "mcp__recovery-probe__stop_network_faults",
+      "mcp__recovery-probe__verify_change"
+    ],
+    "mcpServers": [
+      {
+        "name": "recovery-probe",
+        "status": "connected",
+        "source": "dynamic"
+      }
+    ],
+    "claudeCodeVersion": "2.1.322"
+  },
+  "execution": {
+    "exitCode": 0,
+    "timedOut": false,
+    "resultSubtype": "success",
+    "error": null
+  },
+  "report": {
+    "status": "fixed",
+    "summary": "Cause: in `public/src/store.js`, the failure branch of `load()` set `orders: []`. A failed Refresh therefore emptied the list and left only the error. I removed that line. A failed load now only sets `loading: false` and the error message. The message reads \"Could not refresh orders.\" once a load has succeeded, and \"Could not load orders.\" on a failed first load. The first-load case is unchanged, because the list is empty then anyway. A successful refresh still clears the message. Changing filters still clears the old rows first, so ORD-2 is unaffected. I also added a regression test in `test/store.test.js`. It covers a failed refresh keeping the orders with the refresh message, and the next success clearing the message.",
+    "verification": "- `npm test`: all 5 tests pass, including the new one.\n- I ran the registry check `orders-refresh-keeps-orders` once, against the changed code in a real browser. It sent one HTTP 503 on the orders read, then pressed Refresh. Its two expect steps, `orders-kept` and `refresh-error-shown`, both completed, and the run reported no findings. The screen showed 8 order rows before and after the failed refresh, with an unchanged fingerprint. Later samples show the orders marker hidden (presumably after the final navigation step); I did not look into that.\n- I did not record a before-change baseline or run `compare_reports`. The project has no `.recovery-probe/verify.json`, and the tree already held the change when I ran the plan. So I can't quote a before/after verdict. The check covers only one 503 on a refresh of the All list.\n- I did not run the other two registry checks, `orders-filter-latest-wins` and `orders-ship-updates-row`, which the plan also selected for `store.js`.\n- I stopped the server and browser helper I started, by their process ids."
+  },
+  "metrics": {
+    "durationMs": 53811,
+    "turns": 20,
+    "costUsd": 0.14444549999999998,
+    "inputTokens": 22,
+    "outputTokens": 3394,
+    "cacheReadTokens": 210495,
+    "cacheCreationTokens": 22353,
+    "toolCalls": 19,
+    "tools": {
+      "Read": 7,
+      "Glob": 1,
+      "PowerShell": 5,
+      "Edit": 2,
+      "ToolSearch": 1,
+      "mcp__recovery-probe__plan_verification": 1,
+      "mcp__recovery-probe__run_recovery_probe": 1,
+      "StructuredOutput": 1
+    },
+    "recoveryProbeCalls": 2,
+    "wallMs": 55700
+  },
+  "changedPaths": ["public/src/store.js", "test/store.test.js"],
+  "outsideReach": []
+}
