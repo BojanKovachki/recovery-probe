@@ -1,6 +1,7 @@
 import type { ParseArgsOptionsConfig } from 'node:util'
 import { version } from '../core/package.mjs'
 import { parseOptions, UsageError, type Values } from './args.mjs'
+import { acceptStopRequests } from './until-stopped.mjs'
 
 /** A command whose flags main parses from its option spec. */
 interface ParsedCommand {
@@ -85,7 +86,8 @@ const groups: [string, Record<string, Entry>][] = [
         load: () => import('./windows.mjs'),
       },
       reads: {
-        summary: 'List the JSON reads a page makes while it loads',
+        summary:
+          'List the JSON reads, or IPC calls, a page makes while it loads',
         load: () => import('./reads.mjs'),
       },
       login: {
@@ -217,6 +219,7 @@ async function main(argv: string[]): Promise<void> {
   )
 }
 
+acceptStopRequests()
 try {
   await main(process.argv.slice(2))
 } catch (error) {

@@ -157,6 +157,10 @@ test(
       assert.equal(discovered.findings[0].classification, 'RECOVERED')
       assert.equal(discovered.findings[1].classification, 'SILENT_EMPTY')
       assert.equal(discovered.findings[2].classification, 'SILENT_EMPTY')
+      // The fixture retries once, so every read failing is two failed reads.
+      assert.equal(discovered.findings[3].id, 'rejection-every-read')
+      assert.equal(discovered.findings[3].classification, 'SILENT_EMPTY')
+      assert.deepEqual(discovered.findings[3].failedReads, [2, 2, 2])
       assert.ok(discovered.findings.every((f) => f.repeatConfirmed))
       assert.equal(discovered.finalReset, 'healthy')
       assert.ok(discovered.results[0].recoveryMs >= 0)
@@ -169,7 +173,13 @@ test(
       assert.equal(twoReads.findings[0].classification, 'RECOVERED')
       assert.deepEqual(
         twoReads.findings.map((f) => f.id),
-        ['rejection-1', 'rejection-2', 'null-result-1', 'rejection-1-call2'],
+        [
+          'rejection-1',
+          'rejection-2',
+          'null-result-1',
+          'rejection-1-call2',
+          'rejection-every-read',
+        ],
       )
       assert.equal(twoReads.findings[3].call, 2)
       assert.equal(twoReads.findings[3].classification, 'SILENT_EMPTY')
@@ -233,19 +243,21 @@ test(
           assert.equal(calibration.results.length, 0)
           assert.equal(calibration.finalReset, 'not-verified')
         } else {
+          // A failed read leaves the empty region exactly as healthy, so nothing on it can be tested.
+          const invisible = mode === 'empty-region'
           assert.equal(
             calibration.error,
-            undefined,
+            invisible ? 'FAULT_NOT_VISIBLE' : undefined,
             JSON.stringify(calibration),
           )
           assert.equal(calibration.readiness.calibrationComplete, true)
           assert.ok(
             calibration.baselines.every(
-              (b) =>
-                b.ready && b.ui.images === (mode === 'empty-region' ? 0 : 13),
+              (b) => b.ready && b.ui.images === (invisible ? 0 : 13),
             ),
           )
-          assert.equal(calibration.results[0].snapshot.injected, 1)
+          if (invisible) assert.equal(calibration.results.length, 0)
+          else assert.equal(calibration.results[0].snapshot.injected, 1)
           if (mode === 'delayed-baseline')
             assert.equal(calibration.findings[0].classification, 'CONTENT_LOSS')
           else
@@ -468,6 +480,7 @@ test(
         'null-result-1-run1.png',
         'rejection-1-run1.png',
         'rejection-2-run1.png',
+        'rejection-every-read-run1.png',
       ])
       assert.match(
         await readFile(join(discoveryOut, 'report.html'), 'utf8'),

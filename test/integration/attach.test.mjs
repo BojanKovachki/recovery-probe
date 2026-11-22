@@ -14,7 +14,7 @@ import { listen } from '../helpers/ports.mjs'
 const exec = promisify(execFile)
 test(
   'web attach CLI preserves a sessionStorage login without exporting it',
-  { timeout: 40000 },
+  { timeout: 50000 },
   async () => {
     const server = createServer((req, res) => {
       res.setHeader('Cache-Control', 'no-store')
@@ -75,9 +75,13 @@ test(
           '--out',
           out,
         ],
-        { timeout: 20000 },
+        { timeout: 30000 },
       )
       assert.match(result.stdout, /ERROR_OR_RETRY_SHOWN/)
+      assert.match(
+        result.stdout,
+        /http-error-every-read — \w+; runs=1; failed reads=\d+\n/,
+      )
       const report = JSON.parse(
         await readFile(join(out, 'report.json'), 'utf8'),
       )

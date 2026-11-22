@@ -1,0 +1,26 @@
+{
+  "schema": "recovery-probe/policy@1",
+  "runs": 1,
+  "claims": [
+    {
+      "id": "items-keep-content",
+      "failurePath": "items-failure",
+      "normalPath": "items-normal",
+      "assertions": ["items-visible"],
+      "app": "web"
+    }
+  ],
+  "apps": {
+    "web": {
+      "launch": ["node", "server.mjs", "{{port}}"],
+      "url": "http://127.0.0.1:{{port}}/items.html",
+      "ready": { "url": "http://127.0.0.1:{{port}}/health", "timeoutMs": 20000 }
+    }
+  },
+  "budgets": {
+    "totalMs": 900000,
+    "scenarioRunMs": 120000,
+    "cleanupReserveMs": 30000
+  },
+  "ignore": ["docs/**"]
+}

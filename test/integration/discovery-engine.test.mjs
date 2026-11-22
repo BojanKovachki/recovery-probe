@@ -7,14 +7,19 @@ import { listen } from '../helpers/ports.mjs'
 
 /** @typedef {import('../../dist/workflows/discover/types.mjs').ReadSnapshot} ReadSnapshot */
 
-// A page whose list shows `items(load)` entries on each reload.
-async function withPage(items, exercise) {
+/**
+ * A page whose list shows `items(load)` entries on each reload, followed by `script(load)`.
+ * @param {(load: number) => number} items
+ * @param {(page: import('playwright').Page) => Promise<void>} exercise
+ * @param {(load: number) => string} [script]
+ */
+async function withPage(items, exercise, script = () => '') {
   let load = 0
   const server = createServer((req, res) => {
     const count = items(++load)
     res.setHeader('Content-Type', 'text/html')
     res.end(
-      `<!doctype html><main>${count ? `<ul>${'<li>Item</li>'.repeat(count)}</ul>` : '<p>No items</p>'}</main>`,
+      `<!doctype html><main>${count ? `<ul>${'<li>Item</li>'.repeat(count)}</ul>` : '<p>No items</p>'}</main>${script(load)}`,
     )
   })
   const port = await listen(server)
@@ -29,8 +34,9 @@ async function withPage(items, exercise) {
   }
 }
 
-// Counters for one read that always succeeds; `pending` keeps it from settling.
-function fakeSession({ pending = 0 } = {}) {
+// Counters for one read that succeeds unless faulted; the app tries it `calls` times
+// per load, and `pending` keeps it from settling.
+function fakeSession({ pending = 0, calls = Infinity } = {}) {
   let plan = {}
   return {
     plans: [],
@@ -39,11 +45,11 @@ function fakeSession({ pending = 0 } = {}) {
       this.plans.push(next)
     },
     snapshot() {
-      const injected = plan.fault ? plan.times : 0
+      const injected = plan.fault ? Math.min(plan.times, calls) : 0
       return {
         injected,
         injectedAt: injected ? Date.now() : null,
-        successfulAfterFault: injected ? 1 : 0,
+        successfulAfterFault: injected && calls > plan.times ? 1 : 0,
         channels: {
           read: { realCalls: 1, successes: 1, errors: 0, pending },
         },
@@ -85,23 +91,29 @@ test(
   'repeats that disagree are an unstable, low-confidence finding',
   { timeout: 30000 },
   async () => {
-    // Load 1 opens the page and 2–4 calibrate; then control, fault, control, fault, cleanup.
+    // Load 1 opens the page, 2–4 calibrate and 5 checks the screen; then control and
+    // fault twice for each experiment, and cleanup.
     await withPage(
-      (load) => (load === 6 ? 0 : 3),
+      (load) => (load === 7 ? 0 : 3),
       async (page) => {
         const result = report()
         await runDiscovery(setup(page, fakeSession()), timing, result)
         assert.equal(result.error, undefined, JSON.stringify(result.error))
+        // A read after the check's faults succeeded, so the check can't tell.
+        assert.equal(result.screenCheck.outcome, 'not-established')
         assert.deepEqual(
           result.results.map((r) => r.interpretation.classification),
-          ['SILENT_EMPTY', 'RECOVERED'],
+          ['SILENT_EMPTY', 'RECOVERED', 'RECOVERED', 'RECOVERED'],
         )
-        const [finding] = result.findings
+        const [finding, everyRead] = result.findings
         assert.equal(finding.classification, 'UNSTABLE')
         assert.equal(finding.kind, 'inconclusive')
         assert.equal(finding.confidence, 'low')
         assert.equal(finding.repeatConfirmed, false)
         assert.equal(finding.verification, 'Rerun it.')
+        // An app that outlasts every fault recovers.
+        assert.equal(everyRead.classification, 'RECOVERED')
+        assert.deepEqual(everyRead.failedReads, [10, 10])
         assert.equal(result.finalReset, 'healthy')
       },
     )
@@ -129,6 +141,160 @@ test(
 )
 
 test(
+  'a screen that stays healthy while every read fails stops the run before any experiment',
+  { timeout: 30000 },
+  async () => {
+    await withPage(
+      () => 3,
+      async (page) => {
+        const session = fakeSession({ calls: 3 })
+        const result = report()
+        await runDiscovery(setup(page, session), timing, result)
+        assert.equal(result.error, 'FAULT_NOT_VISIBLE')
+        assert.equal(result.page, page.url())
+        assert.deepEqual(
+          {
+            injected: result.screenCheck.injected,
+            outcome: result.screenCheck.outcome,
+          },
+          { injected: 3, outcome: 'unchanged' },
+        )
+        assert.deepEqual(
+          session.plans.filter((plan) => plan.fault),
+          [{ fault: 'rejection', times: 10 }],
+        )
+        assert.equal(result.results.length, 0)
+        assert.equal(result.finalReset, 'healthy')
+        assert.equal(result.ok, false)
+      },
+    )
+  },
+)
+
+test(
+  'a screen that changes while every read fails goes on to the experiments',
+  { timeout: 30000 },
+  async () => {
+    // Load 5 is the screen check.
+    await withPage(
+      (load) => (load === 5 ? 0 : 3),
+      async (page) => {
+        const result = report()
+        await runDiscovery(
+          setup(page, fakeSession({ calls: 3 })),
+          { ...timing, repeats: 1 },
+          result,
+        )
+        assert.equal(result.error, undefined, JSON.stringify(result.error))
+        assert.equal(result.screenCheck.outcome, 'changed')
+        assert.deepEqual(
+          result.findings.map((f) => f.id),
+          ['rejection-1', 'rejection-every-read'],
+        )
+      },
+    )
+  },
+)
+
+test(
+  'failing every read reports what the screen ends with once the app stops retrying',
+  { timeout: 30000 },
+  async () => {
+    // Load 5 checks the screen, 6–7 fail one read and 8–9 fail every read.
+    await withPage(
+      (load) => (load === 5 || load === 9 ? 0 : 3),
+      async (page) => {
+        const session = fakeSession({ calls: 3 })
+        const result = report()
+        await runDiscovery(
+          setup(page, session),
+          { ...timing, repeats: 1 },
+          result,
+        )
+        assert.equal(result.error, undefined, JSON.stringify(result.error))
+        // The app recovers from one failed read, but not from all three it makes.
+        assert.deepEqual(
+          result.findings.map((f) => [f.id, f.classification]),
+          [
+            ['rejection-1', 'RECOVERED'],
+            ['rejection-every-read', 'SILENT_EMPTY'],
+          ],
+        )
+        const everyRead = result.findings[1]
+        assert.equal(everyRead.everyRead, true)
+        assert.deepEqual(everyRead.failedReads, [3])
+        // Each run carries it too, so an interrupted experiment keeps its id.
+        assert.equal(result.results[1].everyRead, true)
+        assert.equal(everyRead.kind, 'suspected-defect')
+        assert.deepEqual(
+          session.plans.filter((plan) => plan.fault),
+          [
+            { fault: 'rejection', times: 10 },
+            { fault: 'rejection', times: 1 },
+            { fault: 'rejection', times: 10 },
+          ],
+        )
+        assert.equal(result.ok, false)
+        assert.equal(result.finalReset, 'healthy')
+      },
+    )
+  },
+)
+
+test(
+  'failing every read is not triggered when no read fails',
+  { timeout: 30000 },
+  async () => {
+    await withPage(
+      () => 3,
+      async (page) => {
+        const result = report()
+        await runDiscovery(
+          setup(page, fakeSession({ calls: 0 })),
+          { ...timing, repeats: 1 },
+          result,
+        )
+        assert.equal(result.screenCheck.outcome, 'not-established')
+        assert.deepEqual(
+          result.findings.map((f) => [f.id, f.classification]),
+          [
+            ['rejection-1', 'FAULT_NOT_TRIGGERED'],
+            ['rejection-every-read', 'FAULT_NOT_TRIGGERED'],
+          ],
+        )
+      },
+    )
+  },
+)
+
+test(
+  'a screen check that leaves the page counts as a change and returns to it',
+  { timeout: 30000 },
+  async () => {
+    await withPage(
+      () => 3,
+      async (page) => {
+        const screen = page.url()
+        const result = report()
+        await runDiscovery(
+          setup(page, fakeSession({ calls: 3 })),
+          { ...timing, repeats: 1 },
+          result,
+        )
+        assert.equal(result.error, undefined, JSON.stringify(result.error))
+        assert.equal(result.screenCheck.outcome, 'changed')
+        assert.equal(result.stoppedObservation, undefined)
+        assert.equal(result.findings.length, 2)
+        assert.equal(page.url(), screen)
+        assert.equal(result.finalReset, 'healthy')
+      },
+      // Load 5 is the screen check.
+      (load) => (load === 5 ? '<script>location.hash = "#/away"</script>' : ''),
+    )
+  },
+)
+
+test(
   'later calls are failed one by one only when the transport can let calls through',
   { timeout: 30000 },
   async () => {
@@ -150,7 +316,7 @@ test(
         )
         assert.deepEqual(
           result.findings.map((f) => f.id),
-          ['rejection-1', 'rejection-1-call2'],
+          ['rejection-1', 'rejection-1-call2', 'rejection-every-read'],
         )
         assert.ok(session.plans.some((plan) => plan.skip === 1))
         const without = report()
@@ -161,7 +327,7 @@ test(
         )
         assert.deepEqual(
           without.findings.map((f) => f.id),
-          ['rejection-1'],
+          ['rejection-1', 'rejection-every-read'],
         )
         assert.match(without.readiness.callsGap, /cannot let calls through/)
       },

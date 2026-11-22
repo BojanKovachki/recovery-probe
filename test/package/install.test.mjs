@@ -13,11 +13,20 @@ import {
   symlink,
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const exec = promisify(execFile)
 const root = fileURLToPath(new URL('../../', import.meta.url))
+/** Every file under `directory`, subfolders included, as a path relative to it with `/`. */
+const filesUnder = async (/** @type {string} */ directory) =>
+  (await readdir(directory, { recursive: true, withFileTypes: true }))
+    .filter((entry) => entry.isFile())
+    .map((entry) =>
+      relative(directory, join(entry.parentPath, entry.name))
+        .split(sep)
+        .join('/'),
+    )
 // Invoke the JS entry point with Node; .bin launchers differ on Windows.
 const tsc = join(root, 'node_modules', 'typescript', 'bin', 'tsc')
 const directoryLinkType = process.platform === 'win32' ? 'junction' : 'dir'
@@ -100,7 +109,7 @@ test(
           path,
         )
       assert.ok(packed.files.some((file) => file.path === 'CHANGELOG.md'))
-      for (const doc of await readdir(join(root, 'docs')))
+      for (const doc of await filesUnder(join(root, 'docs')))
         assert.ok(
           packed.files.some((file) => file.path === `docs/${doc}`),
           `docs/${doc}`,

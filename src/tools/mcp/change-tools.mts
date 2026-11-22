@@ -2,8 +2,15 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { compareReports } from '../compare/run.mjs'
 import { scanForSuspects } from '../suspects/scan.mjs'
-import { recordBaseline, verifyChange, verifyPlan } from '../verify.mjs'
-import { text } from './args.mjs'
+import {
+  recordBaseline,
+  verifyChange,
+  verifyPlan,
+  verifyPolicy,
+  type Verification,
+} from '../verify.mjs'
+import { PARTIAL_SUMMARY } from '../verify/record.mjs'
+import { integer, text } from './args.mjs'
 import type { McpTool } from './server.mjs'
 
 const MAX_SUSPECTS = 200
@@ -116,11 +123,126 @@ export const compareReportsTool: McpTool = {
     }),
 }
 
+const VERIFY_FOLDER = join('.recovery-probe', 'verify')
+
+const claimsOf = (claims: { id: string; outcome: string; reason: string }[]) =>
+  claims.map(({ id, outcome, reason }) => ({ id, outcome, reason }))
+
+/** What verify_change returns from a finished verification. */
+const resultOf = (result: Verification) => ({
+  verdict: result.verdict,
+  reasons: result.reasons,
+  checks: result.checks.map(({ name, verified, reason, comparison }) => ({
+    name,
+    verified,
+    ...(reason ? { reason } : {}),
+    ...(comparison ? { comparison: comparison.verdict } : {}),
+  })),
+  claims: claimsOf(result.claims),
+  suspects: result.suspects.slice(0, MAX_SUSPECTS),
+  markdown: result.markdown,
+})
+
+/** The last verification here: a run in progress or stopped, else the last summary. */
+async function lastVerification() {
+  for (const [source, file] of [
+    ['partial', PARTIAL_SUMMARY],
+    ['summary', 'summary.json'],
+  ] as const) {
+    const text = await readFile(join(VERIFY_FOLDER, file), 'utf8').catch(
+      () => null,
+    )
+    if (text === null) continue
+    const {
+      verdict,
+      exitCode,
+      reasons,
+      run,
+      claims = [],
+      runGaps,
+    } = JSON.parse(text)
+    return {
+      source,
+      ...(verdict ? { verdict, exitCode, reasons } : {}),
+      run,
+      claims: claimsOf(claims),
+      ...(runGaps ? { runGaps } : {}),
+    }
+  }
+  throw new Error(`No verification has run here yet: ${VERIFY_FOLDER} is empty`)
+}
+
+/** Arguments that don't go together, each with what to do about it. */
+const CONFLICTS: [(args: Record<string, unknown>) => unknown, string][] = [
+  [
+    (a) => a.status && (a.baseline || a.policy || a.plan),
+    'status runs nothing: leave out the other arguments',
+  ],
+  [
+    (a) => a.policy && !a.base,
+    'policy needs base: the Git reference the change starts from, such as main',
+  ],
+  [
+    (a) => !a.policy && a.base,
+    'base goes with policy; a plan names its own base',
+  ],
+  [(a) => !a.policy && a.budgetMs !== undefined, 'budgetMs goes with policy'],
+  [
+    (a) => a.policy && (a.baseline || a.plan),
+    'policy replaces the plan and its recorded baseline: leave out plan and baseline',
+  ],
+]
+
+/** The flags that select what verify_change does, or the first one given wrongly. */
+function modeOf(args: Record<string, unknown>) {
+  for (const key of ['baseline', 'status'])
+    if (args[key] !== undefined && typeof args[key] !== 'boolean')
+      throw new Error(`${key} must be true or false`)
+  const policy = text(args, 'policy', false)
+  const base = text(args, 'base', false)
+  const conflict = CONFLICTS.find(([applies]) =>
+    applies({ ...args, policy, base }),
+  )
+  if (conflict) throw new Error(conflict[1])
+  const budgetMs = integer(args, 'budgetMs', [1000, 86400000])
+  return { policy, base, budgetMs, status: args.status === true }
+}
+
+async function recordPlanBaseline(
+  args: Record<string, unknown>,
+  signal: AbortSignal,
+) {
+  const runs = await recordBaseline({ plan: await planOf(args), signal })
+  return {
+    baseline: 'recorded',
+    runs: Object.fromEntries(
+      [...runs].map(([name, results]) => [
+        name,
+        results.map((run) =>
+          run.evidence
+            ? { complete: run.evidence.complete }
+            : { error: run.error },
+        ),
+      ]),
+    ),
+  }
+}
+
+const planOf = async (args: Record<string, unknown>) =>
+  verifyPlan(
+    JSON.parse(
+      await readFile(
+        text(args, 'plan', false) ?? join('.recovery-probe', 'verify.json'),
+        'utf8',
+      ),
+    ),
+  )
+
 export const verifyChangeTool: McpTool = {
   name: 'verify_change',
   title: 'Verify a code change with before and after evidence',
   description:
-    'Call with baseline true before changing the code, and without it before saying the change is done. The plan file lists the checks that prove the change. Verify reruns them, compares the runs with the baseline, and scans the lines changed since the plan base for suspects. VERIFIED needs every check improved or clean with complete runs on both sides, and no suspect on a changed line; otherwise the reasons say what to resolve. Do not call a change done while it is NOT_VERIFIED.',
+    'Call with baseline true before changing the code, and without it before saying the change is done. The plan file lists the checks that prove the change. Verify reruns them, compares the runs with the baseline, and scans the lines changed since the plan base for suspects. VERIFIED needs every check improved or clean with complete runs on both sides, and no suspect on a changed line; otherwise the reasons say what to resolve. Do not call a change done while it is NOT_VERIFIED. Experimental: with policy and base, the claims and their criteria come from the policy as committed on base, and a change to them is NOT_VERIFIED until it is reviewed and merged. status true returns the last result, or the record of a run still going or stopped, without running anything.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -135,46 +257,41 @@ export const verifyChangeTool: McpTool = {
         description:
           'The plan file, relative to the working directory. Default: .recovery-probe/verify.json.',
       },
+      policy: {
+        type: 'string',
+        description:
+          'Experimental: the policy file, such as recovery-probe.policy.json. Its copy committed on base is the one used. Needs base.',
+      },
+      base: {
+        type: 'string',
+        description:
+          'With policy: the Git reference the change starts from, such as main. The user or CI names it; never take it from a file the change can edit.',
+      },
+      budgetMs: {
+        type: 'integer',
+        minimum: 1000,
+        maximum: 86400000,
+        description:
+          "With policy: lowers the policy's overall budget, in milliseconds. Nothing raises it.",
+      },
+      status: {
+        type: 'boolean',
+        default: false,
+        description:
+          'Return the last verification without running anything: a run in progress or stopped, else the last summary.',
+      },
     },
     additionalProperties: false,
   },
   annotations: { readOnlyHint: false, openWorldHint: false },
-  async run(args) {
-    if (args.baseline !== undefined && typeof args.baseline !== 'boolean')
-      throw new Error('baseline must be true or false')
-    const planFile =
-      text(args, 'plan', false) ?? join('.recovery-probe', 'verify.json')
-    const plan = verifyPlan(JSON.parse(await readFile(planFile, 'utf8')))
-    if (args.baseline) {
-      const runs = await recordBaseline({ plan })
-      return {
-        baseline: 'recorded',
-        runs: Object.fromEntries(
-          [...runs].map(([name, results]) => [
-            name,
-            results.map((run) =>
-              run.evidence
-                ? { complete: run.evidence.complete }
-                : { error: run.error },
-            ),
-          ]),
-        ),
-      }
-    }
-    const { verdict, reasons, checks, suspects, markdown } = await verifyChange(
-      { plan },
-    )
-    return {
-      verdict,
-      reasons,
-      checks: checks.map(({ name, verified, reason, comparison }) => ({
-        name,
-        verified,
-        ...(reason ? { reason } : {}),
-        ...(comparison ? { comparison: comparison.verdict } : {}),
-      })),
-      suspects: suspects.slice(0, MAX_SUSPECTS),
-      markdown,
-    }
+  async run(args, { signal }) {
+    const { policy, base, budgetMs, status } = modeOf(args)
+    if (status) return lastVerification()
+    if (policy)
+      return resultOf(
+        await verifyPolicy({ policy, base: base!, budgetMs, signal }),
+      )
+    if (args.baseline) return recordPlanBaseline(args, signal)
+    return resultOf(await verifyChange({ plan: await planOf(args), signal }))
   },
 }

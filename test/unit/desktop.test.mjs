@@ -13,6 +13,7 @@ import {
   desktopReportHtml,
   writeDesktopReport,
 } from '../../dist/reports/check.mjs'
+import { pageAddress } from '../../dist/core/urls.mjs'
 import { fake } from '../helpers/fake.mjs'
 const config = {
   pageUrl: 'http://localhost/app',
@@ -56,6 +57,18 @@ test('page identities omit credentials, query strings and fragments', () => {
     pageIdentity(
       'https://user:secret@example.test/app?token=private#access_token=secret',
     ),
+    'https://example.test/app',
+  )
+})
+test('page addresses keep a route in the fragment but no credentials, queries or values', () => {
+  assert.equal(
+    pageAddress(
+      'https://user:secret@example.test/app?token=private#/users?tab=2',
+    ),
+    'https://example.test/app#/users',
+  )
+  assert.equal(
+    pageAddress('https://example.test/app#access_token=secret&state=1'),
     'https://example.test/app',
   )
 })

@@ -42,7 +42,7 @@ const STATUS: Record<string, ChangeStatus> = {
 }
 
 /** The commit `ref` names, or why it can't be used. */
-async function commitOf(cwd: string, ref: string): Promise<string> {
+export async function commitOf(cwd: string, ref: string): Promise<string> {
   if (!/^[^\s-][^\s]{0,200}$/.test(ref) || ref.includes('..'))
     throw new PlanInputError(
       `"${ref}" is not a Git reference: use a branch, tag or commit, such as main`,

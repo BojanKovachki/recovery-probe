@@ -8,10 +8,12 @@ import {
   isUnique,
   overDefaults,
 } from '../../core/validate.mjs'
+import { performance } from 'node:perf_hooks'
 import { httpRefreshAdapter } from '../../transports/session.mjs'
+import { ensureMaxDuration } from './budget.mjs'
+import type { DiscoveryOptions } from './control.mjs'
 import { runDiscovery } from './run.mjs'
 import type { DiscoveryResult, DiscoverySetup } from './types.mjs'
-import type { DiscoveryScreenshot } from './screenshots.mjs'
 
 export interface HttpDiscoveryConfig {
   endpoint: string
@@ -27,6 +29,7 @@ export interface HttpDiscoveryConfig {
   repeats: number
   regionSelector?: string
   restoreWindow: boolean
+  maxDurationMs?: number
 }
 
 type HttpSession = ReturnType<typeof httpRefreshAdapter>
@@ -65,6 +68,7 @@ const defaults = () => ({
   repeats: 3,
   regionSelector: undefined,
   restoreWindow: false,
+  maxDurationMs: undefined,
 })
 
 const RANGES = [
@@ -113,14 +117,16 @@ export function httpDiscoveryConfig(input: object): HttpDiscoveryConfig {
     'Invalid regionSelector',
   )
   ensure(typeof c.restoreWindow === 'boolean', 'restoreWindow must be boolean')
+  ensureMaxDuration(c.maxDurationMs)
   return c as unknown as HttpDiscoveryConfig
 }
 
 export async function discoverHttp(
   page: Page,
   input: object,
-  options: { screenshot?: DiscoveryScreenshot } = {},
+  options: DiscoveryOptions<FaultKind, HttpSnapshot> = {},
 ): Promise<HttpDiscoveryReport> {
+  const startedAt = options.startedAt ?? performance.now()
   const config = httpDiscoveryConfig(input)
   if (
     config.pageUrl &&
@@ -133,7 +139,7 @@ export async function discoverHttp(
     discoverySetup(page, session, config),
     { ...config, observationMs: config.recoveryTimeoutMs },
     report,
-    options,
+    { ...options, startedAt },
   )
   report.coverage = session.coverage()
   return report

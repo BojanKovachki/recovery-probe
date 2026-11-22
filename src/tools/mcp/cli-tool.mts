@@ -1,6 +1,6 @@
-import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { packageUrl } from '../../core/package.mjs'
+import { startNode, untilExit } from '../process.mjs'
 import { integer, truncated } from './args.mjs'
 import type { McpTool } from './server.mjs'
 
@@ -61,34 +61,29 @@ export const runCli: McpTool = {
         'Only android --list can run here; run the forward in a terminal',
       )
     const timeoutMs = integer(args, 'timeoutMs', [1000, 900000]) ?? 300000
-    // A separate process can be killed on timeout or cancel; the server keeps running.
-    const cli = fileURLToPath(packageUrl('bin/recovery-probe.mjs'))
-    return new Promise((resolve, reject) => {
-      const child = spawn(process.execPath, [cli, ...argv], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-        signal,
-        timeout: timeoutMs,
-        windowsHide: true,
+    // A separate process can be stopped on timeout or cancel; the server keeps running.
+    const child = startNode(
+      fileURLToPath(packageUrl('bin/recovery-probe.mjs')),
+      argv,
+    )
+    let stdout = ''
+    let stderr = ''
+    child.stdout.on('data', (chunk) => (stdout += chunk))
+    child.stderr.on('data', (chunk) => (stderr += chunk))
+    const { exitCode, killedBy, stopped } = await untilExit(child, {
+      signal,
+      timeoutMs,
+    }).catch((error: Error) => {
+      throw new Error(`Could not run the command: ${error.message}`, {
+        cause: error,
       })
-      let stdout = ''
-      let stderr = ''
-      child.stdout.on('data', (chunk) => (stdout += chunk))
-      child.stderr.on('data', (chunk) => (stderr += chunk))
-      child.on('error', (error) =>
-        reject(
-          new Error(`Could not run the command: ${error.message}`, {
-            cause: error,
-          }),
-        ),
-      )
-      child.on('close', (exitCode, killedBy) =>
-        resolve({
-          exitCode,
-          ...(killedBy ? { stoppedBy: killedBy } : {}),
-          stdout: truncated(stdout),
-          stderr: truncated(stderr),
-        }),
-      )
     })
+    return {
+      exitCode,
+      ...(stopped === 'timed-out' ? { timedOut: true } : {}),
+      ...(killedBy ? { stoppedBy: killedBy } : {}),
+      stdout: truncated(stdout),
+      stderr: truncated(stderr),
+    }
   },
 }

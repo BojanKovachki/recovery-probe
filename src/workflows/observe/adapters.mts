@@ -4,8 +4,12 @@ import {
   observeHttp,
   type HttpObserver,
 } from '../../transports/http/observer.mjs'
+import {
+  endObservation,
+  stillObserving,
+} from '../../transports/ipc/control.mjs'
 import type { IpcInspector } from '../../transports/ipc/inspector.mjs'
-import type { IpcIdentity, IpcSnapshot } from '../../ipc-probe.cjs'
+import type { IpcIdentity } from '../../ipc-probe.cjs'
 import type { ObservationConfig } from './config.mjs'
 import type { ReadSnapshot } from './reads.mjs'
 import type { ObservationMetadata } from './report.mjs'
@@ -62,47 +66,6 @@ function hookMetadata(
       methods: capabilities.methods ?? false,
       pushes: capabilities.pushes ?? false,
     },
-  }
-}
-
-/** Whether the hook still observes for run `id` in the selected window, injecting nothing. */
-const stillObserving = (
-  s: IpcSnapshot | null,
-  id: string | undefined,
-  senderId: number,
-): s is IpcSnapshot =>
-  s != null &&
-  s.id === id &&
-  s.senderId === senderId &&
-  Boolean(s.observation) &&
-  Boolean(s.observingUntil) &&
-  !s.armed &&
-  !s.injected
-
-/** Whether run `id` ended without leaving anything armed or injected. */
-const cleanlyEnded = (s: IpcSnapshot | null, id: string): s is IpcSnapshot =>
-  s != null && s.id === id && !s.observingUntil && !s.armed && s.injected === 0
-
-/** Ends observation run `id` and reads back that the hook is clean. */
-async function endObservation(control: IpcInspector, id: string) {
-  // reset(id) cannot clear another client's plan, even after an uncertain reply.
-  const resetError = await control.call('reset', id).then(
-    () => undefined,
-    (error: Error) => error,
-  )
-  const s = await control.call('snapshot')
-  if (!cleanlyEnded(s, id))
-    throw Error(
-      `IPC_OBSERVATION_CLEANUP_UNVERIFIED${resetError ? ': ' + resetError.message : ''}`,
-    )
-  return {
-    transport: 'ipc',
-    verified: true,
-    runId: s.id,
-    capturedAt: s.capturedAt,
-    observingUntil: s.observingUntil,
-    armed: s.armed,
-    injected: s.injected,
   }
 }
 
