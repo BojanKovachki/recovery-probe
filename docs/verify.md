@@ -51,9 +51,21 @@ Otherwise it is **NOT VERIFIED**, with one reason per problem. The exit code is 
 
 Runs are kept in `.recovery-probe/verify/before` and `after`, one folder and log per run. Each `--baseline` replaces the earlier baseline, and each verify replaces the earlier `after` runs. `summary.md` is a block for the pull request, and `summary.json` holds the full result.
 
+A run that ended before writing its report counts as incomplete. If it left a partial report, as `discover` does, its evidence is kept with the gap `PROCESS_STOPPED`, so it can never count as a fix.
+
+### Stopping
+
+Ctrl+C or SIGTERM stops verify, and no later run starts. The check in progress is asked to stop:
+
+- `discover`, `observe` and `refresh` remove their faults and write their reports;
+- a check that can't stop on its own, such as `check` or `action`, is ended at once;
+- a check that hasn't stopped after 10 seconds is ended with every process it started.
+
+Verify then exits with 2, and nothing is verified. A stopped `--baseline` leaves no baseline, so record it again.
+
 ## From an AI coding agent
 
-The [MCP server](mcp.md) offers the same steps as `verify_change`: `baseline: true` before the change, and no arguments before saying it is done. Its instructions tell the agent not to call a change done while the verdict is NOT_VERIFIED.
+The [MCP server](mcp.md) offers the same steps as `verify_change`: `baseline: true` before the change, and no arguments before saying it is done. Its instructions tell the agent not to call a change done while the verdict is NOT_VERIFIED. Cancelling the call stops its checks the same way as Ctrl+C.
 
 ## What it does not cover
 

@@ -8,7 +8,7 @@ import {
   runCheck,
   runRecoveryProbe,
   type CheckResult,
-  type CommandResult,
+  type CheckRunner,
 } from '../watch/checks.mjs'
 import {
   cleanGuidance,
@@ -76,7 +76,9 @@ export interface SelfCheckOptions {
   names?: string[]
   /** Runs the scenarios against the reference build the user declares; static only without it. */
   run?: { reference: string; runs?: number; directory?: string }
-  runCommand?: (args: string[]) => Promise<CommandResult>
+  runCommand?: CheckRunner
+  /** Stops the run in progress and starts no more; selfCheck then rejects. */
+  signal?: AbortSignal
 }
 
 const LIMITS = [
@@ -168,22 +170,30 @@ function classify(
 interface RunPlan {
   directory: string
   runs: number
-  runCommand: (args: string[]) => Promise<CommandResult>
+  runCommand: CheckRunner
+  signal?: AbortSignal
+}
+
+function stopIfAborted(signal?: AbortSignal) {
+  if (signal?.aborted)
+    throw new Error('Stopped before every scenario ran: no report was written')
 }
 
 /** Runs the scenario `runs` times, one after another, each into its own folder. */
 async function runScenario(
   entry: CheckEntry,
-  { directory, runs: count, runCommand }: RunPlan,
+  { directory, runs: count, runCommand, signal }: RunPlan,
 ) {
   const folder = join(directory, 'runs', entry.name)
   await mkdir(folder, { recursive: true, mode: 0o700 })
   const runs: SelfCheckRun[] = []
   for (let run = 1; run <= count; run++) {
+    stopIfAborted(signal)
     const result = await runCheck(
       entry.check,
       join(folder, `run-${run}`),
       runCommand,
+      { signal },
     )
     await writeFile(join(folder, `run-${run}.log`), result.output, {
       mode: 0o600,
@@ -264,10 +274,12 @@ export async function selfCheck(
     directory: await outputFolder(run.directory),
     runs: run.runs,
     runCommand: options.runCommand ?? runRecoveryProbe,
+    signal: options.signal,
   }
   const scenarios: ScenarioSelfCheck[] = []
   for (const entry of chosen)
     scenarios.push(await selfCheckScenario(entry, plan))
+  stopIfAborted(options.signal)
   const report: SelfCheckReport = {
     kind: 'scenario-self-check',
     mode: run ? 'runtime' : 'static',

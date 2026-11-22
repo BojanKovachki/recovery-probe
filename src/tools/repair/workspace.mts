@@ -13,7 +13,7 @@ import {
 import { promisify } from 'node:util'
 import { ensure } from '../../core/validate.mjs'
 import type { RepairConfig } from './config.mjs'
-import { runCommand, type CommandResult } from './process.mjs'
+import { runCommand, type CommandResult } from '../process.mjs'
 
 export type CommandRecord = CommandResult & { command: string[] }
 

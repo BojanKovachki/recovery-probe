@@ -5,7 +5,7 @@ import {
   type DesktopConfig,
   type ValidDesktopConfig,
 } from '../../workflows/check/http/config.mjs'
-import { validateCommand } from './process.mjs'
+import { validateCommand } from '../process.mjs'
 import { validateSourcePath } from './sources.mjs'
 
 /** A repair run's configuration, validated: what to launch, test and read. */

@@ -139,14 +139,14 @@ export const verifyChangeTool: McpTool = {
     additionalProperties: false,
   },
   annotations: { readOnlyHint: false, openWorldHint: false },
-  async run(args) {
+  async run(args, { signal }) {
     if (args.baseline !== undefined && typeof args.baseline !== 'boolean')
       throw new Error('baseline must be true or false')
     const planFile =
       text(args, 'plan', false) ?? join('.recovery-probe', 'verify.json')
     const plan = verifyPlan(JSON.parse(await readFile(planFile, 'utf8')))
     if (args.baseline) {
-      const runs = await recordBaseline({ plan })
+      const runs = await recordBaseline({ plan, signal })
       return {
         baseline: 'recorded',
         runs: Object.fromEntries(
@@ -162,7 +162,7 @@ export const verifyChangeTool: McpTool = {
       }
     }
     const { verdict, reasons, checks, suspects, markdown } = await verifyChange(
-      { plan },
+      { plan, signal },
     )
     return {
       verdict,

@@ -216,3 +216,39 @@ test('a change is verified only when its checks improved or stayed clean, with c
     assert.equal(suspect.exitCode, 2)
   })
 })
+
+test('a stop ends the run in progress, starts no more and verifies nothing', async () => {
+  const root = await repo()
+  await inside(root, async () => {
+    const out = join(root, 'out')
+    await recordBaseline({
+      plan: plan(2),
+      directory: out,
+      runCommand: runner([action([]), action([])]),
+    })
+    for (const record of [verifyChange, recordBaseline]) {
+      const abort = new AbortController()
+      /** @type {unknown[]} */
+      const limits = []
+      const stopping = record({
+        plan: plan(2),
+        directory: out,
+        signal: abort.signal,
+        runCommand: async (_args, given) => {
+          limits.push(given)
+          // The stop arrives while this run is in progress.
+          abort.abort()
+          return { exitCode: null, output: '', stopped: 'cancelled' }
+        },
+      })
+      await assert.rejects(
+        stopping,
+        record === recordBaseline
+          ? /Stopped before the baseline was recorded/
+          : /nothing was verified/,
+      )
+      assert.deepEqual(limits, [{ signal: abort.signal }])
+    }
+    await assert.rejects(readFile(join(out, 'summary.json')))
+  })
+})

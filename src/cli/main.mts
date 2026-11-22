@@ -1,6 +1,7 @@
 import type { ParseArgsOptionsConfig } from 'node:util'
 import { version } from '../core/package.mjs'
 import { parseOptions, UsageError, type Values } from './args.mjs'
+import { acceptStopRequests } from './until-stopped.mjs'
 
 /** A command whose flags main parses from its option spec. */
 interface ParsedCommand {
@@ -218,6 +219,7 @@ async function main(argv: string[]): Promise<void> {
   )
 }
 
+acceptStopRequests()
 try {
   await main(process.argv.slice(2))
 } catch (error) {
