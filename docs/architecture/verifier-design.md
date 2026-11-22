@@ -1,6 +1,6 @@
 # Verifier design: evidence before "done"
 
-**Status: design approved with the owner's decisions in section 12 (2026-11-20). Implementation proceeds one reviewed PR at a time, starting with PR 1.**
+**Status: design approved with the owner's decisions in section 12 (2026-11-20). PRs 1 to 6 of section 10 are merged (#120 to #125). The pilot waits for the owner to choose its cases and approve its budget.**
 
 Before a coding agent says a change is done, Recovery Probe should show which claims about the change were checked, the evidence for each, and what stays unverified. This document extends [`verify`](../verify.md) and the MCP tool `verify_change` toward that goal, in small reviewable steps.
 
