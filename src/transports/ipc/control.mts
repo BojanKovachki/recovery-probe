@@ -71,6 +71,47 @@ export async function waitForSettledCalls(
   }
 }
 
+/** Whether the hook still observes for run `id` in the selected window, injecting nothing. */
+export const stillObserving = (
+  s: IpcSnapshot | null,
+  id: string | undefined,
+  senderId: number,
+): s is IpcSnapshot =>
+  s != null &&
+  s.id === id &&
+  s.senderId === senderId &&
+  Boolean(s.observation) &&
+  Boolean(s.observingUntil) &&
+  !s.armed &&
+  !s.injected
+
+/** Whether run `id` ended without leaving anything armed or injected. */
+const cleanlyEnded = (s: IpcSnapshot | null, id: string): s is IpcSnapshot =>
+  s != null && s.id === id && !s.observingUntil && !s.armed && s.injected === 0
+
+/** Ends observation run `id` and reads back that the hook is clean. */
+export async function endObservation(control: IpcInspector, id: string) {
+  // reset(id) cannot clear another client's plan, even after an uncertain reply.
+  const resetError = await control.call('reset', id).then(
+    () => undefined,
+    (error: Error) => error,
+  )
+  const s = await control.call('snapshot')
+  if (!cleanlyEnded(s, id))
+    throw Error(
+      `IPC_OBSERVATION_CLEANUP_UNVERIFIED${resetError ? ': ' + resetError.message : ''}`,
+    )
+  return {
+    transport: 'ipc',
+    verified: true,
+    runId: s.id,
+    capturedAt: s.capturedAt,
+    observingUntil: s.observingUntil,
+    armed: s.armed,
+    injected: s.injected,
+  }
+}
+
 /** The hook's state of run `id`; throws if another run replaced it or the window changed. */
 export async function runSnapshot(
   control: IpcInspector,

@@ -9,6 +9,7 @@ import { PassThrough } from 'node:stream'
 import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
 import { serveMcp } from '../../dist/tools/mcp/server.mjs'
+import { hangingCheck } from '../helpers/hanging-check.mjs'
 
 /** A client that sends JSON-RPC lines and resolves replies by id. */
 function client(input, output) {
@@ -457,4 +458,69 @@ test('includes structuredContent only for object results and always supplies tex
   }
   input.end()
   await served
+})
+
+/** A project whose verify plan runs a check that waits until it's stopped. */
+async function hangingProject(t) {
+  const hanging = await hangingCheck()
+  const root = await mkdtemp(join(tmpdir(), 'recovery-probe-mcp-'))
+  t.after(async () => {
+    await hanging.close()
+    await rm(root, { recursive: true, force: true, maxRetries: 5 })
+  })
+  await mkdir(join(root, '.recovery-probe'))
+  await writeFile(join(root, 'hang.json'), hanging.config)
+  await writeFile(
+    join(root, '.recovery-probe', 'verify.json'),
+    JSON.stringify({
+      runs: 1,
+      checks: [{ name: 'hang', command: ['check', '--config', 'hang.json'] }],
+    }),
+  )
+  return { root, hanging }
+}
+
+test(
+  'cancelling verify_change ends the check it runs',
+  { timeout: 60000 },
+  async (t) => {
+    const { root, hanging } = await hangingProject(t)
+    const server = startServer({ cwd: root })
+    server.send({
+      jsonrpc: '2.0',
+      id: 'verify',
+      method: 'tools/call',
+      params: { name: 'verify_change', arguments: { baseline: true } },
+    })
+    await hanging.connected
+    const cancelledAt = Date.now()
+    server.send({
+      jsonrpc: '2.0',
+      method: 'notifications/cancelled',
+      params: { requestId: 'verify' },
+    })
+    await hanging.closed
+    assert.ok(Date.now() - cancelledAt < 10000, 'the check ended on the cancel')
+    const { result } = await server.request('ping')
+    assert.deepEqual(result, {})
+    server.child.stdin.end()
+    await new Promise((resolve) => server.child.once('exit', resolve))
+    assert.deepEqual(server.unanswered, [], 'a cancelled call gets no reply')
+  },
+)
+
+test('run_recovery_probe stops a command at its timeout and says so', async (t) => {
+  const { root, hanging } = await hangingProject(t)
+  const server = startServer({ cwd: root })
+  try {
+    const result = await call(server, 'run_recovery_probe', {
+      args: ['check', '--config', 'hang.json', '--out', 'out'],
+      timeoutMs: 1000,
+    })
+    await hanging.closed
+    assert.equal(result.isError, false)
+    assert.equal(result.structuredContent.timedOut, true)
+  } finally {
+    server.child.stdin.end()
+  }
 })

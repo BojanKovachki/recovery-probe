@@ -56,7 +56,7 @@ export const selfCheckScenariosTool: McpTool = {
     destructiveHint: true,
     openWorldHint: false,
   },
-  async run(args) {
+  async run(args, { signal }) {
     if (args.run !== undefined && typeof args.run !== 'boolean')
       throw new Error('run must be true or false')
     const reference = text(args, 'reference', false)
@@ -72,6 +72,7 @@ export const selfCheckScenariosTool: McpTool = {
       run: args.run
         ? { reference: reference!, runs: integer(args, 'runs', [1, 10]) }
         : undefined,
+      signal,
     })
   },
 }

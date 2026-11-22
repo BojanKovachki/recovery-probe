@@ -32,7 +32,7 @@ function fixture(options) {
 }
 test(
   'structural HTTP fixture matrix: three fetch styles, negative controls and repeated faults',
-  { timeout: 300000 },
+  { timeout: 600000 },
   async () => {
     let options
     let loads = 0
@@ -54,14 +54,15 @@ test(
         return
       }
       res.setHeader('Content-Type', 'text/html')
+      // Load 1 opens the page, 2–4 calibrate, 5 checks the screen and 6 is the first healthy control.
       loads++
       res.end(
         fixture({
           ...options,
-          renderDelay: options.lateControl && loads === 5 ? 900 : 0,
+          renderDelay: options.lateControl && loads === 6 ? 900 : 0,
         }).replace(
           '</main>',
-          (options.unstable && loads === (options.unstableAt ?? 5)
+          (options.unstable && loads === (options.unstableAt ?? 6)
             ? '<aside>changed control</aside>'
             : '') + '</main>',
         ),
@@ -104,9 +105,11 @@ test(
             recoveryTimeoutMs: 1600,
           }
           const report = await discoverHttp(page, config)
+          // A failed read looks exactly like this healthy empty screen, so nothing on it can be tested.
+          const invisible = family === 'legitimate-empty'
           assert.equal(
             report.error,
-            undefined,
+            invisible ? 'FAULT_NOT_VISIBLE' : undefined,
             JSON.stringify({
               family,
               style,
@@ -122,7 +125,8 @@ test(
             'icon-empty',
             'virtualized',
           ].includes(family)
-          const detected = finding.kind === 'suspected-defect'
+          const detected = finding?.kind === 'suspected-defect'
+          const everyRead = report.findings.find((f) => f.everyRead)
           metrics.push({
             family,
             style,
@@ -130,13 +134,30 @@ test(
             detected: expectedBug && detected ? 1 : 0,
             misses: expectedBug && !detected ? 1 : 0,
             falsePositives: !expectedBug && detected ? 1 : 0,
-            classification: finding.classification,
+            classification: finding?.classification ?? report.error,
+            everyRead: everyRead?.classification,
           })
           assert.equal(
             detected,
             expectedBug,
             JSON.stringify({ family, style, finding }),
           )
+          // Once its retries run out, every fixture but the explicit error shows a wrong screen.
+          if (!invisible)
+            assert.equal(
+              everyRead?.kind,
+              {
+                'explicit-error': 'observation',
+                distribution: 'decision-needed',
+              }[family] ?? 'suspected-defect',
+              JSON.stringify({ family, style, everyRead }),
+            )
+          // It recovers from three failed reads, but the fourth leaves "No items".
+          if (family === 'backoff') {
+            assert.equal(finding.classification, 'RECOVERED')
+            assert.equal(everyRead.classification, 'SILENT_EMPTY')
+            assert.deepEqual(everyRead.failedReads, [4])
+          }
           assert.ok(
             report.coverage.some((c) => c.method === 'POST' && !c.supported),
           )
@@ -157,7 +178,7 @@ test(
             )
             assert.equal(second?.call, 2, JSON.stringify(report.findings))
             assert.equal(second.kind, 'suspected-defect')
-          } else assert.equal(report.findings.length, 1)
+          } else assert.equal(report.findings.length, invisible ? 0 : 2)
           if (family === 'grid')
             assert.equal(report.results[0].observation.after.images, 0)
         }
@@ -193,7 +214,11 @@ test(
         },
       )
       assert.equal(delayed.error, undefined, JSON.stringify(delayed))
-      assert.deepEqual(shots, ['baseline', 'http-error-2-run1'])
+      assert.deepEqual(shots, [
+        'baseline',
+        'http-error-2-run1',
+        'http-error-every-read-run1',
+      ])
       assert.equal(delayed.results[0].screenshot, 'http-error-2-run1.png')
       assert.equal(
         delayed.results[0].control.ui.fingerprint,
@@ -205,7 +230,7 @@ test(
         family: 'list',
         retries: 0,
         unstable: true,
-        unstableAt: 9,
+        unstableAt: 10,
       }
       loads = 0
       await page.goto(base)

@@ -59,6 +59,17 @@ function commandLine(command: string[]): Values {
   return parseOptions(command.slice(1), spec).values
 }
 
+/** The JSON files a check's command line names, by option: its configuration, steps and state. */
+export function checkJsonFiles(command: string[]): Record<string, string> {
+  const values = commandLine(command)
+  return Object.fromEntries(
+    JSON_OPTIONS.flatMap((name) => {
+      const path = text(values, name)
+      return path === undefined ? [] : [[name, path]]
+    }),
+  )
+}
+
 /** Reads the files the command names, recording problems; returns the parsed JSON by option. */
 async function readInputs(root: string, values: Values, result: Preflight) {
   const parsed: Record<string, unknown> = {}

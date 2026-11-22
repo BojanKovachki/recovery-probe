@@ -52,7 +52,7 @@ npx recovery-probe reads --page 0 --out .recovery-probe/discovery
 
 This reloads the page, observes successful GET fetch/XHR JSON responses for five seconds, and writes `discovery.json` and a `scenario.json` template. Extend discovery with `--duration 15000` if startup is slower. Choose a page that reloads into the desired route and makes the relevant request during loading.
 
-If no endpoints appear, do not interpret this as healthy behavior. The screen may use Rust/native/IPC requests, cached data, a service worker, POST/GraphQL requests, or requests outside the observation window. These are not covered by this version. Changing frontend selectors cannot make native SDK traffic interceptable; that needs a separate SDK test adapter.
+If no endpoints appear, do not interpret this as healthy behavior. The screen may use Rust/native/IPC requests, cached data, a service worker, POST/GraphQL requests, or requests outside the observation window. These are not covered by this version. Changing frontend selectors cannot make native SDK traffic interceptable; that needs a separate SDK test adapter. For a screen that loads over IPC, [`reads --inspector`](ipc.md#find-the-reads-behind-a-screen) lists the calls instead, with the IPC hook.
 
 ## 4. Define what successful recovery looks like
 
@@ -156,4 +156,4 @@ It keeps the live page and its sessionStorage login through reloads, and leaves 
 
 ## Discovery
 
-`discover --config FILE` fails the selected read in a few fixed ways and compares the screen with healthy runs, without a ready selector. See [Discovery](discovery.md).
+`discover --config FILE` fails the selected read in a few fixed ways, and finally on every attempt, and compares the screen with healthy runs, without a ready selector. See [Discovery](discovery.md).

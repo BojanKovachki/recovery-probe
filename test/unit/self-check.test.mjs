@@ -711,3 +711,39 @@ test('the CLI and the MCP tool take the same choices and report the same result'
     assert.ok(!existsSync('.recovery-probe'))
   })
 })
+
+test('a stop ends the run in progress and starts no more, from the API and the MCP tool', async () => {
+  const root = await project([httpEntry('items'), httpEntry('other')], {
+    'checks/items.json': httpConfig('items'),
+    'checks/other.json': httpConfig('other'),
+  })
+  await inside(root, async () => {
+    const abort = new AbortController()
+    /** @type {unknown[]} */
+    const limits = []
+    await assert.rejects(
+      selfCheck({
+        run: { reference: 'v1', runs: 3 },
+        signal: abort.signal,
+        runCommand: async (_args, given) => {
+          limits.push(given)
+          // The stop arrives while this run is in progress.
+          abort.abort()
+          return { exitCode: null, output: '', stopped: 'cancelled' }
+        },
+      }),
+      /Stopped before every scenario ran/,
+    )
+    assert.deepEqual(limits, [{ signal: abort.signal }])
+    assert.ok(!existsSync('.recovery-probe/self-check/report.json'))
+    // Cancelled before it starts, the tool runs nothing.
+    await assert.rejects(
+      selfCheckScenariosTool.run(
+        { run: true, reference: 'v1' },
+        { signal: AbortSignal.abort() },
+      ),
+      /Stopped before every scenario ran/,
+    )
+    assert.ok(!existsSync('.recovery-probe/self-check/runs/items/run-1'))
+  })
+})

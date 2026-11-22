@@ -7,10 +7,7 @@ import {
 } from '../../dist/tools/repair/sources.mjs'
 import { prepareRepair } from '../../dist/tools/repair/run.mjs'
 import { proposeRepair } from '../../dist/tools/repair/provider.mjs'
-import {
-  runCommand,
-  executionEnvironment,
-} from '../../dist/tools/repair/process.mjs'
+import { runCommand, executionEnvironment } from '../../dist/tools/process.mjs'
 import { fake } from '../helpers/fake.mjs'
 
 const config = {

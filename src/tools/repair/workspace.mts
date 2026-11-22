@@ -13,7 +13,7 @@ import {
 import { promisify } from 'node:util'
 import { ensure } from '../../core/validate.mjs'
 import type { RepairConfig } from './config.mjs'
-import { runCommand, type CommandResult } from './process.mjs'
+import { runCommand, type CommandResult } from '../process.mjs'
 
 export type CommandRecord = CommandResult & { command: string[] }
 
@@ -86,16 +86,12 @@ async function runFolder(repo: string, directory: string) {
   return dir
 }
 
-/** Clones the repository's HEAD into `<run>/checkout`, detached and without a remote. */
-export async function prepareWorkspace(repoPath: string, directory: string) {
-  const repo = await cleanRepository(repoPath)
-  const dir = await runFolder(repo, directory)
-  const baseCommit = (await git(repo, ['rev-parse', 'HEAD'])).trim()
-  const workspace = join(dir, 'checkout')
+/** Clones `repo` into `workspace` at `commit`, detached and without a remote. */
+export async function cloneAt(repo: string, commit: string, workspace: string) {
   // Check out the committed bytes, whatever this machine's Git converts. Git for Windows
   // writes CRLF by default, and a model's multi-line edit with LF breaks would not match.
   // Explicit eol attributes in .gitattributes still apply.
-  await git(dir, [
+  await git(dirname(workspace), [
     'clone',
     '--local',
     '--no-hardlinks',
@@ -108,8 +104,17 @@ export async function prepareWorkspace(repoPath: string, directory: string) {
     repo,
     workspace,
   ])
-  await git(workspace, ['checkout', '--detach', baseCommit])
+  await git(workspace, ['checkout', '--detach', commit])
   await git(workspace, ['remote', 'remove', 'origin']) // No accidental push target.
+}
+
+/** Clones the repository's HEAD into `<run>/checkout`, detached and without a remote. */
+export async function prepareWorkspace(repoPath: string, directory: string) {
+  const repo = await cleanRepository(repoPath)
+  const dir = await runFolder(repo, directory)
+  const baseCommit = (await git(repo, ['rev-parse', 'HEAD'])).trim()
+  const workspace = join(dir, 'checkout')
+  await cloneAt(repo, baseCommit, workspace)
   return { dir, baseCommit, workspace }
 }
 

@@ -1,9 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { goldenSequence, OLD_FIELDS } from '../helpers/verify-golden.mjs'
 import { changedLines } from '../../dist/tools/suspects/files.mjs'
 import { scanForSuspects } from '../../dist/tools/suspects/scan.mjs'
 import {
@@ -214,5 +216,150 @@ test('a change is verified only when its checks improved or stayed clean, with c
       [['src/store.ts', 3]],
     )
     assert.equal(suspect.exitCode, 2)
+  })
+})
+
+test('a stop ends the run in progress, starts no more, keeps the last baseline and still writes a summary', async () => {
+  const root = await repo()
+  await inside(root, async () => {
+    const out = join(root, 'out')
+    await recordBaseline({
+      plan: plan(2),
+      directory: out,
+      runCommand: runner([action([]), action([])]),
+    })
+    for (const record of [verifyChange, recordBaseline]) {
+      const abort = new AbortController()
+      /** @type {unknown[]} */
+      const limits = []
+      const stopping = record({
+        plan: plan(2),
+        directory: out,
+        signal: abort.signal,
+        runCommand: async (_args, given) => {
+          limits.push(given)
+          // The stop arrives while this run is in progress.
+          abort.abort()
+          return { exitCode: null, output: '', stopped: 'cancelled' }
+        },
+      })
+      await assert.rejects(
+        stopping,
+        record === recordBaseline
+          ? /Stopped before the baseline was recorded/
+          : /nothing was verified/,
+      )
+      assert.deepEqual(limits, [{ signal: abort.signal }])
+    }
+    const summary = JSON.parse(
+      await readFile(join(out, 'summary.json'), 'utf8'),
+    )
+    assert.equal(summary.verdict, 'NOT_VERIFIED')
+    assert.equal(summary.exitCode, 2)
+    assert.equal(summary.run.status, 'cancelled')
+    assert.deepEqual(
+      summary.claims.map((claim) => [
+        claim.reason,
+        claim.execution.attempts.length,
+      ]),
+      [
+        ['NOT_RUN', 1],
+        ['NOT_RUN', 0],
+      ],
+    )
+    assert.ok(!existsSync(join(out, 'verification.partial.json')))
+    assert.ok(existsSync(join(out, 'before', 'baseline.json')), 'kept')
+    assert.ok(existsSync(join(out, 'before', 'add', 'run-2', 'report.json')))
+  })
+})
+
+test('without a policy, the older fields stay as they were, and each claim agrees with its check', async () => {
+  const expected = JSON.parse(
+    await readFile(
+      new URL('../fixtures/verify-golden.json', import.meta.url),
+      'utf8',
+    ),
+  )
+  assert.deepEqual(await goldenSequence(), expected)
+  const results = await goldenSequence([
+    ...OLD_FIELDS,
+    'claims',
+    'schema',
+    'mode',
+  ])
+  assert.deepEqual(
+    results.map((result) =>
+      result.claims.map(
+        (claim) => `${claim.id} ${claim.outcome} ${claim.reason}`,
+      ),
+    ),
+    [
+      [
+        'behavior/add VERIFIED PASSED',
+        'suspects/changed-lines VERIFIED PASSED',
+      ],
+      [
+        'behavior/add FAILED NEW_FAILURE',
+        'suspects/changed-lines VERIFIED PASSED',
+      ],
+      [
+        'behavior/add NOT_VERIFIED FAULT_NOT_TRIGGERED',
+        'suspects/changed-lines VERIFIED PASSED',
+      ],
+      [
+        'behavior/add NOT_VERIFIED EXPECTATION_CHANGED',
+        'suspects/changed-lines VERIFIED PASSED',
+      ],
+      [
+        'behavior/add VERIFIED PASSED',
+        'suspects/changed-lines NOT_VERIFIED SUSPECTS_ON_CHANGED_LINES',
+      ],
+    ],
+  )
+  for (const result of results) {
+    assert.equal(result.schema, 'recovery-probe/verification@1')
+    assert.equal(result.mode, 'plan')
+    assert.equal(
+      result.claims[0].outcome === 'VERIFIED',
+      result.checks[0].verified,
+    )
+    assert.equal(result.claims[0].expectation.source, 'plan')
+    assert.equal(result.claims[0].expectation.approved, false)
+  }
+})
+
+test('a verification in progress keeps verification.partial.json up to date', async () => {
+  const root = await repo()
+  await inside(root, async () => {
+    const out = join(root, 'out')
+    await recordBaseline({
+      plan: plan(2),
+      directory: out,
+      runCommand: runner([action([]), action([])]),
+    })
+    const reports = [action([]), action([])]
+    /** @type {any[]} */
+    const seen = []
+    await verifyChange({
+      plan: plan(2),
+      directory: out,
+      runCommand: async (args) => {
+        const partial = join(out, 'verification.partial.json')
+        seen.push(JSON.parse(await readFile(partial, 'utf8')))
+        return runner(reports)(args)
+      },
+    })
+    assert.deepEqual(
+      seen.map((partial) => [
+        partial.run.status,
+        partial.claims[0].reason,
+        partial.claims[0].execution.attempts.length,
+      ]),
+      [
+        ['running', 'NOT_RUN', 0],
+        ['running', 'NOT_RUN', 1],
+      ],
+    )
+    assert.ok(!existsSync(join(out, 'verification.partial.json')))
   })
 })
