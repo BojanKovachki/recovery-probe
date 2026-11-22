@@ -1,3 +1,4 @@
+import { performance } from 'node:perf_hooks'
 import type { Browser, Page } from 'playwright'
 import {
   ensure,
@@ -15,9 +16,10 @@ import {
 import type { IpcFault } from '../../transports/ipc/control.mjs'
 import { ipcRefreshAdapter } from '../../transports/session.mjs'
 import type { IpcIdentity, IpcSnapshot } from '../../ipc-probe.cjs'
+import { ensureMaxDuration } from './budget.mjs'
+import type { DiscoveryOptions } from './control.mjs'
 import { runDiscovery } from './run.mjs'
 import type { DiscoveryResult, DiscoverySetup } from './types.mjs'
-import type { DiscoveryScreenshot } from './screenshots.mjs'
 
 export interface IpcDiscoveryConfig {
   cdp: string
@@ -30,6 +32,7 @@ export interface IpcDiscoveryConfig {
   settleMs: number
   regionSelector?: string
   restoreWindow: boolean
+  maxDurationMs?: number
 }
 
 export type IpcDiscoveryInput = Partial<IpcDiscoveryConfig> &
@@ -71,6 +74,7 @@ const defaults = () => ({
   settleMs: 800,
   regionSelector: undefined,
   restoreWindow: false,
+  maxDurationMs: undefined,
 })
 
 const RANGES = [
@@ -99,13 +103,15 @@ export function discoveryConfig(input: IpcDiscoveryInput): IpcDiscoveryConfig {
     'Invalid regionSelector',
   )
   ensure(typeof c.restoreWindow === 'boolean', 'restoreWindow must be boolean')
+  ensureMaxDuration(c.maxDurationMs)
   return c as unknown as IpcDiscoveryConfig
 }
 
 export async function discoverIpc(
   input: IpcDiscoveryInput,
-  options: { screenshot?: DiscoveryScreenshot } = {},
+  options: DiscoveryOptions<IpcFault, IpcSnapshot> = {},
 ): Promise<IpcDiscoveryReport> {
+  const startedAt = options.startedAt ?? performance.now()
   const config = discoveryConfig(input)
   const report = initialReport(config)
   const control = await connectIpcInspector(config.inspector)
@@ -123,7 +129,7 @@ export async function discoverIpc(
       discoverySetup(page, control, identity, config),
       config,
       report,
-      options,
+      { ...options, startedAt },
     )
   } catch (error) {
     report.error = (error as Error).message

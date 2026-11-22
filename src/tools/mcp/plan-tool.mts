@@ -4,6 +4,7 @@ import {
   planVerification,
   writeCandidatePlan,
 } from '../plan/plan.mjs'
+import { proposeChecks } from '../verify/propose.mjs'
 import { integer, text } from './args.mjs'
 import type { McpTool } from './server.mjs'
 
@@ -66,6 +67,12 @@ export const planVerificationTool: McpTool = {
         default: false,
         description: 'Replace an existing plan file. Only after reviewing it.',
       },
+      proposeChecks: {
+        type: 'boolean',
+        default: false,
+        description:
+          "Also propose project checks (type checking, linting, tests) and setup from the project's configuration, with the evidence for each, for a verify policy. Nothing runs; a person approves them.",
+      },
     },
     additionalProperties: false,
   },
@@ -75,8 +82,9 @@ export const planVerificationTool: McpTool = {
     openWorldHint: false,
   },
   async run(args) {
-    if (args.force !== undefined && typeof args.force !== 'boolean')
-      throw new Error('force must be true or false')
+    for (const key of ['force', 'proposeChecks'])
+      if (args[key] !== undefined && typeof args[key] !== 'boolean')
+        throw new Error(`${key} must be true or false`)
     const write = text(args, 'write', false)
     const report = await planVerification({
       base: text(args, 'base', false) ?? 'main',
@@ -89,6 +97,12 @@ export const planVerificationTool: McpTool = {
     const written = write
       ? await writeCandidatePlan(report, write, args.force === true)
       : undefined
-    return { ...report, written: written ?? null }
+    return {
+      ...report,
+      written: written ?? null,
+      ...(args.proposeChecks
+        ? { proposedChecks: await proposeChecks(process.cwd()) }
+        : {}),
+    }
   },
 }

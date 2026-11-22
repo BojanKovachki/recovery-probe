@@ -1,13 +1,19 @@
 import { join } from 'node:path'
+import { performance } from 'node:perf_hooks'
 import { connectDesktop, selectDesktopPage } from '../targets/cdp.mjs'
 import { reportFolder } from '../reports/folder.mjs'
-import { writeDiscoveryReport } from '../reports/discovery.mjs'
+import {
+  writeDiscoveryProgress,
+  writeDiscoveryReport,
+  type DiscoveryReport,
+} from '../reports/discovery.mjs'
 import {
   discoverHttp,
   httpDiscoveryConfig,
 } from '../workflows/discover/http.mjs'
 import { discoverIpc, discoveryConfig } from '../workflows/discover/ipc.mjs'
 import { screenshotsIn } from '../workflows/discover/screenshots.mjs'
+import type { DiscoveryProgress } from '../workflows/discover/types.mjs'
 import {
   CHECK_COMMAND_OPTIONS,
   discoveryInput,
@@ -19,6 +25,7 @@ import {
   validated,
   type Values,
 } from './args.mjs'
+import { signals } from './until-stopped.mjs'
 
 export const usage = `recovery-probe discover --config FILE [options]
 
@@ -38,46 +45,95 @@ Options:
   --out DIR          a new folder for the report
   --json             print the report as JSON
 
+The config's "maxDurationMs" limits the whole run, cleanup included. While it
+runs, progress.json and report.partial.json in the report folder say how far it
+got. Ctrl+C stops it, removes the faults and writes the report.
+
 Exit codes: 0 only observations, 2 findings to review or inconclusive,
 3 wrong usage or config, 4 couldn't run. Findings are never verified failures.`
 
 export const options = CHECK_COMMAND_OPTIONS.discover
 
 export async function run(values: Values): Promise<void> {
+  const startedAt = performance.now()
   const path = text(values, 'config')
   if (!path) throw new UsageError('--config is required')
   const raw = await readConfig(path)
   const input = discoveryInput(raw, values)
   const directory = await reportFolder('discover', text(values, 'out'))
-  const screenshot = values.screenshots ? screenshotsIn(directory) : undefined
-  const { config, report } =
-    typeof raw.channel === 'string'
-      ? await discoverOverIpc(input, screenshot)
-      : await discoverOverHttp(input, screenshot)
-  await writeDiscoveryReport(directory, report, config)
-  // Heuristic findings are leads to review, never verified failures.
-  process.exitCode = report.ok ? 0 : 2
-  if (values.json) console.log(JSON.stringify(report, null, 2))
-  else printDiscovery(report, directory)
+  const abort = new AbortController()
+  const stop = () => {
+    if (!abort.signal.aborted)
+      console.error(
+        'Stopping: removing the faults and writing the report. This can take one more reload.',
+      )
+    abort.abort()
+  }
+  signals.on('SIGINT', stop)
+  signals.on('SIGTERM', stop)
+  const options: Options = {
+    screenshot: values.screenshots ? screenshotsIn(directory) : undefined,
+    signal: abort.signal,
+    startedAt,
+    onProgress: progressIn(directory),
+  }
+  try {
+    const { config, report } =
+      typeof raw.channel === 'string'
+        ? await discoverOverIpc(input, options)
+        : await discoverOverHttp(input, options)
+    await writeDiscoveryReport(directory, report, config)
+    // Heuristic findings are leads to review, never verified failures.
+    process.exitCode = report.ok ? 0 : 2
+    if (values.json) console.log(JSON.stringify(report, null, 2))
+    else printDiscovery(report, directory)
+  } finally {
+    signals.off('SIGINT', stop)
+    signals.off('SIGTERM', stop)
+  }
 }
 
-type Screenshot = ReturnType<typeof screenshotsIn> | undefined
+interface Options {
+  screenshot?: ReturnType<typeof screenshotsIn>
+  signal: AbortSignal
+  startedAt: number
+  onProgress: (progress: DiscoveryProgress, report: object) => Promise<void>
+}
 type Report = Awaited<ReturnType<typeof discoverHttp | typeof discoverIpc>>
 
-async function discoverOverIpc(input: object, screenshot: Screenshot) {
+/** Saves each progress report in `directory`, and says once on stderr how long the run can take. */
+function progressIn(directory: string) {
+  let announced = false
+  return async (progress: DiscoveryProgress, report: object) => {
+    if (!announced) {
+      announced = true
+      const limit = progress.budget
+        ? `; limited to ${minutes(progress.budget.maxDurationMs)}`
+        : ''
+      console.error(
+        `Discovery: up to ${progress.plannedLoads} reloads, at most ${minutes(progress.worstCaseRemainingMs)}${limit}. Progress: ${join(directory, 'progress.json')}`,
+      )
+    }
+    await writeDiscoveryProgress(directory, progress, report as DiscoveryReport)
+  }
+}
+
+const minutes = (ms: number) => `${(ms / 60000).toFixed(1)} min`
+
+async function discoverOverIpc(input: object, options: Options) {
   const config = validated(() =>
     discoveryConfig(input as Parameters<typeof discoveryConfig>[0]),
   )
-  return { config, report: await discoverIpc(config, { screenshot }) }
+  return { config, report: await discoverIpc(config, options) }
 }
 
-async function discoverOverHttp(input: object, screenshot: Screenshot) {
+async function discoverOverHttp(input: object, options: Options) {
   const config = validated(() => httpDiscoveryConfig(input))
   // Closing a CDP connection disconnects this client; it doesn't close the app.
   const browser = await connectDesktop(config.cdp)
   try {
     const page = selectDesktopPage(browser, config)
-    return { config, report: await discoverHttp(page, config, { screenshot }) }
+    return { config, report: await discoverHttp(page, config, options) }
   } finally {
     await browser.close()
   }
@@ -98,6 +154,8 @@ function printDiscovery(report: Report, directory: string) {
     )
   }
   if (report.error) console.error(`Discovery stopped: ${report.error}`)
+  if (report.notRun?.length)
+    console.error(`Not run: ${report.notRun.join(', ')}`)
   if (report.cleanupError) console.error(`Cleanup: ${report.cleanupError}`)
   console.log(
     `Final reload: ${report.finalReset}\nReport: ${join(directory, 'report.html')}\nRerun: recovery-probe discover --config ${join(directory, 'scenario.json')}`,

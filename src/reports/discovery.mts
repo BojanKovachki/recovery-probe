@@ -1,7 +1,9 @@
-import { writeFile } from 'node:fs/promises'
+import { rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { writeAtomically } from './folder.mjs'
 import { escapeHtml, renderTemplate } from './template.mjs'
 import { type DiscoveryFinding } from '../workflows/discover/experiment.mjs'
+import type { DiscoveryProgress } from '../workflows/discover/types.mjs'
 import { withEvidence } from './evidence.mjs'
 
 /** The fields of an HTTP or IPC discovery report that the written report uses. */
@@ -19,6 +21,47 @@ export interface DiscoveryReport {
   failedControl?: { reasons: unknown; diff: unknown } | null
   baselines?: { screenshot?: string }[]
   results?: { screenshot?: string }[]
+  estimate?: unknown
+  budget?: unknown
+  stoppedReason?: string
+  notRun?: string[]
+}
+
+/** The partial report a run keeps up to date while it goes on. */
+export const PARTIAL_REPORT = 'report.partial.json'
+/** The gap that keeps a partial report's evidence incomplete. */
+export const RUN_IN_PROGRESS = 'RUN_IN_PROGRESS'
+
+/**
+ * Saves where a run is (progress.json) and what it has found so far (report.partial.json),
+ * so that whoever waits on it can read them, and a run that is killed leaves them behind.
+ * The partial report's evidence never counts as complete.
+ */
+export async function writeDiscoveryProgress(
+  directory: string,
+  progress: DiscoveryProgress,
+  report: DiscoveryReport,
+): Promise<void> {
+  await writeAtomically(
+    join(directory, 'progress.json'),
+    JSON.stringify(
+      { ...progress, updatedAt: new Date().toISOString() },
+      null,
+      2,
+    ),
+  )
+  const partial = withEvidence(report)
+  if (partial.evidence)
+    partial.evidence = {
+      ...partial.evidence,
+      complete: false,
+      gaps: [...partial.evidence.gaps, RUN_IN_PROGRESS],
+      checked: [],
+    }
+  await writeAtomically(
+    join(directory, PARTIAL_REPORT),
+    JSON.stringify(partial, null, 2),
+  )
 }
 
 export async function writeDiscoveryReport(
@@ -50,6 +93,8 @@ export async function writeDiscoveryReport(
     }),
     { mode: 0o600 },
   )
+  // The final report replaces what the run saved along the way.
+  await rm(join(directory, PARTIAL_REPORT), { force: true })
 }
 
 const experimentRows = (report: DiscoveryReport) =>
@@ -68,6 +113,10 @@ const summaryOf = (report: DiscoveryReport) => ({
     outcome: report.screenCheck.outcome,
   },
   error: report.error,
+  stoppedReason: report.stoppedReason,
+  notRun: report.notRun,
+  estimate: report.estimate,
+  budget: report.budget,
   cleanupError: report.cleanupError,
   finalReset: report.finalReset,
   window: report.window,

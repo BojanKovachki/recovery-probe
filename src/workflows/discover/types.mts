@@ -9,6 +9,7 @@ import type {
   WindowVisibility,
 } from '../../targets/visibility.mjs'
 import type { IpcInspector } from '../../transports/ipc/inspector.mjs'
+import type { DiscoveryEstimate } from './budget.mjs'
 import type { DiscoveryExperiment, DiscoveryFinding } from './experiment.mjs'
 
 export interface ReadStats {
@@ -67,6 +68,30 @@ export interface DiscoveryTiming {
   repeats: number
   regionSelector?: string
   restoreWindow: boolean
+  /** The longest the whole run may take, cleanup included; no limit when absent. */
+  maxDurationMs?: number
+}
+
+/** Why a run stopped before its planned experiments were done. */
+export type DiscoveryStop = 'BUDGET_EXHAUSTED' | 'INTERRUPTED'
+
+/** Where a run is, for whoever waits on it. Reported after every load. */
+export interface DiscoveryProgress {
+  phase:
+    | 'starting'
+    | 'calibrating'
+    | 'checking-screen'
+    | 'experimenting'
+    | 'cleaning-up'
+    | 'finished'
+  completedLoads: number
+  plannedLoads: number
+  elapsedMs: number
+  /** The longest the rest of the run can take, from the configured timeouts. */
+  worstCaseRemainingMs: number
+  experiments: { planned: string[]; done: string[] }
+  budget?: { maxDurationMs: number; remainingMs: number }
+  stoppedReason?: DiscoveryStop
 }
 
 export interface DiscoveryEvent<Snapshot extends ReadSnapshot> {
@@ -171,4 +196,17 @@ export interface DiscoveryResult<
   error?: string
   cleanupError?: string
   windowRestoreError?: string
+  /** The run's worst case, from its configured timeouts; exact once calibration planned the experiments. */
+  estimate?: DiscoveryEstimate
+  /** The time limit, when one was set: how much of it was kept for cleanup, and used. */
+  budget?: {
+    maxDurationMs: number
+    cleanupReserveMs: number
+    usedMs?: number
+  }
+  stoppedReason?: DiscoveryStop
+  /** Planned experiments a stopped run never started. */
+  notRun?: string[]
+  /** Why progress could not be saved; the run itself went on. */
+  progressError?: string
 }

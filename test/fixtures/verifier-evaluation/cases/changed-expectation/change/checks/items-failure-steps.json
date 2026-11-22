@@ -1,0 +1,26 @@
+[
+  {
+    "click": "#open-items"
+  },
+  {
+    "waitFor": "#items li",
+    "timeoutMs": 3000
+  },
+  {
+    "wait": 500
+  },
+  {
+    "click": "#refresh"
+  },
+  {
+    "wait": 500
+  },
+  {
+    "expect": "#items li",
+    "timeoutMs": 1000,
+    "name": "items-visible"
+  },
+  {
+    "click": "#home"
+  }
+]
