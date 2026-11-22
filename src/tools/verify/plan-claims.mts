@@ -55,9 +55,10 @@ export const executionOf = (runs: CheckResult[]): ExecutionStatus =>
 
 const UNCOMPARABLE = ['NOT_COMPARABLE', 'INCONCLUSIVE']
 
-/** The code a gap starts with, such as FAULT_NOT_TRIGGERED. */
-export const codeOf = (gap: string | undefined) =>
-  /^[A-Z][A-Z0-9_]+/.exec(gap ?? '')?.[0] ?? 'INCOMPLETE_RUN'
+/** The first code among a run's gaps, such as FAULT_NOT_TRIGGERED; some gaps are plain notes. */
+export const codeOf = (gaps: string[]) =>
+  gaps.map((gap) => /^[A-Z][A-Z0-9_]+/.exec(gap)?.[0]).find(Boolean) ??
+  'INCOMPLETE_RUN'
 
 function incompleteOf(
   runs: CheckResult[],
@@ -66,7 +67,7 @@ function incompleteOf(
 ) {
   const codes = baselinePresent ? [] : ['NO_BASELINE']
   const partial = runs.find((run) => run.evidence && !run.evidence.complete)
-  if (partial) codes.push(codeOf(partial.evidence!.gaps[0]))
+  if (partial) codes.push(codeOf(partial.evidence!.gaps))
   if (comparison && UNCOMPARABLE.includes(comparison.verdict))
     codes.push(comparison.verdict)
   return codes

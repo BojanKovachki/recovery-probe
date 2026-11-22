@@ -74,6 +74,29 @@ test('the first rule that applies decides a claim', () => {
       'UNSTABLE',
     ],
     [
+      'a failure and a pass of the same scenario are unstable',
+      {
+        attempts: [
+          { ...failed, scenario: 'failure' },
+          { ...passed, scenario: 'normal' },
+          { ...passed, scenario: 'failure' },
+        ],
+      },
+      'NOT_VERIFIED',
+      'UNSTABLE',
+    ],
+    [
+      "another scenario's pass doesn't make a failure unstable",
+      {
+        attempts: [
+          { ...failed, scenario: 'failure' },
+          { ...passed, scenario: 'normal' },
+        ],
+      },
+      'FAILED',
+      'NEW_FAILURE',
+    ],
+    [
       'a pass that stopped early does not make a failure unstable',
       { attempts: [failed, { completed: false, failed: false }] },
       'FAILED',

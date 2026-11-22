@@ -1,0 +1,31 @@
+{
+  "scenarios": [
+    {
+      "name": "items-failure",
+      "paths": ["src/items.js", "public/items.html"],
+      "check": [
+        "observe",
+        "--config",
+        "checks/items.json",
+        "--steps",
+        "checks/items-failure-steps.json"
+      ],
+      "behavior": "Refresh the items list while its read fails with 503.",
+      "expectation": "A failed refresh keeps the items already shown and says it failed.",
+      "limits": "One read, one status fault; other failures are not covered."
+    },
+    {
+      "name": "items-normal",
+      "paths": ["src/items.js", "public/items.html"],
+      "check": [
+        "observe",
+        "--config",
+        "checks/items.json",
+        "--steps",
+        "checks/items-normal-steps.json"
+      ],
+      "behavior": "Open and refresh the items list with no fault.",
+      "expectation": "The items show, and stay after a refresh."
+    }
+  ]
+}

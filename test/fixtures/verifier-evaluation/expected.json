@@ -1,0 +1,41 @@
+{
+  "fix": {
+    "verdict": "VERIFIED",
+    "exitCode": 0,
+    "claim": "VERIFIED PASSED",
+    "baseline": "IMPROVED",
+    "bothSides": true
+  },
+  "regression": {
+    "verdict": "NOT_VERIFIED",
+    "exitCode": 1,
+    "claim": "FAILED NEW_FAILURE",
+    "baseline": "REGRESSED",
+    "bothSides": true
+  },
+  "untriggered-fault": {
+    "verdict": "NOT_VERIFIED",
+    "exitCode": 2,
+    "claim": "NOT_VERIFIED REQUEST_FAULT_NOT_TRIGGERED",
+    "bothSides": true
+  },
+  "missing-expectation": {
+    "verdict": "NOT_VERIFIED",
+    "exitCode": 2,
+    "claim": "NOT_VERIFIED EXPECTATION_MISSING",
+    "bothSides": false
+  },
+  "changed-expectation": {
+    "verdict": "NOT_VERIFIED",
+    "exitCode": 2,
+    "claim": "NOT_VERIFIED EXPECTATION_CHANGED",
+    "bothSides": true
+  },
+  "budget-stop": {
+    "verdict": "NOT_VERIFIED",
+    "exitCode": 2,
+    "claim": "NOT_VERIFIED BUDGET_EXHAUSTED",
+    "runStatus": "budget-exhausted",
+    "bothSides": false
+  }
+}

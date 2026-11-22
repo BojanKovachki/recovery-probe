@@ -448,3 +448,65 @@ test('verify_change runs policy mode, returns the last result with status, and r
     assert.match(usage.stderr, /--policy needs --base REF/)
   })
 })
+
+test('work that cannot fit in the budget is BUDGET_EXHAUSTED before anything launches, and --budget only goes with a policy', async () => {
+  const setup = await project({
+    'recovery-probe.policy.json': JSON.stringify({
+      ...POLICY,
+      claims: [{ ...POLICY.claims[0], app: 'web' }],
+      apps: {
+        web: {
+          launch: ['node', 'server.mjs'],
+          url: 'http://127.0.0.1:9/items',
+          ready: { url: 'http://127.0.0.1:9/health', timeoutMs: 20000 },
+        },
+      },
+    }),
+  })
+  await inside(setup, async () => {
+    const fake = runner()
+    const result = await verifyPolicy({
+      policy: 'recovery-probe.policy.json',
+      base: 'main',
+      budgetMs: 1000,
+      runCommand: fake.run,
+    })
+    const claim = byId(result)['behavior/items-keep-content']
+    assert.deepEqual(
+      [claim.outcome, claim.reason, claim.execution.status],
+      ['NOT_VERIFIED', 'BUDGET_EXHAUSTED', 'budget-exhausted'],
+    )
+    assert.equal(result.run.status, 'budget-exhausted')
+    assert.equal(fake.calls.length, 0)
+    assert.match(result.revisions.candidate.snapshotCommit, /^[0-9a-f]{40}$/)
+    const usage = spawnSync(
+      process.execPath,
+      [cli, 'verify', '--budget', '5000'],
+      {
+        encoding: 'utf8',
+      },
+    )
+    assert.equal(usage.status, 3)
+    assert.match(usage.stderr, /--budget goes with --policy/)
+    await assert.rejects(
+      verifyChangeTool.run(
+        { budgetMs: 5000 },
+        { signal: new AbortController().signal },
+      ),
+      /budgetMs goes with policy/,
+    )
+  })
+})
+
+test("an incomplete run's reason is the first code among its gaps, past any plain note", async () => {
+  const setup = await project()
+  await inside(setup, async () => {
+    const report = observeReport()
+    report.evidence.complete = false
+    report.evidence.gaps = ['capture complete', 'REQUEST_FAULT_NOT_TRIGGERED']
+    const claim = byId(await verify(runner(report)))[
+      'behavior/items-keep-content'
+    ]
+    assert.equal(claim.reason, 'REQUEST_FAULT_NOT_TRIGGERED')
+  })
+})

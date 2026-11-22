@@ -1,30 +1,27 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import type { RunBudget } from '../../core/budget.mjs'
+import type { CheckResult, CheckRunner } from '../watch/checks.mjs'
 import {
-  runCheck,
-  runRecoveryProbe,
-  type CheckResult,
-  type CheckRunner,
-} from '../watch/checks.mjs'
+  compareSides,
+  runAgainstRunningApp,
+  runOnSide,
+  type SideResult,
+} from './app-sides.mjs'
+import type { Checkouts } from './checkout.mjs'
 import {
   behaviorCriteria,
   copyApproved,
   projectCriteria,
-  withApprovedFiles,
   type BehaviorCriteria,
   type Registries,
   type Sides,
 } from './criteria.mjs'
-import {
-  attemptOf,
-  codeOf,
-  evidenceFiles,
-  executionOf,
-} from './plan-claims.mjs'
+import { codeOf, evidenceFiles } from './plan-claims.mjs'
 import type { Policy, PolicyClaim, ProjectCheck } from './policy.mjs'
 import type { VerificationLog } from './record.mjs'
 import { decideClaim, type ClaimFacts } from './rules.mjs'
-import { stopIfAborted, type VerifyEvent } from './side.mjs'
+import type { VerifyEvent } from './side.mjs'
 import type { Claim, PolicyIdentity } from './types.mjs'
 
 export interface PolicyOptions {
@@ -32,6 +29,8 @@ export interface PolicyOptions {
   policy: string
   /** The base, from the invocation: never from a file the candidate can edit. */
   base: string
+  /** Lowers the policy's overall budget; it can never raise it. */
+  budgetMs?: number
   /** Where the runs are kept; .recovery-probe/verify by default. */
   directory?: string
   runCommand?: CheckRunner
@@ -48,13 +47,14 @@ export interface PolicyContext {
   registries: Registries
   policy: Policy
   identity: PolicyIdentity
+  budget: RunBudget
+  /** The base and candidate checkouts, made the first time a claim launches its app. */
+  checkouts(): Promise<Checkouts>
 }
 
 const GAP_TEXT: Record<string, string> = {
   APP_REVISION_UNKNOWN:
     'the scenarios ran against an app started by hand, so which code it ran is unknown',
-  APP_LAUNCH_UNAVAILABLE:
-    "launching the claim's app from each side's checkout comes in a later version",
   ASSERTION_NOT_RUN: 'a report has no expect step for a named assertion',
 }
 const gapText = (code: string) =>
@@ -106,43 +106,6 @@ export async function projectClaim(
   }
 }
 
-/** Runs both scenarios `runs` times with the base's approved files, against the running app. */
-async function runScenarios(
-  context: PolicyContext,
-  claim: PolicyClaim,
-  scenarios: NonNullable<BehaviorCriteria['scenarios']>,
-) {
-  const { sides, directory, log, options, policy } = context
-  const folder = join(directory, 'policy', 'candidate', claim.id)
-  await mkdir(folder, { recursive: true, mode: 0o700 })
-  const results: CheckResult[] = []
-  for (const path of ['failure', 'normal'] as const) {
-    const approved = join(directory, 'policy', 'approved')
-    const command = withApprovedFiles(sides, scenarios[path], approved)
-    for (let n = 1; n <= policy.runs; n++) {
-      stopIfAborted('after', options.signal)
-      const check = `${claim.id} ${path}`
-      options.onEvent?.({ type: 'running', side: 'after', check, run: n })
-      const out = join(folder, `${path}-${n}`)
-      const result = await runCheck(
-        command,
-        out,
-        options.runCommand ?? runRecoveryProbe,
-        { signal: options.signal },
-      )
-      await writeFile(`${out}.log`, result.output, { mode: 0o600 })
-      options.onEvent?.({ type: 'ran', side: 'after', check, result })
-      await log.attempt(`behavior/${claim.id}`, {
-        ...attemptOf(directory, result, n, out),
-        path,
-        against: 'approvedVersion',
-      })
-      results.push(result)
-    }
-  }
-  return results
-}
-
 /** Whether a run's report has each named `expect` step, and whether one was unmet. */
 async function assertionsIn(run: CheckResult, names: string[]) {
   let steps: { kind?: string; name?: string; status?: string }[] = []
@@ -163,34 +126,79 @@ const sawDefect = (run: CheckResult) =>
   run.evidence?.problems.some((problem) => problem.severity === 'defect') ??
   false
 
-/** The facts the rules decide a behavior claim from, after its scenarios ran. */
-async function behaviorFacts(
+interface ClaimRuns {
+  candidate: SideResult
+  /** Only a claim whose app the policy launches runs on the base. */
+  base?: SideResult
+}
+
+/** Both sides on their own launches of the app, or the candidate on an app started by hand. */
+async function runClaim(
+  context: PolicyContext,
   claim: PolicyClaim,
-  criteria: BehaviorCriteria,
-  results: CheckResult[],
-): Promise<Omit<ClaimFacts, 'expectation' | 'failure'>> {
+  scenarios: NonNullable<BehaviorCriteria['scenarios']>,
+): Promise<ClaimRuns> {
+  if (!claim.app)
+    return { candidate: await runAgainstRunningApp(context, claim, scenarios) }
+  const base = await runOnSide(context, claim, scenarios, 'base')
+  return {
+    base,
+    candidate: await runOnSide(context, claim, scenarios, 'candidate'),
+  }
+}
+
+const sideGaps = (claim: PolicyClaim, runs: ClaimRuns | undefined) => [
+  ...(runs?.base?.gap ? [`BASE: ${runs.base.gap}`] : []),
+  ...(runs?.candidate.gap ? [runs.candidate.gap] : []),
+  ...(runs && !claim.app
+    ? ['BASE_NOT_RUN: only an app the policy launches runs on the base']
+    : []),
+]
+
+/** How the base side went and what its comparison with the candidate says, if it ran. */
+function baselineOf(runs: ClaimRuns | undefined) {
+  if (!runs?.base)
+    return { failure: 'NOT_COMPARABLE', baseline: { status: 'unavailable' } }
+  const { failure, verdict } = compareSides(runs.base, runs.candidate)
+  return {
+    failure,
+    baseline: {
+      status: runs.base.status,
+      ...(verdict ? { comparison: verdict } : {}),
+    },
+  }
+}
+
+/** The facts the rules decide a behavior claim from, after its scenarios ran on each side. */
+async function behaviorFacts(claim: PolicyClaim, runs: ClaimRuns | undefined) {
+  const candidate = runs?.candidate.runs ?? []
+  const results = candidate.map((run) => run.result)
   const checked = await Promise.all(
     results.map((run) => assertionsIn(run, claim.assertions)),
   )
   const partial = results.find((run) => run.evidence && !run.evidence.complete)
-  const incomplete = criteria.scenarios
+  const incomplete = runs
     ? [
-        ...(partial ? [codeOf(partial.evidence!.gaps[0])] : []),
+        ...(partial ? [codeOf(partial.evidence!.gaps)] : []),
         ...(checked.some((run) => run.missing) ? ['ASSERTION_NOT_RUN'] : []),
-        claim.app ? 'APP_LAUNCH_UNAVAILABLE' : 'APP_REVISION_UNKNOWN',
+        ...(claim.app ? [] : ['APP_REVISION_UNKNOWN']),
       ]
     : []
-  return {
+  const { failure, baseline } = baselineOf(runs)
+  const facts: Omit<ClaimFacts, 'expectation'> = {
     attempts: results.map((run, i) => ({
       completed: run.evidence?.complete === true,
       failed: sawDefect(run) || checked[i].unmet,
+      scenario: candidate[i].path,
     })),
-    execution: !criteria.scenarios
-      ? 'skipped'
-      : claim.app
-        ? 'unavailable'
-        : executionOf(results),
+    execution: runs ? runs.candidate.status : 'skipped',
     incomplete,
+    failure,
+  }
+  return {
+    facts,
+    baseline,
+    gaps: [...incomplete.map(gapText), ...sideGaps(claim, runs)],
   }
 }
 
@@ -205,15 +213,16 @@ export async function behaviorClaim(
   const id = `behavior/${claim.id}`
   const { sides, directory, registries } = context
   const criteria = await behaviorCriteria(sides, claim, registries)
-  const { scenarios } = criteria
   await copyApproved(
     sides,
     criteria.files,
     join(directory, 'policy', 'approved'),
   )
-  const results =
-    scenarios && !claim.app ? await runScenarios(context, claim, scenarios) : []
-  const facts = await behaviorFacts(claim, criteria, results)
+  const runs = criteria.scenarios
+    ? await runClaim(context, claim, criteria.scenarios)
+    : undefined
+  const { facts, baseline, gaps } = await behaviorFacts(claim, runs)
+  const results = [...(runs?.base?.runs ?? []), ...(runs?.candidate.runs ?? [])]
   return {
     id,
     kind: 'behavior',
@@ -222,18 +231,19 @@ export async function behaviorClaim(
     ...decideClaim({
       ...facts,
       expectation: changeOf(context, criteria.change),
-      failure: 'NOT_COMPARABLE',
     }),
     execution: {
       status: facts.execution,
       attempts: context.log.attemptsOf(id),
     },
-    baseline: { status: 'unavailable' },
-    evidence: await evidenceFiles(directory, results),
+    baseline,
+    evidence: await evidenceFiles(
+      directory,
+      results.map((run) => run.result),
+    ),
     gaps: [
       ...(criteria.missing ? [`EXPECTATION_MISSING: ${criteria.missing}`] : []),
-      ...facts.incomplete.map(gapText),
-      'BASE_NOT_RUN: the base side runs once apps are launched from each checkout',
+      ...gaps,
     ],
   }
 }

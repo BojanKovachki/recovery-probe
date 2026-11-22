@@ -21,8 +21,11 @@ export type CriteriaChange =
 export interface ClaimFacts {
   /** Whether the claim has an expectation to judge it by, or how the candidate changed it. */
   expectation: 'present' | 'missing' | CriteriaChange
-  /** The candidate's attempts: whether each ran to the end, and whether it saw a failure. */
-  attempts: { completed: boolean; failed: boolean }[]
+  /**
+   * The candidate's attempts: whether each ran to the end, whether it saw a failure, and which
+   * of the claim's scenarios it ran when there are several.
+   */
+  attempts: { completed: boolean; failed: boolean; scenario?: string }[]
   execution: ExecutionStatus
   /** Why the evidence is incomplete, as codes; the first one becomes the reason. */
   incomplete: string[]
@@ -45,9 +48,16 @@ export function decideClaim(facts: ClaimFacts): Decision {
   if (facts.expectation === 'missing') return notVerified('EXPECTATION_MISSING')
   if (facts.expectation !== 'present') return notVerified(facts.expectation)
   // A failure counts from any attempt, even one that stopped early.
-  if (facts.attempts.some((attempt) => attempt.failed))
-    return facts.attempts.some(
-      (attempt) => attempt.completed && !attempt.failed,
+  const failed = facts.attempts.filter((attempt) => attempt.failed)
+  // Only a pass of the same scenario makes a failure unstable.
+  if (failed.length)
+    return failed.some((failure) =>
+      facts.attempts.some(
+        (attempt) =>
+          attempt.scenario === failure.scenario &&
+          attempt.completed &&
+          !attempt.failed,
+      ),
     )
       ? notVerified('UNSTABLE')
       : { outcome: 'FAILED', reason: facts.failure }

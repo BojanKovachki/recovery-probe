@@ -166,7 +166,8 @@ function app(value: unknown, at: string): PolicyApp {
     `${at}.ready must be { url, timeoutMs }`,
   )
   ensure(
-    Array.isArray(fixtures) && fixtures.every(isInput),
+    Array.isArray(fixtures) &&
+      fixtures.every((path) => safeRelativePath(String(path))),
     `${at}.fixtures must list relative files`,
   )
   return {

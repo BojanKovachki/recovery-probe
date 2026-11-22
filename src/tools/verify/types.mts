@@ -57,6 +57,8 @@ export interface Revisions {
     /** The tree Git would commit for the working tree, ignored files left out. */
     snapshotTree: string | null
     uncommittedChanges: boolean | null
+    /** In policy mode: the commit of that tree the candidate side is checked out from. */
+    snapshotCommit?: string
   }
 }
 
@@ -83,7 +85,7 @@ export interface PolicyIdentity {
 
 export interface RunRecord {
   id: string
-  status: 'running' | 'completed' | 'cancelled' | 'failed'
+  status: 'running' | 'completed' | 'cancelled' | 'failed' | 'budget-exhausted'
   startedAt: string
   endedAt?: string
 }
