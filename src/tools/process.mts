@@ -1,4 +1,10 @@
-import { spawn, execFile } from 'node:child_process'
+import {
+  spawn,
+  execFile,
+  type ChildProcess,
+  type ChildProcessByStdio,
+} from 'node:child_process'
+import type { Readable } from 'node:stream'
 import { promisify } from 'node:util'
 import { setTimeout as sleep } from 'node:timers/promises'
 const exec = promisify(execFile)
@@ -83,7 +89,7 @@ export function startCommand(
 /** Stops a command and its children: taskkill on Windows, the process group elsewhere. */
 async function stopTree(
   pid: number | undefined,
-  finished: Promise<CommandResult>,
+  finished: Promise<unknown>,
   exited: () => boolean,
 ) {
   if (!pid) return
@@ -125,4 +131,89 @@ export async function runCommand(
     clearTimeout(timer)
     await processRun.stop()
   }
+}
+
+/** Asks a Recovery Probe process to stop as SIGTERM would; see acceptStopRequests. */
+export const STOP_REQUEST = 'recovery-probe:stop'
+/** A process's answer when nothing in it can stop gracefully, so it can be ended at once. */
+export const CANNOT_STOP = 'recovery-probe:cannot-stop'
+/** How long a process asked to stop has to clean up before its process tree is ended. */
+export const STOP_GRACE_MS = 10000
+
+export type StopReason = 'timed-out' | 'cancelled'
+
+export interface StopLimits {
+  signal?: AbortSignal
+  timeoutMs?: number
+  /** How long the process has to stop on its own; STOP_GRACE_MS by default. */
+  graceMs?: number
+}
+
+/**
+ * Starts `node script ...args` so that untilExit can stop it: with a channel for stop
+ * requests, because on Windows a signal ends a process without running its handlers,
+ * and outside Windows in its own process group, so its whole tree can be ended.
+ */
+export function startNode(script: string, args: string[]) {
+  // Node's typings have no overload for an 'ipc' entry, so they lose the piped streams.
+  return spawn(process.execPath, [script, ...args], {
+    stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+    detached: process.platform !== 'win32',
+    windowsHide: true,
+  }) as ChildProcessByStdio<null, Readable, Readable>
+}
+
+/**
+ * Resolves once `child`, started by startNode, has exited. At the timeout or abort it
+ * asks the child to stop, and ends its process tree when the child answers that it
+ * can't, or hasn't stopped within the grace period.
+ */
+export function untilExit(
+  child: ChildProcess,
+  { signal, timeoutMs, graceMs = STOP_GRACE_MS }: StopLimits = {},
+) {
+  let exited = false
+  let stopped: StopReason | undefined
+  let grace: NodeJS.Timeout | undefined
+  const closed = new Promise<[number | null, NodeJS.Signals | null]>(
+    (resolve, reject) => {
+      child.once('error', reject)
+      child.once('close', (code, killedBy) => {
+        exited = true
+        resolve([code, killedBy])
+      })
+    },
+  )
+  const end = () => {
+    clearTimeout(grace)
+    stopTree(child.pid, closed, () => exited).catch(() => {})
+  }
+  const stop = (reason: StopReason) => {
+    if (stopped || exited) return
+    stopped = reason
+    // The callback takes the error of a child that has already gone.
+    child.send(STOP_REQUEST, () => {})
+    grace = setTimeout(end, graceMs)
+  }
+  child.on('message', (message) => {
+    if (message === CANNOT_STOP && stopped) end()
+  })
+  const timer =
+    timeoutMs === undefined
+      ? undefined
+      : setTimeout(() => stop('timed-out'), timeoutMs)
+  const onAbort = () => stop('cancelled')
+  if (signal?.aborted) onAbort()
+  else signal?.addEventListener('abort', onAbort, { once: true })
+  return closed
+    .then(([exitCode, killedBy]) => ({
+      exitCode,
+      killedBy,
+      ...(stopped ? { stopped } : {}),
+    }))
+    .finally(() => {
+      clearTimeout(timer)
+      clearTimeout(grace)
+      signal?.removeEventListener('abort', onAbort)
+    })
 }

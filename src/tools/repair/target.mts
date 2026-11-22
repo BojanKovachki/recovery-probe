@@ -11,7 +11,7 @@ import {
   type DesktopReport,
 } from '../../workflows/check/http/run.mjs'
 import type { RepairConfig } from './config.mjs'
-import { startCommand } from './process.mjs'
+import { startCommand } from '../process.mjs'
 
 async function portOpen(url: URL) {
   return new Promise<boolean>((resolve) => {

@@ -4,76 +4,21 @@ import { join, resolve } from 'node:path'
 import { readRunEvidence } from './compare/reports.mjs'
 import { compareRuns } from './compare/run.mjs'
 import type { Comparison, RunEvidence } from './compare/types.mjs'
-import {
-  ensure,
-  isIntegerIn,
-  isNonEmptyString,
-  isRecord,
-} from '../core/validate.mjs'
 import type { Suspect } from './suspects/source.mjs'
 import { scanForSuspects } from './suspects/scan.mjs'
+import type { VerifyCheck, VerifyPlan } from './verify-plan.mjs'
 import {
   runCheck,
   runRecoveryProbe,
-  validateCheckCommand,
   type CheckResult,
-  type CommandResult,
+  type CheckRunner,
 } from './watch/checks.mjs'
 
-const NAME = /^[\w.-]{1,40}$/
-
-export interface VerifyCheck {
-  name: string
-  /** Recovery Probe arguments of the check, such as ["observe", "--config", "observe.json"]. */
-  command: string[]
-}
-
-export interface VerifyPlan {
-  /** The Git reference the change starts from; its changed lines are scanned for suspects. */
-  base: string
-  /** Runs of each check on each side. */
-  runs: number
-  checks: VerifyCheck[]
-}
-
-export function verifyPlan(input: unknown): VerifyPlan {
-  ensure(isRecord(input), 'The plan must be { base?, runs?, checks }')
-  const { base = 'main', runs = 3, checks, ...rest } = input
-  const [unknown] = Object.keys(rest)
-  if (unknown) throw new Error(`Unsupported plan option: ${unknown}`)
-  ensure(isNonEmptyString(base), 'base must be a Git reference, such as main')
-  ensure(isIntegerIn(runs, 1, 10), 'runs must be a whole number from 1 to 10')
-  ensure(
-    Array.isArray(checks) && checks.length > 0 && checks.length <= 20,
-    'checks must list 1–20 { name, command } entries',
-  )
-  const plan: VerifyPlan = { base, runs, checks: [] }
-  for (const [i, check] of checks.entries())
-    plan.checks.push(planCheck(check, `checks[${i}]`, plan.checks))
-  return plan
-}
-
-function planCheck(
-  check: unknown,
-  where: string,
-  earlier: VerifyCheck[],
-): VerifyCheck {
-  const { name, command } = (check ?? {}) as Record<string, unknown>
-  ensure(
-    typeof name === 'string' && NAME.test(name),
-    `${where}.name must match ${NAME}`,
-  )
-  ensure(
-    !earlier.some((other) => other.name === name),
-    `Check names must be unique: ${name}`,
-  )
-  ensure(
-    Array.isArray(command) && command.every((arg) => typeof arg === 'string'),
-    `${where}.command must be a list of arguments`,
-  )
-  validateCheckCommand(command)
-  return { name, command: [...command] }
-}
+export {
+  verifyPlan,
+  type VerifyCheck,
+  type VerifyPlan,
+} from './verify-plan.mjs'
 
 export type VerifyEvent =
   | { type: 'running'; side: 'before' | 'after'; check: string; run: number }
@@ -89,8 +34,10 @@ export interface VerifyOptions {
   plan: VerifyPlan
   /** Where the runs are kept; .recovery-probe/verify by default. */
   directory?: string
-  runCommand?: (args: string[]) => Promise<CommandResult>
+  runCommand?: CheckRunner
   onEvent?: (event: VerifyEvent) => void
+  /** Stops the run in progress and starts no more; recordBaseline and verifyChange then reject. */
+  signal?: AbortSignal
 }
 
 interface Baseline {
@@ -110,17 +57,20 @@ async function runSide(
   await rm(directory, { recursive: true, force: true })
   await mkdir(directory, { recursive: true, mode: 0o700 })
   const emit = options.onEvent ?? (() => {})
+  const { signal } = options
   const results = new Map<string, CheckResult[]>()
   for (const check of options.plan.checks) {
     const runs: CheckResult[] = []
     await mkdir(join(directory, check.name), { mode: 0o700 })
     for (let run = 1; run <= options.plan.runs; run++) {
+      stopIfAborted(side, signal)
       emit({ type: 'running', side, check: check.name, run })
       const folder = join(directory, check.name, `run-${run}`)
       const result = await runCheck(
         check.command,
         folder,
         options.runCommand ?? runRecoveryProbe,
+        { signal },
       )
       await writeFile(`${folder}.log`, result.output, { mode: 0o600 })
       runs.push(result)
@@ -128,7 +78,17 @@ async function runSide(
     }
     results.set(check.name, runs)
   }
+  stopIfAborted(side, signal)
   return results
+}
+
+function stopIfAborted(side: 'before' | 'after', signal?: AbortSignal) {
+  if (signal?.aborted)
+    throw new Error(
+      side === 'before'
+        ? 'Stopped before the baseline was recorded: record it again'
+        : 'Stopped before the runs after the change finished: nothing was verified',
+    )
 }
 
 /** Runs every check of the plan before the code changes, as the starting point. */

@@ -28,6 +28,8 @@ export interface DiscoveryReport {
 
 /** The partial report a run keeps up to date while it goes on. */
 export const PARTIAL_REPORT = 'report.partial.json'
+/** The gap that keeps a partial report's evidence incomplete. */
+export const RUN_IN_PROGRESS = 'RUN_IN_PROGRESS'
 
 // A reader never sees half a file: write next to it, then rename over it.
 async function writeAtomically(file: string, content: string) {
@@ -58,7 +60,7 @@ export async function writeDiscoveryProgress(
     partial.evidence = {
       ...partial.evidence,
       complete: false,
-      gaps: [...partial.evidence.gaps, 'RUN_IN_PROGRESS'],
+      gaps: [...partial.evidence.gaps, RUN_IN_PROGRESS],
       checked: [],
     }
   await writeAtomically(

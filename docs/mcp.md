@@ -91,5 +91,6 @@ The server gives the agent these rules when it connects:
 - `find_suspects` needs TypeScript in the project.
 - The browser tools check reads the page itself makes (fetch and XHR). Native, IPC and service-worker traffic needs the network tools or `run_recovery_probe`.
 - Reports go to `.recovery-probe/` in the server's working directory, the agent's project, and are ignored by Git there.
-- `run_recovery_probe` runs only Recovery Probe commands. It stops a command after `timeoutMs` (5 minutes by default) or when the client cancels the call.
+- `run_recovery_probe` runs only Recovery Probe commands. It stops a command after `timeoutMs` (5 minutes by default) or when the client cancels the call. The result of a command stopped at its timeout has `timedOut: true`.
+- Stopping a command asks it to stop first, so `discover`, `observe` and `refresh` can remove their faults. A command that can't stop on its own is ended at once, and one still running after 10 seconds is ended with every process it started. Cancelling `verify_change` or `self_check_scenarios` stops the checks they run in the same way.
 - The server holds one network fault proxy at a time, and closes it when the client disconnects.

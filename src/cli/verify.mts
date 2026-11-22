@@ -4,8 +4,10 @@ import {
   verifyChange,
   verifyPlan,
   type VerifyEvent,
+  type VerifyOptions,
 } from '../tools/verify.mjs'
 import { parseOptions, readConfig, text } from './args.mjs'
+import { signals } from './until-stopped.mjs'
 
 const USAGE = 'recovery-probe verify [--baseline] [--plan FILE] [--out FOLDER]'
 
@@ -20,8 +22,9 @@ Checks a code change with evidence before it is called done. The plan
 Run verify --baseline before changing the code, then verify after. It reruns
 each check, compares the runs with the baseline, and scans the lines changed
 since base for suspects. VERIFIED needs every check improved or clean with
-complete runs on both sides, and no suspect on a changed line. Exit code: 0
-verified, 1 a new defect, 2 anything else to resolve. See docs/verify.md.`
+complete runs on both sides, and no suspect on a changed line. Ctrl+C stops the
+check in progress, which gets 10 s to clean up. Exit code: 0 verified, 1 a new
+defect, 2 anything else to resolve. See docs/verify.md.`
 
 const shown = (path: string) => relative('.', path).split(sep).join('/') || '.'
 
@@ -55,7 +58,32 @@ export async function verifyMain(args: string[]) {
     text(values, 'plan') ?? '.recovery-probe/verify.json',
     verifyPlan,
   )
-  const options = { plan, directory, onEvent: print }
+  const abort = new AbortController()
+  const stop = () => {
+    if (!abort.signal.aborted)
+      console.error('\nStopping: the check in progress gets 10 s to clean up.')
+    abort.abort()
+  }
+  signals.on('SIGINT', stop)
+  signals.on('SIGTERM', stop)
+  try {
+    await verify(baseline, {
+      plan,
+      directory,
+      onEvent: print,
+      signal: abort.signal,
+    })
+  } catch (error) {
+    if (!abort.signal.aborted) throw error
+    console.error((error as Error).message)
+    process.exitCode = 2
+  } finally {
+    signals.off('SIGINT', stop)
+    signals.off('SIGTERM', stop)
+  }
+}
+
+async function verify(baseline: boolean, options: VerifyOptions) {
   if (baseline) {
     await recordBaseline(options)
     console.log(
