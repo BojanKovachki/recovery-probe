@@ -1,7 +1,22 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { cloneAt } from '../repair/workspace.mjs'
+import { cloneAt, git } from '../repair/workspace.mjs'
+
+/**
+ * Whether a command changed a tracked file in `checkout`, and if it did, the tracked files put
+ * back, so the commands after it run on the checked-out commit.
+ */
+export async function trackedFilesChanged(checkout: string) {
+  const status = await git(checkout, [
+    'status',
+    '--porcelain',
+    '--untracked-files=no',
+  ])
+  if (!status.trim()) return false
+  await git(checkout, ['checkout', '--force', 'HEAD', '--', '.'])
+  return true
+}
 
 /** The base and the candidate, each in its own disposable checkout outside the repository. */
 export interface Checkouts {

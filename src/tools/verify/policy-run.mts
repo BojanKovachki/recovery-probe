@@ -24,11 +24,11 @@ import { pendingSuspectClaim, suspectClaim } from './plan-claims.mjs'
 import {
   behaviorClaim,
   behaviorStatement,
-  projectClaim,
   projectStatement,
   type PolicyContext,
   type PolicyOptions,
 } from './policy-claims.mjs'
+import { environmentOf, projectClaim } from './project-checks.mjs'
 import { validatePolicy, type Policy } from './policy.mjs'
 import { VerificationLog, type PendingClaim } from './record.mjs'
 import { decideRun } from './rules.mjs'
@@ -219,8 +219,21 @@ async function decide(
     status: stoppedByBudget ? 'budget-exhausted' : 'completed',
     claims,
     coverage,
+    environment: await environmentOf(sides, policy?.env ?? []),
   })
 }
+
+/** The policy's overall budget, which an override can only lower, counted from `started`. */
+const budgetOf = (
+  policy: Policy | undefined,
+  budgetMs: number | undefined,
+  started: number,
+) =>
+  new RunBudget(
+    Math.min(policy?.budgets.totalMs ?? Infinity, budgetMs ?? Infinity),
+    policy?.budgets.cleanupReserveMs ?? 0,
+    started,
+  )
 
 /** The registry as committed on the base and as the candidate has it. */
 async function registriesOf(sides: Sides): Promise<Registries> {
@@ -263,11 +276,7 @@ export async function verifyPolicy(
     pendingOf(read.policy, options.base, registries),
   )
   const { policy, identity } = read
-  const budget = new RunBudget(
-    Math.min(policy?.budgets.totalMs ?? Infinity, options.budgetMs ?? Infinity),
-    policy?.budgets.cleanupReserveMs ?? 0,
-    started,
-  )
+  const budget = budgetOf(policy, options.budgetMs, started)
   let checkouts: Promise<Checkouts> | undefined
   const context = {
     options,
@@ -279,6 +288,7 @@ export async function verifyPolicy(
     identity,
     budget,
     checkouts: () => (checkouts ??= checkOutSides(sides.root, commits)),
+    setups: new Map(),
   }
   try {
     return await summarizedEvenIfStopped(log, options.signal, () =>

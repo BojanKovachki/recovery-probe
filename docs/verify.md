@@ -133,7 +133,44 @@ A claim that names an `app` runs on both sides: the base and the candidate, each
   - Verify prints the worst case before it starts.
 - **Instability.** A failure and a pass of the same scenario are `UNSTABLE`. A failure on the failure path with a pass on the normal path is still a failure.
 
-A claim without `app` runs `runs` times per path, on the candidate only, against an app someone started by hand. Recovery Probe can't tell which code that app runs, so the claim has the gap `APP_REVISION_UNKNOWN` and can't be VERIFIED. Electron apps aren't launched yet. **Project checks** are judged and listed, but not run yet: `UNAVAILABLE`.
+A claim without `app` runs `runs` times per path, on the candidate only, against an app someone started by hand. Recovery Probe can't tell which code that app runs, so the claim has the gap `APP_REVISION_UNKNOWN` and can't be VERIFIED. Electron apps aren't launched yet.
+
+### Project checks
+
+`projectChecks` are the policy's approved commands, such as type checking, linting and tests:
+
+```json
+"setup": [["node", "/path/to/npm-cli.js", "ci", "--ignore-scripts"]],
+"env": ["DATABASE_URL"],
+"projectChecks": [
+  {
+    "id": "unit-tests",
+    "command": ["node", "--test", "test/unit"],
+    "inputs": ["package.json#scripts.test"],
+    "timeoutMs": 600000,
+    "attempts": 1
+  }
+]
+```
+
+- **Each side in its own checkout.** The policy's `setup` runs once in each side's checkout, before the first command or app launch there. A setup that fails, or changes tracked files, stops that side.
+- **Commands.** Each command is an argument array run without a shell, with an allowlisted environment plus the variables `env` names. `env` passes names, never values, and the report lists the names. Each attempt has its own `timeoutMs` and counts against the budget. On Windows, run npm through Node and its CLI file, as for [repair](repair.md#windows-commands).
+- **Full logs.** Each attempt's output is kept whole in `policy/<side>/project/<id>/attempt-N.log`, with its hash in the claim's evidence.
+- **Contamination.** A command that changes tracked files gets `CHECK_MODIFIED_TRACKED_FILES`, and the files are put back before the next command.
+- **Comparison**, by exit code:
+
+  | Base | Candidate | `baseline.comparison` | Claim |
+  | --- | --- | --- | --- |
+  | passed | passed | `STILL_PASSING` | VERIFIED |
+  | passed | failed | `NEW_FAILURE` | FAILED, exit 1 |
+  | failed | failed | `FAILING_ON_BOTH` | FAILED, exit 2: a new failure can hide among the old ones |
+  | failed | passed | `RESOLVED_FAILURE` | VERIFIED |
+  | not completed | either | `NOT_COMPARABLE` | the candidate's result, with the base's status as a gap; a failure isn't proven new |
+
+  A failure and a pass across `attempts` (1–3) are `UNSTABLE`. Only exit codes count, so a claim can't tell an old test failure from a new one. Its gaps say so.
+- **Environment.** `environment` records Node, the platform, the variable names passed and each side's lockfile hashes. A lockfile that differs is part of the change.
+
+`recovery-probe verify --propose-checks` (or `proposeChecks` on `plan_verification`) reads the project's configuration and proposes `setup` and `projectChecks` with the evidence for each. It looks at `tsconfig.json`, ESLint configuration, `package.json` scripts that run a type checker, linter or test runner, test runner configuration, and lockfiles. It never runs anything. What it can't decide goes to a person: several test scripts, a script that chains commands, starts a server or sets variables, and lockfiles other than npm's. Copy what you approve into the policy; it counts once merged into the base.
 
 `npm run eval:verifier` runs one claim on a synthetic app through six cases: a fix, a regression, a fault that never fires, a missing and a changed expectation, and a budget stop. It scores each against `test/fixtures/verifier-evaluation/expected.json`, which the verifier never reads.
 

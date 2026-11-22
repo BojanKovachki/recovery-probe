@@ -39,7 +39,7 @@ const POLICY = {
   projectChecks: [
     {
       id: 'unit-tests',
-      command: ['node', '--test'],
+      command: ['node', '-e', 'process.exit(0)'],
       inputs: ['package.json#scripts.test'],
       timeoutMs: 60000,
     },
@@ -182,7 +182,7 @@ test('a policy claim is judged by the base and runs its approved files, but need
         (claim) => `${claim.id} ${claim.outcome} ${claim.reason}`,
       ),
       [
-        'project/unit-tests NOT_VERIFIED UNAVAILABLE',
+        'project/unit-tests VERIFIED PASSED',
         'behavior/items-keep-content NOT_VERIFIED APP_REVISION_UNKNOWN',
         'suspects/changed-lines VERIFIED PASSED',
       ],
@@ -249,7 +249,7 @@ test('a candidate edit to the policy changes every claim it governs, and a named
     let claims = byId(await verify(runner()))
     assert.equal(
       claims['project/unit-tests'].reason,
-      'UNAVAILABLE',
+      'PASSED',
       'another field changed',
     )
 
@@ -435,7 +435,7 @@ test('verify_change runs policy mode, returns the last result with status, and r
     assert.equal(status.run.status, 'completed')
     assert.deepEqual(
       status.claims.map((claim) => claim.reason),
-      ['UNAVAILABLE', 'APP_REVISION_UNKNOWN', 'PASSED'],
+      ['PASSED', 'APP_REVISION_UNKNOWN', 'PASSED'],
     )
     const usage = spawnSync(
       process.execPath,

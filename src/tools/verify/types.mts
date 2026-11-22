@@ -101,6 +101,13 @@ export interface VerificationRecord {
   baseProvenance?: BaseProvenance
   policy?: PolicyIdentity
   coverage?: { uncovered: string[]; ignored: string[] }
+  /** What commands ran with: Node, the platform, the variable names passed, and each side's lockfiles. */
+  environment?: {
+    node: string
+    platform: string
+    envNames: string[]
+    lockfiles: Record<'base' | 'candidate', Record<string, string>>
+  }
   /** Gaps that concern the whole run, such as BASE_NOT_ON_REMOTE. */
   runGaps?: string[]
 }

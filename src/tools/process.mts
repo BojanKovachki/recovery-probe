@@ -4,6 +4,7 @@ import {
   type ChildProcess,
   type ChildProcessByStdio,
 } from 'node:child_process'
+import { createWriteStream } from 'node:fs'
 import type { Readable } from 'node:stream'
 import { promisify } from 'node:util'
 import { setTimeout as sleep } from 'node:timers/promises'
@@ -41,10 +42,15 @@ export function validateCommand(command: unknown): string[] {
   return command
 }
 
+/**
+ * Starts `command` in `cwd`. Only the last 32000 characters of output are kept in memory;
+ * `log` names a file that gets all of it, written in full before the command counts as finished.
+ */
 export function startCommand(
   command: string[],
   cwd: string,
   extraEnv: Record<string, string> = {},
+  log?: string,
 ) {
   validateCommand(command)
   // On Windows use node + the npm CLI JS file instead of npm.cmd; no implicit shell.
@@ -55,10 +61,12 @@ export function startCommand(
     detached: process.platform !== 'win32',
     stdio: ['ignore', 'pipe', 'pipe'],
   })
+  const file = log ? createWriteStream(log, { mode: 0o600 }) : undefined
   let output = ''
   let error: Error | undefined
   let result: CommandResult | undefined
   const append = (data: Buffer) => {
+    file?.write(data)
     output = (output + data.toString()).slice(-32000)
   }
   child.stdout.on('data', append)
@@ -70,7 +78,8 @@ export function startCommand(
     child.on('close', (code, signal) => {
       const closed = { code, signal, output, error: error?.message }
       result = closed
-      resolve(closed)
+      if (file) file.end(() => resolve(closed))
+      else resolve(closed)
     })
   })
   return {
@@ -112,8 +121,9 @@ export async function runCommand(
   command: string[],
   cwd: string,
   timeoutMs = 120000,
+  { env, log }: { env?: Record<string, string>; log?: string } = {},
 ): Promise<CommandResult> {
-  const processRun = startCommand(command, cwd)
+  const processRun = startCommand(command, cwd, env, log)
   let timer: NodeJS.Timeout | undefined
   try {
     const result = await Promise.race([
