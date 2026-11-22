@@ -1,0 +1,499 @@
+[
+  {
+    "verdict": "VERIFIED",
+    "exitCode": 0,
+    "reasons": [],
+    "checks": [
+      {
+        "name": "add",
+        "verified": true,
+        "comparison": {
+          "verdict": "IMPROVED",
+          "summary": "1 problem gone (SILENT_FAILURE), none new.",
+          "exitCode": 0,
+          "mode": "IPC action check",
+          "target": "contacts:add",
+          "labels": {
+            "before": "before",
+            "after": "after"
+          },
+          "before": [
+            {
+              "workflow": "action",
+              "transport": "ipc",
+              "target": "contacts:add",
+              "complete": true,
+              "gaps": [],
+              "problems": [
+                {
+                  "code": "SILENT_FAILURE",
+                  "severity": "defect"
+                }
+              ],
+              "outcomes": [],
+              "checked": [""],
+              "path": "<root>/.recovery-probe/verify/before/add/run-1/report.json",
+              "mode": "IPC action check"
+            },
+            {
+              "workflow": "action",
+              "transport": "ipc",
+              "target": "contacts:add",
+              "complete": true,
+              "gaps": [],
+              "problems": [
+                {
+                  "code": "SILENT_FAILURE",
+                  "severity": "defect"
+                }
+              ],
+              "outcomes": [],
+              "checked": [""],
+              "path": "<root>/.recovery-probe/verify/before/add/run-2/report.json",
+              "mode": "IPC action check"
+            }
+          ],
+          "after": [
+            {
+              "workflow": "action",
+              "transport": "ipc",
+              "target": "contacts:add",
+              "complete": true,
+              "gaps": [],
+              "problems": [],
+              "outcomes": ["FEEDBACK_SHOWN"],
+              "checked": [""],
+              "path": "<root>/.recovery-probe/verify/after/add/run-1/report.json",
+              "mode": "IPC action check"
+            },
+            {
+              "workflow": "action",
+              "transport": "ipc",
+              "target": "contacts:add",
+              "complete": true,
+              "gaps": [],
+              "problems": [],
+              "outcomes": ["FEEDBACK_SHOWN"],
+              "checked": [""],
+              "path": "<root>/.recovery-probe/verify/after/add/run-2/report.json",
+              "mode": "IPC action check"
+            }
+          ],
+          "changes": [
+            {
+              "code": "SILENT_FAILURE",
+              "severity": "defect",
+              "status": "GONE",
+              "before": {
+                "found": 2,
+                "runs": 2,
+                "checked": 2
+              },
+              "after": {
+                "found": 0,
+                "runs": 2,
+                "checked": 2
+              }
+            }
+          ],
+          "outcomes": {
+            "before": [],
+            "after": ["FEEDBACK_SHOWN"]
+          },
+          "mismatch": [],
+          "markdown": "**Recovery Probe: before and after** · IPC action check · `contacts:add`\n\n| Problem | before | after | Change |\n| --- | --- | --- | --- |\n| `SILENT_FAILURE`, suspected defect | 2 of 2 runs | none in 2 complete runs | gone |\n\nOther outcomes: before none; after `FEEDBACK_SHOWN`.\n\nRuns: before 2 runs, 2 complete; after 2 runs, 2 complete.\n\n**Improved:** 1 problem gone (SILENT_FAILURE), none new.\n"
+        }
+      }
+    ],
+    "suspects": [],
+    "directory": "<root>/.recovery-probe/verify",
+    "markdown": "**Recovery Probe verify: verified**\n\n- `add`: 1 problem gone (SILENT_FAILURE), none new.\n- No suspects on changed lines.\n"
+  },
+  {
+    "verdict": "NOT_VERIFIED",
+    "exitCode": 1,
+    "reasons": [
+      "add: MIXED: 1 new problem after the change (DUPLICATE_SUBMIT), and 1 problem gone (SILENT_FAILURE)."
+    ],
+    "checks": [
+      {
+        "name": "add",
+        "verified": false,
+        "reason": "MIXED: 1 new problem after the change (DUPLICATE_SUBMIT), and 1 problem gone (SILENT_FAILURE).",
+        "comparison": {
+          "verdict": "MIXED",
+          "summary": "1 new problem after the change (DUPLICATE_SUBMIT), and 1 problem gone (SILENT_FAILURE).",
+          "exitCode": 1,
+          "mode": "IPC action check",
+          "target": "contacts:add",
+          "labels": {
+            "before": "before",
+            "after": "after"
+          },
+          "before": [
+            {
+              "workflow": "action",
+              "transport": "ipc",
+              "target": "contacts:add",
+              "complete": true,
+              "gaps": [],
+              "problems": [
+                {
+                  "code": "SILENT_FAILURE",
+                  "severity": "defect"
+                }
+              ],
+              "outcomes": [],
+              "checked": [""],
+              "path": "<root>/.recovery-probe/verify/before/add/run-1/report.json",
+              "mode": "IPC action check"
+            },
+            {
+              "workflow": "action",
+              "transport": "ipc",
+              "target": "contacts:add",
+              "complete": true,
+              "gaps": [],
+              "problems": [
+                {
+                  "code": "SILENT_FAILURE",
+                  "severity": "defect"
+                }
+              ],
+              "outcomes": [],
+              "checked": [""],
+              "path": "<root>/.recovery-probe/verify/before/add/run-2/report.json",
+              "mode": "IPC action check"
+            }
+          ],
+          "after": [
+            {
+              "workflow": "action",
+              "transport": "ipc",
+              "target": "contacts:add",
+              "complete": true,
+              "gaps": [],
+              "problems": [
+                {
+                  "code": "DUPLICATE_SUBMIT",
+                  "severity": "defect"
+                }
+              ],
+              "outcomes": [],
+              "checked": [""],
+              "path": "<root>/.recovery-probe/verify/after/add/run-1/report.json",
+              "mode": "IPC action check"
+            },
+            {
+              "workflow": "action",
+              "transport": "ipc",
+              "target": "contacts:add",
+              "complete": true,
+              "gaps": [],
+              "problems": [
+                {
+                  "code": "DUPLICATE_SUBMIT",
+                  "severity": "defect"
+                }
+              ],
+              "outcomes": [],
+              "checked": [""],
+              "path": "<root>/.recovery-probe/verify/after/add/run-2/report.json",
+              "mode": "IPC action check"
+            }
+          ],
+          "changes": [
+            {
+              "code": "DUPLICATE_SUBMIT",
+              "severity": "defect",
+              "status": "NEW",
+              "before": {
+                "found": 0,
+                "runs": 2,
+                "checked": 2
+              },
+              "after": {
+                "found": 2,
+                "runs": 2,
+                "checked": 2
+              }
+            },
+            {
+              "code": "SILENT_FAILURE",
+              "severity": "defect",
+              "status": "GONE",
+              "before": {
+                "found": 2,
+                "runs": 2,
+                "checked": 2
+              },
+              "after": {
+                "found": 0,
+                "runs": 2,
+                "checked": 2
+              }
+            }
+          ],
+          "outcomes": {
+            "before": [],
+            "after": []
+          },
+          "mismatch": [],
+          "markdown": "**Recovery Probe: before and after** · IPC action check · `contacts:add`\n\n| Problem | before | after | Change |\n| --- | --- | --- | --- |\n| `DUPLICATE_SUBMIT`, suspected defect | none in 2 complete runs | 2 of 2 runs | new |\n| `SILENT_FAILURE`, suspected defect | 2 of 2 runs | none in 2 complete runs | gone |\n\nRuns: before 2 runs, 2 complete; after 2 runs, 2 complete.\n\n**Mixed:** 1 new problem after the change (DUPLICATE_SUBMIT), and 1 problem gone (SILENT_FAILURE).\n"
+        }
+      }
+    ],
+    "suspects": [],
+    "directory": "<root>/.recovery-probe/verify",
+    "markdown": "**Recovery Probe verify: not verified**\n\n- `add`: MIXED: 1 new problem after the change (DUPLICATE_SUBMIT), and 1 problem gone (SILENT_FAILURE).\n- No suspects on changed lines.\n"
+  },
+  {
+    "verdict": "NOT_VERIFIED",
+    "exitCode": 2,
+    "reasons": ["add: 1 of 2 runs after the change were incomplete"],
+    "checks": [
+      {
+        "name": "add",
+        "verified": false,
+        "reason": "1 of 2 runs after the change were incomplete",
+        "comparison": {
+          "verdict": "IMPROVED",
+          "summary": "1 problem gone (SILENT_FAILURE), none new.",
+          "exitCode": 0,
+          "mode": "IPC action check",
+          "target": "contacts:add",
+          "labels": {
+            "before": "before",
+            "after": "after"
+          },
+          "before": [
+            {
+              "workflow": "action",
+              "transport": "ipc",
+              "target": "contacts:add",
+              "complete": true,
+              "gaps": [],
+              "problems": [
+                {
+                  "code": "SILENT_FAILURE",
+                  "severity": "defect"
+                }
+              ],
+              "outcomes": [],
+              "checked": [""],
+              "path": "<root>/.recovery-probe/verify/before/add/run-1/report.json",
+              "mode": "IPC action check"
+            },
+            {
+              "workflow": "action",
+              "transport": "ipc",
+              "target": "contacts:add",
+              "complete": true,
+              "gaps": [],
+              "problems": [
+                {
+                  "code": "SILENT_FAILURE",
+                  "severity": "defect"
+                }
+              ],
+              "outcomes": [],
+              "checked": [""],
+              "path": "<root>/.recovery-probe/verify/before/add/run-2/report.json",
+              "mode": "IPC action check"
+            }
+          ],
+          "after": [
+            {
+              "workflow": "action",
+              "transport": "ipc",
+              "target": "contacts:add",
+              "complete": true,
+              "gaps": [],
+              "problems": [],
+              "outcomes": ["FEEDBACK_SHOWN"],
+              "checked": [""],
+              "path": "<root>/.recovery-probe/verify/after/add/run-1/report.json",
+              "mode": "IPC action check"
+            },
+            {
+              "workflow": "action",
+              "transport": "ipc",
+              "target": "contacts:add",
+              "complete": false,
+              "gaps": ["FAULT_NOT_TRIGGERED"],
+              "problems": [],
+              "outcomes": [],
+              "checked": [],
+              "path": "<root>/.recovery-probe/verify/after/add/run-2/report.json",
+              "mode": "IPC action check"
+            }
+          ],
+          "changes": [
+            {
+              "code": "SILENT_FAILURE",
+              "severity": "defect",
+              "status": "GONE",
+              "before": {
+                "found": 2,
+                "runs": 2,
+                "checked": 2
+              },
+              "after": {
+                "found": 0,
+                "runs": 2,
+                "checked": 1
+              }
+            }
+          ],
+          "outcomes": {
+            "before": [],
+            "after": ["FEEDBACK_SHOWN"]
+          },
+          "mismatch": [],
+          "markdown": "**Recovery Probe: before and after** · IPC action check · `contacts:add`\n\n| Problem | before | after | Change |\n| --- | --- | --- | --- |\n| `SILENT_FAILURE`, suspected defect | 2 of 2 runs | none in 1 complete run | gone |\n\nOther outcomes: before none; after `FEEDBACK_SHOWN`.\n\nRuns: before 2 runs, 2 complete; after 2 runs, 1 complete.\n\n**Improved:** 1 problem gone (SILENT_FAILURE), none new.\n"
+        }
+      }
+    ],
+    "suspects": [],
+    "directory": "<root>/.recovery-probe/verify",
+    "markdown": "**Recovery Probe verify: not verified**\n\n- `add`: 1 of 2 runs after the change were incomplete\n- No suspects on changed lines.\n"
+  },
+  {
+    "verdict": "NOT_VERIFIED",
+    "exitCode": 2,
+    "reasons": ["add: the check changed since the baseline: record it again"],
+    "checks": [
+      {
+        "name": "add",
+        "verified": false,
+        "reason": "the check changed since the baseline: record it again"
+      }
+    ],
+    "suspects": [],
+    "directory": "<root>/.recovery-probe/verify",
+    "markdown": "**Recovery Probe verify: not verified**\n\n- `add`: the check changed since the baseline: record it again\n- No suspects on changed lines.\n"
+  },
+  {
+    "verdict": "NOT_VERIFIED",
+    "exitCode": 2,
+    "reasons": [
+      "1 suspect(s) on changed lines: prove or dismiss each, and mark a reviewed line with // recovery-probe-ignore"
+    ],
+    "checks": [
+      {
+        "name": "add",
+        "verified": true,
+        "comparison": {
+          "verdict": "IMPROVED",
+          "summary": "1 problem gone (SILENT_FAILURE), none new.",
+          "exitCode": 0,
+          "mode": "IPC action check",
+          "target": "contacts:add",
+          "labels": {
+            "before": "before",
+            "after": "after"
+          },
+          "before": [
+            {
+              "workflow": "action",
+              "transport": "ipc",
+              "target": "contacts:add",
+              "complete": true,
+              "gaps": [],
+              "problems": [
+                {
+                  "code": "SILENT_FAILURE",
+                  "severity": "defect"
+                }
+              ],
+              "outcomes": [],
+              "checked": [""],
+              "path": "<root>/.recovery-probe/verify/before/add/run-1/report.json",
+              "mode": "IPC action check"
+            },
+            {
+              "workflow": "action",
+              "transport": "ipc",
+              "target": "contacts:add",
+              "complete": true,
+              "gaps": [],
+              "problems": [
+                {
+                  "code": "SILENT_FAILURE",
+                  "severity": "defect"
+                }
+              ],
+              "outcomes": [],
+              "checked": [""],
+              "path": "<root>/.recovery-probe/verify/before/add/run-2/report.json",
+              "mode": "IPC action check"
+            }
+          ],
+          "after": [
+            {
+              "workflow": "action",
+              "transport": "ipc",
+              "target": "contacts:add",
+              "complete": true,
+              "gaps": [],
+              "problems": [],
+              "outcomes": ["FEEDBACK_SHOWN"],
+              "checked": [""],
+              "path": "<root>/.recovery-probe/verify/after/add/run-1/report.json",
+              "mode": "IPC action check"
+            },
+            {
+              "workflow": "action",
+              "transport": "ipc",
+              "target": "contacts:add",
+              "complete": true,
+              "gaps": [],
+              "problems": [],
+              "outcomes": ["FEEDBACK_SHOWN"],
+              "checked": [""],
+              "path": "<root>/.recovery-probe/verify/after/add/run-2/report.json",
+              "mode": "IPC action check"
+            }
+          ],
+          "changes": [
+            {
+              "code": "SILENT_FAILURE",
+              "severity": "defect",
+              "status": "GONE",
+              "before": {
+                "found": 2,
+                "runs": 2,
+                "checked": 2
+              },
+              "after": {
+                "found": 0,
+                "runs": 2,
+                "checked": 2
+              }
+            }
+          ],
+          "outcomes": {
+            "before": [],
+            "after": ["FEEDBACK_SHOWN"]
+          },
+          "mismatch": [],
+          "markdown": "**Recovery Probe: before and after** · IPC action check · `contacts:add`\n\n| Problem | before | after | Change |\n| --- | --- | --- | --- |\n| `SILENT_FAILURE`, suspected defect | 2 of 2 runs | none in 2 complete runs | gone |\n\nOther outcomes: before none; after `FEEDBACK_SHOWN`.\n\nRuns: before 2 runs, 2 complete; after 2 runs, 2 complete.\n\n**Improved:** 1 problem gone (SILENT_FAILURE), none new.\n"
+        }
+      }
+    ],
+    "suspects": [
+      {
+        "pattern": "UNKNOWN_AS_EMPTY",
+        "file": "src/store.ts",
+        "line": 3,
+        "column": 33,
+        "code": "export const rows = async () => (await load()) ?? []",
+        "why": "A read that failed or found nothing becomes an empty collection, so code that follows cannot tell \"unknown\" from \"none\" and may clear or delete what it has.",
+        "read": "load()",
+        "check": "Fail this read once. Content that disappears (check_read_recovery, discover) or files removed from disk (observe --files) confirm it."
+      }
+    ],
+    "directory": "<root>/.recovery-probe/verify",
+    "markdown": "**Recovery Probe verify: not verified**\n\n- `add`: 1 problem gone (SILENT_FAILURE), none new.\n- Suspects on changed lines: `src/store.ts:3` UNKNOWN_AS_EMPTY\n"
+  }
+]

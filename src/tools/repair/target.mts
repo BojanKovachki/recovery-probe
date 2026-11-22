@@ -1,9 +1,9 @@
 import { writeFile } from 'node:fs/promises'
-import { connect as netConnect } from 'node:net'
 import { dirname, join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import { setTimeout as sleep } from 'node:timers/promises'
 import type { Browser } from 'playwright'
+import { portOpen } from '../../core/ports.mjs'
 import { connectDesktop, selectDesktopPage } from '../../targets/cdp.mjs'
 import { checkWeb } from '../../workflows/web.mjs'
 import {
@@ -11,23 +11,7 @@ import {
   type DesktopReport,
 } from '../../workflows/check/http/run.mjs'
 import type { RepairConfig } from './config.mjs'
-import { startCommand } from './process.mjs'
-
-async function portOpen(url: URL) {
-  return new Promise<boolean>((resolve) => {
-    const socket = netConnect({
-      host: url.hostname.replace(/^\[|\]$/g, ''),
-      port: Number(url.port || (url.protocol === 'https:' ? 443 : 80)),
-    })
-    const done = (value: boolean) => {
-      socket.destroy()
-      resolve(value)
-    }
-    socket.once('connect', () => done(true))
-    socket.once('error', () => done(false))
-    socket.setTimeout(500, () => done(false))
-  })
-}
+import { startCommand } from '../process.mjs'
 
 async function waitForPort(
   url: URL,

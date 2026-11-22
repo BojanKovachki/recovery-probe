@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rename, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 
 /**
@@ -21,4 +21,10 @@ export async function reportFolder(
   }
   await writeFile(join(directory, '.gitignore'), '*\n', { mode: 0o600 })
   return directory
+}
+
+/** Writes next to `file`, then renames over it, so a reader never sees half a file. */
+export async function writeAtomically(file: string, content: string) {
+  await writeFile(`${file}.tmp`, content, { mode: 0o600 })
+  await rename(`${file}.tmp`, file)
 }

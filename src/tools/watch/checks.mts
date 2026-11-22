@@ -1,11 +1,17 @@
-import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { packageUrl } from '../../core/package.mjs'
+import { PARTIAL_REPORT, RUN_IN_PROGRESS } from '../../reports/discovery.mjs'
 import { CHECK_COMMAND_OPTIONS } from '../../workflows/command-line.mjs'
 import { readRunEvidence } from '../compare/reports.mjs'
 import type { RunEvidence } from '../compare/types.mjs'
+import {
+  startNode,
+  untilExit,
+  type StopLimits,
+  type StopReason,
+} from '../process.mjs'
 
 // Commands whose reports compare run to run; each needs --config.
 const CHECKS = Object.keys(CHECK_COMMAND_OPTIONS)
@@ -37,26 +43,29 @@ export function validateCheckCommand(args: string[]): void {
 export interface CommandResult {
   exitCode: number | null
   output: string
+  /** Why the command was stopped before it finished on its own. */
+  stopped?: StopReason
 }
 
-/** Runs a Recovery Probe command and collects what it prints. */
-export function runRecoveryProbe(args: string[]): Promise<CommandResult> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [CLI, ...args], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true,
-    })
-    let output = ''
-    child.stdout.on('data', (chunk) => (output += chunk))
-    child.stderr.on('data', (chunk) => (output += chunk))
-    child.on('error', reject)
-    child.on('close', (exitCode) => resolve({ exitCode, output }))
-  })
+export type CheckRunner = (
+  args: string[],
+  limits?: StopLimits,
+) => Promise<CommandResult>
+
+/** Runs a Recovery Probe command and collects what it prints; see untilExit for `limits`. */
+export async function runRecoveryProbe(
+  args: string[],
+  limits: StopLimits = {},
+): Promise<CommandResult> {
+  const child = startNode(CLI, args)
+  let output = ''
+  child.stdout.on('data', (chunk) => (output += chunk))
+  child.stderr.on('data', (chunk) => (output += chunk))
+  const { exitCode, stopped } = await untilExit(child, limits)
+  return { exitCode, output, ...(stopped ? { stopped } : {}) }
 }
 
-export interface CheckResult {
-  exitCode: number | null
-  output: string
+export interface CheckResult extends CommandResult {
   report?: string
   evidence?: RunEvidence
   /** Why the run has no comparable report. */
@@ -71,23 +80,47 @@ const lastLine = (output: string) =>
     .at(-1)
     ?.slice(0, 200)
 
-/** Runs a check once into `folder` and reads the report it wrote. */
+/**
+ * Runs a check once into `folder` and reads the report it wrote. A run that ended
+ * before its report, with a partial one, keeps that as incomplete evidence.
+ */
 export async function runCheck(
   command: string[],
   folder: string,
-  runCommand: (args: string[]) => Promise<CommandResult> = runRecoveryProbe,
+  runCommand: CheckRunner = runRecoveryProbe,
+  limits: StopLimits = {},
 ): Promise<CheckResult> {
-  const { exitCode, output } = await runCommand([...command, '--out', folder])
-  const result: CheckResult = { exitCode, output }
-  const report = join(folder, 'report.json')
-  if (!existsSync(report))
+  const { exitCode, output, stopped } = await runCommand(
+    [...command, '--out', folder],
+    limits,
+  )
+  const result: CheckResult = {
+    exitCode,
+    output,
+    ...(stopped ? { stopped } : {}),
+  }
+  const final = join(folder, 'report.json')
+  const partial = join(folder, PARTIAL_REPORT)
+  const report = [final, partial].find((file) => existsSync(file))
+  if (!report)
     result.error = lastLine(output) ?? `exit code ${exitCode}, and no report`
   else
     try {
-      result.evidence = await readRunEvidence(report)
+      const evidence = await readRunEvidence(report)
+      result.evidence = report === final ? evidence : stoppedRun(evidence)
       result.report = report
     } catch (error) {
       result.error = (error as Error).message
     }
   return result
 }
+
+/** The evidence of a partial report whose run will never finish. */
+const stoppedRun = (evidence: RunEvidence): RunEvidence => ({
+  ...evidence,
+  complete: false,
+  gaps: [
+    ...evidence.gaps.filter((gap) => gap !== RUN_IN_PROGRESS),
+    'PROCESS_STOPPED',
+  ],
+})
