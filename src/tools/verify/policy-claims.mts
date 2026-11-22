@@ -12,7 +12,6 @@ import type { Checkouts } from './checkout.mjs'
 import {
   behaviorCriteria,
   copyApproved,
-  projectCriteria,
   type BehaviorCriteria,
   type Registries,
   type Sides,
@@ -48,8 +47,10 @@ export interface PolicyContext {
   policy: Policy
   identity: PolicyIdentity
   budget: RunBudget
-  /** The base and candidate checkouts, made the first time a claim launches its app. */
+  /** The base and candidate checkouts, made the first time a claim needs them. */
   checkouts(): Promise<Checkouts>
+  /** Each side's setup, run once before its first command or launch: why it failed, if it did. */
+  setups: Map<'base' | 'candidate', Promise<string | undefined>>
 }
 
 const GAP_TEXT: Record<string, string> = {
@@ -73,38 +74,11 @@ export const behaviorStatement = (
 }
 
 /** A candidate change to the policy outranks one to a single claim's criteria. */
-const changeOf = (
+export const changeOf = (
   context: PolicyContext,
   change: ClaimFacts['expectation'],
 ): ClaimFacts['expectation'] =>
   context.identity.changedInCandidate ? 'POLICY_CHANGED' : change
-
-/** Project checks are judged and listed, but they run in disposable checkouts in a later version. */
-export async function projectClaim(
-  context: PolicyContext,
-  check: ProjectCheck,
-): Promise<Claim> {
-  const criteria = await projectCriteria(context.sides, check)
-  return {
-    id: `project/${check.id}`,
-    kind: 'project-check',
-    statement: projectStatement(check),
-    expectation: criteria.expectation,
-    ...decideClaim({
-      expectation: changeOf(context, criteria.change),
-      attempts: [],
-      execution: 'unavailable',
-      incomplete: [],
-      failure: 'NOT_COMPARABLE',
-    }),
-    execution: { status: 'unavailable', attempts: [] },
-    baseline: { status: 'unavailable' },
-    evidence: [],
-    gaps: [
-      'PROJECT_CHECKS_UNAVAILABLE: approved project checks run in disposable checkouts in a later version',
-    ],
-  }
-}
 
 /** Whether a run's report has each named `expect` step, and whether one was unmet. */
 async function assertionsIn(run: CheckResult, names: string[]) {

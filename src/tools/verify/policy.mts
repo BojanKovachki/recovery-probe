@@ -20,6 +20,7 @@ const KEYS = [
   'apps',
   'budgets',
   'ignore',
+  'env',
 ]
 
 export interface ProjectCheck {
@@ -62,6 +63,8 @@ export interface Policy {
   budgets: { totalMs: number; scenarioRunMs: number; cleanupReserveMs: number }
   /** Changed files that need no claim, as registry-style patterns. */
   ignore: string[]
+  /** Variables setup and project checks get from verify's own environment, by name. */
+  env: string[]
 }
 
 const commands = (value: unknown, where: string) => {
@@ -77,10 +80,10 @@ const commands = (value: unknown, where: string) => {
   })
 }
 
-const names = (value: unknown, where: string) => {
+const names = (value: unknown, where: string, pattern = NAME) => {
   ensure(
-    Array.isArray(value) && value.every((name) => NAME.test(String(name))),
-    `${where} must list names matching ${NAME}`,
+    Array.isArray(value) && value.every((name) => pattern.test(String(name))),
+    `${where} must list names matching ${pattern}`,
   )
   return value as string[]
 }
@@ -207,7 +210,7 @@ export function validatePolicy(input: unknown): Policy {
   const unknown = Object.keys(policy).find((key) => !KEYS.includes(key))
   ensure(!unknown, `Unsupported policy field: ${unknown}`)
   ensure(policy.schema === POLICY_SCHEMA, `schema must be ${POLICY_SCHEMA}`)
-  const { runs = 3, ignore = [], apps = {} } = policy
+  const { runs = 3, ignore = [], apps = {}, env = [] } = policy
   ensure(isIntegerIn(runs, 1, 10), 'runs must be a whole number from 1 to 10')
   ensure(
     Array.isArray(ignore) &&
@@ -229,6 +232,7 @@ export function validatePolicy(input: unknown): Policy {
     ),
     budgets: budgets(policy.budgets),
     ignore: ignore as string[],
+    env: names(env, 'env', /^[A-Za-z_][A-Za-z0-9_]*$/),
   }
   ensure(
     result.claims.length + result.projectChecks.length > 0,

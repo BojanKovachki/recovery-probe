@@ -10,6 +10,7 @@ import {
 import { openBrowser, startApp, type AppBrowser } from './apps.mjs'
 import { withApprovedFiles, type BehaviorCriteria } from './criteria.mjs'
 import { attemptOf, executionOf } from './plan-claims.mjs'
+import { setupOnce } from './project-checks.mjs'
 import type { PolicyClaim } from './policy.mjs'
 import type { PolicyContext } from './policy-claims.mjs'
 import type { ExecutionStatus } from './rules.mjs'
@@ -143,6 +144,8 @@ export async function runOnSide(
   let started
   let browser: AppBrowser | undefined
   try {
+    const failure = await setupOnce(context, side)
+    if (failure) throw new Error(`setup failed: ${failure}`)
     const checkout = (await context.checkouts())[side]
     started = await startApp(app, checkout, {
       sides: context.sides,

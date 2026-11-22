@@ -7,11 +7,13 @@ import {
   type Verification,
   type VerifyEvent,
 } from '../tools/verify.mjs'
+import { proposeChecks } from '../tools/verify/propose.mjs'
 import { parseOptions, readConfig, text, UsageError } from './args.mjs'
 import { signals } from './until-stopped.mjs'
 
 const USAGE = `recovery-probe verify [--baseline] [--plan FILE] [--out FOLDER]
-recovery-probe verify --policy FILE --base REF [--budget MS] [--out FOLDER]`
+recovery-probe verify --policy FILE --base REF [--budget MS] [--out FOLDER]
+recovery-probe verify --propose-checks [--json]`
 
 const HELP = `${USAGE}
 
@@ -30,7 +32,9 @@ Experimental: --policy reads recovery-probe.policy.json and its registry
 scenarios as committed on --base, judges each claim by them, and reports the
 candidate's changes to them. The base comes from this command, never a file.
 A claim with an app runs on each side's own launch of it. --budget lowers the
-policy's overall budget; nothing raises it.
+policy's overall budget; nothing raises it. --propose-checks reads the project's
+configuration and proposes setup and project checks for a policy, with the
+evidence for each. It runs nothing.
 
 Ctrl+C stops the check in progress, which gets 10 s to clean up. Exit code: 0
 verified, 1 a new defect, 2 anything else to resolve. See docs/verify.md.`
@@ -112,6 +116,7 @@ export async function verifyMain(args: string[]) {
     console.log(HELP)
     return
   }
+  if (args.includes('--propose-checks')) return propose(args)
   const request = requestOf(args)
   const abort = new AbortController()
   const stop = () => {
@@ -166,4 +171,30 @@ function report(result: Verification) {
     )
   console.log(`Pull request block: ${shown(result.directory)}/summary.md`)
   process.exitCode = result.exitCode
+}
+
+/** Prints the proposed setup and project checks: a policy fragment, its evidence, and what's left to decide. */
+async function propose(args: string[]) {
+  const { values } = parseOptions(args, {
+    'propose-checks': { type: 'boolean' },
+    json: { type: 'boolean' },
+  })
+  const proposals = await proposeChecks(process.cwd())
+  if (values.json) {
+    console.log(JSON.stringify(proposals, null, 2))
+    return
+  }
+  const fragment = {
+    setup: proposals.setup.map(({ command }) => command),
+    projectChecks: proposals.projectChecks.map(
+      ({ evidence: _evidence, ...check }) => check,
+    ),
+  }
+  console.log(proposals.note)
+  console.log(`\n${JSON.stringify(fragment, null, 2)}\n\nEvidence:`)
+  for (const check of proposals.projectChecks)
+    for (const { file, text } of check.evidence)
+      console.log(`  ${check.id}: ${file}${text ? `: ${text}` : ''}`)
+  if (proposals.ambiguities.length) console.log('\nDecide by hand:')
+  for (const ambiguity of proposals.ambiguities) console.log(`  - ${ambiguity}`)
 }
