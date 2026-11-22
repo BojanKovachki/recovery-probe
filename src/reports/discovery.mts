@@ -1,5 +1,6 @@
-import { rename, rm, writeFile } from 'node:fs/promises'
+import { rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { writeAtomically } from './folder.mjs'
 import { escapeHtml, renderTemplate } from './template.mjs'
 import { type DiscoveryFinding } from '../workflows/discover/experiment.mjs'
 import type { DiscoveryProgress } from '../workflows/discover/types.mjs'
@@ -30,12 +31,6 @@ export interface DiscoveryReport {
 export const PARTIAL_REPORT = 'report.partial.json'
 /** The gap that keeps a partial report's evidence incomplete. */
 export const RUN_IN_PROGRESS = 'RUN_IN_PROGRESS'
-
-// A reader never sees half a file: write next to it, then rename over it.
-async function writeAtomically(file: string, content: string) {
-  await writeFile(`${file}.tmp`, content, { mode: 0o600 })
-  await rename(`${file}.tmp`, file)
-}
 
 /**
  * Saves where a run is (progress.json) and what it has found so far (report.partial.json),

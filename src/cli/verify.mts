@@ -3,13 +3,15 @@ import {
   recordBaseline,
   verifyChange,
   verifyPlan,
+  verifyPolicy,
+  type Verification,
   type VerifyEvent,
-  type VerifyOptions,
 } from '../tools/verify.mjs'
-import { parseOptions, readConfig, text } from './args.mjs'
+import { parseOptions, readConfig, text, UsageError } from './args.mjs'
 import { signals } from './until-stopped.mjs'
 
-const USAGE = 'recovery-probe verify [--baseline] [--plan FILE] [--out FOLDER]'
+const USAGE = `recovery-probe verify [--baseline] [--plan FILE] [--out FOLDER]
+recovery-probe verify --policy FILE --base REF [--out FOLDER]`
 
 const HELP = `${USAGE}
 
@@ -22,9 +24,14 @@ Checks a code change with evidence before it is called done. The plan
 Run verify --baseline before changing the code, then verify after. It reruns
 each check, compares the runs with the baseline, and scans the lines changed
 since base for suspects. VERIFIED needs every check improved or clean with
-complete runs on both sides, and no suspect on a changed line. Ctrl+C stops the
-check in progress, which gets 10 s to clean up. Exit code: 0 verified, 1 a new
-defect, 2 anything else to resolve. See docs/verify.md.`
+complete runs on both sides, and no suspect on a changed line.
+
+Experimental: --policy reads recovery-probe.policy.json and its registry
+scenarios as committed on --base, judges each claim by them, and reports the
+candidate's changes to them. The base comes from this command, never a file.
+
+Ctrl+C stops the check in progress, which gets 10 s to clean up. Exit code: 0
+verified, 1 a new defect, 2 anything else to resolve. See docs/verify.md.`
 
 const shown = (path: string) => relative('.', path).split(sep).join('/') || '.'
 
@@ -42,22 +49,49 @@ function print(event: VerifyEvent) {
   else console.log(`Scanning the lines changed since ${event.base}`)
 }
 
+interface Request {
+  baseline: boolean
+  policy?: string
+  base?: string
+  plan?: string
+  directory?: string
+}
+
+/** What was asked, or a usage error for flags that don't go together. */
+function requestOf(args: string[]): Request {
+  const { values } = parseOptions(args, {
+    baseline: { type: 'boolean' },
+    plan: { type: 'string' },
+    out: { type: 'string' },
+    policy: { type: 'string' },
+    base: { type: 'string' },
+  })
+  const request = {
+    baseline: values.baseline === true,
+    policy: text(values, 'policy'),
+    base: text(values, 'base'),
+    plan: text(values, 'plan'),
+    directory: text(values, 'out'),
+  }
+  if (!request.policy && request.base)
+    throw new UsageError('--base goes with --policy; a plan names its own base')
+  if (request.policy && !request.base)
+    throw new UsageError(
+      '--policy needs --base REF: the base comes from the command, never from a file the change can edit',
+    )
+  if (request.policy && (request.baseline || request.plan))
+    throw new UsageError(
+      '--policy replaces the plan and its recorded baseline: leave out --plan and --baseline',
+    )
+  return request
+}
+
 export async function verifyMain(args: string[]) {
   if (args.includes('--help')) {
     console.log(HELP)
     return
   }
-  const { values } = parseOptions(args, {
-    baseline: { type: 'boolean' },
-    plan: { type: 'string' },
-    out: { type: 'string' },
-  })
-  const baseline = values.baseline === true
-  const directory = text(values, 'out')
-  const plan = await readConfig(
-    text(values, 'plan') ?? '.recovery-probe/verify.json',
-    verifyPlan,
-  )
+  const request = requestOf(args)
   const abort = new AbortController()
   const stop = () => {
     if (!abort.signal.aborted)
@@ -67,12 +101,7 @@ export async function verifyMain(args: string[]) {
   signals.on('SIGINT', stop)
   signals.on('SIGTERM', stop)
   try {
-    await verify(baseline, {
-      plan,
-      directory,
-      onEvent: print,
-      signal: abort.signal,
-    })
+    await verify(request, abort.signal)
   } catch (error) {
     if (!abort.signal.aborted) throw error
     console.error((error as Error).message)
@@ -83,15 +112,28 @@ export async function verifyMain(args: string[]) {
   }
 }
 
-async function verify(baseline: boolean, options: VerifyOptions) {
-  if (baseline) {
-    await recordBaseline(options)
-    console.log(
-      'Baseline recorded. Change the code, then run recovery-probe verify.',
+async function verify(request: Request, signal: AbortSignal) {
+  const common = { directory: request.directory, onEvent: print, signal }
+  if (request.policy)
+    return report(
+      await verifyPolicy({
+        ...common,
+        policy: request.policy,
+        base: request.base!,
+      }),
     )
-    return
-  }
-  const result = await verifyChange(options)
+  const plan = await readConfig(
+    request.plan ?? '.recovery-probe/verify.json',
+    verifyPlan,
+  )
+  if (!request.baseline) return report(await verifyChange({ ...common, plan }))
+  await recordBaseline({ ...common, plan })
+  console.log(
+    'Baseline recorded. Change the code, then run recovery-probe verify.',
+  )
+}
+
+function report(result: Verification) {
   console.log(
     `\n${result.verdict === 'VERIFIED' ? 'VERIFIED' : 'NOT VERIFIED'}`,
   )
