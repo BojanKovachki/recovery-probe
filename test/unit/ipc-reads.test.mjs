@@ -103,6 +103,21 @@ test('IPC reads list the called channels in order, with method labels only where
   )
 })
 
+test('IPC reads follow the order of first calls the hook numbered, even when their times tie', async () => {
+  const { control } = hook({
+    'app:read': row(1, 100, { firstReadOrder: 2 }),
+    'app:write': row(0, null, { firstReadOrder: null }),
+    'bridge:invoke': row(1, 100, { firstReadOrder: 1 }),
+  })
+  const reads = await discoverIpcReads(page, control, identity, {
+    durationMs: 200,
+  })
+  assert.deepEqual(
+    reads.channels.map(({ channel }) => channel),
+    ['bridge:invoke', 'app:read'],
+  )
+})
+
 test('IPC reads end the observation and fail when its coverage was lost', async () => {
   const { control, calls } = hook({ 'app:read': row(1, 100) }, { lose: true })
   await assert.rejects(

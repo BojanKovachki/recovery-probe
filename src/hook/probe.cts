@@ -248,7 +248,7 @@ class ProbeHook {
         ? current.channels[channel]
         : null
     if (!current || !row) return invoke()
-    const method = this.#countCall(row, channel, args)
+    const method = this.#countCall(current, channel, args)
     return (
       this.#fault(current, channel) ??
       trackCall(current, channel, { row, method }, invoke)
@@ -277,10 +277,16 @@ class ProbeHook {
   }
 
   #countCall(
-    row: ProbeState['channels'][string],
+    current: ProbeState,
     channel: string,
     args: unknown[],
   ): IpcReadStats | null {
+    const row = current.channels[channel]
+    // Two first calls can share a millisecond, so their order is counted, not timed.
+    if (!row.calls) {
+      const called = Object.values(current.channels).filter((r) => r.calls)
+      row.firstReadOrder = called.length + 1
+    }
     row.calls++
     row.firstReadAt ??= Date.now()
     row.lastReadAt = Date.now()

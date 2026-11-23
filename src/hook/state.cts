@@ -75,6 +75,7 @@ export function newState(
   for (const name of plan.watched)
     state.channels[name] = {
       ...readStats(),
+      firstReadOrder: null,
       realCalls: 0,
       maxDurationMs: 0,
       ...(methods ? { methods: Object.create(null) } : {}),

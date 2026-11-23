@@ -336,6 +336,7 @@ export interface IpcSnapshot {
         delayMs: number;
     } | null;
     channels: Record<string, IpcReadStats & {
+        firstReadOrder?: number | null;
         realCalls: number;
         maxDurationMs: number;
         methods?: Record<string, IpcReadStats>;
