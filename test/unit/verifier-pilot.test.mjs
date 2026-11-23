@@ -14,7 +14,7 @@ import {
   writeFile,
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { delimiter, dirname, join } from 'node:path'
 import { runSession } from '../../evaluations/verifier-pilot/harness/attempt.mjs'
 import {
   gradingFolder,
@@ -45,13 +45,16 @@ async function write(root, files) {
   }
 }
 
-/** A project whose buggy commit's check fails, and whose fix makes it pass. */
+/**
+ * A project whose buggy commit's check fails, and whose fix makes it pass. The check exits 3
+ * unless the case's environment reached it.
+ */
 async function syntheticProject(root) {
   const project = join(root, 'project')
   await write(project, {
     'status.txt': '1',
     'checks/status.mjs':
-      "import { readFileSync } from 'node:fs'\nprocess.exit(Number(readFileSync('status.txt', 'utf8')))\n",
+      "import { readFileSync } from 'node:fs'\nprocess.exit(process.env.PILOT_PROBE === 'yes' ? Number(readFileSync('status.txt', 'utf8')) : 3)\n",
   })
   git(project, 'init', '-q', '-b', 'main')
   git(project, 'config', 'core.autocrlf', 'false')
@@ -83,6 +86,7 @@ async function syntheticGrading(
       },
     ],
     ignore: ['status.txt'],
+    env: ['PILOT_PROBE'],
   }
   const usable = {
     'case.json': JSON.stringify({
@@ -91,6 +95,7 @@ async function syntheticGrading(
       buggyCommit: buggy,
       fixCommit: fix,
       expected: { fix: 'VERIFIED' },
+      environment: { path: [root], variables: { PILOT_PROBE: 'yes' } },
     }),
     'ISSUE.md': 'The status check fails.\n',
     'arm-a.md': 'Run `node checks/status.mjs`; it must exit 0.\n',
@@ -147,6 +152,8 @@ async function standIn(root, { sleepMs = 0, cost = true } = {}) {
 const [settings] = process.argv.slice(2)
 console.log('workspace=' + process.cwd())
 console.log('settings=' + readFileSync(settings, 'utf8'))
+console.log('probe=' + process.env.PILOT_PROBE)
+console.log('path0=' + process.env.PATH.split(${JSON.stringify(delimiter)})[0])
 writeFileSync('agent-was-here.txt', 'yes')
 setTimeout(() => console.log(${cost} ? JSON.stringify({ total_cost_usd: 0.01 }) : '{}'), ${sleepMs})
 `,
@@ -204,10 +211,19 @@ test('the grading folder must be outside this repository, and a workspace outsid
   )
 })
 
-test("a workspace holds the buggy commit's history only: the fix, later commits and tags stay out", async (t) => {
+test("a workspace holds the buggy commit's history only, with its committed line endings: the fix, later commits and tags stay out", async (t) => {
   const { root, grading } = await setup(t)
   const [testCase] = await readCases(grading)
   git(testCase.repository, 'tag', 'v2')
+  // Git for Windows' usual setting, which would check files out with CRLF.
+  const crlf = join(root, 'crlf.gitconfig')
+  await writeFile(crlf, '[core]\n\tautocrlf = true\n')
+  const global = process.env.GIT_CONFIG_GLOBAL
+  process.env.GIT_CONFIG_GLOBAL = crlf
+  t.after(() => {
+    if (global === undefined) delete process.env.GIT_CONFIG_GLOBAL
+    else process.env.GIT_CONFIG_GLOBAL = global
+  })
   for (const arm of ['A', 'B']) {
     const { workspace } = await prepareSession({
       testCase,
@@ -216,6 +232,11 @@ test("a workspace holds the buggy commit's history only: the fix, later commits 
       grading,
       cli: '',
     })
+    const check = await readFile(
+      join(workspace, 'checks', 'status.mjs'),
+      'utf8',
+    )
+    assert.ok(!check.includes('\r'), `${arm}: LF, as committed`)
     assert.equal(git(workspace, 'rev-parse', 'HEAD^'), testCase.buggyCommit)
     const everything = git(workspace, 'log', '--all', '--format=%H').split('\n')
     assert.ok(!everything.includes(testCase.fixCommit), `${arm}: no fix`)
@@ -298,6 +319,12 @@ test('every session is recorded with its transcript and diff, and the agent neve
     )
     assert.equal(saved.status, 'completed')
     const transcript = await readFile(join(folder, 'transcript.log'), 'utf8')
+    assert.match(transcript, /probe=yes/, "the case's variables")
+    assert.equal(
+      /path0=(.*)/.exec(transcript)[1].trim(),
+      root,
+      "the case's folders come first on PATH",
+    )
     const workspace = /workspace=(.*)/.exec(transcript)[1].trim()
     assert.ok(!isInside(workspace, grading) && !isInside(grading, workspace))
     assert.ok(!isInside(workspace, repository))

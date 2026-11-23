@@ -44,6 +44,10 @@ const ARM_TEXT = {
 async function checkOut(testCase, arm, folder) {
   const workspace = join(folder, 'workspace')
   await git(folder, 'init', '-q', workspace)
+  // The committed bytes, as Recovery Probe's own checkouts have them: Git for Windows would
+  // otherwise check out CRLF, which fails a project's line-ending lint in arm A's workspace only.
+  await git(workspace, 'config', 'core.autocrlf', 'false')
+  await git(workspace, 'config', 'core.eol', 'lf')
   await git(
     workspace,
     'fetch',

@@ -5,6 +5,7 @@ import { readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { runCommand } from '../../../dist/tools/process.mjs'
 import { sessionFolder } from './attempt.mjs'
+import { caseEnvironment } from './grading.mjs'
 import { git, prepareSession } from './workspace.mjs'
 
 /**
@@ -37,6 +38,7 @@ async function scorePatch({ testCase, patch, grading, run, cli }) {
       ],
       workspace,
       30 * 60 * 1000,
+      { env: caseEnvironment(testCase) },
     )
     const summary = join(workspace, '.recovery-probe', 'verify', 'summary.json')
     if (!existsSync(summary))
