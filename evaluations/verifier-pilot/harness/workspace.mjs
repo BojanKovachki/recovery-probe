@@ -2,6 +2,7 @@
 // a local remote the pilot base is pushed to, and the harness's own files, which the agent's
 // settings deny it.
 import { execFile } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
@@ -58,6 +59,9 @@ async function checkOut(testCase, arm, folder) {
     testCase.buggyCommit,
   )
   await git(workspace, 'checkout', '-q', '--detach', 'FETCH_HEAD')
+  // What running the app needs, such as a stand-in for its backend, goes to both arms alike.
+  const common = join(testCase.folder, 'common')
+  if (existsSync(common)) await cp(common, workspace, { recursive: true })
   if (arm === 'B')
     await cp(join(testCase.folder, 'policy'), workspace, { recursive: true })
   else await cp(join(testCase.folder, 'arm-a.md'), join(workspace, 'VERIFY.md'))

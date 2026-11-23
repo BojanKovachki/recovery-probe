@@ -99,6 +99,7 @@ async function syntheticGrading(
     }),
     'ISSUE.md': 'The status check fails.\n',
     'arm-a.md': 'Run `node checks/status.mjs`; it must exit 0.\n',
+    'common/pilot/backend.mjs': '// A stand-in for the app backend.\n',
     'policy/recovery-probe.policy.json': JSON.stringify(policy),
     'policy/recovery-probe.registry.json': JSON.stringify({ scenarios: [] }),
     'phase1.json': JSON.stringify([
@@ -237,6 +238,18 @@ test("a workspace holds the buggy commit's history only, with its committed line
       'utf8',
     )
     assert.ok(!check.includes('\r'), `${arm}: LF, as committed`)
+    assert.ok(
+      existsSync(join(workspace, 'pilot', 'backend.mjs')),
+      `${arm}: the common materials`,
+    )
+    assert.deepEqual(
+      [
+        existsSync(join(workspace, 'VERIFY.md')),
+        existsSync(join(workspace, 'recovery-probe.policy.json')),
+      ],
+      [arm === 'A', arm === 'B'],
+      `${arm}: only its own arm's materials`,
+    )
     assert.equal(git(workspace, 'rev-parse', 'HEAD^'), testCase.buggyCommit)
     const everything = git(workspace, 'log', '--all', '--format=%H').split('\n')
     assert.ok(!everything.includes(testCase.fixCommit), `${arm}: no fix`)
