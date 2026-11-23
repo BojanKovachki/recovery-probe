@@ -13,6 +13,7 @@ import { shownIn } from './plan-claims.mjs'
 import type { ProjectCheck } from './policy.mjs'
 import {
   changeOf,
+  criteriaChangeOf,
   projectStatement,
   type PolicyContext,
 } from './policy-claims.mjs'
@@ -208,13 +209,16 @@ export async function projectClaim(
   const base = await runProjectSide(context, check, 'base')
   const candidate = await runProjectSide(context, check, 'candidate')
   const comparison = compareProject(base, candidate)
+  const change = changeOf(context, criteria.change)
   return {
     id,
     kind: 'project-check',
     statement: projectStatement(check),
     expectation: criteria.expectation,
     ...decideClaim({
-      expectation: changeOf(context, criteria.change),
+      expectation: change,
+      // The command reads its inputs from each side's checkout, so a changed input ran.
+      approvedCriteriaRan: criteria.change === 'present',
       attempts: candidate.attempts.map(({ result }) => {
         const completed = !result.timedOut && !result.error
         return { completed, failed: completed && result.code !== 0 }
@@ -227,6 +231,7 @@ export async function projectClaim(
         ? comparison
         : 'NOT_COMPARABLE',
     }),
+    ...criteriaChangeOf(change),
     execution: {
       status: candidate.status,
       attempts: context.log.attemptsOf(id),

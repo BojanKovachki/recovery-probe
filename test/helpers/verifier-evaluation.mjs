@@ -23,6 +23,7 @@ import { verifyPolicy } from '../../dist/tools/verify.mjs'
 export const fixtures = fileURLToPath(
   new URL('../fixtures/verifier-evaluation/', import.meta.url),
 )
+// The claim a case scores unless its expected entry names another in `claimId`.
 const CLAIM = 'behavior/items-keep-content'
 
 const git = (cwd, ...args) =>
@@ -75,7 +76,7 @@ const optionsOf = async (id) => {
 }
 
 /** Verifies one case's change and reduces the result to what expected.json scores. */
-async function runCase(id) {
+async function runCase(id, claimId) {
   const root = await realpath(
     await mkdtemp(join(tmpdir(), 'recovery-probe-verifier-eval-')),
   )
@@ -88,13 +89,14 @@ async function runCase(id) {
       base: 'main',
       ...(await optionsOf(id)),
     })
-    const claim = result.claims.find((found) => found.id === CLAIM)
+    const claim = result.claims.find((found) => found.id === claimId)
     const sides = new Set(claim?.execution.attempts.map((a) => a.side))
     return {
       verdict: result.verdict,
       exitCode: result.exitCode,
       claim: claim && `${claim.outcome} ${claim.reason}`,
       baseline: claim?.baseline.comparison,
+      criteriaChange: claim?.criteriaChange,
       runStatus: result.run.status,
       bothSides: sides.has('base') && sides.has('candidate'),
       commits: {
@@ -122,9 +124,10 @@ export async function evaluateVerifier(ids) {
   const results = []
   try {
     for (const id of ids ?? Object.keys(expected)) {
-      const actual = await runCase(id)
+      const { claimId = CLAIM, ...scored } = expected[id]
+      const actual = await runCase(id, claimId)
       const checks = Object.fromEntries(
-        Object.entries(expected[id]).map(([key, value]) => [
+        Object.entries(scored).map(([key, value]) => [
           key,
           actual[key] === value,
         ]),

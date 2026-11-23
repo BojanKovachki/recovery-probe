@@ -80,6 +80,10 @@ export const changeOf = (
 ): ClaimFacts['expectation'] =>
   context.identity.changedInCandidate ? 'POLICY_CHANGED' : change
 
+/** The candidate's change to a claim's criteria, kept whatever the outcome: a person must approve it. */
+export const criteriaChangeOf = (change: ClaimFacts['expectation']) =>
+  change === 'present' || change === 'missing' ? {} : { criteriaChange: change }
+
 /** Whether a run's report has each named `expect` step, and whether one was unmet. */
 async function assertionsIn(run: CheckResult, names: string[]) {
   let steps: { kind?: string; name?: string; status?: string }[] = []
@@ -197,6 +201,7 @@ export async function behaviorClaim(
     : undefined
   const { facts, baseline, gaps } = await behaviorFacts(claim, runs)
   const results = [...(runs?.base?.runs ?? []), ...(runs?.candidate.runs ?? [])]
+  const change = changeOf(context, criteria.change)
   return {
     id,
     kind: 'behavior',
@@ -204,8 +209,11 @@ export async function behaviorClaim(
     expectation: criteria.expectation,
     ...decideClaim({
       ...facts,
-      expectation: changeOf(context, criteria.change),
+      expectation: change,
+      // Both sides run the base's registry entry with copies of the base's files.
+      approvedCriteriaRan: true,
     }),
+    ...criteriaChangeOf(change),
     execution: {
       status: facts.execution,
       attempts: context.log.attemptsOf(id),

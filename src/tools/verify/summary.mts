@@ -43,6 +43,12 @@ export const scanReason = (scan: { suspects: Suspect[]; error?: string }) =>
       ? `${scan.suspects.length} suspect(s) on changed lines: prove or dismiss each, and mark a reviewed line with // recovery-probe-ignore`
       : undefined
 
+/** A claim's reason, with the change to its criteria when that didn't decide the outcome. */
+export const reasonOf = (claim: Claim) =>
+  claim.criteriaChange && claim.criteriaChange !== claim.reason
+    ? `${claim.reason}, and ${claim.criteriaChange} needs approval on the base`
+    : claim.reason
+
 /** The pull request block: a plan's checks, or a policy's claims when given. */
 function markdownOf(
   result: Omit<VerificationFields, 'markdown'>,
@@ -56,7 +62,7 @@ function markdownOf(
           .filter((claim) => claim.kind !== 'suspect-scan')
           .map(
             (claim) =>
-              `- \`${claim.id}\`: ${claim.outcome === 'VERIFIED' ? 'verified' : `${claim.outcome} (${claim.reason})`}`,
+              `- \`${claim.id}\`: ${claim.outcome === 'VERIFIED' ? 'verified' : `${claim.outcome} (${reasonOf(claim)})`}`,
           )
       : result.checks.map(
           (check) =>

@@ -2,7 +2,7 @@
   "scenarios": [
     {
       "name": "items-failure",
-      "paths": ["src/items.js", "public/items.html"],
+      "paths": ["src/items.js", "src/format.js", "public/items.html"],
       "check": [
         "observe",
         "--config",
@@ -16,7 +16,7 @@
     },
     {
       "name": "items-normal",
-      "paths": ["src/items.js", "public/items.html"],
+      "paths": ["src/items.js", "src/format.js", "public/items.html"],
       "check": [
         "observe",
         "--config",

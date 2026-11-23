@@ -66,7 +66,7 @@ A run that ended before writing its report counts as incomplete. If it left a pa
 | `verdictRules` | `recovery-probe/verdict-rules@1`: the rules that decided the claims. |
 | `claims` | One per check, plus `suspects/changed-lines` for the scan. |
 
-Each claim has an `id` such as `behavior/queue`, a `statement`, its `expectation`, an `outcome` (`VERIFIED`, `FAILED` or `NOT_VERIFIED`) with one `reason` code, its `execution` status and every attempt, the `baseline` comparison, the report files it rests on with their hashes, and its `gaps`. In plan mode, the expectation's source is `plan`, which nobody approves, and the verdict and exit code are decided as they always were.
+Each claim has an `id` such as `behavior/queue`, a `statement`, its `expectation`, an `outcome` (`VERIFIED`, `FAILED` or `NOT_VERIFIED`) with one `reason` code, in policy mode the candidate's `criteriaChange` if it made one, its `execution` status and every attempt, the `baseline` comparison, the report files it rests on with their hashes, and its `gaps`. In plan mode, the expectation's source is `plan`, which nobody approves, and the verdict and exit code are decided as they always were.
 
 While verify runs, `verification.partial.json` is rewritten after every run, so a long verification can be followed. A verification that stops still writes `summary.json`, with `run.status: "cancelled"` and every claim without a result as `NOT_RUN`. A missing result never counts as a pass.
 
@@ -96,12 +96,19 @@ npx recovery-probe verify --policy recovery-probe.policy.json --base main
   - `POLICY_CHANGED` when it edits the policy;
   - `CHECK_INPUT_CHANGED` when it edits an input a project check names, such as `package.json#scripts.test`.
 
-  The claim stays NOT_VERIFIED until the change is merged into the base. Its result against the approved version still shows.
+  The claim stays NOT_VERIFIED until the change is merged into the base. Its result against the approved version still shows, and `criteriaChange` keeps the change whatever the outcome.
+- **A new failure under the approved criteria still counts.** When the criteria that ran on the candidate are the approved ones, and they show a failure that's new since the base, the claim is FAILED with `NEW_FAILURE` and verify exits with 1, even though the candidate also changed the criteria. The reasons list both: the regression, and the change that still needs approval. Which criteria run depends on the change:
+
+  | Change | What runs on the candidate | A new failure there |
+  | --- | --- | --- |
+  | `POLICY_CHANGED` | the base's policy: its commands, claims and scenarios | FAILED, exit 1, unless one of the check's inputs changed too |
+  | `EXPECTATION_CHANGED` | the base's registry entry, with copies of the base's files | FAILED, exit 1 |
+  | `CHECK_INPUT_CHANGED` | the approved command, reading the candidate's changed input | NOT_VERIFIED, exit 2: the candidate's own criteria may have caused it |
 - **Hashes use committed bytes**, as Git would store them, so line-ending conversion never makes a file look changed.
 - **Coverage is strict.** A changed file that no claim's scenario `paths` cover, and that the base's `ignore` rules don't leave out, blocks VERIFIED and is listed in `coverage.uncovered`. A candidate's own ignore rules are never used.
 - **Base provenance.** `baseProvenance` records the commit, whether CI supplied it, and whether it's on the remote branch of the same name. A local base that isn't adds the run gap `BASE_NOT_ON_REMOTE`, which blocks VERIFIED. Even a base on the remote branch proves neither branch protection nor review.
 
-Exit codes keep their meaning: 1 only for a claim that failed with `NEW_FAILURE`, even when others are incomplete; 0 when every claim is verified and nothing blocks the run; 2 otherwise. A timeout is never a regression.
+Exit codes keep their meaning: 1 only for a claim that failed with `NEW_FAILURE`, even when others are incomplete or the candidate changed the criteria; 0 when every claim is verified and nothing blocks the run; 2 otherwise. A timeout is never a regression.
 
 ### Each side's own app
 
@@ -172,7 +179,7 @@ A claim without `app` runs `runs` times per path, on the candidate only, against
 
 `recovery-probe verify --propose-checks` (or `proposeChecks` on `plan_verification`) reads the project's configuration and proposes `setup` and `projectChecks` with the evidence for each. It looks at `tsconfig.json`, ESLint configuration, `package.json` scripts that run a type checker, linter or test runner, test runner configuration, and lockfiles. It never runs anything. What it can't decide goes to a person: several test scripts, a script that chains commands, starts a server or sets variables, and lockfiles other than npm's. Copy what you approve into the policy; it counts once merged into the base.
 
-`npm run eval:verifier` runs one claim on a synthetic app through six cases: a fix, a regression, a fault that never fires, a missing and a changed expectation, and a budget stop. It scores each against `test/fixtures/verifier-evaluation/expected.json`, which the verifier never reads.
+`npm run eval:verifier` verifies changes to a synthetic app, with one behavior claim and a unit-test project check, through eight cases: a fix, a regression, a fault that never fires, a missing and a changed expectation, a budget stop, and a regression made alongside an edit to the policy or to the expectation. It scores each against `test/fixtures/verifier-evaluation/expected.json`, which the verifier never reads.
 
 A policy doesn't make a local run tamper-proof. Anyone with a shell can change the base locally or edit files the run reads. The stronger setup is verify in CI, with the base supplied by CI.
 

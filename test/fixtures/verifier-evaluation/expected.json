@@ -37,5 +37,22 @@
     "claim": "NOT_VERIFIED BUDGET_EXHAUSTED",
     "runStatus": "budget-exhausted",
     "bothSides": false
+  },
+  "policy-tampered-regression": {
+    "claimId": "project/unit-tests",
+    "verdict": "NOT_VERIFIED",
+    "exitCode": 1,
+    "claim": "FAILED NEW_FAILURE",
+    "baseline": "NEW_FAILURE",
+    "criteriaChange": "POLICY_CHANGED",
+    "bothSides": true
+  },
+  "expectation-tampered-regression": {
+    "verdict": "NOT_VERIFIED",
+    "exitCode": 1,
+    "claim": "FAILED NEW_FAILURE",
+    "baseline": "REGRESSED",
+    "criteriaChange": "EXPECTATION_CHANGED",
+    "bothSides": true
   }
 }
