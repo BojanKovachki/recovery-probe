@@ -14,6 +14,7 @@ grading/
     ISSUE.md                 the agent's task: the issue, without references to the fix
     arm-a.md                 arm A: the approved commands, and each claim's text and assertions
     policy/                  arm B: recovery-probe.policy.json, its registry and check files
+    common/                  optional, both arms: what running the app needs, such as a stand-in backend
     phase1.json              fixed patches and what verify should say about each
     phase1/<patch>           those patches
   runs/<run>/
@@ -31,7 +32,7 @@ grading/
 ## A session
 
 1. A fresh folder under the system's temporary folder, outside this repository and the grading folder. The harness refuses either containing the other.
-2. The workspace fetches `buggyCommit` and its history from `repository`, without tags: a clone would bring the fix and every later commit, which the agent could read with `git log --all`. Files are checked out with their committed line endings, as in Recovery Probe's own checkouts, so a line-ending lint rule fails in neither arm. It adds the arm's materials: `VERIFY.md` for A, the policy files for B. It commits them as the pilot base and pushes that to a local remote as `main`, so `verify --base main` reads the approved policy.
+2. The workspace fetches `buggyCommit` and its history from `repository`, without tags: a clone would bring the fix and every later commit, which the agent could read with `git log --all`. Files are checked out with their committed line endings, as in Recovery Probe's own checkouts, so a line-ending lint rule fails in neither arm. It adds `common/`, if the case has one, and the arm's materials: `VERIFY.md` for A, the policy files for B. It commits them as the pilot base and pushes that to a local remote as `main`, so `verify --base main` reads the approved policy.
 3. The agent runs in the workspace, with the command in [pilot.json](pilot.json). It gets an allowlisted environment plus the case's `environment`, reads denied in the grading folder, this repository and the harness's own files, and no MCP server for A or Recovery Probe's for B. It's stopped at the session's time limit.
 4. The record, the full transcript and the final diff go to the grading folder, and the session's folder is removed.
 
