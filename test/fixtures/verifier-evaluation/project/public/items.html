@@ -1,15 +1,21 @@
 <!doctype html><meta charset="utf-8"><title>Items</title>
 <main><nav><button id="home">Home</button><button id="open-items">Items</button></nav><section id="view"></section></main>
 <script type="module">
+import { countLabel } from '/src/format.js'
 import { createItemList } from '/src/items.js'
 const view = document.querySelector('#view')
 const home = () => { view.innerHTML = '<h1>Home</h1>' }
+const showCount = () => {
+  const count = document.querySelector('#count')
+  if (count) count.textContent = countLabel(document.querySelectorAll('#items li').length)
+}
 document.querySelector('#home').addEventListener('click', home)
 document.querySelector('#open-items').addEventListener('click', () => {
-  view.innerHTML = '<h1>Items</h1><button id="refresh">Refresh</button><p id="error" role="alert" hidden></p><section id="items-region"><ul id="items"></ul></section>'
+  view.innerHTML = '<h1>Items</h1><button id="refresh">Refresh</button><p id="error" role="alert" hidden></p><p id="count"></p><section id="items-region"><ul id="items"></ul></section>'
   const list = createItemList(document)
-  document.querySelector('#refresh').addEventListener('click', () => list.refresh())
-  list.refresh()
+  const refresh = () => list.refresh().then(showCount)
+  document.querySelector('#refresh').addEventListener('click', refresh)
+  refresh()
 })
 home()
 </script>
