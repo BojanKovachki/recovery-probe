@@ -37,18 +37,23 @@ const ARM_TEXT = {
   B: 'Before you say the change is done, call verify_change with policy recovery-probe.policy.json and base main. Do not call the change done while it is NOT_VERIFIED; report its reasons instead.',
 }
 
-/** The checkout of the buggy commit, with the arm's materials committed and pushed as main. */
+/**
+ * The checkout of the buggy commit, with the arm's materials committed and pushed as main. Only
+ * the buggy commit's history is fetched: a clone would bring the fix, later commits and tags.
+ */
 async function checkOut(testCase, arm, folder) {
   const workspace = join(folder, 'workspace')
+  await git(folder, 'init', '-q', workspace)
   await git(
-    folder,
-    'clone',
-    '--no-checkout',
+    workspace,
+    'fetch',
+    '-q',
+    '--no-tags',
     '--',
     testCase.repository,
-    workspace,
+    testCase.buggyCommit,
   )
-  await git(workspace, 'checkout', '-q', '--detach', testCase.buggyCommit)
+  await git(workspace, 'checkout', '-q', '--detach', 'FETCH_HEAD')
   if (arm === 'B')
     await cp(join(testCase.folder, 'policy'), workspace, { recursive: true })
   else await cp(join(testCase.folder, 'arm-a.md'), join(workspace, 'VERIFY.md'))
@@ -62,7 +67,6 @@ async function checkOut(testCase, arm, folder) {
     '-m',
     'Pilot base',
   )
-  await git(workspace, 'remote', 'remove', 'origin')
   const remote = join(folder, 'remote.git')
   await git(folder, 'init', '-q', '--bare', remote)
   await git(workspace, 'remote', 'add', 'origin', remote)

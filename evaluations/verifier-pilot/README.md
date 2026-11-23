@@ -24,13 +24,13 @@ grading/
 ```
 
 - `type` is one of `tests-catch`, `failure-handling`, `intended-change`, `missing-expectation`, `outside-claims` or `base-fails`, as in the protocol.
-- `repository` is a clone URL or a local path. `buggyCommit` is the fix's parent.
+- `repository` is a clone URL or a local path. `buggyCommit` is the fix's parent, as a full commit id: GitHub fetches a commit by its full id only.
 - Each `phase1.json` entry is `{ "patch": "real-fix.patch", "expected": { "verdict", "exitCode", "reasons": { "<claim id>": "<reason>" } } }`.
 
 ## A session
 
 1. A fresh folder under the system's temporary folder, outside this repository and the grading folder. The harness refuses either containing the other.
-2. The workspace clones `repository` at `buggyCommit` and adds the arm's materials: `VERIFY.md` for A, the policy files for B. It commits them as the pilot base and pushes that to a local remote as `main`, so `verify --base main` reads the approved policy.
+2. The workspace fetches `buggyCommit` and its history from `repository`, without tags: a clone would bring the fix and every later commit, which the agent could read with `git log --all`. It adds the arm's materials: `VERIFY.md` for A, the policy files for B. It commits them as the pilot base and pushes that to a local remote as `main`, so `verify --base main` reads the approved policy.
 3. The agent runs in the workspace, with the command in [pilot.json](pilot.json). It gets an allowlisted environment, reads denied in the grading folder, this repository and the harness's own files, and no MCP server for A or Recovery Probe's for B. It's stopped at the session's time limit.
 4. The record, the full transcript and the final diff go to the grading folder, and the session's folder is removed.
 

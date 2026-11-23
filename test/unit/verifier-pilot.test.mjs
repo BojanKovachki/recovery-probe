@@ -204,6 +204,30 @@ test('the grading folder must be outside this repository, and a workspace outsid
   )
 })
 
+test("a workspace holds the buggy commit's history only: the fix, later commits and tags stay out", async (t) => {
+  const { root, grading } = await setup(t)
+  const [testCase] = await readCases(grading)
+  git(testCase.repository, 'tag', 'v2')
+  for (const arm of ['A', 'B']) {
+    const { workspace } = await prepareSession({
+      testCase,
+      arm,
+      folder: join(root, `session-${arm}`),
+      grading,
+      cli: '',
+    })
+    assert.equal(git(workspace, 'rev-parse', 'HEAD^'), testCase.buggyCommit)
+    const everything = git(workspace, 'log', '--all', '--format=%H').split('\n')
+    assert.ok(!everything.includes(testCase.fixCommit), `${arm}: no fix`)
+    assert.throws(
+      () => git(workspace, 'cat-file', '-e', testCase.fixCommit),
+      undefined,
+      `${arm}: the fix's objects aren't there either`,
+    )
+    assert.equal(git(workspace, 'tag'), '', `${arm}: no tags`)
+  }
+})
+
 test('the schedule is seeded: every case in both arms, repeated, in the same order for the same seed', () => {
   const ids = ['a', 'b', 'c', 'd', 'e', 'f']
   const sessions = schedule(ids, 3, 1)
