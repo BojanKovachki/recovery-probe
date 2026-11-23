@@ -186,9 +186,16 @@ export async function behaviorCriteria(
   const approved = names.map((name) => registries.base.get(name))
   const proposed = names.map((name) => registries.candidate.get(name) ?? null)
   const commands = approved.map((entry) => entry?.check)
-  const absent = names.find((_, i) => !Array.isArray(commands[i]))
-  if (absent)
-    return missingCriteria(`${absent} has no check in the base registry`)
+  const absent = names.findIndex((_, i) => !Array.isArray(commands[i]))
+  if (absent >= 0) {
+    // An open question is what a person must answer before the claim can be checked.
+    const question = approved[absent]?.question
+    return missingCriteria(
+      typeof question === 'string'
+        ? `${names[absent]} has an open question instead of a check: ${question}`
+        : `${names[absent]} has no check in the base registry`,
+    )
+  }
   const files = filesRead(sides, commands as string[][])
   if (typeof files === 'string') return missingCriteria(files)
   const inputs = await inputsOnBothSides(sides, files)

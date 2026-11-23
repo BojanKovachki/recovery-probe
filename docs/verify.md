@@ -90,6 +90,7 @@ npx recovery-probe verify --policy recovery-probe.policy.json --base main
 
 - **The base comes from the command:** `--base`, or `base` on `verify_change`, never from a file in the working tree. In CI, pass the commit of the protected branch.
 - **The policy and the registry are read as committed on the base.** The policy, `recovery-probe.policy.json`, owns the claims, project checks, budgets, ignore rules and test files. Claims name [registry](plan.md#the-registry) scenarios: a `failurePath` that fails a read and a `normalPath` that checks the same screen without a fault, plus the `assertions` (names of `expect` steps) both must meet.
+- **An open question is a missing expectation.** A scenario with a `question` and no `check` leaves its claim NOT_VERIFIED with `EXPECTATION_MISSING`, and the claim's gap quotes the question, for a person to answer instead of the agent guessing.
 - **The base's files are the ones that run.** A claim's scenarios run with the configuration and step files copied from the base. The candidate's copies are only compared with them.
 - **A change to the criteria needs review.** The report gives these reasons, with the approved and candidate versions and what changed:
   - `EXPECTATION_CHANGED` when the candidate edits a claim's registry entry or a file its scenarios read;

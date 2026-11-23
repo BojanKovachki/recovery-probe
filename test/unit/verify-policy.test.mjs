@@ -370,6 +370,29 @@ test('a scenario missing from the base registry is EXPECTATION_MISSING and runs 
   })
 })
 
+test('a scenario with an open question instead of a check is EXPECTATION_MISSING, and the claim shows the question', async () => {
+  const question = 'Should a failed refresh keep the items already shown?'
+  const setup = await project({
+    'recovery-probe.registry.json': JSON.stringify({
+      scenarios: [
+        scenario('items-fail', 'checks/items-fail-steps.json'),
+        { name: 'items-ok', paths: ['src/items.js'], question },
+      ],
+    }),
+  })
+  await inside(setup, async () => {
+    const fake = runner()
+    const result = await verify(fake)
+    const claim = byId(result)['behavior/items-keep-content']
+    assert.equal(claim.reason, 'EXPECTATION_MISSING')
+    assert.equal(
+      claim.gaps[0],
+      `EXPECTATION_MISSING: items-ok has an open question instead of a check: ${question}`,
+    )
+    assert.equal(fake.calls.length, 0)
+  })
+})
+
 test('a suspected defect or an unmet assertion fails the claim, a lead does not, and nothing new is proven without a base run', async () => {
   /** @type {[ReturnType<typeof observeReport>, string, string][]} */
   const cases = [
