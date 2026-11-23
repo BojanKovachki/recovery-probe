@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { runCommand } from '../../../dist/tools/process.mjs'
+import { caseEnvironment } from './grading.mjs'
 import { git, prepareSession } from './workspace.mjs'
 
 /** The session's folder: a fresh one under the system's temporary folder. */
@@ -95,7 +96,7 @@ export async function runSession({
       command,
       prepared.workspace,
       agent.sessionMs,
-      { log: transcript },
+      { log: transcript, env: caseEnvironment(testCase) },
     )
     await writeFile(
       join(records, 'diff.patch'),

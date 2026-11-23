@@ -2,7 +2,7 @@
 // session's record. Agents never get it; the harness refuses it inside this repository.
 import { existsSync, realpathSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
-import { isAbsolute, join, relative, resolve } from 'node:path'
+import { delimiter, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /** This repository's checkout. */
@@ -50,13 +50,38 @@ function caseProblem(folder, data) {
     'policy/recovery-probe.policy.json',
   ])
     if (!existsSync(join(folder, file))) return `${file} is missing`
+  const { path = [], variables = {} } = data.environment ?? {}
+  if (!Array.isArray(path) || !path.every((dir) => isAbsolute(String(dir))))
+    return 'environment.path must list absolute folders'
+  if (Object.values(variables).some((value) => typeof value !== 'string'))
+    return 'environment.variables must map names to strings'
   return undefined
 }
 
 /**
  * @typedef {{ id: string, folder: string, type: string, repository: string,
- *   buggyCommit: string, fixCommit: string, expected?: unknown }} PilotCase
+ *   buggyCommit: string, fixCommit: string, expected?: unknown,
+ *   environment?: { path?: string[], variables?: Record<string, string> } }} PilotCase
  */
+
+/**
+ * What a case's commands get on top of the allowlisted environment: its variables, and its
+ * folders ahead of PATH, so both arms and phase 1 run the same Node with the same settings.
+ * @param {PilotCase} testCase
+ * @returns {Record<string, string>}
+ */
+export function caseEnvironment(testCase) {
+  const { path = [], variables = {} } = testCase.environment ?? {}
+  if (!path.length) return { ...variables }
+  // Windows calls it Path: keep that name, so the command gets a single PATH.
+  const key =
+    Object.keys(process.env).find((name) => name.toUpperCase() === 'PATH') ??
+    'PATH'
+  return {
+    ...variables,
+    [key]: [...path, process.env[key] ?? ''].join(delimiter),
+  }
+}
 
 /**
  * Every case in `<grading>/cases`, each checked.

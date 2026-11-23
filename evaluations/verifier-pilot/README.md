@@ -10,7 +10,7 @@ A folder outside this repository; the harness refuses one inside it. Agents neve
 grading/
   approval.json              the owner's approval: { "cases": [ids], "budgetUsd": 50, "approvedBy", "at" }
   cases/<id>/
-    case.json                { "type", "repository", "buggyCommit", "fixCommit", "expected" }
+    case.json                { "type", "repository", "buggyCommit", "fixCommit", "expected", "environment" }
     ISSUE.md                 the agent's task: the issue, without references to the fix
     arm-a.md                 arm A: the approved commands, and each claim's text and assertions
     policy/                  arm B: recovery-probe.policy.json, its registry and check files
@@ -24,14 +24,15 @@ grading/
 ```
 
 - `type` is one of `tests-catch`, `failure-handling`, `intended-change`, `missing-expectation`, `outside-claims` or `base-fails`, as in the protocol.
-- `repository` is a clone URL or a local path. `buggyCommit` is the fix's parent.
+- `repository` is a clone URL or a local path. `buggyCommit` is the fix's parent, as a full commit id: GitHub fetches a commit by its full id only.
+- `environment` is optional: `path` lists absolute folders put ahead of `PATH`, such as the Node version the project needs, and `variables` sets variables such as `TZ`. The agent's session and phase 1's verify both get them, so both arms run the same tools with the same settings. A policy whose project checks need a variable names it in `env`.
 - Each `phase1.json` entry is `{ "patch": "real-fix.patch", "expected": { "verdict", "exitCode", "reasons": { "<claim id>": "<reason>" } } }`.
 
 ## A session
 
 1. A fresh folder under the system's temporary folder, outside this repository and the grading folder. The harness refuses either containing the other.
-2. The workspace clones `repository` at `buggyCommit` and adds the arm's materials: `VERIFY.md` for A, the policy files for B. It commits them as the pilot base and pushes that to a local remote as `main`, so `verify --base main` reads the approved policy.
-3. The agent runs in the workspace, with the command in [pilot.json](pilot.json). It gets an allowlisted environment, reads denied in the grading folder, this repository and the harness's own files, and no MCP server for A or Recovery Probe's for B. It's stopped at the session's time limit.
+2. The workspace fetches `buggyCommit` and its history from `repository`, without tags: a clone would bring the fix and every later commit, which the agent could read with `git log --all`. Files are checked out with their committed line endings, as in Recovery Probe's own checkouts, so a line-ending lint rule fails in neither arm. It adds the arm's materials: `VERIFY.md` for A, the policy files for B. It commits them as the pilot base and pushes that to a local remote as `main`, so `verify --base main` reads the approved policy.
+3. The agent runs in the workspace, with the command in [pilot.json](pilot.json). It gets an allowlisted environment plus the case's `environment`, reads denied in the grading folder, this repository and the harness's own files, and no MCP server for A or Recovery Probe's for B. It's stopped at the session's time limit.
 4. The record, the full transcript and the final diff go to the grading folder, and the session's folder is removed.
 
 ## Commands
