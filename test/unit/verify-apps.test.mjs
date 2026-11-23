@@ -72,10 +72,16 @@ test('an app runs from its checkout with the approved fixtures, and is stopped w
     sides,
     setupTimeoutMs: 10000,
   })
+  t.after(() => started.stop())
+  const ready = Date.now()
   const answer = await fetch(`http://127.0.0.1:${port}/`).then((response) =>
     response.text(),
   )
   assert.equal(answer, '["approved"]\n', 'the fixture comes from the base')
+  assert.ok(
+    started.readyBy > ready && started.readyBy <= ready + 15000,
+    'the readiness limit, which the first page load shares, is still running',
+  )
   await started.stop()
   assert.equal(await portOpen(new URL(`http://127.0.0.1:${port}/`)), false)
 })

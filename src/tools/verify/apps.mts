@@ -10,6 +10,8 @@ const tail = (output: string) => output.trim().split('\n').slice(-5).join(' / ')
 export interface StartedApp {
   output(): string
   stop(): Promise<void>
+  /** When the readiness limit ends, as Date.now() counts: the app's page must have loaded by then too. */
+  readyBy: number
 }
 
 /** Refuses an address another process already answers on: it may be another build. */
@@ -26,8 +28,8 @@ async function refuseOccupied(app: PolicyApp) {
 async function untilReady(
   app: PolicyApp,
   process: ReturnType<typeof startCommand>,
+  deadline: number,
 ) {
-  const deadline = Date.now() + app.ready.timeoutMs
   while (Date.now() < deadline) {
     if (process.result)
       throw new Error(
@@ -67,13 +69,14 @@ export async function startApp(
       )
   }
   const process = startCommand(app.launch, checkout)
+  const readyBy = Date.now() + app.ready.timeoutMs
   try {
-    await untilReady(app, process)
+    await untilReady(app, process, readyBy)
   } catch (error) {
     await process.stop()
     throw error
   }
-  return { output: () => process.output, stop: process.stop }
+  return { output: () => process.output, stop: process.stop, readyBy }
 }
 
 export interface AppBrowser {
@@ -84,8 +87,15 @@ export interface AppBrowser {
   close(): Promise<void>
 }
 
-/** A Chromium the run owns, on a free loopback debugging port, showing `url`. */
-export async function openBrowser(url: string): Promise<AppBrowser> {
+/**
+ * A Chromium the run owns, on a free loopback debugging port, showing `url`. The first load
+ * gets `firstLoadMs`, since a dev server can build on its first request; later ones get
+ * Playwright's default.
+ */
+export async function openBrowser(
+  url: string,
+  firstLoadMs: number,
+): Promise<AppBrowser> {
   const port = await freePort()
   const browser = await chromium.launch({
     args: [
@@ -98,7 +108,7 @@ export async function openBrowser(url: string): Promise<AppBrowser> {
     const reset = async () => {
       await page.goto(url)
     }
-    await reset()
+    await page.goto(url, { timeout: firstLoadMs })
     return {
       cdp: `http://127.0.0.1:${port}`,
       reset,
