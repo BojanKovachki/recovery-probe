@@ -1,5 +1,5 @@
 import type { StopReason } from '../process.mjs'
-import type { ClaimOutcome, ExecutionStatus } from './rules.mjs'
+import type { ClaimOutcome, CriteriaChange, ExecutionStatus } from './rules.mjs'
 
 /** Marks summary.json and verification.partial.json; readers of the older fields can ignore it. */
 export const VERIFICATION_SCHEMA = 'recovery-probe/verification@1'
@@ -42,6 +42,8 @@ export interface Claim {
   outcome: ClaimOutcome
   /** One code for the outcome, such as NEW_FAILURE or EXPECTATION_CHANGED. */
   reason: string
+  /** How the candidate changed the claim's criteria: a person must approve that on the base, whatever the outcome. */
+  criteriaChange?: CriteriaChange
   execution: { status: ExecutionStatus; attempts: ClaimAttempt[] }
   baseline: { status: string; comparison?: string }
   /** Report files the claim's outcome rests on, relative to the run folder, with their hashes. */

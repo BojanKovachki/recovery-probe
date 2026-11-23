@@ -35,6 +35,7 @@ import { decideRun } from './rules.mjs'
 import { folderOf } from './side.mjs'
 import {
   finishVerification,
+  reasonOf,
   scanChangedLines,
   summarizedEvenIfStopped,
   type Verification,
@@ -149,7 +150,7 @@ async function coverageOf({ sides, policy, registries }: PolicyContext) {
 const reasonsOf = (claims: Claim[], runGaps: string[], uncovered: string[]) => [
   ...claims
     .filter((claim) => claim.outcome !== 'VERIFIED')
-    .map((claim) => `${claim.id}: ${claim.reason}`),
+    .map((claim) => `${claim.id}: ${reasonOf(claim)}`),
   ...runGaps,
   ...(uncovered.length
     ? [

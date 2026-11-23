@@ -143,6 +143,61 @@ test('project checks run on both sides and follow the comparison table', async (
   }
 })
 
+test('a new failure exits 1 when the approved criteria ran, even with the policy changed, and 2 when a changed input ran', async () => {
+  /** @type {[string, { policy?: true, input?: true }, string[], number][]} */
+  const cases = [
+    [
+      'the policy changed',
+      { policy: true },
+      ['FAILED', 'NEW_FAILURE', 'POLICY_CHANGED'],
+      1,
+    ],
+    [
+      'an input changed',
+      { input: true },
+      ['NOT_VERIFIED', 'CHECK_INPUT_CHANGED', 'CHECK_INPUT_CHANGED'],
+      2,
+    ],
+    [
+      'both changed',
+      { policy: true, input: true },
+      ['NOT_VERIFIED', 'POLICY_CHANGED', 'POLICY_CHANGED'],
+      2,
+    ],
+  ]
+  for (const [name, edits, decision, exitCode] of cases) {
+    // notes.txt, which the base doesn't have, is the check's input.
+    const setup = await project({
+      checks: [check('status', STATUS, { inputs: ['notes.txt'] })],
+      base: '0',
+      candidate: '1',
+    })
+    await inside(setup, async () => {
+      if (edits.input) await writeFile('notes.txt', 'changed\n')
+      if (edits.policy) {
+        const policy = JSON.parse(
+          await readFile('recovery-probe.policy.json', 'utf8'),
+        )
+        delete policy.projectChecks
+        await writeFile('recovery-probe.policy.json', JSON.stringify(policy))
+      }
+      const result = await verify()
+      const claim = byId(result)['project/status']
+      assert.deepEqual(
+        [claim.outcome, claim.reason, claim.criteriaChange],
+        decision,
+        name,
+      )
+      assert.equal(claim.baseline.comparison, 'NEW_FAILURE', name)
+      assert.equal(result.exitCode, exitCode, name)
+      if (decision[0] !== 'FAILED') return
+      const both = 'NEW_FAILURE, and POLICY_CHANGED needs approval on the base'
+      assert.ok(result.reasons.includes(`project/status: ${both}`), name)
+      assert.match(result.markdown, new RegExp(`FAILED \\(${both}\\)`), name)
+    })
+  }
+})
+
 test('a failure and then a pass is UNSTABLE, with every attempt kept', async () => {
   const flaky = `import { existsSync, writeFileSync } from 'node:fs'
 const first = !existsSync('.attempted')

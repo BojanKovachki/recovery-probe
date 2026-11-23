@@ -32,7 +32,7 @@ test('the first rule that applies decides a claim', () => {
       'EXPECTATION_MISSING',
     ],
     [
-      'changed criteria come before any result',
+      "changed criteria come before any result when the candidate's own ran",
       { expectation: 'EXPECTATION_CHANGED', attempts: [failed] },
       'NOT_VERIFIED',
       'EXPECTATION_CHANGED',
@@ -138,6 +138,51 @@ test('the first rule that applies decides a claim', () => {
   ]
   for (const [name, facts, outcome, reason] of cases)
     assert.deepEqual(claim(facts), { outcome, reason }, name)
+})
+
+test('a new failure under approved criteria is FAILED whatever the candidate changed, and exits 1', () => {
+  /** @type {[string, Partial<ClaimFacts>, boolean][]} */
+  const results = [
+    ['a new failure', { attempts: [failed] }, true],
+    [
+      'a failure on both sides',
+      { attempts: [failed], failure: 'FAILING_ON_BOTH' },
+      false,
+    ],
+    ['an unstable failure', { attempts: [failed, passed] }, false],
+    ['a pass', {}, false],
+  ]
+  /** @type {import('../../dist/tools/verify/rules.mjs').CriteriaChange[]} */
+  const changes = [
+    'POLICY_CHANGED',
+    'EXPECTATION_CHANGED',
+    'CHECK_INPUT_CHANGED',
+  ]
+  for (const change of changes)
+    for (const approvedCriteriaRan of [true, false])
+      for (const [name, facts, newFailure] of results) {
+        const established = approvedCriteriaRan && newFailure
+        const label = `${change}, approved criteria ran: ${approvedCriteriaRan}, ${name}`
+        const decision = claim({
+          ...facts,
+          expectation: change,
+          approvedCriteriaRan,
+        })
+        assert.deepEqual(
+          decision,
+          established
+            ? { outcome: 'FAILED', reason: 'NEW_FAILURE' }
+            : { outcome: 'NOT_VERIFIED', reason: change },
+          label,
+        )
+        const { exitCode } = decideRun({
+          claims: [decision],
+          policyRecorded: true,
+          runGaps: [],
+          uncovered: [],
+        })
+        assert.equal(exitCode, established ? 1 : 2, label)
+      }
 })
 
 /** @type {Decision} */

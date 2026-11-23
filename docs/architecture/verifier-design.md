@@ -292,6 +292,7 @@ Each claim:
 | `expectation` | `{ approvedVersion, candidateVersion?, source, approved }`. A version is `sha256:` over the canonical claim definition and the bytes of every input it reads. |
 | `outcome` | `VERIFIED`, `FAILED` or `NOT_VERIFIED`: what the evidence says about the claim. |
 | `reason` | One code for the outcome, such as `NEW_FAILURE` or `FAULT_NOT_TRIGGERED`. |
+| `criteriaChange` | `POLICY_CHANGED`, `EXPECTATION_CHANGED` or `CHECK_INPUT_CHANGED` when the candidate changed the claim's criteria, whatever the outcome. Present only then. |
 | `execution` | `{ status, attempts[] }`. The status says what happened to the work: `completed`, `failed-to-start`, `timed-out`, `cancelled`, `budget-exhausted`, `skipped` or `unavailable`. Every attempt stays listed. |
 | `baseline` | The same claim's result on the base and its comparison (section 6), or `{ status: "not-applicable" }`. |
 | `evidence` | Artifact references: report folders, logs and screenshots, each with a path relative to the run folder and a sha256. |
@@ -304,7 +305,12 @@ Execution status and claim outcome are separate fields. A completed execution ca
 Per claim, the first rule that applies decides:
 
 1. Its approved expectation is missing → `NOT_VERIFIED`, `EXPECTATION_MISSING`.
-2. The candidate changed the claim's criteria → `NOT_VERIFIED`, with `POLICY_CHANGED`, `EXPECTATION_CHANGED` or `CHECK_INPUT_CHANGED`. The result against the approved, older expectation is still shown (decision 1).
+2. The candidate changed the claim's criteria → `NOT_VERIFIED`, with `POLICY_CHANGED`, `EXPECTATION_CHANGED` or `CHECK_INPUT_CHANGED`. The result against the approved, older expectation is still shown (decision 1), and `criteriaChange` records the change whatever the outcome.
+   - Except when the approved criteria are what ran on the candidate, and rule 3 finds a failure that's new since the base → `FAILED`, `NEW_FAILURE`. That failure is established (decision 6), so changing the criteria can't hide it. Which criteria run:
+     - `POLICY_CHANGED`: the candidate's policy never runs; the base's commands, claims and scenarios do.
+     - `EXPECTATION_CHANGED`: both sides run the base's registry entry with copies of the base's files.
+     - `CHECK_INPUT_CHANGED`: the approved command runs in each side's checkout, so it reads the candidate's changed input. A new failure there may come from that input, so the rule doesn't apply.
+     - When the policy changed too, the claim's own change still decides what ran: a project check whose input changed ran that input.
 3. A candidate attempt observed a failure. That means a command that completed with a non-zero exit, an unmet assertion, or a suspected defect. A failure counts from any run, even one that stopped early, as `compare` counts problems.
    - If another attempt of the claim completed and passed → `NOT_VERIFIED`, `UNSTABLE`. Every attempt is kept.
    - Otherwise → `FAILED`, with the reason from the comparison (section 6).
@@ -325,7 +331,7 @@ For the whole run:
   - A file mapped to a claim is a coverage declaration, not proof that every changed behavior was exercised.
 - **Missing claims.** A required claim with no result, because the run stopped, crashed or ran out of budget, is written as `NOT_VERIFIED` with `NOT_RUN`. A missing result never counts as a pass.
 - **Exit codes**, in order of precedence (decision 6):
-  - **1** when at least one new failure or regression is established, even if other checks are incomplete. That's a claim `FAILED` with `NEW_FAILURE`, or a new suspected defect.
+  - **1** when at least one new failure or regression is established, even if other checks are incomplete or the candidate changed the criteria. That's a claim `FAILED` with `NEW_FAILURE`, or a new suspected defect.
   - **0** when every required claim is VERIFIED and nothing blocks the verdict.
   - **2** otherwise: verification incomplete, unstable or not comparable, or blocked by pre-existing failures, without an established new regression.
   - A timeout is never a regression by itself. A check that fails on both revisions stays failed. Without finer evidence, the report doesn't claim it's the same failure on both.

@@ -22,6 +22,11 @@ export interface ClaimFacts {
   /** Whether the claim has an expectation to judge it by, or how the candidate changed it. */
   expectation: 'present' | 'missing' | CriteriaChange
   /**
+   * Whether the candidate ran the approved criteria, not its changed ones. A new failure they
+   * show is established even when the candidate changed the criteria.
+   */
+  approvedCriteriaRan?: boolean
+  /**
    * The candidate's attempts: whether each ran to the end, whether it saw a failure, and which
    * of the claim's scenarios it ran when there are several.
    */
@@ -43,24 +48,35 @@ const notVerified = (reason: string): Decision => ({
   reason,
 })
 
+/** What an observed failure decides, if an attempt saw one: UNSTABLE, or FAILED. */
+function failureOf(facts: ClaimFacts): Decision | undefined {
+  // A failure counts from any attempt, even one that stopped early.
+  const failed = facts.attempts.filter((attempt) => attempt.failed)
+  if (!failed.length) return undefined
+  // Only a pass of the same scenario makes a failure unstable.
+  return failed.some((failure) =>
+    facts.attempts.some(
+      (attempt) =>
+        attempt.scenario === failure.scenario &&
+        attempt.completed &&
+        !attempt.failed,
+    ),
+  )
+    ? notVerified('UNSTABLE')
+    : { outcome: 'FAILED', reason: facts.failure }
+}
+
 /** The first rule that applies decides; see docs/architecture/verifier-design.md. */
 export function decideClaim(facts: ClaimFacts): Decision {
   if (facts.expectation === 'missing') return notVerified('EXPECTATION_MISSING')
-  if (facts.expectation !== 'present') return notVerified(facts.expectation)
-  // A failure counts from any attempt, even one that stopped early.
-  const failed = facts.attempts.filter((attempt) => attempt.failed)
-  // Only a pass of the same scenario makes a failure unstable.
-  if (failed.length)
-    return failed.some((failure) =>
-      facts.attempts.some(
-        (attempt) =>
-          attempt.scenario === failure.scenario &&
-          attempt.completed &&
-          !attempt.failed,
-      ),
-    )
-      ? notVerified('UNSTABLE')
-      : { outcome: 'FAILED', reason: facts.failure }
+  const failure = failureOf(facts)
+  if (facts.expectation !== 'present')
+    return facts.approvedCriteriaRan &&
+      failure?.outcome === 'FAILED' &&
+      failure.reason === 'NEW_FAILURE'
+      ? failure
+      : notVerified(facts.expectation)
+  if (failure) return failure
   if (facts.execution !== 'completed')
     return notVerified(facts.execution.toUpperCase().replaceAll('-', '_'))
   if (facts.incomplete.length) return notVerified(facts.incomplete[0])
