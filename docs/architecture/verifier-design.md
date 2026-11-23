@@ -804,6 +804,10 @@ The owner decided these on 2026-11-20. The sections above follow them.
    - the decision rules include "inconclusive: don't broaden yet", and component attribution needs its own comparison.
 8. **Stabilization is evidence-based** (section 8): compatibility, cancellation and cleanup, trust-boundary tests, and the pilot, followed by an explicit review. A release count never promotes it.
 
+The owner decided this one on 2026-11-23:
+
+9. **Test files are criteria by default in policy mode** (section 4, [Review signals](#review-signals)). A policy without `testFiles` uses common test locations, and `"testFiles": []` turns the check off. Policy mode is experimental and unreleased, so the 1.x compatibility commitment doesn't cover the change; the changelog records it.
+
 Still open:
 - trusted approval before merge;
 - automatic Electron launching;
