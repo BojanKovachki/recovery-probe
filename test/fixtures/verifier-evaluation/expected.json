@@ -54,5 +54,51 @@
     "baseline": "REGRESSED",
     "criteriaChange": "EXPECTATION_CHANGED",
     "bothSides": true
+  },
+  "weakened-test": {
+    "claimId": "project/unit-tests",
+    "verdict": "NOT_VERIFIED",
+    "exitCode": 2,
+    "claim": "NOT_VERIFIED TEST_CHANGED",
+    "baseline": "STILL_PASSING",
+    "criteriaChange": "TEST_CHANGED",
+    "signals": "TEST_FILE_CHANGED",
+    "bothSides": true
+  },
+  "added-test": {
+    "claimId": "project/unit-tests",
+    "verdict": "VERIFIED",
+    "exitCode": 0,
+    "claim": "VERIFIED PASSED",
+    "baseline": "STILL_PASSING",
+    "signals": "TEST_FILE_ADDED",
+    "bothSides": true
+  },
+  "legitimate-test-edit": {
+    "claimId": "project/unit-tests",
+    "verdict": "NOT_VERIFIED",
+    "exitCode": 2,
+    "claim": "NOT_VERIFIED TEST_CHANGED",
+    "baseline": "STILL_PASSING",
+    "criteriaChange": "TEST_CHANGED",
+    "signals": "TEST_FILE_CHANGED",
+    "bothSides": true
+  },
+  "legitimate-test-edit-approved": {
+    "claimId": "project/unit-tests",
+    "verdict": "VERIFIED",
+    "exitCode": 0,
+    "claim": "VERIFIED PASSED",
+    "baseline": "RESOLVED_FAILURE",
+    "signals": "",
+    "bothSides": true
+  },
+  "changed-test-without-project-checks": {
+    "verdict": "NOT_VERIFIED",
+    "exitCode": 2,
+    "claim": "VERIFIED PASSED",
+    "baseline": "UNCHANGED",
+    "signals": "TEST_FILE_CHANGED",
+    "bothSides": true
   }
 }
