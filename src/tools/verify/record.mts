@@ -24,6 +24,7 @@ export interface RunEnd {
   status: RunRecord['status']
   claims: Claim[]
   coverage?: VerificationRecord['coverage']
+  reviewSignals?: VerificationRecord['reviewSignals']
   environment?: VerificationRecord['environment']
 }
 
@@ -117,11 +118,12 @@ export class VerificationLog {
   /** Writes summary.json: the older `fields` with the record. Returns the record. */
   async finish(
     fields: object,
-    { status, claims, coverage, environment }: RunEnd,
+    { status, claims, coverage, reviewSignals, environment }: RunEnd,
   ): Promise<VerificationRecord> {
     const record: VerificationRecord = {
       ...this.#record,
       ...(coverage ? { coverage } : {}),
+      ...(reviewSignals ? { reviewSignals } : {}),
       ...(environment ? { environment } : {}),
       run: { ...this.#record.run, status, endedAt: new Date().toISOString() },
       claims,

@@ -97,6 +97,7 @@ async function runCase(id, claimId) {
       claim: claim && `${claim.outcome} ${claim.reason}`,
       baseline: claim?.baseline.comparison,
       criteriaChange: claim?.criteriaChange,
+      signals: (result.reviewSignals ?? []).map((s) => s.code).join(' '),
       runStatus: result.run.status,
       bothSides: sides.has('base') && sides.has('candidate'),
       commits: {

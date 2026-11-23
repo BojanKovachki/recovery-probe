@@ -211,13 +211,14 @@ The first version has no other way to approve (decision 1): no acceptance flag, 
     }
   },
   "budgets": { "totalMs": 1800000, "scenarioRunMs": 300000, "cleanupReserveMs": 60000 },
-  "ignore": ["docs/**", "*.md"]
+  "ignore": ["docs/**", "*.md"],
+  "testFiles": ["**/test/**", "**/*.test.*"]
 }
 ```
 
 The policy and the registry each own one thing (decision 2):
 
-- **The policy owns** approved commands, app launches, budgets, required claims and ignore rules.
+- **The policy owns** approved commands, app launches, budgets, required claims, ignore rules and test files.
 - **The registry owns** scenario definitions: each scenario's `check`, `behavior`, `expectation` and `limits`.
 - **Claims reference scenarios by ID:**
   - `failurePath` and `normalPath` are registry scenario names, never copies of their commands;
@@ -292,7 +293,7 @@ Each claim:
 | `expectation` | `{ approvedVersion, candidateVersion?, source, approved }`. A version is `sha256:` over the canonical claim definition and the bytes of every input it reads. |
 | `outcome` | `VERIFIED`, `FAILED` or `NOT_VERIFIED`: what the evidence says about the claim. |
 | `reason` | One code for the outcome, such as `NEW_FAILURE` or `FAULT_NOT_TRIGGERED`. |
-| `criteriaChange` | `POLICY_CHANGED`, `EXPECTATION_CHANGED` or `CHECK_INPUT_CHANGED` when the candidate changed the claim's criteria, whatever the outcome. Present only then. |
+| `criteriaChange` | `POLICY_CHANGED`, `EXPECTATION_CHANGED`, `CHECK_INPUT_CHANGED` or `TEST_CHANGED` when the candidate changed the claim's criteria, whatever the outcome. Present only then. |
 | `execution` | `{ status, attempts[] }`. The status says what happened to the work: `completed`, `failed-to-start`, `timed-out`, `cancelled`, `budget-exhausted`, `skipped` or `unavailable`. Every attempt stays listed. |
 | `baseline` | The same claim's result on the base and its comparison (section 6), or `{ status: "not-applicable" }`. |
 | `evidence` | Artifact references: report folders, logs and screenshots, each with a path relative to the run folder and a sha256. |
@@ -305,11 +306,12 @@ Execution status and claim outcome are separate fields. A completed execution ca
 Per claim, the first rule that applies decides:
 
 1. Its approved expectation is missing → `NOT_VERIFIED`, `EXPECTATION_MISSING`.
-2. The candidate changed the claim's criteria → `NOT_VERIFIED`, with `POLICY_CHANGED`, `EXPECTATION_CHANGED` or `CHECK_INPUT_CHANGED`. The result against the approved, older expectation is still shown (decision 1), and `criteriaChange` records the change whatever the outcome.
+2. The candidate changed the claim's criteria → `NOT_VERIFIED`, with `POLICY_CHANGED`, `EXPECTATION_CHANGED`, `CHECK_INPUT_CHANGED` or `TEST_CHANGED`. The result against the approved, older expectation is still shown (decision 1), and `criteriaChange` records the change whatever the outcome.
    - Except when the approved criteria are what ran on the candidate, and rule 3 finds a failure that's new since the base → `FAILED`, `NEW_FAILURE`. That failure is established (decision 6), so changing the criteria can't hide it. Which criteria run:
      - `POLICY_CHANGED`: the candidate's policy never runs; the base's commands, claims and scenarios do.
      - `EXPECTATION_CHANGED`: both sides run the base's registry entry with copies of the base's files.
      - `CHECK_INPUT_CHANGED`: the approved command runs in each side's checkout, so it reads the candidate's changed input. A new failure there may come from that input, so the rule doesn't apply.
+     - `TEST_CHANGED`: likewise, the approved command runs the candidate's changed tests.
      - When the policy changed too, the claim's own change still decides what ran: a project check whose input changed ran that input.
 3. A candidate attempt observed a failure. That means a command that completed with a non-zero exit, an unmet assertion, or a suspected defect. A failure counts from any run, even one that stopped early, as `compare` counts problems.
    - If another attempt of the claim completed and passed → `NOT_VERIFIED`, `UNSTABLE`. Every attempt is kept.
@@ -324,7 +326,7 @@ For the whole run:
   - every claim the policy requires for the change is VERIFIED;
   - a policy identity is recorded;
   - there's no run-level gap, such as `BASE_NOT_ON_REMOTE`;
-  - in policy mode, no changed file is uncovered.
+  - in policy mode, no changed file is uncovered, and no test file was changed or deleted (see [Review signals](#review-signals)).
 - **Coverage is strict in policy mode** (decision 3).
   - A changed file outside the ignore rules that no claim covers blocks the overall VERIFIED. Each uncovered file is listed. Covered claims are still reported VERIFIED on their own.
   - The ignore rules come from the base's policy, like every other criterion. A candidate that edits them gets `POLICY_CHANGED`, and coverage is still computed with the base's rules, so the edit can't remove an obligation.
@@ -453,13 +455,14 @@ The other claims' results are kept. `run.status` is `budget-exhausted`.
 
 ### Review signals
 
-Some test changes can weaken verification, but they can also be legitimate. The report lists them under `reviewSignals`, read from the changed-file list the planner already computes (`changesSince`):
+A change that weakens a test can make a project check pass, so tests are criteria, like the policy and the scenarios. They can also change for good reasons, so a person decides. The report lists them under `reviewSignals`, read from the changed-file list the planner already computes (`changesSince`) and the base policy's `testFiles` patterns:
 
-- `TEST_FILE_DELETED`
-- `TEST_FILE_CHANGED`
-- `CHECK_INPUT_CHANGED`
+- `TEST_FILE_DELETED` and `TEST_FILE_CHANGED`: criteria changes. Every project check is `NOT_VERIFIED` with `TEST_CHANGED`, since its command runs the candidate's tests, and the run is `NOT_VERIFIED` even without project checks. Approval works as for any criterion: the change lands in the base.
+- `TEST_FILE_ADDED`: only for review. New tests can only strengthen verification, so they never block VERIFIED.
 
-They're leads for review. They aren't failures, and they don't affect the verdict, except check inputs, which do because they're criteria. Finer detection (removed assertions, added `skip`, new mocks) is deferred.
+A renamed test is deleted at its old path and added at its new one. Without `testFiles`, the patterns are `**/test/**`, `**/tests/**`, `**/__tests__/**`, `**/*.test.*` and `**/*.spec.*`; `"testFiles": []` turns this off. A changed check input is reported on its claim as `CHECK_INPUT_CHANGED`, not as a signal.
+
+Any change to a test file needs approval. Telling a weakening edit from a legitimate one (removed assertions, added `skip`, new mocks) is deferred, as is weakening from outside the patterns, such as a runner configuration that skips tests, unless a check names that file in `inputs`.
 
 ## 5. Command detection, approval and isolation
 
@@ -800,6 +803,10 @@ The owner decided these on 2026-11-20. The sections above follow them.
    - the owner approves cases and budget before any paid run;
    - the decision rules include "inconclusive: don't broaden yet", and component attribution needs its own comparison.
 8. **Stabilization is evidence-based** (section 8): compatibility, cancellation and cleanup, trust-boundary tests, and the pilot, followed by an explicit review. A release count never promotes it.
+
+The owner decided this one on 2026-11-23:
+
+9. **Test files are criteria by default in policy mode** (section 4, [Review signals](#review-signals)). A policy without `testFiles` uses common test locations, and `"testFiles": []` turns the check off. Policy mode is experimental and unreleased, so the 1.x compatibility commitment doesn't cover the change; the changelog records it.
 
 Still open:
 - trusted approval before merge;

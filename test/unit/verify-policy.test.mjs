@@ -422,6 +422,12 @@ test('verify_change runs policy mode, returns the last result with status, and r
       ),
       /leave out plan and baseline/,
     )
+    await writeFile(
+      'package.json',
+      JSON.stringify({ scripts: { test: 'echo ok' } }),
+    )
+    await mkdir('test')
+    await writeFile('test/new.test.mjs', '// new\n')
     await verifyPolicy({
       policy: 'recovery-probe.policy.json',
       base: 'main',
@@ -433,10 +439,23 @@ test('verify_change runs policy mode, returns the last result with status, and r
     assert.equal(status.source, 'summary')
     assert.equal(status.verdict, 'NOT_VERIFIED')
     assert.equal(status.run.status, 'completed')
-    assert.deepEqual(
-      status.claims.map((claim) => claim.reason),
-      ['PASSED', 'APP_REVISION_UNKNOWN', 'PASSED'],
-    )
+    assert.deepEqual(status.claims, [
+      {
+        id: 'project/unit-tests',
+        outcome: 'NOT_VERIFIED',
+        reason: 'CHECK_INPUT_CHANGED',
+        criteriaChange: 'CHECK_INPUT_CHANGED',
+      },
+      {
+        id: 'behavior/items-keep-content',
+        outcome: 'NOT_VERIFIED',
+        reason: 'APP_REVISION_UNKNOWN',
+      },
+      { id: 'suspects/changed-lines', outcome: 'VERIFIED', reason: 'PASSED' },
+    ])
+    assert.deepEqual(status.reviewSignals, [
+      { code: 'TEST_FILE_ADDED', paths: ['test/new.test.mjs'] },
+    ])
     const usage = spawnSync(
       process.execPath,
       [cli, 'verify', '--policy', 'recovery-probe.policy.json'],

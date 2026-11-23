@@ -157,6 +157,7 @@ test('a new failure under approved criteria is FAILED whatever the candidate cha
     'POLICY_CHANGED',
     'EXPECTATION_CHANGED',
     'CHECK_INPUT_CHANGED',
+    'TEST_CHANGED',
   ]
   for (const change of changes)
     for (const approvedCriteriaRan of [true, false])
@@ -180,6 +181,7 @@ test('a new failure under approved criteria is FAILED whatever the candidate cha
           policyRecorded: true,
           runGaps: [],
           uncovered: [],
+          changedTests: [],
         })
         assert.equal(exitCode, established ? 1 : 2, label)
       }
@@ -195,6 +197,7 @@ const run = (facts) =>
     policyRecorded: true,
     runGaps: [],
     uncovered: [],
+    changedTests: [],
     ...facts,
   })
 
@@ -206,6 +209,12 @@ test('a run is verified only when every claim is and nothing blocks it, and exit
     ['no policy identity', { policyRecorded: false }, 'NOT_VERIFIED', 2],
     ['a run-level gap', { runGaps: ['BASE_NOT_ON_REMOTE'] }, 'NOT_VERIFIED', 2],
     ['an uncovered file', { uncovered: ['src/theme.js'] }, 'NOT_VERIFIED', 2],
+    [
+      'a changed or deleted test file',
+      { changedTests: ['test/format.test.mjs'] },
+      'NOT_VERIFIED',
+      2,
+    ],
     [
       'an unverified claim',
       { claims: [verified, { outcome: 'NOT_VERIFIED', reason: 'NOT_RUN' }] },
@@ -227,6 +236,7 @@ test('a run is verified only when every claim is and nothing blocks it, and exit
         ],
         runGaps: ['BASE_NOT_ON_REMOTE'],
         uncovered: ['src/theme.js'],
+        changedTests: ['test/format.test.mjs'],
       },
       'NOT_VERIFIED',
       1,

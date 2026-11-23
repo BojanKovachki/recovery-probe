@@ -21,6 +21,7 @@ import type { Policy, PolicyClaim, ProjectCheck } from './policy.mjs'
 import type { VerificationLog } from './record.mjs'
 import { decideClaim, type ClaimFacts } from './rules.mjs'
 import type { VerifyEvent } from './side.mjs'
+import type { TestChanges } from './changed-files.mjs'
 import type { Claim, PolicyIdentity } from './types.mjs'
 
 export interface PolicyOptions {
@@ -51,6 +52,8 @@ export interface PolicyContext {
   checkouts(): Promise<Checkouts>
   /** Each side's setup, run once before its first command or launch: why it failed, if it did. */
   setups: Map<'base' | 'candidate', Promise<string | undefined>>
+  /** What the candidate did to the base's test files. */
+  tests: TestChanges
 }
 
 const GAP_TEXT: Record<string, string> = {
