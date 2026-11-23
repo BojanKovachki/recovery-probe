@@ -148,7 +148,7 @@ A claim that names an `app` runs on both sides: the base and the candidate, each
 - **Launch.** For each side in turn:
   - Recovery Probe refuses the run if `url` or `ready.url` is already in use, since it may be another build.
   - It copies the base's `fixtures` into the checkout, runs `setup`, and starts `launch` there with an allowlisted environment.
-  - It waits until `ready.url` answers.
+  - It waits until `ready.url` answers, then for the app's page to load, both within `ready.timeoutMs`: a dev server can build the app on its first request.
   - Then it opens `url` in a Chromium it starts on a free loopback debugging port. Each run starts from that page, with its own copy of the approved configuration pointed at that browser.
   - Afterwards the app, everything it started and the browser are stopped. The app's output is kept in `app.log`.
 - **Comparison.** Each path's base and candidate runs are compared as [`compare`](compare.md) does. A failure that's new on the candidate is `NEW_FAILURE`, exit 1. A failure on both sides is `FAILING_ON_BOTH`, exit 2. A fix shows as `IMPROVED` in the claim's `baseline`.

@@ -151,7 +151,10 @@ export async function runOnSide(
       sides: context.sides,
       setupTimeoutMs: Math.max(1000, budget.workLeftMs()),
     })
-    browser = await openBrowser(app.url)
+    browser = await openBrowser(
+      app.url,
+      Math.max(1000, started.readyBy - Date.now()),
+    )
     return await runPaths(context, claim, scenarios, { side, browser })
   } catch (error) {
     if (!started || !browser)
