@@ -2,10 +2,12 @@ import { createHash } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { isRecord } from '../../core/validate.mjs'
+import { globRegExp } from '../plan/select.mjs'
 import { checkJsonFiles } from '../scenarios/preflight.mjs'
-import { blobAt } from './git.mjs'
-import type { PolicyClaim, ProjectCheck } from './policy.mjs'
+import { blobAt, filesAt } from './git.mjs'
+import { isPattern, type PolicyClaim, type ProjectCheck } from './policy.mjs'
 import type { CriteriaChange } from './rules.mjs'
+import type { TestChanges } from './changed-files.mjs'
 import type { Expectation } from './types.mjs'
 
 /** The repository, where checks run from, and the two revisions criteria are read from. */
@@ -43,8 +45,28 @@ export const sha256 = (data: string | Buffer) =>
 export const versionOf = (value: unknown) =>
   `sha256:${sha256(canonical(value))}`
 
-/** An input on one side: its committed bytes' hash, or the hash of the JSON value `file#a.b` selects. */
+/**
+ * A hash of the files matching `patterns` in a commit or tree, by path and committed content, so
+ * adding, removing or editing one changes it; null when none matches.
+ */
+export async function matchingVersion(
+  root: string,
+  treeish: string,
+  patterns: RegExp[],
+) {
+  const files = (await filesAt(root, treeish)).filter(([path]) =>
+    patterns.some((pattern) => pattern.test(path)),
+  )
+  return files.length ? sha256(canonical(files)) : null
+}
+
+/**
+ * An input on one side: its committed bytes' hash, the hash of the JSON value `file#a.b`
+ * selects, or for a pattern, the hash of the files it matches.
+ */
 async function inputAt(sides: Sides, treeish: string, input: string) {
+  if (isPattern(input))
+    return matchingVersion(sides.root, treeish, [globRegExp(input)])
   const [path, selector] = input.split('#')
   const bytes = await blobAt(sides.root, treeish, path)
   if (!bytes || selector === undefined) return bytes && sha256(bytes)
@@ -193,13 +215,20 @@ export async function behaviorCriteria(
   }
 }
 
-/** A project check's criteria: its command, and the inputs the policy names for it. */
-export async function projectCriteria(sides: Sides, check: ProjectCheck) {
+/**
+ * A project check's criteria: its command, the inputs the policy names for it, and the test
+ * files, which any command may run.
+ */
+export async function projectCriteria(
+  sides: Sides,
+  check: ProjectCheck,
+  tests: TestChanges,
+) {
   const inputs = await inputsOnBothSides(sides, check.inputs)
   return criteriaOf(
-    (side) => ({ check, inputs: inputs[side] }),
-    inputs.changed,
-    'CHECK_INPUT_CHANGED',
+    (side) => ({ check, inputs: inputs[side], tests: tests.versions[side] }),
+    [...inputs.changed, ...tests.changed],
+    inputs.changed.length ? 'CHECK_INPUT_CHANGED' : 'TEST_CHANGED',
   )
 }
 

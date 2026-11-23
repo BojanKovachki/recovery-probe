@@ -4,7 +4,7 @@ import type { Suspect } from '../suspects/source.mjs'
 import { scanForSuspects } from '../suspects/scan.mjs'
 import type { CheckVerification } from './check.mjs'
 import type { RunEnd, VerificationLog } from './record.mjs'
-import type { Claim, VerificationRecord } from './types.mjs'
+import type { Claim, ReviewSignal, VerificationRecord } from './types.mjs'
 
 /** The fields verify has always reported; claims and the rest of the record come after them. */
 export interface VerificationFields {
@@ -49,10 +49,14 @@ export const reasonOf = (claim: Claim) =>
     ? `${claim.reason}, and ${claim.criteriaChange} needs approval on the base`
     : claim.reason
 
-/** The pull request block: a plan's checks, or a policy's claims when given. */
+/** A review signal on one line: its code and its files. */
+export const signalText = ({ code, paths }: ReviewSignal) =>
+  `${code}: ${paths.join(', ')}`
+
+/** The pull request block: a plan's checks, or a policy's claims and review signals. */
 function markdownOf(
   result: Omit<VerificationFields, 'markdown'>,
-  claims?: Claim[],
+  { claims, reviewSignals = [] }: Partial<RunEnd> = {},
 ): string {
   const lines = [
     `**Recovery Probe verify: ${result.verdict === 'VERIFIED' ? 'verified' : 'not verified'}**`,
@@ -68,6 +72,7 @@ function markdownOf(
           (check) =>
             `- \`${check.name}\`: ${check.verified ? check.comparison!.summary : check.reason}`,
         )),
+    ...reviewSignals.map((signal) => `- Review signal ${signalText(signal)}`),
     result.suspects.length
       ? `- Suspects on changed lines: ${result.suspects.map((s) => `\`${s.file}:${s.line}\` ${s.pattern}`).join(', ')}`
       : '- No suspects on changed lines.',
@@ -81,10 +86,7 @@ export async function finishVerification(
   fields: Omit<VerificationFields, 'markdown'>,
   end: RunEnd,
 ): Promise<Verification> {
-  const markdown = markdownOf(
-    fields,
-    log.mode === 'policy' ? end.claims : undefined,
-  )
+  const markdown = markdownOf(fields, log.mode === 'policy' ? end : undefined)
   await writeFile(join(fields.directory, 'summary.md'), markdown, {
     mode: 0o600,
   })

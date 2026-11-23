@@ -10,6 +10,7 @@ import {
   type Verification,
 } from '../verify.mjs'
 import { PARTIAL_SUMMARY } from '../verify/record.mjs'
+import type { Claim } from '../verify/types.mjs'
 import { integer, text } from './args.mjs'
 import type { McpTool } from './server.mjs'
 
@@ -125,8 +126,15 @@ export const compareReportsTool: McpTool = {
 
 const VERIFY_FOLDER = join('.recovery-probe', 'verify')
 
-const claimsOf = (claims: { id: string; outcome: string; reason: string }[]) =>
-  claims.map(({ id, outcome, reason }) => ({ id, outcome, reason }))
+const claimsOf = (
+  claims: Pick<Claim, 'id' | 'outcome' | 'reason' | 'criteriaChange'>[],
+) =>
+  claims.map(({ id, outcome, reason, criteriaChange }) => ({
+    id,
+    outcome,
+    reason,
+    ...(criteriaChange ? { criteriaChange } : {}),
+  }))
 
 /** What verify_change returns from a finished verification. */
 const resultOf = (result: Verification) => ({
@@ -139,6 +147,7 @@ const resultOf = (result: Verification) => ({
     ...(comparison ? { comparison: comparison.verdict } : {}),
   })),
   claims: claimsOf(result.claims),
+  ...(result.reviewSignals ? { reviewSignals: result.reviewSignals } : {}),
   suspects: result.suspects.slice(0, MAX_SUSPECTS),
   markdown: result.markdown,
 })
@@ -159,6 +168,7 @@ async function lastVerification() {
       reasons,
       run,
       claims = [],
+      reviewSignals,
       runGaps,
     } = JSON.parse(text)
     return {
@@ -166,6 +176,7 @@ async function lastVerification() {
       ...(verdict ? { verdict, exitCode, reasons } : {}),
       run,
       claims: claimsOf(claims),
+      ...(reviewSignals ? { reviewSignals } : {}),
       ...(runGaps ? { runGaps } : {}),
     }
   }

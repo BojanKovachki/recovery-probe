@@ -40,6 +40,22 @@ export async function blobAt(
   }
 }
 
+/** Every file in a commit or tree, in path order, with its blob id: its committed bytes' identity. */
+export async function filesAt(root: string, treeish: string) {
+  const output = await git(root, [
+    'ls-tree',
+    '-r',
+    '-z',
+    '--full-tree',
+    treeish,
+  ])
+  return output.split('\0').flatMap((line): [string, string][] => {
+    const tab = line.indexOf('\t')
+    const [, type, id] = line.slice(0, tab).split(' ')
+    return type === 'blob' ? [[line.slice(tab + 1), id]] : []
+  })
+}
+
 /**
  * The tree Git would commit for the working tree, untracked files included and ignored ones
  * left out. It goes through a temporary index, so the user's index and branch stay as they were.

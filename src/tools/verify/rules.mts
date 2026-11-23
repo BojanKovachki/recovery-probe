@@ -15,7 +15,10 @@ export type ExecutionStatus =
 
 /** The candidate changed the criteria the claim is judged by. */
 export type CriteriaChange =
-  'POLICY_CHANGED' | 'EXPECTATION_CHANGED' | 'CHECK_INPUT_CHANGED'
+  | 'POLICY_CHANGED'
+  | 'EXPECTATION_CHANGED'
+  | 'CHECK_INPUT_CHANGED'
+  | 'TEST_CHANGED'
 
 /** What the rules decide one claim from. */
 export interface ClaimFacts {
@@ -92,6 +95,8 @@ export interface RunFacts {
   runGaps: string[]
   /** Changed files no claim covers, outside the base's ignore rules. */
   uncovered: string[]
+  /** Test files the candidate changed or deleted: they need approval, whichever claims they affect. */
+  changedTests: string[]
 }
 
 /**
@@ -107,7 +112,8 @@ export function decideRun(facts: RunFacts): {
     facts.claims.every((claim) => claim.outcome === 'VERIFIED') &&
     facts.policyRecorded &&
     !facts.runGaps.length &&
-    !facts.uncovered.length
+    !facts.uncovered.length &&
+    !facts.changedTests.length
   const regressed = facts.claims.some(
     (claim) => claim.outcome === 'FAILED' && claim.reason === 'NEW_FAILURE',
   )

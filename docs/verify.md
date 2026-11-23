@@ -89,12 +89,13 @@ npx recovery-probe verify --policy recovery-probe.policy.json --base main
 ```
 
 - **The base comes from the command:** `--base`, or `base` on `verify_change`, never from a file in the working tree. In CI, pass the commit of the protected branch.
-- **The policy and the registry are read as committed on the base.** The policy, `recovery-probe.policy.json`, owns the claims, project checks, budgets and ignore rules. Claims name [registry](plan.md#the-registry) scenarios: a `failurePath` that fails a read and a `normalPath` that checks the same screen without a fault, plus the `assertions` (names of `expect` steps) both must meet.
+- **The policy and the registry are read as committed on the base.** The policy, `recovery-probe.policy.json`, owns the claims, project checks, budgets, ignore rules and test files. Claims name [registry](plan.md#the-registry) scenarios: a `failurePath` that fails a read and a `normalPath` that checks the same screen without a fault, plus the `assertions` (names of `expect` steps) both must meet.
 - **The base's files are the ones that run.** A claim's scenarios run with the configuration and step files copied from the base. The candidate's copies are only compared with them.
 - **A change to the criteria needs review.** The report gives these reasons, with the approved and candidate versions and what changed:
   - `EXPECTATION_CHANGED` when the candidate edits a claim's registry entry or a file its scenarios read;
   - `POLICY_CHANGED` when it edits the policy;
-  - `CHECK_INPUT_CHANGED` when it edits an input a project check names, such as `package.json#scripts.test`.
+  - `CHECK_INPUT_CHANGED` when it edits an input a project check names, such as `package.json#scripts.test`;
+  - `TEST_CHANGED` when it changes or deletes a test file ([below](#tests-are-criteria)).
 
   The claim stays NOT_VERIFIED until the change is merged into the base. Its result against the approved version still shows, and `criteriaChange` keeps the change whatever the outcome.
 - **A new failure under the approved criteria still counts.** When the criteria that ran on the candidate are the approved ones, and they show a failure that's new since the base, the claim is FAILED with `NEW_FAILURE` and verify exits with 1, even though the candidate also changed the criteria. The reasons list both: the regression, and the change that still needs approval. Which criteria run depends on the change:
@@ -104,11 +105,28 @@ npx recovery-probe verify --policy recovery-probe.policy.json --base main
   | `POLICY_CHANGED` | the base's policy: its commands, claims and scenarios | FAILED, exit 1, unless one of the check's inputs changed too |
   | `EXPECTATION_CHANGED` | the base's registry entry, with copies of the base's files | FAILED, exit 1 |
   | `CHECK_INPUT_CHANGED` | the approved command, reading the candidate's changed input | NOT_VERIFIED, exit 2: the candidate's own criteria may have caused it |
+  | `TEST_CHANGED` | the approved command, running the candidate's changed tests | NOT_VERIFIED, exit 2, for the same reason |
 - **Hashes use committed bytes**, as Git would store them, so line-ending conversion never makes a file look changed.
 - **Coverage is strict.** A changed file that no claim's scenario `paths` cover, and that the base's `ignore` rules don't leave out, blocks VERIFIED and is listed in `coverage.uncovered`. A candidate's own ignore rules are never used.
 - **Base provenance.** `baseProvenance` records the commit, whether CI supplied it, and whether it's on the remote branch of the same name. A local base that isn't adds the run gap `BASE_NOT_ON_REMOTE`, which blocks VERIFIED. Even a base on the remote branch proves neither branch protection nor review.
 
 Exit codes keep their meaning: 1 only for a claim that failed with `NEW_FAILURE`, even when others are incomplete or the candidate changed the criteria; 0 when every claim is verified and nothing blocks the run; 2 otherwise. A timeout is never a regression.
+
+### Tests are criteria
+
+A change that weakens a test can make a project check pass. So in policy mode the project's tests are criteria too, like the policy and the scenarios:
+
+```json
+"testFiles": ["**/test/**", "**/*.test.*"]
+```
+
+- **Which files.** `testFiles` lists patterns, read from the base's policy like every criterion. Without it, the patterns are `**/test/**`, `**/tests/**`, `**/__tests__/**`, `**/*.test.*` and `**/*.spec.*`. `"testFiles": []` turns this off. Test files count whether or not `ignore` leaves them out of coverage.
+- **A changed or deleted test needs approval.** Every project check is then NOT_VERIFIED with `TEST_CHANGED`, because its command runs the candidate's tests, and the changed files are in `expectation.changedInputs`. The run is NOT_VERIFIED too, even without project checks, and its reasons list the files. A person approves the change by merging it into the base, as for any criterion. For example, merge the test edit first: the code change then verifies against it, and the check's comparison is `RESOLVED_FAILURE`.
+- **An added test only shows for review.** New tests can only strengthen verification, so they never block VERIFIED.
+- **Renames.** A renamed test is deleted at its old path and added at its new one.
+- **Review signals.** `reviewSignals` in `summary.json` lists `TEST_FILE_DELETED`, `TEST_FILE_CHANGED` and `TEST_FILE_ADDED`, each with its files. `summary.md` and the command's output show them.
+
+Only files that match `testFiles` count. Tests weakened from elsewhere, such as a runner configuration that skips them or a mock outside the test folders, go unnoticed unless a check names that file in `inputs`.
 
 ### Each side's own app
 
@@ -161,6 +179,7 @@ A claim without `app` runs `runs` times per path, on the candidate only, against
 ```
 
 - **Each side in its own checkout.** The policy's `setup` runs once in each side's checkout, before the first command or app launch there. A setup that fails, or changes tracked files, stops that side.
+- **Inputs.** `inputs` names what a command reads besides the tests: a file, `file#a.b` for one JSON value, or a pattern such as `config/**`. A pattern counts as changed when a file it matches is added, edited or removed.
 - **Commands.** Each command is an argument array run without a shell, with an allowlisted environment plus the variables `env` names. `env` passes names, never values, and the report lists the names. Each attempt has its own `timeoutMs` and counts against the budget. On Windows, run npm through Node and its CLI file, as for [repair](repair.md#windows-commands).
 - **Full logs.** Each attempt's output is kept whole in `policy/<side>/project/<id>/attempt-N.log`, with its hash in the claim's evidence.
 - **Contamination.** A command that changes tracked files gets `CHECK_MODIFIED_TRACKED_FILES`, and the files are put back before the next command.
@@ -179,7 +198,7 @@ A claim without `app` runs `runs` times per path, on the candidate only, against
 
 `recovery-probe verify --propose-checks` (or `proposeChecks` on `plan_verification`) reads the project's configuration and proposes `setup` and `projectChecks` with the evidence for each. It looks at `tsconfig.json`, ESLint configuration, `package.json` scripts that run a type checker, linter or test runner, test runner configuration, and lockfiles. It never runs anything. What it can't decide goes to a person: several test scripts, a script that chains commands, starts a server or sets variables, and lockfiles other than npm's. Copy what you approve into the policy; it counts once merged into the base.
 
-`npm run eval:verifier` verifies changes to a synthetic app, with one behavior claim and a unit-test project check, through eight cases: a fix, a regression, a fault that never fires, a missing and a changed expectation, a budget stop, and a regression made alongside an edit to the policy or to the expectation. It scores each against `test/fixtures/verifier-evaluation/expected.json`, which the verifier never reads.
+`npm run eval:verifier` verifies changes to a synthetic app, with one behavior claim and a unit-test project check, through thirteen cases: a fix, a regression, a fault that never fires, a missing and a changed expectation, a budget stop, a regression made alongside an edit to the policy or to the expectation, a weakened test, an added test, an intended test edit before and after its approval, and a changed test under a policy without project checks. It scores each against `test/fixtures/verifier-evaluation/expected.json`, which the verifier never reads.
 
 A policy doesn't make a local run tamper-proof. Anyone with a shell can change the base locally or edit files the run reads. The stronger setup is verify in CI, with the base supplied by CI.
 

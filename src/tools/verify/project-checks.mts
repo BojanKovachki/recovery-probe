@@ -205,7 +205,7 @@ export async function projectClaim(
   check: ProjectCheck,
 ): Promise<Claim> {
   const id = `project/${check.id}`
-  const criteria = await projectCriteria(context.sides, check)
+  const criteria = await projectCriteria(context.sides, check, context.tests)
   const base = await runProjectSide(context, check, 'base')
   const candidate = await runProjectSide(context, check, 'candidate')
   const comparison = compareProject(base, candidate)
@@ -217,7 +217,7 @@ export async function projectClaim(
     expectation: criteria.expectation,
     ...decideClaim({
       expectation: change,
-      // The command reads its inputs from each side's checkout, so a changed input ran.
+      // The command reads its inputs and tests from each side's checkout, so changed ones ran.
       approvedCriteriaRan: criteria.change === 'present',
       attempts: candidate.attempts.map(({ result }) => {
         const completed = !result.timedOut && !result.error

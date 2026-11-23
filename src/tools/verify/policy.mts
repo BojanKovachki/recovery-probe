@@ -21,12 +21,28 @@ const KEYS = [
   'budgets',
   'ignore',
   'env',
+  'testFiles',
 ]
+
+/** Where tests usually live, used when a policy doesn't name its own. */
+export const DEFAULT_TEST_FILES = [
+  '**/test/**',
+  '**/tests/**',
+  '**/__tests__/**',
+  '**/*.test.*',
+  '**/*.spec.*',
+]
+
+/** Whether an input names files by a pattern, such as `test/**`, rather than one file. */
+export const isPattern = (input: string) => /[*?]/.test(input)
 
 export interface ProjectCheck {
   id: string
   command: string[]
-  /** Files, or `file#a.b` for one JSON value, whose candidate changes need approval. */
+  /**
+   * Files, patterns such as `test/**`, or `file#a.b` for one JSON value, whose candidate
+   * changes need approval.
+   */
   inputs: string[]
   timeoutMs: number
   attempts: number
@@ -65,6 +81,11 @@ export interface Policy {
   ignore: string[]
   /** Variables setup and project checks get from verify's own environment, by name. */
   env: string[]
+  /**
+   * Test files, as patterns. They're criteria: a changed or deleted one needs approval on the
+   * base, while an added one only shows for review.
+   */
+  testFiles: string[]
 }
 
 const commands = (value: unknown, where: string) => {
@@ -94,8 +115,18 @@ const isInput = (value: unknown) => {
   return (
     !rest.length &&
     safeRelativePath(path) !== undefined &&
-    (selector === undefined || /^\w[\w-]*(\.\w[\w-]*)*$/.test(selector))
+    (selector === undefined ||
+      (!isPattern(path) && /^\w[\w-]*(\.\w[\w-]*)*$/.test(selector)))
   )
+}
+
+const patterns = (value: unknown, where: string) => {
+  ensure(
+    Array.isArray(value) &&
+      value.every((pattern) => safeRelativePath(String(pattern))),
+    `${where} must list relative file patterns`,
+  )
+  return value as string[]
 }
 
 const listOf = <T,>(
@@ -122,7 +153,7 @@ function projectCheck(item: Record<string, unknown>, at: string): ProjectCheck {
   ensure(typeof id === 'string' && NAME.test(id), `${at}.id must match ${NAME}`)
   ensure(
     Array.isArray(inputs) && inputs.every(isInput),
-    `${at}.inputs must list relative files, each optionally with #a.b for one JSON value`,
+    `${at}.inputs must list relative files, each optionally with #a.b for one JSON value, or patterns such as test/**`,
   )
   ensure(
     isIntegerIn(timeoutMs, 1000, 3600000),
@@ -210,13 +241,14 @@ export function validatePolicy(input: unknown): Policy {
   const unknown = Object.keys(policy).find((key) => !KEYS.includes(key))
   ensure(!unknown, `Unsupported policy field: ${unknown}`)
   ensure(policy.schema === POLICY_SCHEMA, `schema must be ${POLICY_SCHEMA}`)
-  const { runs = 3, ignore = [], apps = {}, env = [] } = policy
+  const {
+    runs = 3,
+    ignore = [],
+    apps = {},
+    env = [],
+    testFiles = DEFAULT_TEST_FILES,
+  } = policy
   ensure(isIntegerIn(runs, 1, 10), 'runs must be a whole number from 1 to 10')
-  ensure(
-    Array.isArray(ignore) &&
-      ignore.every((pattern) => safeRelativePath(String(pattern))),
-    'ignore must list relative file patterns',
-  )
   ensure(isRecord(apps), 'apps must map names to apps')
   const result: Policy = {
     schema: POLICY_SCHEMA,
@@ -231,8 +263,9 @@ export function validatePolicy(input: unknown): Policy {
       ]),
     ),
     budgets: budgets(policy.budgets),
-    ignore: ignore as string[],
+    ignore: patterns(ignore, 'ignore'),
     env: names(env, 'env', /^[A-Za-z_][A-Za-z0-9_]*$/),
+    testFiles: patterns(testFiles, 'testFiles'),
   }
   ensure(
     result.claims.length + result.projectChecks.length > 0,

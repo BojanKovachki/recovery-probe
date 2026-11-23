@@ -16,6 +16,10 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { planVerificationTool } from '../../dist/tools/mcp/plan-tool.mjs'
 import { verifyPolicy } from '../../dist/tools/verify.mjs'
+import {
+  DEFAULT_TEST_FILES,
+  validatePolicy,
+} from '../../dist/tools/verify/policy.mjs'
 import { proposeChecks } from '../../dist/tools/verify/propose.mjs'
 
 const cli = fileURLToPath(
@@ -43,9 +47,16 @@ const check = (id, script, extra = {}) => ({
 
 /**
  * A repository whose policy has only `checks` as project checks, committed on main and pushed to
- * a bare remote; status.txt holds `base` on main and `candidate` in the working tree.
+ * a bare remote; status.txt holds `base` on main and `candidate` in the working tree. `extra`
+ * adds committed files.
  */
-async function project({ checks, base = '0', candidate = base, policy = {} }) {
+async function project({
+  checks,
+  base = '0',
+  candidate = base,
+  policy = {},
+  extra = {},
+}) {
   const root = await realpath(
     await mkdtemp(join(tmpdir(), 'recovery-probe-project-')),
   )
@@ -60,6 +71,7 @@ async function project({ checks, base = '0', candidate = base, policy = {} }) {
     'recovery-probe.registry.json': JSON.stringify({ scenarios: [] }),
     'status.txt': base,
     ...Object.fromEntries(checks.map((c) => [`checks/${c.id}.mjs`, c._script])),
+    ...extra,
   }
   for (const [path, text] of Object.entries(files)) {
     await mkdir(dirname(join(repo, path)), { recursive: true })
@@ -92,6 +104,10 @@ async function inside({ root, repo }, work) {
 
 const verify = () =>
   verifyPolicy({ policy: 'recovery-probe.policy.json', base: 'main' })
+
+/** Committed tests, in a folder the policy TESTED ignores, so only `testFiles` judges them. */
+const TESTS = { 'test/a.test.mjs': '// a\n', 'test/b.test.mjs': '// b\n' }
+const TESTED = { ignore: ['status.txt', 'notes.txt', 'test/**'] }
 
 const byId = (result) =>
   Object.fromEntries(result.claims.map((claim) => [claim.id, claim]))
@@ -144,7 +160,7 @@ test('project checks run on both sides and follow the comparison table', async (
 })
 
 test('a new failure exits 1 when the approved criteria ran, even with the policy changed, and 2 when a changed input ran', async () => {
-  /** @type {[string, { policy?: true, input?: true }, string[], number][]} */
+  /** @type {[string, { policy?: true, input?: true, test?: true }, string[], number][]} */
   const cases = [
     [
       'the policy changed',
@@ -164,6 +180,12 @@ test('a new failure exits 1 when the approved criteria ran, even with the policy
       ['NOT_VERIFIED', 'POLICY_CHANGED', 'POLICY_CHANGED'],
       2,
     ],
+    [
+      'a test changed',
+      { test: true },
+      ['NOT_VERIFIED', 'TEST_CHANGED', 'TEST_CHANGED'],
+      2,
+    ],
   ]
   for (const [name, edits, decision, exitCode] of cases) {
     // notes.txt, which the base doesn't have, is the check's input.
@@ -171,9 +193,12 @@ test('a new failure exits 1 when the approved criteria ran, even with the policy
       checks: [check('status', STATUS, { inputs: ['notes.txt'] })],
       base: '0',
       candidate: '1',
+      policy: TESTED,
+      extra: TESTS,
     })
     await inside(setup, async () => {
       if (edits.input) await writeFile('notes.txt', 'changed\n')
+      if (edits.test) await writeFile('test/a.test.mjs', '// weakened\n')
       if (edits.policy) {
         const policy = JSON.parse(
           await readFile('recovery-probe.policy.json', 'utf8'),
@@ -196,6 +221,234 @@ test('a new failure exits 1 when the approved criteria ran, even with the policy
       assert.match(result.markdown, new RegExp(`FAILED \\(${both}\\)`), name)
     })
   }
+})
+
+test('a changed or deleted test file needs approval, and an added one only shows for review', async () => {
+  /** @type {[string, () => unknown, object[], string, number][]} */
+  const cases = [
+    [
+      'changed',
+      () => writeFile('test/a.test.mjs', '// weakened\n'),
+      [{ code: 'TEST_FILE_CHANGED', paths: ['test/a.test.mjs'] }],
+      'TEST_CHANGED',
+      2,
+    ],
+    [
+      'deleted',
+      () => rm('test/b.test.mjs'),
+      [{ code: 'TEST_FILE_DELETED', paths: ['test/b.test.mjs'] }],
+      'TEST_CHANGED',
+      2,
+    ],
+    [
+      'renamed',
+      () => git('.', 'mv', 'test/a.test.mjs', 'test/moved.test.mjs'),
+      [
+        { code: 'TEST_FILE_DELETED', paths: ['test/a.test.mjs'] },
+        { code: 'TEST_FILE_ADDED', paths: ['test/moved.test.mjs'] },
+      ],
+      'TEST_CHANGED',
+      2,
+    ],
+    [
+      'added',
+      () => writeFile('test/new.test.mjs', '// new\n'),
+      [{ code: 'TEST_FILE_ADDED', paths: ['test/new.test.mjs'] }],
+      'PASSED',
+      0,
+    ],
+  ]
+  for (const [name, edit, signals, reason, exitCode] of cases) {
+    const setup = await project({
+      checks: [check('status', STATUS)],
+      policy: TESTED,
+      extra: TESTS,
+    })
+    await inside(setup, async () => {
+      await edit()
+      const result = await verify()
+      const claim = byId(result)['project/status']
+      assert.deepEqual(result.reviewSignals, signals, name)
+      assert.deepEqual(
+        [claim.reason, result.exitCode],
+        [reason, exitCode],
+        name,
+      )
+      for (const signal of signals)
+        assert.ok(
+          result.markdown.includes(
+            `- Review signal ${signal.code}: ${signal.paths.join(', ')}`,
+          ),
+          name,
+        )
+      const blocking = signals
+        .filter((signal) => signal.code !== 'TEST_FILE_ADDED')
+        .flatMap((signal) => signal.paths)
+      if (!blocking.length) return
+      assert.deepEqual(claim.expectation.changedInputs, blocking, name)
+      assert.notEqual(
+        claim.expectation.candidateVersion,
+        claim.expectation.approvedVersion,
+        name,
+      )
+      assert.equal(
+        result.reasons.at(-1),
+        `${blocking.length} test file(s) changed or deleted, which a person must approve on the base: ${blocking.join(', ')}`,
+        name,
+      )
+    })
+  }
+})
+
+test("test files are the base policy's patterns: the defaults, its own, or none", async () => {
+  /** @type {[string, object, string, string[]][]} */
+  const cases = [
+    ['the defaults', {}, 'src/c.test.mjs', ['TEST_FILE_CHANGED']],
+    ['its own', { testFiles: ['spec/**'] }, 'spec/c.js', ['TEST_FILE_CHANGED']],
+    [
+      'its own, not the defaults',
+      { testFiles: ['spec/**'] },
+      'src/c.test.mjs',
+      [],
+    ],
+    ['none', { testFiles: [] }, 'src/c.test.mjs', []],
+  ]
+  const files = { 'src/c.test.mjs': '// c\n', 'spec/c.js': '// c\n' }
+  const ignore = ['status.txt', 'src/**', 'spec/**']
+  for (const [name, policy, path, codes] of cases) {
+    const setup = await project({
+      checks: [check('status', STATUS)],
+      policy: { ignore, ...policy },
+      extra: files,
+    })
+    await inside(setup, async () => {
+      await writeFile(path, '// edited\n')
+      const result = await verify()
+      assert.deepEqual(
+        result.reviewSignals.map((signal) => signal.code),
+        codes,
+        name,
+      )
+      assert.equal(result.verdict, codes.length ? 'NOT_VERIFIED' : 'VERIFIED')
+    })
+  }
+  const setup = await project({
+    checks: [check('status', STATUS)],
+    policy: { ignore },
+    extra: files,
+  })
+  await inside(setup, async () => {
+    const policy = JSON.parse(
+      await readFile('recovery-probe.policy.json', 'utf8'),
+    )
+    await writeFile(
+      'recovery-probe.policy.json',
+      JSON.stringify({ ...policy, testFiles: [] }),
+    )
+    await writeFile('src/c.test.mjs', '// edited\n')
+    const result = await verify()
+    assert.deepEqual(
+      result.reviewSignals,
+      [{ code: 'TEST_FILE_CHANGED', paths: ['src/c.test.mjs'] }],
+      "the candidate's own patterns are never used",
+    )
+  })
+})
+
+test('a pattern input changes when a file it matches is added, edited or removed, and not for line endings or other files', async () => {
+  /** @type {[string, () => unknown, string][]} */
+  const cases = [
+    ['another file', () => writeFile('other/x.txt', 'x\n'), 'PASSED'],
+    [
+      'line endings',
+      async () => {
+        git('.', 'config', 'core.autocrlf', 'true')
+        await writeFile('config/a.json', '{\r\n}\r\n')
+      },
+      'PASSED',
+    ],
+    [
+      'an added file',
+      () => writeFile('config/b.json', '{}\n'),
+      'CHECK_INPUT_CHANGED',
+    ],
+    [
+      'an edited file',
+      () => writeFile('config/a.json', '[]\n'),
+      'CHECK_INPUT_CHANGED',
+    ],
+    ['a removed file', () => rm('config/a.json'), 'CHECK_INPUT_CHANGED'],
+  ]
+  for (const [name, edit, reason] of cases) {
+    const setup = await project({
+      checks: [check('status', STATUS, { inputs: ['config/**'] })],
+      policy: { ignore: ['status.txt', 'config/**', 'other/**'] },
+      extra: { 'config/a.json': '{\n}\n', 'other/x.txt': '' },
+    })
+    await inside(setup, async () => {
+      await edit()
+      const claim = byId(await verify())['project/status']
+      assert.equal(claim.reason, reason, name)
+      if (reason !== 'PASSED')
+        assert.deepEqual(claim.expectation.changedInputs, ['config/**'], name)
+    })
+  }
+})
+
+test("the command's output lists the review signals with the reasons", async () => {
+  const setup = await project({
+    checks: [check('status', STATUS)],
+    policy: TESTED,
+    extra: TESTS,
+  })
+  await inside(setup, async () => {
+    await writeFile('test/a.test.mjs', '// weakened\n')
+    await writeFile('test/new.test.mjs', '// new\n')
+    const printed = spawnSync(
+      process.execPath,
+      [
+        cli,
+        'verify',
+        '--policy',
+        'recovery-probe.policy.json',
+        '--base',
+        'main',
+      ],
+      { encoding: 'utf8' },
+    )
+    assert.equal(printed.status, 2, printed.stderr)
+    assert.match(
+      printed.stdout,
+      /NOT VERIFIED\r?\n {2}- project\/status: TEST_CHANGED\r?\n.*\r?\n {2}Review signal TEST_FILE_CHANGED: test\/a\.test\.mjs\r?\n {2}Review signal TEST_FILE_ADDED: test\/new\.test\.mjs\r?\n/,
+    )
+  })
+})
+
+test('inputs take files, one JSON value or patterns, and testFiles takes patterns', () => {
+  /** @param {object} check @param {object} [rest] */
+  const policy = (check, rest = {}) => ({
+    schema: 'recovery-probe/policy@1',
+    projectChecks: [
+      { id: 'c', command: ['node', '-v'], timeoutMs: 1000, ...check },
+    ],
+    ...rest,
+  })
+  const inputs = ['a.json', 'a.json#b.c', 'test/**', '**/*.snap']
+  assert.deepEqual(
+    validatePolicy(policy({ inputs })).projectChecks[0].inputs,
+    inputs,
+  )
+  assert.throws(
+    () => validatePolicy(policy({ inputs: ['test/**#b'] })),
+    /inputs must list/,
+    'a pattern selects no JSON value',
+  )
+  assert.deepEqual(validatePolicy(policy({})).testFiles, DEFAULT_TEST_FILES)
+  assert.deepEqual(validatePolicy(policy({}, { testFiles: [] })).testFiles, [])
+  assert.throws(
+    () => validatePolicy(policy({}, { testFiles: ['../test/**'] })),
+    /testFiles must list relative file patterns/,
+  )
 })
 
 test('a failure and then a pass is UNSTABLE, with every attempt kept', async () => {

@@ -3,9 +3,7 @@ import { join } from 'node:path'
 import { RunBudget } from '../../core/budget.mjs'
 import { changesSince, commitOf, PlanInputError } from '../plan/changes.mjs'
 import { checkOutSides, type Checkouts } from './checkout.mjs'
-import { safeRelativePath } from '../plan/paths.mjs'
 import { DEFAULT_REGISTRY } from '../plan/registry.mjs'
-import { globRegExp, selections } from '../plan/select.mjs'
 import {
   registryAt,
   repoPathOf,
@@ -33,6 +31,7 @@ import { validatePolicy, type Policy } from './policy.mjs'
 import { VerificationLog, type PendingClaim } from './record.mjs'
 import { decideRun } from './rules.mjs'
 import { folderOf } from './side.mjs'
+import { coverageOf, testChanges } from './changed-files.mjs'
 import {
   finishVerification,
   reasonOf,
@@ -117,37 +116,18 @@ const pendingOf = (
   pendingSuspectClaim(base, SCAN),
 ]
 
-/** Changed files the base's ignore rules leave out, and those no claim's scenarios cover. */
-async function coverageOf({ sides, policy, registries }: PolicyContext) {
-  const { changes } = await changesSince(sides.base, { cwd: sides.root })
-  const rules = policy.ignore.map(globRegExp)
-  const ignored = changes.filter((change) =>
-    rules.some((rule) => rule.test(change.path)),
-  )
-  const rest = changes.filter((change) => !ignored.includes(change))
-  const entries = policy.claims
-    .flatMap((claim) => [claim.failurePath, claim.normalPath])
-    .map((name) => {
-      const paths = registries.base.get(name)?.paths
-      return {
-        name,
-        paths: (Array.isArray(paths) ? paths : []).filter(
-          (path): path is string =>
-            typeof path === 'string' && Boolean(safeRelativePath(path)),
-        ),
-      }
-    })
-  const covered = new Set(selections(rest, entries).map((found) => found.file))
-  return {
-    uncovered: rest
-      .map((change) => change.path)
-      .filter((path) => !covered.has(path)),
-    ignored: ignored.map((change) => change.path),
-  }
+/** What blocks VERIFIED whatever the claims say: files no claim covers, and changed tests. */
+interface Blocking {
+  uncovered: string[]
+  changedTests: string[]
 }
 
-/** One reason per unverified claim, run-level gap, and the uncovered files. */
-const reasonsOf = (claims: Claim[], runGaps: string[], uncovered: string[]) => [
+/** One reason per unverified claim, run-level gap, and what else blocks the run. */
+const reasonsOf = (
+  claims: Claim[],
+  runGaps: string[],
+  { uncovered, changedTests }: Blocking,
+) => [
   ...claims
     .filter((claim) => claim.outcome !== 'VERIFIED')
     .map((claim) => `${claim.id}: ${reasonOf(claim)}`),
@@ -157,27 +137,41 @@ const reasonsOf = (claims: Claim[], runGaps: string[], uncovered: string[]) => [
         `${uncovered.length} changed file(s) no claim covers: ${uncovered.join(', ')}`,
       ]
     : []),
+  ...(changedTests.length
+    ? [
+        `${changedTests.length} test file(s) changed or deleted, which a person must approve on the base: ${changedTests.join(', ')}`,
+      ]
+    : []),
 ]
 
-type DecideContext = Omit<PolicyContext, 'policy' | 'identity'> &
+type DecideContext = Omit<PolicyContext, 'policy' | 'identity' | 'tests'> &
   Partial<Pick<PolicyContext, 'policy' | 'identity'>>
 
-/** The policy's claims in order, each recorded once decided, and the change's coverage. */
-async function policyClaims(context: PolicyContext) {
+/**
+ * The policy's claims in order, each recorded once decided, the change's coverage and what it
+ * did to tests. None without a usable policy.
+ */
+async function policyClaims(context: DecideContext) {
+  const { sides, policy, identity, registries } = context
+  if (!policy || !identity)
+    return {
+      claims: [] as Claim[],
+      coverage: { uncovered: [], ignored: [] },
+      tests: undefined,
+    }
+  const { changes } = await changesSince(sides.base, { cwd: sides.root })
+  const tests = await testChanges(sides, changes, policy.testFiles)
+  const full = { ...context, policy, identity, tests }
   const claims: Claim[] = []
   for (const next of [
-    ...context.policy.projectChecks.map(
-      (check) => () => projectClaim(context, check),
-    ),
-    ...context.policy.claims.map(
-      (claim) => () => behaviorClaim(context, claim),
-    ),
+    ...policy.projectChecks.map((check) => () => projectClaim(full, check)),
+    ...policy.claims.map((claim) => () => behaviorClaim(full, claim)),
   ]) {
     const claim = await next()
     claims.push(claim)
     await context.log.decided(claim)
   }
-  return { claims, coverage: await coverageOf(context) }
+  return { claims, coverage: coverageOf(policy, registries, changes), tests }
 }
 
 /** Decides the scan, every claim, then the run. Without a usable policy, only the scan runs. */
@@ -194,24 +188,25 @@ async function decide(
       worstCaseMs: worstCaseOf(policy),
       budgetMs: budget.maxDurationMs,
     })
-  const { claims, coverage } =
-    policy && identity
-      ? await policyClaims({ ...context, policy, identity })
-      : { claims: [], coverage: { uncovered: [], ignored: [] } }
+  const { claims, coverage, tests } = await policyClaims(context)
   claims.push(suspectClaim(options.base, scan, SCAN))
   const stoppedByBudget = claims.some(
     (claim) => claim.execution.status === 'budget-exhausted',
   )
+  const blocking = {
+    uncovered: coverage.uncovered,
+    changedTests: tests?.changed ?? [],
+  }
   const { verdict, exitCode } = decideRun({
     claims,
     policyRecorded: Boolean(identity),
     runGaps,
-    uncovered: coverage.uncovered,
+    ...blocking,
   })
   const fields = {
     verdict,
     exitCode,
-    reasons: reasonsOf(claims, runGaps, coverage.uncovered),
+    reasons: reasonsOf(claims, runGaps, blocking),
     checks: [],
     suspects: scan.suspects,
     directory,
@@ -220,6 +215,7 @@ async function decide(
     status: stoppedByBudget ? 'budget-exhausted' : 'completed',
     claims,
     coverage,
+    ...(tests ? { reviewSignals: tests.signals } : {}),
     environment: await environmentOf(sides, policy?.env ?? []),
   })
 }

@@ -8,6 +8,7 @@ import {
   type VerifyEvent,
 } from '../tools/verify.mjs'
 import { proposeChecks } from '../tools/verify/propose.mjs'
+import { signalText } from '../tools/verify/summary.mjs'
 import { parseOptions, readConfig, text, UsageError } from './args.mjs'
 import { signals } from './until-stopped.mjs'
 
@@ -165,6 +166,8 @@ function report(result: Verification) {
     `\n${result.verdict === 'VERIFIED' ? 'VERIFIED' : 'NOT VERIFIED'}`,
   )
   for (const reason of result.reasons) console.log(`  - ${reason}`)
+  for (const signal of result.reviewSignals ?? [])
+    console.log(`  Review signal ${signalText(signal)}`)
   for (const suspect of result.suspects)
     console.log(
       `    ${suspect.file}:${suspect.line}  ${suspect.pattern}${suspect.read ? `  read: ${suspect.read}` : ''}`,

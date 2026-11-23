@@ -92,6 +92,11 @@ export interface RunRecord {
   endedAt?: string
 }
 
+export interface ReviewSignal {
+  code: 'TEST_FILE_DELETED' | 'TEST_FILE_CHANGED' | 'TEST_FILE_ADDED'
+  paths: string[]
+}
+
 /** What verify adds to its older fields, in summary.json and verification.partial.json. */
 export interface VerificationRecord {
   schema: typeof VERIFICATION_SCHEMA
@@ -103,6 +108,8 @@ export interface VerificationRecord {
   baseProvenance?: BaseProvenance
   policy?: PolicyIdentity
   coverage?: { uncovered: string[]; ignored: string[] }
+  /** Changes for a person to review: the test files the candidate deleted, changed or added. */
+  reviewSignals?: ReviewSignal[]
   /** What commands ran with: Node, the platform, the variable names passed, and each side's lockfiles. */
   environment?: {
     node: string
