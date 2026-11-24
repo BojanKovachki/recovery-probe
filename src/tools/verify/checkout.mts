@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { cloneAt, git } from '../repair/workspace.mjs'
@@ -30,7 +30,11 @@ export async function checkOutSides(
   root: string,
   commits: { base: string; candidate: string },
 ): Promise<Checkouts> {
-  const folder = await mkdtemp(join(tmpdir(), 'recovery-probe-verify-'))
+  // Windows can name the temp folder in its 8.3 short form (C:\Users\ABCDEF~1\...). Tools that
+  // compare paths, such as Vite, then fail inside it, so checkouts use its long form.
+  const folder = await mkdtemp(
+    join(await realpath(tmpdir()), 'recovery-probe-verify-'),
+  )
   const remove = () =>
     rm(folder, { recursive: true, force: true, maxRetries: 5 })
   try {
