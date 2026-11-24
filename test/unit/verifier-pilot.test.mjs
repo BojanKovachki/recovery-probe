@@ -4,7 +4,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import {
   mkdir,
   mkdtemp,
@@ -437,6 +437,10 @@ test('every session is recorded with its transcript and diff, and the agent neve
       "the case's folders come first on PATH",
     )
     const workspace = /workspace=(.*)/.exec(transcript)[1].trim()
+    assert.ok(
+      workspace.startsWith(realpathSync.native(tmpdir())),
+      'the agent works in the long form of the path, never an 8.3 short name',
+    )
     assert.ok(!isInside(workspace, grading) && !isInside(grading, workspace))
     assert.ok(!isInside(workspace, repository))
     assert.ok(

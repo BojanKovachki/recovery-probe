@@ -177,6 +177,12 @@ test("the candidate's checkout has its uncommitted changes, the base's has none,
   assert.ok(existsSync(join(checkouts.candidate, 'new.txt')))
   assert.ok(!existsSync(join(checkouts.base, 'new.txt')))
   assert.equal(git(checkouts.candidate, 'remote'), '', 'no remote to push to')
+  for (const checkout of [checkouts.base, checkouts.candidate])
+    assert.equal(
+      checkout,
+      await realpath(checkout),
+      'the long form of the path, never an 8.3 short name',
+    )
   await checkouts.remove()
   assert.ok(!existsSync(checkouts.base))
 })
