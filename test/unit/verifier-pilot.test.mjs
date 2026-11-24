@@ -30,7 +30,25 @@ import { schedule } from '../../evaluations/verifier-pilot/harness/schedule.mjs'
 import {
   everythingUnder,
   prepareSession,
+  refuseIncomplete,
 } from '../../evaluations/verifier-pilot/harness/workspace.mjs'
+
+/** A repository whose one commit holds `files`, written through Git so names the disk can't hold still commit. */
+function repositoryWith(root, name, files) {
+  const repo = join(root, name)
+  git(root, 'init', '-q', '-b', 'main', repo)
+  git(repo, 'config', 'core.longpaths', 'true')
+  for (const [path, text] of Object.entries(files)) {
+    const blob = execFileSync('git', ['hash-object', '-w', '--stdin'], {
+      cwd: repo,
+      input: text,
+      encoding: 'utf8',
+    }).trim()
+    git(repo, 'update-index', '--add', '--cacheinfo', `100644,${blob},${path}`)
+  }
+  git(repo, 'commit', '-q', '-m', 'files')
+  return { repo, commit: git(repo, 'rev-parse', 'HEAD') }
+}
 
 const git = (cwd, ...args) =>
   execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], {
@@ -261,6 +279,66 @@ test("a workspace holds the buggy commit's history only, with its committed line
     assert.equal(git(workspace, 'tag'), '', `${arm}: no tags`)
   }
 })
+
+test('a checkout that differs from its commit is refused', async (t) => {
+  const root = await realpath(
+    await mkdtemp(join(tmpdir(), 'recovery-probe-pilot-')),
+  )
+  t.after(() => rm(root, { recursive: true, force: true, maxRetries: 5 }))
+  const { repo, commit } = repositoryWith(root, 'complete', {
+    'a.txt': 'a\n',
+  })
+  git(repo, 'checkout', '-q', '--', '.')
+  await refuseIncomplete(repo, commit)
+  await rm(join(repo, 'a.txt'))
+  await assert.rejects(
+    refuseIncomplete(repo, commit),
+    /checkout of [0-9a-f]+ is incomplete.*a\.txt/,
+  )
+})
+
+test('a file whose full path passes 260 characters is checked out in full', async (t) => {
+  const { root, grading } = await setup(t)
+  const [testCase] = await readCases(grading)
+  const long = `deep/${'a'.repeat(70)}/${'b'.repeat(70)}/${'c'.repeat(70)}.json`
+  const { repo, commit } = repositoryWith(root, 'long', { [long]: '{}\n' })
+  const { workspace } = await prepareSession({
+    testCase: { ...testCase, repository: repo, buggyCommit: commit },
+    arm: 'A',
+    folder: join(root, 'session-long'),
+    grading,
+    cli: '',
+  })
+  assert.ok(workspace.length + long.length > 260, 'the path really is long')
+  assert.equal(await readFile(join(workspace, long), 'utf8'), '{}\n')
+})
+
+test(
+  'a checkout that cannot write every file is refused, never committed as the pilot base',
+  {
+    skip:
+      process.platform === 'linux' &&
+      'needs a case-insensitive filesystem, where two names differing in case collide',
+  },
+  async (t) => {
+    const { root, grading } = await setup(t)
+    const [testCase] = await readCases(grading)
+    const { repo, commit } = repositoryWith(root, 'collision', {
+      'Case.txt': 'upper\n',
+      'case.txt': 'lower\n',
+    })
+    await assert.rejects(
+      prepareSession({
+        testCase: { ...testCase, repository: repo, buggyCommit: commit },
+        arm: 'A',
+        folder: join(root, 'session-collision'),
+        grading,
+        cli: '',
+      }),
+      /is incomplete, so it can't be the pilot base/,
+    )
+  },
+)
 
 test('the schedule is seeded: every case in both arms, repeated, in the same order for the same seed', () => {
   const ids = ['a', 'b', 'c', 'd', 'e', 'f']

@@ -39,6 +39,19 @@ const ARM_TEXT = {
 }
 
 /**
+ * Refuses a checkout that left the working tree different from `commit`. Git can report a file
+ * it failed to write and still exit 0, and the pilot base would then record that file as deleted.
+ */
+export async function refuseIncomplete(workspace, commit) {
+  const { stdout } = await git(workspace, 'status', '--porcelain')
+  const differences = stdout.trim().split('\n').filter(Boolean)
+  if (differences.length)
+    throw new Error(
+      `The checkout of ${commit} is incomplete, so it can't be the pilot base: ${differences.slice(0, 5).join('; ')}`,
+    )
+}
+
+/**
  * The checkout of the buggy commit, with the arm's materials committed and pushed as main. Only
  * the buggy commit's history is fetched: a clone would bring the fix, later commits and tags.
  */
@@ -49,6 +62,8 @@ async function checkOut(testCase, arm, folder) {
   // otherwise check out CRLF, which fails a project's line-ending lint in arm A's workspace only.
   await git(workspace, 'config', 'core.autocrlf', 'false')
   await git(workspace, 'config', 'core.eol', 'lf')
+  // Git for Windows can't otherwise create a file whose full path passes 260 characters.
+  await git(workspace, 'config', 'core.longpaths', 'true')
   await git(
     workspace,
     'fetch',
@@ -59,6 +74,7 @@ async function checkOut(testCase, arm, folder) {
     testCase.buggyCommit,
   )
   await git(workspace, 'checkout', '-q', '--detach', 'FETCH_HEAD')
+  await refuseIncomplete(workspace, testCase.buggyCommit)
   // What running the app needs, such as a stand-in for its backend, goes to both arms alike.
   const common = join(testCase.folder, 'common')
   if (existsSync(common)) await cp(common, workspace, { recursive: true })
