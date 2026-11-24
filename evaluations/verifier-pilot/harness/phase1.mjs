@@ -1,7 +1,7 @@
 // Phase 1: the verifier alone. Each case's fixed patches go through verify with the case's
 // policy, in an arm B workspace with no agent, and are scored against their expected outcome.
 import { existsSync } from 'node:fs'
-import { readFile, rm } from 'node:fs/promises'
+import { cp, mkdir, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { runCommand } from '../../../dist/tools/process.mjs'
 import { sessionFolder } from './attempt.mjs'
@@ -13,18 +13,26 @@ import { git, prepareSession } from './workspace.mjs'
  *   reasons?: Record<string, string> } }} FixedPatch
  */
 
+/** Where a patch's verify output and records are kept: the grading folder, under the run. */
+export const phase1Records = (grading, run, caseId, patch) =>
+  join(grading, 'runs', run, 'phase1', caseId, patch)
+
 /** What verify said about one patch, and whether it's what the case expects. */
 async function scorePatch({ testCase, patch, grading, run, cli }) {
   const folder = sessionFolder(run, `phase1-${testCase.id}-${patch.patch}`)
+  const records = phase1Records(grading, run, testCase.id, patch.patch)
   await rm(folder, { recursive: true, force: true })
+  await rm(records, { recursive: true, force: true })
+  await mkdir(records, { recursive: true })
+  let workspace
   try {
-    const { workspace } = await prepareSession({
+    ;({ workspace } = await prepareSession({
       testCase,
       arm: 'B',
       folder,
       grading,
       cli,
-    })
+    }))
     await git(workspace, 'apply', join(testCase.folder, 'phase1', patch.patch))
     const result = await runCommand(
       [
@@ -38,7 +46,7 @@ async function scorePatch({ testCase, patch, grading, run, cli }) {
       ],
       workspace,
       30 * 60 * 1000,
-      { env: caseEnvironment(testCase) },
+      { env: caseEnvironment(testCase), log: join(records, 'verify.log') },
     )
     const summary = join(workspace, '.recovery-probe', 'verify', 'summary.json')
     if (!existsSync(summary))
@@ -65,6 +73,10 @@ async function scorePatch({ testCase, patch, grading, run, cli }) {
       expected: patch.expected,
     }
   } finally {
+    // Verify's records, kept so that a result other than the expected one can be explained.
+    const verified = workspace && join(workspace, '.recovery-probe', 'verify')
+    if (verified && existsSync(verified))
+      await cp(verified, join(records, 'verify'), { recursive: true })
     await rm(folder, { recursive: true, force: true, maxRetries: 5 })
   }
 }

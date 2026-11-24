@@ -26,6 +26,7 @@ import {
   phase1,
   runPilot,
 } from '../../evaluations/verifier-pilot/harness/pilot.mjs'
+import { phase1Records } from '../../evaluations/verifier-pilot/harness/phase1.mjs'
 import { schedule } from '../../evaluations/verifier-pilot/harness/schedule.mjs'
 import {
   everythingUnder,
@@ -300,6 +301,25 @@ test('phase 1 scores the fixed patches with the case policy, and agents need it 
     exitCode: 0,
     reasons: { 'project/status': 'PASSED', 'suspects/changed-lines': 'PASSED' },
   })
+  for (const [patch, verdict] of [
+    ['real-fix.patch', 'VERIFIED'],
+    ['bad.patch', 'NOT_VERIFIED'],
+  ]) {
+    const records = phase1Records(grading, 'self-test', 'status-check', patch)
+    const summary = JSON.parse(
+      await readFile(join(records, 'verify', 'summary.json'), 'utf8'),
+    )
+    assert.equal(
+      summary.verdict,
+      verdict,
+      `${patch}: verify's records are kept`,
+    )
+    assert.match(
+      await readFile(join(records, 'verify.log'), 'utf8'),
+      /VERIFIED/,
+      `${patch}: verify's output is kept`,
+    )
+  }
 })
 
 test('every session is recorded with its transcript and diff, and the agent never gets the grading folder', async (t) => {
