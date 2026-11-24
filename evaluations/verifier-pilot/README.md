@@ -19,6 +19,7 @@ grading/
     phase1/<patch>           those patches
   runs/<run>/
     phase1.json              phase 1's scores
+    phase1/<case>/<patch>/   verify's output (verify.log) and records (verify/) for each fixed patch
     <session>/attempt.json   every session's record: setup failures and timeouts included
     <session>/transcript.log the agent's full output
     <session>/diff.patch     everything the agent changed from the pilot base
