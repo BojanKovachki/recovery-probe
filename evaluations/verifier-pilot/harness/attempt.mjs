@@ -1,5 +1,6 @@
 // One agent session: its folder is prepared, the agent runs under the session's time limit,
 // and its record, full transcript and final diff land in the grading folder, whatever happens.
+import { realpathSync } from 'node:fs'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -8,9 +9,13 @@ import { runCommand } from '../../../dist/tools/process.mjs'
 import { caseEnvironment } from './grading.mjs'
 import { git, prepareSession } from './workspace.mjs'
 
+// The long form of the temporary folder: Windows can name it in its 8.3 short form, which
+// Claude Code refuses file tools in, and where tools that compare paths, such as Vite, fail.
+const TEMP = realpathSync.native(tmpdir())
+
 /** The session's folder: a fresh one under the system's temporary folder. */
 export const sessionFolder = (run, id) =>
-  join(tmpdir(), 'rp-verifier-pilot', run, id)
+  join(TEMP, 'rp-verifier-pilot', run, id)
 
 /** Where a session's record lives: the grading folder, which agents are denied. */
 export const recordFolder = (grading, run, id) => join(grading, 'runs', run, id)
