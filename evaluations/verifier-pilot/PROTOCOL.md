@@ -101,6 +101,10 @@ These are set before any data exists. Once the owner approves this protocol, the
 
 With six cases and three repetitions, the results are descriptive. The report will say so and list every limitation.
 
+## Amendments
+
+Changes the owner approves after this protocol was fixed are in [AMENDMENTS.md](AMENDMENTS.md). Each one is committed before the work it governs, and none changes the decision criteria.
+
 ## Running it
 
 See [README.md](README.md) for the grading folder's layout and the harness's commands.
